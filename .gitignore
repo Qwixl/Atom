@@ -1,0 +1,19 @@
+# ------------------------------------------------------------------
+# PRIVATE WORKING MATERIAL — never committed to the public repo.
+# See AGENTS.md (itself private): the public repo carries only what is
+# strictly necessary to build and run the shell.
+# ------------------------------------------------------------------
+/docs/
+/AGENTS.md
+/notes/
+/scratch/
+*.local.*
+*.private.*
+
+# ------------------------------------------------------------------
+# Build/tooling artifacts
+# ------------------------------------------------------------------
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
