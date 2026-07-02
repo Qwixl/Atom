@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@atom/agent-llm": "workspace:*",
     "@atom/renderer-web": "workspace:*",
     "@atom/shell-core": "workspace:*",
     "react": "^18.3.0",

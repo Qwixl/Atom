@@ -43,14 +43,14 @@ export const CORE_PRIMITIVES: ComponentSpec[] = [
     semanticRole: "input/choice",
     events: ["selected"],
     agentHint:
-      "Present options for the user to pick one. Props: { options: [{ id, label, description?, detail?, recommended? }] }. Emits 'selected' with { optionId }.",
+      "Options for the user to pick from. Props: { label?, name?, multi?, options: [{ id, label, description?, detail?, recommended? }] }. Standalone: emits 'selected' with { optionId } immediately — use ONLY for a single question. For 2+ questions in one surface, place the choices inside ONE core/form so the user answers everything and submits once.",
   },
   {
     name: "core/form",
     semanticRole: "input/form",
     events: ["submitted"],
     agentHint:
-      "Field container. Props: { submitLabel? }. Children are core/text-field nodes. Emits 'submitted' with { values }.",
+      "Container collecting multiple inputs into one submission. Props: { submitLabel? }. Children: core/text-field and/or core/choice nodes (give each a distinct 'name'). Emits a single 'submitted' event with { values: { name: value | value[] } }. Always prefer one form over multiple standalone choices.",
   },
   {
     name: "core/text-field",

@@ -20,3 +20,6 @@ export { SessionEmitter } from "./session.js";
 export type { AgentSession, AgentOutput, AgentOutputListener } from "./session.js";
 
 export { registerCorePrimitives, CORE_PRIMITIVES } from "./core-primitives.js";
+
+export { validateComposition, validateConsequentialAction } from "./validate.js";
+export type { ValidationResult } from "./validate.js";

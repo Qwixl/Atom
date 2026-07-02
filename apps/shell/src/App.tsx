@@ -4,12 +4,14 @@ import {
   Catalog,
   registerCorePrimitives,
   resolveComposition,
+  type AgentSession,
   type AttestationEntry,
   type ConsequentialAction,
   type ResolvedSurface,
   type UiEvent,
 } from "@atom/shell-core";
 import { SurfaceRenderer } from "@atom/renderer-web";
+import { LlmAgentSession, type LlmConfig } from "@atom/agent-llm";
 import { MockAgentSession } from "./mock-agent.js";
 
 type FeedItem =
@@ -22,7 +24,26 @@ interface PendingAction {
   action: ConsequentialAction;
 }
 
+type Provider = "mock" | "llm";
+
+type ShellSession = AgentSession & { dispose?: () => void };
+
 const SUGGESTIONS = ["Book me a flight to Tokyo", "Show me my spending this quarter"];
+const LLM_CONFIG_KEY = "atom-llm-config";
+
+function loadLlmConfig(): LlmConfig | null {
+  try {
+    const raw = localStorage.getItem(LLM_CONFIG_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<LlmConfig>;
+    if (parsed.baseUrl && parsed.apiKey && parsed.model) {
+      return { baseUrl: parsed.baseUrl, apiKey: parsed.apiKey, model: parsed.model };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export function App() {
   const catalog = useMemo(() => {
@@ -53,6 +74,9 @@ export function App() {
     [],
   );
 
+  const [provider, setProvider] = useState<Provider>("mock");
+  const [llmConfig, setLlmConfig] = useState<LlmConfig | null>(() => loadLlmConfig());
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState<PendingAction | null>(null);
@@ -64,7 +88,12 @@ export function App() {
   const feedRef = useRef<HTMLDivElement>(null);
   const idCounter = useRef(0);
 
-  const session = useMemo(() => new MockAgentSession(), []);
+  const session: ShellSession = useMemo(() => {
+    if (provider === "llm" && llmConfig) {
+      return new LlmAgentSession(llmConfig, catalog);
+    }
+    return new MockAgentSession();
+  }, [provider, llmConfig, catalog]);
 
   useEffect(() => {
     const unsubscribe = session.subscribe((output) => {
@@ -82,7 +111,7 @@ export function App() {
     });
     return () => {
       unsubscribe();
-      session.dispose();
+      session.dispose?.();
     };
   }, [session, catalog]);
 
@@ -120,20 +149,51 @@ export function App() {
     session.sendActionDecision(entry.action.id, decision);
   }
 
+  function switchProvider(next: Provider) {
+    if (next === "llm" && !llmConfig) {
+      setSettingsOpen(true);
+      return;
+    }
+    setProvider(next);
+    setFeed([]);
+    setBusy(false);
+  }
+
   return (
     <div className="shell">
       <header className="shell-titlebar">
         <div className="shell-brand">
           <span className="shell-brand-mark" />
           Atom Shell
-          <span className="shell-brand-tag">v1 · mock agent · core vocabulary only</span>
+          <span className="shell-brand-tag">
+            v1 · {provider === "mock" ? "mock agent" : `live agent · ${llmConfig?.model}`}
+          </span>
         </div>
-        <button className="shell-log-toggle" onClick={() => setLogOpen((open) => !open)}>
-          Attestation log
-          {attestations.length > 0 ? (
-            <span className="shell-log-count">{attestations.length}</span>
-          ) : null}
-        </button>
+        <div className="shell-titlebar-actions">
+          <div className="shell-provider">
+            <button
+              className={provider === "mock" ? "active" : ""}
+              onClick={() => switchProvider("mock")}
+            >
+              Mock
+            </button>
+            <button
+              className={provider === "llm" ? "active" : ""}
+              onClick={() => switchProvider("llm")}
+            >
+              Live LLM
+            </button>
+          </div>
+          <button className="shell-log-toggle" onClick={() => setSettingsOpen(true)}>
+            Settings
+          </button>
+          <button className="shell-log-toggle" onClick={() => setLogOpen((open) => !open)}>
+            Attestation log
+            {attestations.length > 0 ? (
+              <span className="shell-log-count">{attestations.length}</span>
+            ) : null}
+          </button>
+        </div>
       </header>
 
       <div className="shell-body">
@@ -152,6 +212,12 @@ export function App() {
                   </button>
                 ))}
               </div>
+              {provider === "llm" ? (
+                <p className="shell-empty-note">
+                  Live agent: composes unscripted from the catalog vocabulary. It has no live data
+                  integrations yet, so content is illustrative.
+                </p>
+              ) : null}
             </div>
           ) : (
             feed.map((item) => {
@@ -259,6 +325,81 @@ export function App() {
           </div>
         </div>
       ) : null}
+
+      {settingsOpen ? (
+        <SettingsDialog
+          initial={llmConfig}
+          onClose={() => setSettingsOpen(false)}
+          onSave={(config) => {
+            try {
+              localStorage.setItem(LLM_CONFIG_KEY, JSON.stringify(config));
+            } catch {
+              // Best-effort persistence; the session still gets the config.
+            }
+            setLlmConfig(config);
+            setSettingsOpen(false);
+            setProvider("llm");
+            setFeed([]);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function SettingsDialog({
+  initial,
+  onClose,
+  onSave,
+}: {
+  initial: LlmConfig | null;
+  onClose: () => void;
+  onSave: (config: LlmConfig) => void;
+}) {
+  const [baseUrl, setBaseUrl] = useState(initial?.baseUrl ?? "https://api.openai.com/v1");
+  const [model, setModel] = useState(initial?.model ?? "");
+  const [apiKey, setApiKey] = useState(initial?.apiKey ?? "");
+  const valid = baseUrl.trim() && model.trim() && apiKey.trim();
+
+  return (
+    <div className="chrome-overlay" role="dialog" aria-modal="true">
+      <div className="settings-dialog">
+        <h2>Live agent settings</h2>
+        <p className="settings-note">
+          Any OpenAI-compatible chat endpoint. The key is stored only in this browser's
+          localStorage and sent only to the endpoint you configure.
+        </p>
+        <label className="atom-field">
+          <span className="atom-field-label">Endpoint base URL</span>
+          <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+        </label>
+        <label className="atom-field">
+          <span className="atom-field-label">Model</span>
+          <input
+            value={model}
+            placeholder="e.g. gpt-4o-mini"
+            onChange={(e) => setModel(e.target.value)}
+          />
+        </label>
+        <label className="atom-field">
+          <span className="atom-field-label">API key</span>
+          <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+        </label>
+        <div className="chrome-actions">
+          <button className="chrome-decline" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="chrome-approve"
+            disabled={!valid}
+            onClick={() =>
+              onSave({ baseUrl: baseUrl.trim(), model: model.trim(), apiKey: apiKey.trim() })
+            }
+          >
+            Save & use live agent
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -10,6 +10,9 @@ importers:
 
   apps/shell:
     dependencies:
+      '@atom/agent-llm':
+        specifier: workspace:*
+        version: link:../../packages/agent-llm
       '@atom/renderer-web':
         specifier: workspace:*
         version: link:../../packages/renderer-web
@@ -38,6 +41,16 @@ importers:
       vite:
         specifier: ^6.0.0
         version: 6.4.3
+
+  packages/agent-llm:
+    dependencies:
+      '@atom/shell-core':
+        specifier: workspace:*
+        version: link:../shell-core
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
 
   packages/renderer-web:
     dependencies:

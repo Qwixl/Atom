@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { createContext, useContext, useState, type FormEvent, type ReactNode } from "react";
 import type {
   JsonObject,
   JsonValue,
@@ -45,18 +45,70 @@ function FallbackView({ node, reason }: { node: ResolvedNode & { kind: "fallback
   );
 }
 
-function ChoiceView({ node, context }: { node: ResolvedNode; context: RenderContext }) {
-  const [selected, setSelected] = useState<string | null>(null);
-  const options = (node.node.props?.options ?? []) as Array<{
-    id?: string;
-    label?: string;
-    description?: string;
-    detail?: string;
-    recommended?: boolean;
-  }>;
+/** True when rendering inside a core/form (choices become form fields). */
+const FormScopeContext = createContext(false);
 
+interface ChoiceOption {
+  id?: string;
+  label?: string;
+  description?: string;
+  detail?: string;
+  recommended?: boolean;
+}
+
+function ChoiceOptionContent({ option, id }: { option: ChoiceOption; id: string }) {
   return (
-    <div className="atom-choice" role="listbox" aria-label="Options">
+    <>
+      <span className="atom-choice-label">
+        {option.label ?? id}
+        {option.recommended ? <span className="atom-choice-recommended">recommended</span> : null}
+      </span>
+      {option.description ? (
+        <span className="atom-choice-description">{option.description}</span>
+      ) : null}
+      {option.detail ? <span className="atom-choice-detail">{option.detail}</span> : null}
+    </>
+  );
+}
+
+function ChoiceView({ node, context }: { node: ResolvedNode; context: RenderContext }) {
+  const insideForm = useContext(FormScopeContext);
+  const [selected, setSelected] = useState<string | null>(null);
+  const props = node.node.props;
+  const options = (props?.options ?? []) as ChoiceOption[];
+  const name = typeof props?.name === "string" ? props.name : node.node.id;
+  const multi = props?.multi === true;
+  const legend = typeof props?.label === "string" ? props.label : undefined;
+
+  if (insideForm) {
+    // Form-scoped: a named radio/checkbox group collected on submit.
+    // No per-click events; the form's single "submitted" event carries it.
+    return (
+      <fieldset className="atom-choice atom-choice-form" aria-label={legend ?? "Options"}>
+        {legend ? <legend className="atom-choice-legend">{legend}</legend> : null}
+        {options.map((option, index) => {
+          const id = option.id ?? String(index);
+          return (
+            <label key={id} className="atom-choice-option atom-choice-option-input">
+              <input
+                type={multi ? "checkbox" : "radio"}
+                name={name}
+                value={id}
+                defaultChecked={option.recommended === true && !multi}
+              />
+              <span className="atom-choice-option-body">
+                <ChoiceOptionContent option={option} id={id} />
+              </span>
+            </label>
+          );
+        })}
+      </fieldset>
+    );
+  }
+
+  // Standalone: single question, emits immediately and locks.
+  return (
+    <div className="atom-choice" role="listbox" aria-label={legend ?? "Options"}>
       {options.map((option, index) => {
         const id = option.id ?? String(index);
         const isSelected = selected === id;
@@ -72,14 +124,7 @@ function ChoiceView({ node, context }: { node: ResolvedNode; context: RenderCont
               context.emit(node, "selected", { optionId: id });
             }}
           >
-            <span className="atom-choice-label">
-              {option.label ?? id}
-              {option.recommended ? <span className="atom-choice-recommended">recommended</span> : null}
-            </span>
-            {option.description ? (
-              <span className="atom-choice-description">{option.description}</span>
-            ) : null}
-            {option.detail ? <span className="atom-choice-detail">{option.detail}</span> : null}
+            <ChoiceOptionContent option={option} id={id} />
           </button>
         );
       })}
@@ -102,8 +147,10 @@ function FormView({
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const values: JsonObject = {};
-    for (const [key, value] of data.entries()) {
-      if (typeof value === "string") values[key] = value;
+    for (const key of new Set(data.keys())) {
+      const all = data.getAll(key).filter((v): v is string => typeof v === "string");
+      // Checkbox groups produce arrays; everything else a single string.
+      values[key] = all.length > 1 ? all : (all[0] ?? "");
     }
     setSubmitted(true);
     context.emit(node, "submitted", { values });
@@ -111,9 +158,11 @@ function FormView({
 
   return (
     <form className="atom-form" onSubmit={handleSubmit}>
-      <fieldset disabled={submitted} className="atom-form-fields">
-        {children}
-      </fieldset>
+      <FormScopeContext.Provider value={true}>
+        <fieldset disabled={submitted} className="atom-form-fields">
+          {children}
+        </fieldset>
+      </FormScopeContext.Provider>
       <button type="submit" className="atom-button" disabled={submitted}>
         {str(node.node.props, "submitLabel", "Submit")}
       </button>

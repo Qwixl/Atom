@@ -16,9 +16,10 @@ An open, user-owned shell for agent-driven interfaces. Your agent composes a dec
 
 | Package | Purpose |
 |---|---|
-| `packages/shell-core` | Embeddable engine: composition model, component catalog, resolver, attestation log, agent-session contract. Zero runtime dependencies. |
-| `packages/renderer-web` | React renderer for the core primitives, with plain-render fallback. |
-| `apps/shell` | Standalone shell reference app: feed, composer, shell-owned confirmation chrome, attestation log viewer, scripted mock agent. |
+| `packages/shell-core` | Embeddable engine: composition model, component catalog, resolver, validation, attestation log, agent-session contract. Zero runtime dependencies. |
+| `packages/renderer-web` | React renderer for the core primitives, with plain-render fallback and form-scoped choices. |
+| `packages/agent-llm` | LLM-backed `AgentSession`: OpenAI-compatible endpoint, catalog-driven system prompt, composition validation before render. |
+| `apps/shell` | Standalone shell reference app: feed, composer, shell-owned confirmation chrome, attestation log viewer, mock agent + live LLM mode. |
 
 ## Quick start
 
@@ -34,9 +35,11 @@ Try the mock-agent demos (no API keys needed):
 - **"Book me a flight to Tokyo"** — choice surface → shell-chrome payment confirmation → attested receipt.
 - **"Show me my spending"** — compositions referencing uninstalled modules, degrading gracefully to semantic-role substitution and raw fallback.
 
+Or switch to **Live LLM** in the app header, configure any OpenAI-compatible endpoint in Settings, and compose unscripted surfaces from the core vocabulary.
+
 ## Status
 
-Early v1. Current focus: core vocabulary, resolver/fallback behavior, attestation, and the embeddable engine boundary. Module sandboxing, registry, and real agent transports (AG-UI) are next.
+Early v1. Validated: live LLM composition from core vocabulary, form-scoped multi-question surfaces, shell-owned consequential-action chrome + attestation log. Next: module sandbox/registry (proof point 2), AG-UI transport adapter, embeddable-engine demo (proof point 4).
 
 ## License
 

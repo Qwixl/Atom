@@ -66,6 +66,63 @@ body {
   color: var(--text-dim);
 }
 
+.shell-titlebar-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.shell-provider {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.shell-provider button {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.shell-provider button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.shell-empty-note {
+  margin-top: 18px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.settings-dialog {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  width: min(440px, calc(100vw - 40px));
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+}
+
+.settings-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.settings-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
 .shell-log-toggle {
   background: transparent;
   border: 1px solid var(--border);
@@ -345,6 +402,41 @@ body {
 
 .atom-choice-option:disabled:not(.selected) {
   opacity: 0.45;
+}
+
+.atom-choice-form {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.atom-choice-legend {
+  font-size: 13px;
+  color: var(--text-dim);
+  padding: 0 0 6px;
+}
+
+.atom-choice-option-input {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.atom-choice-option-input input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.atom-choice-option-input:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.atom-choice-option-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .atom-choice-label {
