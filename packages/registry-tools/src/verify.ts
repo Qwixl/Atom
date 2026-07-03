@@ -4,6 +4,8 @@ import path from "node:path";
 import {
   formatIntegrity,
   validateModuleManifest,
+  bundleStatementReferencesDigest,
+  isSigstoreBundleShape,
   type RegistryIndex,
   type RegistryModuleEntry,
 } from "@qwixl/shell-core";
@@ -14,6 +16,8 @@ export interface VerifyOptions {
   bundleBase: string;
   /** Fail when index entries omit integrity hashes. */
   requireIntegrity?: boolean;
+  /** When true, verify Sigstore bundle digest match for manifests with signatureUrl. */
+  verifySignatures?: boolean;
 }
 
 function sha256File(bytes: Uint8Array): string {
@@ -107,6 +111,46 @@ async function verifyEntry(
 
   if (entry.publisher && entry.publisher !== manifest.publisher) {
     errors.push(`${entry.id}: index publisher mismatch`);
+  }
+
+  if (options.verifySignatures) {
+    const signatureUrl = manifest.signatureUrl ?? entry.signatureUrl;
+    if (signatureUrl) {
+      try {
+        await verifySignatureDigest(
+          manifestBytes,
+          signatureUrl,
+          manifestPath,
+          options.bundleBase,
+        );
+      } catch (error) {
+        errors.push(
+          `${entry.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+}
+
+async function verifySignatureDigest(
+  manifestBytes: Buffer,
+  signatureUrl: string,
+  manifestPath: string,
+  bundleBase: string,
+): Promise<void> {
+  const signaturePath = signatureUrl.startsWith("/")
+    ? path.join(bundleBase, signatureUrl.slice(1))
+    : path.resolve(path.dirname(manifestPath), signatureUrl);
+
+  const raw = await readFile(signaturePath);
+  const bundle = JSON.parse(raw.toString("utf8")) as unknown;
+  if (!isSigstoreBundleShape(bundle)) {
+    throw new Error("invalid Sigstore bundle structure");
+  }
+
+  const digest = sha256File(manifestBytes);
+  if (!bundleStatementReferencesDigest(bundle, digest)) {
+    throw new Error("Sigstore bundle does not reference manifest digest");
   }
 }
 

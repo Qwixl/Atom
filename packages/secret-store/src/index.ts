@@ -3,6 +3,12 @@ export { maskSecret } from "./maskSecret.js";
 export { createLocalStorageSecretStore } from "./localStorageSecretStore.js";
 export { createMemorySecretStore } from "./memorySecretStore.js";
 export {
+  createDefaultSecretStore,
+  createLayeredSecretStore,
+  type DefaultSecretStoreOptions,
+  type SecretStoreBackend,
+} from "./defaultSecretStore.js";
+export {
   DEFAULT_LLM_SECRET_REF,
   LLM_CONNECTION_STORAGE_KEY,
   isLlmConnectionReady,

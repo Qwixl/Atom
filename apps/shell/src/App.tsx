@@ -29,7 +29,7 @@ import {
   recordUiPreferenceFeedback,
 } from "@qwixl/owner-store";
 import {
-  createLocalStorageSecretStore,
+  createDefaultSecretStore,
   DEFAULT_LLM_SECRET_REF,
   isLlmConnectionReady,
   loadAndMigrateLlmConnection,
@@ -37,6 +37,7 @@ import {
   persistLlmConnection,
   resolveLlmConfig,
   type LlmConnectionConfig,
+  type SecretStore,
 } from "@qwixl/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
 import { ProfilePanel } from "./ProfilePanel.js";
@@ -60,6 +61,7 @@ const CURATOR_AUTO_ACCEPT_KEY = "atom-curator-auto-accept-open";
 const PROVIDER_KEY = "atom-provider";
 const DEFAULT_AGUI_URL = "http://localhost:5201/agent";
 const DEFAULT_REGISTRY_URL = "/registry/index.json";
+const REVOCATION_REFRESH_MS = 5 * 60 * 1000;
 
 function loadAgUiConfig(): AgUiAgentConfig {
   const parsed = loadJsonFromStorage<{ url?: string }>(AGUI_CONFIG_KEY);
@@ -88,7 +90,7 @@ function loadCuratorAutoAcceptOpen(): boolean {
   return loadBooleanFromStorage(CURATOR_AUTO_ACCEPT_KEY, true);
 }
 
-function loadSavedProvider(store: ReturnType<typeof createLocalStorageSecretStore>): Provider {
+function loadSavedProvider(store: SecretStore): Provider {
   try {
     const saved = loadStringFromStorage(PROVIDER_KEY);
     if (saved === "llm" && isLlmConnectionReady(loadAndMigrateLlmConnection(store), store)) {
@@ -138,7 +140,7 @@ export function App() {
     [],
   );
 
-  const secretStore = useMemo(() => createLocalStorageSecretStore(), []);
+  const secretStore = useMemo(() => createDefaultSecretStore(), []);
 
   const [provider, setProvider] = useState<Provider>(() => loadSavedProvider(secretStore));
   const [llmConnection, setLlmConnection] = useState<LlmConnectionConfig | null>(() =>
@@ -198,6 +200,34 @@ export function App() {
       cancelled = true;
     };
   }, [registry, registryUrl]);
+
+  useEffect(() => {
+    if (!modulesEnabled) return;
+    let cancelled = false;
+
+    const syncRevocations = async () => {
+      try {
+        const evicted = await registry.syncRevocations(catalog);
+        if (cancelled) return;
+        setRevokedModules(registry.listRevoked());
+        if (evicted.length > 0) {
+          const labels = evicted.map((item) => `${item.id}@${item.version}`).join(", ");
+          setRegistryError(`Revoked modules removed: ${labels}`);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setRegistryError(error instanceof Error ? error.message : String(error));
+        }
+      }
+    };
+
+    void syncRevocations();
+    const timer = window.setInterval(() => void syncRevocations(), REVOCATION_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [modulesEnabled, registry, catalog, registryUrl]);
 
   /** Promote persisted non-guarded curator proposals into open profile records. */
   useEffect(() => {
@@ -435,7 +465,7 @@ export function App() {
         </div>
         {registryError ? (
           <span className="shell-brand-tag shell-registry-error" title={registryError}>
-            registry error
+            {registryError.startsWith("Revoked") ? "revoked" : "registry error"}
           </span>
         ) : null}
         <div className="shell-titlebar-actions">

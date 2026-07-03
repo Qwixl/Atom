@@ -79,7 +79,24 @@ Required fields:
 | `capabilities` | **must be `[]`** in v1 (pure renderers) |
 | `bundleIntegrity` | `sha256:<hex>` — set by `atom-registry publish` |
 
-Optional: `signatureUrl` (Sigstore bundle; runtime verify deferred).
+Optional: `signatureUrl` (Sigstore bundle JSON). Runtime verifies bundle structure and that the in-toto statement subject digest matches manifest bytes; use `atom-registry verify --signatures` at publish time. Full Rekor/x509 verification is deferred.
+
+## Revocations
+
+Registry index may include `revocationsUrl` pointing at:
+
+```ts
+interface RegistryRevocations {
+  revocationsVersion: 1;
+  revoked: Array<{ id: string; version: string; reason?: string; revokedAt?: string }>;
+}
+```
+
+`version: "*"` revokes all versions of an id. `ModuleRegistry` refuses install for revoked entries and exposes `syncRevocations(catalog)` to evict already-installed modules when the list updates.
+
+## Secret storage
+
+Hosts resolve LLM and other credentials via the `SecretStore` interface. Adapter priority: host inject → `localStorage` (dev) → memory. See [SECRET-STORE.md](./SECRET-STORE.md).
 
 ## Module sandbox (web v1)
 

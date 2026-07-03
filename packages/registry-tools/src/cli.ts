@@ -24,7 +24,7 @@ function usage(): never {
 Usage:
   atom-registry scaffold --id <namespace/name> --out <dir> [--publisher <did>]
   atom-registry hash <file>
-  atom-registry verify [--registry-dir <dir>] [--bundle-base <dir>] [--require-integrity]
+  atom-registry verify [--registry-dir <dir>] [--bundle-base <dir>] [--require-integrity] [--signatures]
   atom-registry publish [--registry-dir <dir>] [--module-dir <dir>] [--bundle-base <dir>]
 
 Defaults:
@@ -74,6 +74,7 @@ async function main(): Promise<void> {
       registryDir: path.resolve(registryDir),
       bundleBase: path.resolve(bundleBase),
       requireIntegrity: args.includes("--require-integrity"),
+      verifySignatures: args.includes("--signatures"),
     });
     return;
   }

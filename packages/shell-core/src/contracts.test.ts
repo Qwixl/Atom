@@ -6,6 +6,11 @@ import {
 } from "./agentOutput.js";
 import { validateModuleManifest } from "./registry/manifest.js";
 import { formatIntegrity, integrityMatches, parseIntegrity } from "./registry/hash.js";
+import {
+  bundleStatementReferencesDigest,
+  isSigstoreBundleShape,
+} from "./registry/signature.js";
+import { isRevoked } from "./registry/trust.js";
 import { validateComposition, validateConsequentialAction } from "./validate.js";
 
 const validComposition = {
@@ -160,5 +165,47 @@ describe("validateModuleManifest", () => {
         capabilities: ["storage"],
       }),
     ).toThrow(/pure renderers/);
+  });
+});
+
+describe("Sigstore bundle validation", () => {
+  it("accepts a v0.3 bundle whose DSSE statement references the manifest digest", () => {
+    const digest = "abc123";
+    const statement = {
+      _type: "https://in-toto.io/Statement/v1",
+      subject: [{ name: "manifest.json", digest: { sha256: digest } }],
+    };
+    const payload = btoa(JSON.stringify(statement));
+    const bundle = {
+      mediaType: "application/vnd.dev.sigstore.bundle.v0.3+json",
+      dsseEnvelope: { payload, payloadType: "application/vnd.in-toto+json" },
+    };
+    expect(isSigstoreBundleShape(bundle)).toBe(true);
+    expect(bundleStatementReferencesDigest(bundle, digest)).toBe(true);
+  });
+
+  it("rejects bundles with unrelated mediaType", () => {
+    expect(
+      isSigstoreBundleShape({
+        mediaType: "application/json",
+        dsseEnvelope: { payload: btoa("{}") },
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("registry revocations", () => {
+  it("matches exact version and wildcard revocations", () => {
+    const revocations = {
+      revocationsVersion: 1 as const,
+      revoked: [
+        { id: "demo/a", version: "1.0.0" },
+        { id: "demo/b", version: "*" },
+      ],
+    };
+    expect(isRevoked(revocations, "demo/a", "1.0.0")).toBe(true);
+    expect(isRevoked(revocations, "demo/a", "2.0.0")).toBe(false);
+    expect(isRevoked(revocations, "demo/b", "9.9.9")).toBe(true);
+    expect(isRevoked(revocations, "demo/c", "1.0.0")).toBe(false);
   });
 });

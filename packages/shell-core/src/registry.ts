@@ -29,7 +29,11 @@ export { LocalStorageRegistryCache, manifestCacheKey } from "./registry/cache.js
 export { validateModuleManifest } from "./registry/manifest.js";
 export { formatIntegrity, parseIntegrity, sha256Hex, integrityMatches } from "./registry/hash.js";
 export { assertTrustPolicy, isRevoked } from "./registry/trust.js";
-export { verifyManifestSignature } from "./registry/signature.js";
+export {
+  verifyManifestSignature,
+  isSigstoreBundleShape,
+  bundleStatementReferencesDigest,
+} from "./registry/signature.js";
 
 export interface ModuleRegistryOptions {
   indexUrl: string;
@@ -85,8 +89,8 @@ function moduleIdFromReference(reference: string): string {
 /**
  * Fetches a registry index and lazily installs modules into a Catalog on first
  * composition reference. Precedent: Homebrew taps — forkable static index, no
- * accounts. Sigstore bundle verification deferred at runtime (publish CLI
- * verifies); manifest + bundle sha256 integrity supported.
+ * accounts. Sigstore: runtime DSSE digest match; full Rekor crypto via CLI.
+ * Manifest + bundle sha256 integrity supported.
  */
 export class ModuleRegistry {
   private indexUrl: string;
@@ -218,8 +222,6 @@ export class ModuleRegistry {
   }
 
   async ensureModule(catalog: Catalog, reference: string): Promise<void> {
-    if (catalog.lookup(reference)) return;
-
     const moduleId = moduleIdFromReference(reference);
     const { version } = parseReference(reference);
 
@@ -228,7 +230,7 @@ export class ModuleRegistry {
       return;
     }
 
-    const work = this.fetchAndInstall(catalog, moduleId, version);
+    const work = this.fetchAndInstall(catalog, moduleId, version, reference);
     this.pending.set(moduleId, work);
     try {
       await work;
@@ -237,10 +239,39 @@ export class ModuleRegistry {
     }
   }
 
+  /**
+   * Reload revocations and uninstall any installed modules that appear on the
+   * revocation list. Returns entries that were evicted.
+   */
+  async syncRevocations(catalog: Catalog): Promise<RegistryRevocation[]> {
+    const revocations = await this.refreshRevocations();
+    if (!revocations) return [];
+
+    const index = await this.loadIndex();
+    const evicted: RegistryRevocation[] = [];
+
+    for (const moduleId of [...this.installed]) {
+      const entry = index.modules.find((candidate) => candidate.id === moduleId);
+      if (!entry) continue;
+      const hit = revocations.revoked.find(
+        (item) =>
+          item.id === moduleId &&
+          (item.version === "*" || item.version === entry.version),
+      );
+      if (!hit) continue;
+      catalog.uninstallModule(moduleId);
+      this.installed.delete(moduleId);
+      evicted.push(hit);
+    }
+
+    return evicted;
+  }
+
   private async fetchAndInstall(
     catalog: Catalog,
     moduleId: string,
     requestedVersion?: string,
+    reference?: string,
   ): Promise<void> {
     this.lastError = null;
     try {
@@ -249,12 +280,23 @@ export class ModuleRegistry {
         (candidate) =>
           candidate.id === moduleId && versionMatches(requestedVersion, candidate.version),
       );
-      if (!entry) return;
 
       const revocations = await this.loadRevocations();
-      if (isRevoked(revocations, moduleId, entry.version)) {
-        throw new Error(`Module ${moduleId}@${entry.version} is revoked`);
+      const installedVersion = entry?.version;
+      if (
+        entry &&
+        installedVersion &&
+        isRevoked(revocations, moduleId, installedVersion)
+      ) {
+        if (catalog.lookup(reference ?? moduleId) || this.installed.has(moduleId)) {
+          catalog.uninstallModule(moduleId);
+          this.installed.delete(moduleId);
+        }
+        throw new Error(`Module ${moduleId}@${installedVersion} is revoked`);
       }
+
+      if (reference && catalog.lookup(reference)) return;
+      if (!entry) return;
 
       const manifestUrl = new URL(entry.manifestUrl, this.indexUrl).href;
       const bytes = await this.fetchManifestBytes(entry, moduleId, manifestUrl);

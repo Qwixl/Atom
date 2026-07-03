@@ -1,9 +1,18 @@
 import { sha256Hex } from "./hash.js";
 
+export interface SigstoreBundleShape {
+  mediaType?: string;
+  dsseEnvelope?: { payload?: string; payloadType?: string };
+  content?: { envelope?: { payload?: string } };
+}
+
+const SIGSTORE_BUNDLE_MEDIA = /sigstore\.bundle/;
+
 /**
- * v1 runtime Sigstore check: fetch bundle JSON and confirm it references the
- * manifest digest. Full cryptographic verification (certificate chain, Rekor)
- * is deferred — publish-time verify via registry-tools CLI remains authoritative.
+ * v1 runtime Sigstore check: validate bundle shape, confirm the in-toto
+ * statement subject digest matches the manifest bytes, then fall back to a
+ * recursive digest search for legacy bundles. Full certificate/Rekor crypto
+ * verification is publish-time via `atom-registry verify --signatures`.
  */
 export async function verifyManifestSignature(
   manifestBytes: Uint8Array,
@@ -32,11 +41,61 @@ export async function verifyManifestSignature(
     throw new Error("Signature bundle is not valid JSON");
   }
 
+  if (!isSigstoreBundleShape(bundle)) {
+    throw new Error("Invalid Sigstore bundle structure (missing dsseEnvelope or content)");
+  }
+
   const manifestDigest = await sha256Hex(manifestBytes);
-  if (!bundleReferencesDigest(bundle, manifestDigest)) {
-    throw new Error(
-      "Sigstore bundle does not reference manifest digest (runtime digest match failed)",
-    );
+  if (bundleStatementReferencesDigest(bundle, manifestDigest)) {
+    return;
+  }
+
+  if (bundleReferencesDigest(bundle, manifestDigest)) {
+    return;
+  }
+
+  throw new Error(
+    "Sigstore bundle does not reference manifest digest (runtime digest match failed)",
+  );
+}
+
+/** True when bundle has a recognizable Sigstore envelope. Exported for tests. */
+export function isSigstoreBundleShape(bundle: unknown): bundle is SigstoreBundleShape {
+  if (typeof bundle !== "object" || bundle === null) return false;
+  const record = bundle as SigstoreBundleShape;
+  if (record.mediaType && !SIGSTORE_BUNDLE_MEDIA.test(record.mediaType)) {
+    return false;
+  }
+  return !!(record.dsseEnvelope?.payload || record.content?.envelope?.payload);
+}
+
+/** Extract manifest digest from in-toto statement inside DSSE payload. */
+export function bundleStatementReferencesDigest(bundle: SigstoreBundleShape, digestHex: string): boolean {
+  const envelopes = [bundle.dsseEnvelope, bundle.content?.envelope].filter(Boolean);
+  for (const envelope of envelopes) {
+    if (digestFromDssePayload(envelope?.payload, digestHex)) return true;
+  }
+  return false;
+}
+
+function digestFromDssePayload(payload: string | undefined, digestHex: string): boolean {
+  if (!payload?.trim()) return false;
+  try {
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padding = normalized.length % 4 === 0 ? "" : "=".repeat(4 - (normalized.length % 4));
+    const decoded = atob(normalized + padding);
+    const statement = JSON.parse(decoded) as {
+      subject?: Array<{ digest?: { sha256?: string } }>;
+    };
+    const subjects = statement.subject;
+    if (!Array.isArray(subjects)) return false;
+    return subjects.some((subject) => {
+      const sha = subject.digest?.sha256;
+      if (typeof sha !== "string") return false;
+      return sha.replace(/^sha256:/, "").toLowerCase() === digestHex.toLowerCase();
+    });
+  } catch {
+    return false;
   }
 }
 

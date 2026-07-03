@@ -113,6 +113,10 @@ export {
 
   verifyManifestSignature,
 
+  isSigstoreBundleShape,
+
+  bundleStatementReferencesDigest,
+
 } from "./registry.js";
 
 export type {

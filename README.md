@@ -45,6 +45,8 @@ Build your app with any bundler that resolves the package `development` export c
 | [EMBED.md](./EMBED.md) | Third-party hosts embedding the engine |
 | [MODULES.md](./MODULES.md) | Module authors publishing to a registry |
 | [API-v1.md](./API-v1.md) | Frozen v1 contracts (composition, session, manifest, sandbox) |
+| [SECURITY.md](./SECURITY.md) | Threat model for shipped surface |
+| [SECRET-STORE.md](./SECRET-STORE.md) | Credential adapter priority for embedders |
 
 Live hosts: [shell-atom.vercel.app](https://shell-atom.vercel.app) · [atom-registry.vercel.app](https://atom-registry.vercel.app)
 

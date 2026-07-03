@@ -10,7 +10,7 @@ export interface RegistryModuleEntry {
   bundleIntegrity?: string;
   /** Publisher DID; optional index-level hint for trust checks before manifest fetch. */
   publisher?: string;
-  /** URL to Sigstore bundle JSON; verified by publish CLI today, runtime verify deferred. */
+  /** URL to Sigstore bundle JSON; runtime DSSE digest match; CLI `--signatures` for publish verify. */
   signatureUrl?: string;
 }
 

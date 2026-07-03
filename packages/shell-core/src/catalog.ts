@@ -24,7 +24,7 @@ export interface ModuleManifest {
   bundleUrl: string;
   /** sha256 digest of bundle bytes; verified on install when present. */
   bundleIntegrity?: string;
-  /** URL to Sigstore bundle JSON; runtime verify deferred, CLI verifies at publish. */
+  /** URL to Sigstore bundle JSON; runtime DSSE digest match; CLI verifies at publish. */
   signatureUrl?: string;
   components: Array<{
     name: string;
