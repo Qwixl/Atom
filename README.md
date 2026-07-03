@@ -78,26 +78,28 @@ pnpm release            # build + npm publish (requires npm login)
 
 ## Deploy reference hosts
 
-Build first: `pnpm build:apps`
+Atom deploys as **separate Vercel projects** from the [`Qwixl/Atom`](https://github.com/Qwixl/Atom) repo. This is independent of the Qwixl product monorepo and its Vercel project.
 
-**Reference shell** (`apps/shell`):
+| Project | Root directory | Production URL |
+|---|---|---|
+| `shell-atom` | `apps/shell` | https://shell-atom.vercel.app |
+| `atom-registry` | `apps/registry-host` | https://atom-registry.vercel.app |
 
-- Vercel project root: `apps/shell`
-- Build command: `cd ../.. && pnpm install && pnpm build:packages && pnpm --filter @atom/shell-app build`
-- Output directory: `dist`
+Both projects connect to `Qwixl/Atom` on GitHub. In each Vercel project's **Settings → General → Root Directory**, set the path above so monorepo builds resolve `workspace:*` deps.
 
-**Module registry** (`apps/registry-host`):
+Build settings (also in each app's `vercel.json`):
 
-- Vercel project root: `apps/registry-host`
-- Build command: `cd ../.. && pnpm install && pnpm --filter @atom/registry-host build`
-- Output directory: `dist`
-- CORS headers are set in `vercel.json` for cross-origin module loads.
+**shell-atom** — install: `cd ../.. && pnpm install` · build: `cd ../.. && pnpm build:packages && pnpm --filter @atom/shell-app build` · output: `dist`
 
-Set the shell's registry URL in Settings to the deployed registry origin when testing cross-host module loads.
+**atom-registry** — install: `cd ../.. && pnpm install` · build: `cd ../.. && pnpm --filter @atom/registry-host build` · output: `dist`
+
+Set the shell's registry URL in Settings to `https://atom-registry.vercel.app` when testing cross-host module loads.
+
+Optional GitHub Actions deploy (`.github/workflows/deploy.yml`) requires secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID_SHELL_ATOM`, `VERCEL_PROJECT_ID_ATOM_REGISTRY`.
 
 ## Status
 
-Shell platform v0.1.0 — proof points passed; packages build to `dist/` with changesets; CI runs typecheck, contract tests, and builds. npm publish and public deploy URLs pending org setup.
+Shell platform v0.1.0 — live reference hosts at [shell-atom.vercel.app](https://shell-atom.vercel.app) and [atom-registry.vercel.app](https://atom-registry.vercel.app). npm publish pending org login.
 
 ## License
 

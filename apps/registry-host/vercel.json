@@ -1,4 +1,7 @@
 {
+  "installCommand": "cd ../.. && pnpm install",
+  "buildCommand": "cd ../.. && pnpm --filter @atom/registry-host build",
+  "outputDirectory": "dist",
   "headers": [
     {
       "source": "/(.*)",
