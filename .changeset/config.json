@@ -1,0 +1,20 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [],
+  "linked": [
+    [
+      "@atom/shell-core",
+      "@atom/renderer-web",
+      "@atom/a2ui-adapter",
+      "@atom/ag-ui-adapter",
+      "@atom/owner-store",
+      "@atom/registry-tools"
+    ]
+  ],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": ["@atom/shell-app", "@atom/embed-demo", "@atom/ag-ui-server", "@atom/registry-host", "@atom/agent-llm", "@atom/secret-store"]
+}

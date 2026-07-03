@@ -2,15 +2,31 @@
   "name": "@atom/renderer-web",
   "version": "0.1.0",
   "description": "Web (React) renderer for Atom shell core primitives, with plain-render fallback.",
+  "license": "Apache-2.0",
   "type": "module",
-  "main": "./src/index.tsx",
-  "types": "./src/index.tsx",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.tsx"
+    ".": {
+      "development": "./src/index.tsx",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Qwixl/Atom.git",
+    "directory": "packages/renderer-web"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc --noEmit"
+    "build": "tsc -p tsconfig.build.json"
   },
   "peerDependencies": {
     "react": "^18.3.0"

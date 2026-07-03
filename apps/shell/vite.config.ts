@@ -7,6 +7,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    conditions: ["development", "import", "module", "browser", "default"],
+  },
   server: {
     port: 5200,
     strictPort: true,

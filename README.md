@@ -15,31 +15,43 @@ An open, user-owned shell for agent-driven interfaces. Your agent composes a dec
 
 ## Packages
 
-| Package | Purpose |
-|---|---|
-| `packages/shell-core` | Embeddable engine: composition model, component catalog, resolver, validation, attestation log, agent-session contract. Zero runtime dependencies. |
-| `packages/renderer-web` | React renderer for core primitives and sandboxed module iframes, with plain-render fallback and form-scoped choices. |
-| `packages/a2ui-adapter` | A2UI v0.9.1 wire format → Atom composition model; basic catalog mapping; AG-UI `a2ui.message` CUSTOM event support. |
-| `packages/ag-ui-adapter` | AG-UI wire transport: `AgUiAgentSession` implements `AgentSession` via `@ag-ui/client` HttpAgent; Atom + A2UI CUSTOM event mapping. |
-| `packages/agent-llm` | LLM-backed `AgentSession`: OpenAI-compatible endpoint, catalog-driven system prompt, composition validation before render. |
-| `packages/owner-store` | Owner-controlled profile/memory store: portable records, guarded categories requiring per-interaction chrome approval, scoped context slices. |
-| `apps/shell` | Standalone shell reference app: feed, composer, shell-owned confirmation chrome, attestation log viewer, mock agent + live LLM mode. |
-| `apps/embed-demo` | Minimal third-party host embedding `shell-core` + `renderer-web`; includes cross-host registry demo tab. |
-| `packages/registry-tools` | CLI: hash, verify, and publish module registry indexes with integrity hashes. |
-| `apps/registry-host` | Reference static registry host (port 5202) for cross-origin module loads. |
+| Package | npm | Purpose |
+|---|---|---|
+| `@atom/shell-core` | yes | Embeddable engine: composition model, catalog, resolver, validation, attestation log, agent session contract. |
+| `@atom/renderer-web` | yes | React renderer for core primitives and sandboxed module iframes, with plain-render fallback. |
+| `@atom/a2ui-adapter` | yes | A2UI v0.9.1 wire format → Atom composition model. |
+| `@atom/ag-ui-adapter` | yes | AG-UI wire transport implementing `AgentSession`. |
+| `@atom/owner-store` | yes | Owner-controlled profile/memory store with guarded disclosure. |
+| `@atom/registry-tools` | yes | CLI: hash, verify, and publish module registry indexes. |
+| `@atom/agent-llm` | monorepo only | LLM-backed `AgentSession` for the reference shell. |
+| `@atom/secret-store` | monorepo only | Pluggable secret storage for connection credentials. |
 
-## Quick start
+Reference apps (not published): `apps/shell`, `apps/embed-demo`, `apps/ag-ui-server`, `apps/registry-host`.
+
+## Install (consumers)
+
+```bash
+pnpm add @atom/shell-core @atom/renderer-web react
+# optional adapters
+pnpm add @atom/a2ui-adapter @atom/ag-ui-adapter @atom/owner-store
+```
+
+Build your app with any bundler that resolves the package `development` export condition in dev (Vite, etc.).
+
+## Quick start (monorepo)
 
 ```bash
 pnpm install
-pnpm dev        # shell app on http://localhost:5199
-pnpm dev:embed  # embed demo on http://localhost:5200
-pnpm dev:ag-ui  # AG-UI reference server on http://localhost:5201/agent
-pnpm dev:registry  # module registry host on http://localhost:5202
-pnpm registry:verify   # verify index + manifest + bundle hashes
-pnpm registry:publish  # recompute hashes and update index.json
-pnpm typecheck  # all packages
-pnpm build      # production build
+pnpm build:packages   # compile publishable packages to dist/
+pnpm dev              # reference shell on http://localhost:5200
+pnpm dev:embed        # embed demo on http://localhost:5203
+pnpm dev:ag-ui        # AG-UI reference server on http://localhost:5201/agent
+pnpm dev:registry     # module registry host on http://localhost:5202
+pnpm registry:verify  # verify index + manifest + bundle hashes
+pnpm registry:publish # recompute hashes and update index.json
+pnpm test             # shell-core contract tests
+pnpm typecheck        # all packages
+pnpm build            # packages + deployable apps
 ```
 
 Try the mock-agent demos (no API keys needed):
@@ -53,9 +65,39 @@ Or switch to **AG-UI** in the app header (start `pnpm dev:ag-ui` first), or **Li
 
 Add records in the **Profile** panel — open records personalize the LLM agent; guarded records require shell chrome approval.
 
+## Publish (maintainers)
+
+Requires an npm org with access to the `@atom` scope.
+
+```bash
+pnpm build:packages
+pnpm changeset          # describe the change (linked packages bump together)
+pnpm version-packages   # apply versions + changelog
+pnpm release            # build + npm publish (requires npm login)
+```
+
+## Deploy reference hosts
+
+Build first: `pnpm build:apps`
+
+**Reference shell** (`apps/shell`):
+
+- Vercel project root: `apps/shell`
+- Build command: `cd ../.. && pnpm install && pnpm build:packages && pnpm --filter @atom/shell-app build`
+- Output directory: `dist`
+
+**Module registry** (`apps/registry-host`):
+
+- Vercel project root: `apps/registry-host`
+- Build command: `cd ../.. && pnpm install && pnpm --filter @atom/registry-host build`
+- Output directory: `dist`
+- CORS headers are set in `vercel.json` for cross-origin module loads.
+
+Set the shell's registry URL in Settings to the deployed registry origin when testing cross-host module loads.
+
 ## Status
 
-Early v1. All four proof points passed at v1 scope. Module registry, A2UI wire adapter, AG-UI transport, curator pass at reference scope. Sigstore runtime verify deferred.
+Shell platform v0.1.0 — proof points passed; packages build to `dist/` with changesets; CI runs typecheck, contract tests, and builds. npm publish and public deploy URLs pending org setup.
 
 ## License
 

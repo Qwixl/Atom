@@ -2,15 +2,31 @@
   "name": "@atom/shell-core",
   "version": "0.1.0",
   "description": "Embeddable engine for the Atom shell: composition model, catalog, resolver, attestation log, agent session contract.",
+  "license": "Apache-2.0",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Qwixl/Atom.git",
+    "directory": "packages/shell-core"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
     "test": "vitest run"
   },
   "devDependencies": {

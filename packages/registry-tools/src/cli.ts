@@ -1,11 +1,21 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { hashFile, publishModule, verifyRegistry } from "./verify.js";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const defaultRegistryDir = path.join(repoRoot, "apps/shell/public/registry");
-const defaultBundleBase = path.join(repoRoot, "apps/shell/public");
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const monorepoRoot = path.resolve(packageRoot, "../..");
+const monorepoRegistry = path.join(monorepoRoot, "apps/shell/public/registry");
+const monorepoBundleBase = path.join(monorepoRoot, "apps/shell/public");
+const inMonorepo = existsSync(monorepoRegistry);
+
+const defaultRegistryDir = inMonorepo
+  ? monorepoRegistry
+  : path.join(process.cwd(), "registry");
+const defaultBundleBase = inMonorepo
+  ? monorepoBundleBase
+  : process.cwd();
 
 function usage(): never {
   console.log(`atom-registry — hash, verify, and publish module registry indexes

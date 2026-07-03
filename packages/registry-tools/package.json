@@ -2,22 +2,34 @@
   "name": "@atom/registry-tools",
   "version": "0.1.0",
   "description": "CLI to hash, verify, and publish Atom module registry indexes.",
+  "license": "Apache-2.0",
   "type": "module",
+  "sideEffects": false,
+  "main": "./dist/cli.js",
+  "types": "./dist/cli.d.ts",
   "bin": {
-    "atom-registry": "./src/cli.ts"
+    "atom-registry": "./dist/cli.js"
+  },
+  "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Qwixl/Atom.git",
+    "directory": "packages/registry-tools"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc --noEmit",
-    "verify": "tsx src/cli.ts verify",
-    "publish-module": "tsx src/cli.ts publish"
+    "build": "tsc -p tsconfig.build.json",
+    "verify": "node dist/cli.js verify",
+    "publish-module": "node dist/cli.js publish"
   },
   "dependencies": {
     "@atom/shell-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   }
 }

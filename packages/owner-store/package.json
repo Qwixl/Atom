@@ -2,15 +2,31 @@
   "name": "@atom/owner-store",
   "version": "0.1.0",
   "description": "Owner-controlled profile/memory store for the Atom shell: portable records, guarded categories, scoped context slices for agent disclosure.",
+  "license": "Apache-2.0",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Qwixl/Atom.git",
+    "directory": "packages/owner-store"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc --noEmit"
+    "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "@atom/shell-core": "workspace:*"
