@@ -1,0 +1,20 @@
+services:
+  atom-agent:
+    build:
+      context: .
+      dockerfile: packages/agent-backend/Dockerfile
+    ports:
+      - "${ATOM_AGENT_PORT:-5204}:5204"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "5204"
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-http://127.0.0.1:5204}"
+      AGENT_NAME: "${AGENT_NAME:-Atom agent}"
+      ATOM_DATA_DIR: "/data"
+      ATOM_SHELL_ORIGINS: "${ATOM_SHELL_ORIGINS:-}"
+    volumes:
+      - atom-agent-data:/data
+    restart: unless-stopped
+
+volumes:
+  atom-agent-data:

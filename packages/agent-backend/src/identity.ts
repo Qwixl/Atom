@@ -8,9 +8,14 @@ interface StoredIdentity {
   privateKey: string;
 }
 
+function defaultDataDir(): string {
+  if (process.env.ATOM_DATA_DIR?.trim()) return process.env.ATOM_DATA_DIR.trim();
+  return path.join(process.env.USERPROFILE ?? process.env.HOME ?? ".", ".atom");
+}
+
 const IDENTITY_PATH =
-  process.env.ATOM_AGENT_IDENTITY_PATH ??
-  path.join(process.env.USERPROFILE ?? process.env.HOME ?? ".", ".atom", "agent-identity.json");
+  process.env.ATOM_AGENT_IDENTITY_PATH?.trim() ??
+  path.join(defaultDataDir(), "agent-identity.json");
 
 export async function loadOrCreateIdentity(): Promise<AgentKeyPair> {
   try {

@@ -1,0 +1,54 @@
+{
+  "name": "@qwixl/agent-backend",
+  "version": "0.1.0",
+  "description": "Owner-controlled Atom agent backend: A2A transport, MLS E2E, signed data objects.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "atom-agent": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Qwixl/Atom.git",
+    "directory": "packages/agent-backend"
+  },
+  "scripts": {
+    "dev": "tsx watch src/cli.ts",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "^0.3.13",
+    "@qwixl/a2a-transport": "workspace:*",
+    "@qwixl/mls-session": "workspace:*",
+    "@qwixl/protocol": "workspace:*",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

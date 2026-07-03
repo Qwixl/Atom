@@ -14,25 +14,10 @@ importers:
 
   apps/a2a-agent-server:
     dependencies:
-      '@a2a-js/sdk':
-        specifier: ^0.3.13
-        version: 0.3.13(@bufbuild/protobuf@2.12.1)(express@5.2.1)
-      '@qwixl/a2a-transport':
+      '@qwixl/agent-backend':
         specifier: workspace:*
-        version: link:../../packages/a2a-transport
-      '@qwixl/mls-session':
-        specifier: workspace:*
-        version: link:../../packages/mls-session
-      '@qwixl/protocol':
-        specifier: workspace:*
-        version: link:../../packages/protocol
-      express:
-        specifier: ^5.1.0
-        version: 5.2.1
+        version: link:../../packages/agent-backend
     devDependencies:
-      '@types/express':
-        specifier: ^5.0.3
-        version: 5.0.6
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.0
@@ -219,6 +204,37 @@ importers:
         specifier: ^11.1.0
         version: 11.1.1
     devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/agent-backend:
+    dependencies:
+      '@a2a-js/sdk':
+        specifier: ^0.3.13
+        version: 0.3.13(@bufbuild/protobuf@2.12.1)(express@5.2.1)
+      '@qwixl/a2a-transport':
+        specifier: workspace:*
+        version: link:../a2a-transport
+      '@qwixl/mls-session':
+        specifier: workspace:*
+        version: link:../mls-session
+      '@qwixl/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      express:
+        specifier: ^5.1.0
+        version: 5.2.1
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.3
+        version: 5.0.6
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.0
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.5
       typescript:
         specifier: ^5.6.0
         version: 5.9.3

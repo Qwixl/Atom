@@ -24,6 +24,9 @@ An open, user-owned shell for agent-driven interfaces. Your agent composes a dec
 | `@qwixl/owner-store` | yes | Owner-controlled profile/memory store with guarded disclosure. |
 | `@qwixl/registry-tools` | yes | CLI: hash, verify, and publish module registry indexes. |
 | `@qwixl/protocol` | yes | Data-object model, did:key identity, signed envelopes, governance policy. |
+| `@qwixl/a2a-transport` | yes | A2A wire format for signed data objects + MLS handshake. |
+| `@qwixl/mls-session` | yes | RFC 9420 MLS pair sessions for agent backends. |
+| `@qwixl/agent-backend` | yes | Self-hostable owner agent (`atom-agent` CLI): A2A + MLS + admin API. |
 | `@qwixl/agent-llm` | monorepo only | LLM-backed `AgentSession` for the reference shell. |
 | `@qwixl/secret-store` | monorepo only | Pluggable secret storage for connection credentials. |
 
@@ -46,6 +49,7 @@ Build your app with any bundler that resolves the package `development` export c
 | [EMBED.md](./EMBED.md) | Third-party hosts embedding the engine |
 | [MODULES.md](./MODULES.md) | Module authors publishing to a registry |
 | [API-v1.md](./API-v1.md) | Frozen v1 contracts (composition, session, manifest, sandbox) |
+| [AGENT-BACKEND.md](./AGENT-BACKEND.md) | Self-hosting the owner agent backend |
 | [PROTOCOL-v1.md](./PROTOCOL-v1.md) | Frozen v1 data-object + did:key contracts |
 | [SECURITY.md](./SECURITY.md) | Threat model for shipped surface |
 | [SECRET-STORE.md](./SECRET-STORE.md) | Credential adapter priority for embedders |
@@ -59,7 +63,9 @@ pnpm install
 pnpm build:packages   # compile publishable packages to dist/
 pnpm dev              # reference shell on http://localhost:5200
 pnpm dev:embed        # embed demo on http://localhost:5203
-pnpm dev:ag-ui        # AG-UI reference server on http://localhost:5201/agent
+pnpm dev:a2a          # agent backend dev (watch) on http://localhost:5204
+pnpm start:agent      # run built atom-agent CLI (after build:packages)
+pnpm docker:agent     # Docker Compose self-host (see AGENT-BACKEND.md)
 pnpm dev:registry     # module registry host on http://localhost:5202
 pnpm registry:verify  # verify index + manifest + bundle hashes
 pnpm registry:publish # recompute hashes and update index.json

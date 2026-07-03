@@ -61,7 +61,7 @@ When `semantic.schema` is unknown, hosts MAY use vector similarity against `embe
 ## A2A transport (agent ↔ agent)
 
 - Signed `DataObject` payloads travel in A2A `data` parts as `{ mediaType, object }` (`@qwixl/a2a-transport`).
-- Reference agent backend: `pnpm dev:a2a` → `http://127.0.0.1:5204` (JSON-RPC at `/a2a/jsonrpc`, admin at `/inbox`, `/send`).
+- Reference agent backend: `pnpm start:agent` or `npx @qwixl/agent-backend` → `http://127.0.0.1:5204` (JSON-RPC at `/a2a/jsonrpc`, admin at `/inbox`, `/send`). See [AGENT-BACKEND.md](./AGENT-BACKEND.md).
 - Verification on receive: `verifyMessageDataObjects()` with purpose allowlist.
 - MLS wire parts: `mlsWireToPart()` / `parseMlsWireFromPart()` for encrypted payloads (handshake + application messages).
 - MLS handshake: `sendMlsHandshake()` delivers Welcome + ratchet tree; `POST /mls/connect` on reference agent orchestrates pair setup.
