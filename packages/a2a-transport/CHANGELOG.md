@@ -1,5 +1,11 @@
 # @qwixl/a2a-transport
 
+## 0.3.0
+
+### Minor Changes
+
+- c99dfac: M9: `action:reserve` data object, `atom-actions` agent card skill, and transaction-flow reserve helpers.
+
 ## 0.2.0
 
 ### Minor Changes

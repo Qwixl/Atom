@@ -1,5 +1,16 @@
 # @qwixl/agent-backend
 
+## 0.3.0
+
+### Minor Changes
+
+- c99dfac: M9: Google Calendar CalDAV proxy (`/calendar/*`) and `POST /actions/reserve` for signed soft-hold objects.
+
+### Patch Changes
+
+- Updated dependencies [c99dfac]
+  - @qwixl/a2a-transport@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes
