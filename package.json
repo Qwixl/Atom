@@ -23,7 +23,7 @@
     "build:apps": "pnpm --filter @qwixl/shell-app --filter @qwixl/registry-host build",
     "build": "pnpm build:packages && pnpm build:apps",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm --filter @qwixl/shell-core --filter @qwixl/protocol --filter @qwixl/mls-session --filter @qwixl/a2a-transport test",
+    "test": "pnpm --filter @qwixl/shell-core --filter @qwixl/protocol --filter @qwixl/mls-session --filter @qwixl/a2a-transport --filter @qwixl/owner-store test",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "pnpm build:packages && changeset publish"

@@ -13,6 +13,8 @@ export interface PromptProfile {
   }>;
   guardedCategories: string[];
   summaryByCategory?: Record<string, Record<string, JsonValue>>;
+  /** Retrieved prior-turn excerpts (M10 local RAG). */
+  memorySnippets?: string[];
 }
 
 function profileSection(profile: PromptProfile | undefined): string {
@@ -63,6 +65,19 @@ Never claim to know guarded data you were not given.`
       : "No guarded categories exist. Do not emit data-request messages.";
 
   return `${summaryBlock ? `${summaryBlock}\n\n` : ""}${openBlock}\n\n${guardedBlock}`;
+}
+
+function memorySection(profile: PromptProfile | undefined): string {
+  const snippets = profile?.memorySnippets?.filter((s) => s.trim()) ?? [];
+  if (snippets.length === 0) {
+    return "No prior conversation excerpts matched this turn.";
+  }
+  return `Relevant prior conversation and corrections (apply when on-topic; do not treat as live data):
+${snippets.map((snippet, index) => `${index + 1}. ${snippet}`).join("\n")}`;
+}
+
+function profileAndMemorySection(profile: PromptProfile | undefined): string {
+  return `${profileSection(profile)}\n\n## Retrieved memory\n\n${memorySection(profile)}`;
 }
 
 /**
@@ -148,7 +163,7 @@ for inconsequential navigation (show more, expand, refine).
 
 ## Owner profile and guarded data
 
-${profileSection(profile)}
+${profileAndMemorySection(profile)}
 
 ## Component catalog
 

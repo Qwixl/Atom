@@ -1,5 +1,6 @@
 import { HttpAgent, type AgentSubscriber } from "@ag-ui/client";
 import { v4 as uuid } from "uuid";
+import { ATOM_AGUI_PROFILE_PROP, type PersonalAgentContext } from "@qwixl/owner-store";
 import {
   SessionEmitter,
   type AgentSession,
@@ -13,6 +14,8 @@ export interface AgUiAgentConfig {
   url: string;
   threadId?: string;
   headers?: Record<string, string>;
+  /** Owner profile + memory forwarded to backend each run (M10.4). */
+  profileProvider?: () => PersonalAgentContext;
 }
 
 /**
@@ -22,6 +25,7 @@ export interface AgUiAgentConfig {
  */
 export class AgUiAgentSession extends SessionEmitter implements AgentSession {
   private agent: HttpAgent;
+  private profileProvider?: () => PersonalAgentContext;
   private inFlight = false;
   private queued: string[] = [];
   private disposed = false;
@@ -29,6 +33,7 @@ export class AgUiAgentSession extends SessionEmitter implements AgentSession {
 
   constructor(config: AgUiAgentConfig) {
     super();
+    this.profileProvider = config.profileProvider;
     this.agent = new HttpAgent({
       url: config.url,
       threadId: config.threadId ?? uuid(),
@@ -116,7 +121,13 @@ export class AgUiAgentSession extends SessionEmitter implements AgentSession {
     };
 
     try {
-      await this.agent.runAgent({}, subscriber);
+      const profile = this.profileProvider?.();
+      await this.agent.runAgent(
+        profile
+          ? { forwardedProps: { [ATOM_AGUI_PROFILE_PROP]: profile } }
+          : {},
+        subscriber,
+      );
     } catch (error) {
       this.emit({
         type: "text",

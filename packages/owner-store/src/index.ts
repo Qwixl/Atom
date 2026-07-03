@@ -6,6 +6,13 @@ export type {
   RecordProposal,
 } from "./OwnerStore.js";
 export { formatRecordValue } from "./formatRecordValue.js";
+export {
+  ConversationMemoryIndex,
+  scoreTokenOverlap,
+  tokenize,
+  type MemoryChunk,
+} from "./conversationMemory.js";
+export { buildPersonalAgentContext, type PersonalAgentContext, ATOM_AGUI_PROFILE_PROP, retrieveRecordSnippets } from "./personalAgentContext.js";
 export { buildProfileSummaryByCategory } from "./profileSummary.js";
 export { activeContextTags } from "./evidenceHelpers.js";
 export { recordUiPreferenceFeedback } from "./uiEvidence.js";

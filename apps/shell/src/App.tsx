@@ -25,6 +25,9 @@ import { AgUiAgentSession, type AgUiAgentConfig } from "@qwixl/ag-ui-adapter";
 import {
   OwnerStore,
   activeContextTags,
+  buildPersonalAgentContext,
+  ConversationMemoryIndex,
+  type MemoryChunk,
   type OwnerRecord,
   type RecordProposal,
   recordUiPreferenceFeedback,
@@ -141,6 +144,10 @@ const ownerProposalsPersistence = createJsonPersistence<RecordProposal[]>({
   key: "atom-owner-proposals",
   validate: (value): value is RecordProposal[] => Array.isArray(value),
 });
+const conversationMemoryPersistence = createJsonPersistence<MemoryChunk[]>({
+  key: "atom-conversation-memory",
+  validate: (value): value is MemoryChunk[] => Array.isArray(value),
+});
 
 export function App() {
   const catalog = useMemo(() => {
@@ -243,6 +250,18 @@ export function App() {
   const [revokedModules, setRevokedModules] = useState<readonly RegistryRevocation[]>([]);
   const feedRef = useRef<HTMLDivElement>(null);
   const turnTranscript = useRef<Array<{ role: "user" | "assistant"; text: string }>>([]);
+  const lastUserMessageRef = useRef("");
+
+  const conversationMemory = useMemo(
+    () =>
+      new ConversationMemoryIndex({
+        restore: conversationMemoryPersistence.load() ?? [],
+        persist: (chunks) => conversationMemoryPersistence.save([...chunks]),
+      }),
+    [],
+  );
+  const conversationMemoryRef = useRef(conversationMemory);
+  conversationMemoryRef.current = conversationMemory;
 
   const registry = useMemo(
     () => new ModuleRegistry({ indexUrl: registryUrl, trust: registryTrust }),
@@ -308,16 +327,23 @@ export function App() {
       // Live provider: the slice is reassembled from the store on every
       // model call, so guarding/unguarding a record applies from the
       // agent's next turn (earlier transcript influence remains).
-      return new LlmAgentSession(llmConfig, catalog, () => ownerStore.contextSlice());
+      return new LlmAgentSession(llmConfig, catalog, () =>
+        buildPersonalAgentContext(ownerStore, conversationMemory, lastUserMessageRef.current),
+      );
     }
     if (provider === "ag-ui") {
-      return new AgUiAgentSession(agUiConfig);
+      return new AgUiAgentSession({
+        ...agUiConfig,
+        profileProvider: () =>
+          buildPersonalAgentContext(ownerStore, conversationMemory, lastUserMessageRef.current),
+      });
     }
     return new MockAgentSession({
-      profileProvider: () => ownerStore.contextSlice(),
+      profileProvider: () =>
+        buildPersonalAgentContext(ownerStore, conversationMemory, lastUserMessageRef.current),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, llmConfig, agUiConfig, catalog, ownerStore]);
+  }, [provider, llmConfig, agUiConfig, catalog, ownerStore, conversationMemory]);
 
   const sessionRef = useRef(session);
   sessionRef.current = session;
@@ -362,16 +388,20 @@ export function App() {
         guardedRecordCount: (categories) =>
           ownerStoreRef.current.guardedRecords(categories).length,
         onTranscriptLine: (role, text) => {
+          if (role === "user") lastUserMessageRef.current = text;
           turnTranscript.current.push({ role, text });
         },
         onTurnComplete: () => {
           const activeProvider = providerRef.current;
           const activeLlmConfig = llmConfigRef.current;
           const activeOwnerStore = ownerStoreRef.current;
+          const transcript = turnTranscript.current;
+          if (transcript.length >= 2) {
+            conversationMemoryRef.current.indexTurn(transcript);
+          }
           if (activeProvider !== "llm" || !activeLlmConfig || !curatorEnabledRef.current) {
             return;
           }
-          const transcript = turnTranscript.current;
           if (transcript.length < 2) return;
           void runCuratorPass(activeLlmConfig, {
             transcript,
@@ -464,6 +494,9 @@ export function App() {
       action: pending.action,
       decision,
     });
+    conversationMemoryRef.current.indexCorrection(
+      `${pending.action.title} (${decision}): ${JSON.stringify(pending.action.terms)}`,
+    );
     setAttestations([...attestationLog.list()]);
     const { dataRequest } = pending;
     conversationRef.current.clearPending();
@@ -502,6 +535,9 @@ export function App() {
         action: pendingComms.action,
         decision,
       });
+      conversationMemoryRef.current.indexCorrection(
+        `${pendingComms.action.title} (${decision}): ${JSON.stringify(pendingComms.action.terms)}`,
+      );
       setAttestations([...attestationLog.list()]);
       setCommsPending(null);
       if (decision === "approved") {

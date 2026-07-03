@@ -200,6 +200,9 @@ importers:
       '@qwixl/a2ui-adapter':
         specifier: workspace:*
         version: link:../a2ui-adapter
+      '@qwixl/owner-store':
+        specifier: workspace:*
+        version: link:../owner-store
       '@qwixl/shell-core':
         specifier: workspace:*
         version: link:../shell-core
@@ -231,6 +234,9 @@ importers:
       '@qwixl/mls-session':
         specifier: workspace:*
         version: link:../mls-session
+      '@qwixl/owner-store':
+        specifier: workspace:*
+        version: link:../owner-store
       '@qwixl/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -295,6 +301,9 @@ importers:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
+      vitest:
+        specifier: ^3.2.6
+        version: 3.2.6(@types/node@22.20.0)(tsx@4.22.5)
 
   packages/protocol:
     dependencies:

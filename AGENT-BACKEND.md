@@ -19,7 +19,7 @@ Owner-controlled agent backend for Phase 1 private comms: **did:key** identity, 
 | `POST /calendar/query` | CalDAV query events (`timeMin`, `timeMax`, optional `accessToken`) |
 | `POST /calendar/events` | Create CalDAV event (`title`, `start`, `end`, optional `location`, `accessToken`) |
 | `POST /actions/reserve` | Mint `action:reserve` object (`refId`, `refKind`, `attestationRef`; optional peer send) |
-| `POST /agent` | AG-UI SSE endpoint (LLM when `LLM_API_KEY` set) |
+| `POST /agent` | AG-UI SSE endpoint (LLM when `LLM_API_KEY` set). Shell forwards owner profile via `forwardedProps.atomProfile`. |
 | `/.well-known/agent-card.json` | A2A agent card |
 | `/a2a/jsonrpc` | A2A JSON-RPC transport |
 

@@ -43,6 +43,7 @@
     "@qwixl/ag-ui-adapter": "workspace:*",
     "@qwixl/agent-llm": "workspace:*",
     "@qwixl/mls-session": "workspace:*",
+    "@qwixl/owner-store": "workspace:*",
     "@qwixl/protocol": "workspace:*",
     "@qwixl/shell-core": "workspace:*",
     "express": "^5.1.0",

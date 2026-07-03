@@ -8,6 +8,7 @@ import {
 } from "@qwixl/shell-core";
 import { v4 as uuid } from "uuid";
 import { agentOutputToAgUiEvents, textAgUiEvents } from "./outputEvents.js";
+import { profileFromRunAgentInput } from "./profileFromInput.js";
 
 export interface LlmAgUiConfig {
   baseUrl: string;
@@ -143,7 +144,10 @@ export async function* runLlmAgUiEvents(
     history.push({ role: "user", content: lastUserContent(input) });
   }
   const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
-    { role: "system", content: buildSystemPrompt(catalog, config.profile) },
+    {
+      role: "system",
+      content: buildSystemPrompt(catalog, profileFromRunAgentInput(input, config.profile)),
+    },
     ...history,
   ];
 
