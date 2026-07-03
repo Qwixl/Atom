@@ -11,6 +11,8 @@ export type ResolvedNode =
       node: CompositionNode;
       entry: CatalogEntry;
       children: ResolvedNode[];
+      /** Present when entry.origin is "module" and the bundle is registered. */
+      moduleBundleUrl?: string;
     }
   | {
       /** Component missing but a core primitive shares its semantic role. */
@@ -47,7 +49,11 @@ export function resolveComposition(
     const entry = catalog.lookup(node.component);
 
     if (entry) {
-      return { kind: "component", node, entry, children };
+      const moduleBundleUrl =
+        entry.origin === "module" && entry.spec.moduleId
+          ? catalog.getModuleBundle(entry.spec.moduleId)
+          : undefined;
+      return { kind: "component", node, entry, children, moduleBundleUrl };
     }
 
     if (node.semanticRole) {

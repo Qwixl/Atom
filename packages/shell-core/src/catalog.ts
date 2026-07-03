@@ -20,6 +20,12 @@ export interface ModuleManifest {
   version: string;
   publisher: string;
   targets: string[];
+  /** v1: URL to the iframe bundle entry (served statically by the host). */
+  bundleUrl: string;
+  /** sha256 digest of bundle bytes; verified on install when present. */
+  bundleIntegrity?: string;
+  /** URL to Sigstore bundle JSON; runtime verify deferred, CLI verifies at publish. */
+  signatureUrl?: string;
   components: Array<{
     name: string;
     semanticRole: string;
@@ -46,11 +52,12 @@ function parseReference(reference: string): { name: string; version?: string } {
 
 /**
  * The shell's vocabulary: core primitives plus lazily-installed modules.
- * v1 keeps installation synchronous/in-memory; registry fetch + signature
- * verification slot in behind `installModule`.
+ * v1: core primitives plus modules installed via {@link ModuleRegistry} or
+ * direct `installModule` (tests, embed hosts).
  */
 export class Catalog {
   private entries = new Map<string, CatalogEntry>();
+  private modules = new Map<string, ModuleManifest>();
 
   registerCore(spec: ComponentSpec): void {
     this.entries.set(spec.name, { spec, origin: "core" });
@@ -62,6 +69,10 @@ export class Catalog {
         `Module ${manifest.id} requests capabilities; v1 modules must be pure renderers.`,
       );
     }
+    if (!manifest.bundleUrl?.trim()) {
+      throw new Error(`Module ${manifest.id} must declare a bundleUrl.`);
+    }
+    this.modules.set(manifest.id, manifest);
     for (const component of manifest.components) {
       this.entries.set(component.name, {
         origin: "module",
@@ -77,9 +88,18 @@ export class Catalog {
   }
 
   uninstallModule(moduleId: string): void {
+    this.modules.delete(moduleId);
     for (const [name, entry] of this.entries) {
       if (entry.spec.moduleId === moduleId) this.entries.delete(name);
     }
+  }
+
+  isModuleInstalled(moduleId: string): boolean {
+    return this.modules.has(moduleId);
+  }
+
+  getModuleBundle(moduleId: string): string | undefined {
+    return this.modules.get(moduleId)?.bundleUrl;
   }
 
   /** Resolve a composition reference like "finance/portfolio-chart@2". */
