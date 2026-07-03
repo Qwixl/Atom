@@ -38,7 +38,7 @@ export {
 export interface ModuleRegistryOptions {
   indexUrl: string;
   fetch?: typeof fetch;
-  /** Owner install policy. Default: accept any publisher; integrity optional. */
+  /** Owner install policy. Default: require manifest integrity. */
   trust?: RegistryTrustPolicy;
   /** Persist fetched index/manifests. Default: localStorage in browser. Pass `false` to disable. */
   cache?: RegistryCacheStore | false;
@@ -110,7 +110,11 @@ export class ModuleRegistry {
   constructor(options: ModuleRegistryOptions) {
     this.indexUrl = options.indexUrl;
     this.fetchFn = options.fetch ?? fetch;
-    this.trust = options.trust;
+    this.trust = {
+      requireIntegrity: true,
+      requireSignature: false,
+      ...options.trust,
+    };
     this.cache =
       options.cache === false
         ? false

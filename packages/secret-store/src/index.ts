@@ -9,6 +9,15 @@ export {
   type SecretStoreBackend,
 } from "./defaultSecretStore.js";
 export {
+  createProductionSecretStore,
+  purgeInsecureLocalCredentials,
+} from "./productionSecretStore.js";
+export {
+  loadLlmConnectionFromSession,
+  persistLlmConnectionToSession,
+  clearSessionLlmConnection,
+} from "./sessionLlmConnection.js";
+export {
   DEFAULT_LLM_SECRET_REF,
   LLM_CONNECTION_STORAGE_KEY,
   isLlmConnectionReady,

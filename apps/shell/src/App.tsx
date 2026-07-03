@@ -30,17 +30,28 @@ import {
 } from "@qwixl/owner-store";
 import {
   createDefaultSecretStore,
+  createProductionSecretStore,
   DEFAULT_LLM_SECRET_REF,
   isLlmConnectionReady,
   loadAndMigrateLlmConnection,
+  loadLlmConnectionFromSession,
+  LLM_CONNECTION_STORAGE_KEY,
   maskSecret,
   persistLlmConnection,
+  persistLlmConnectionToSession,
+  purgeInsecureLocalCredentials,
   resolveLlmConfig,
   type LlmConnectionConfig,
   type SecretStore,
 } from "@qwixl/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
 import { ProfilePanel } from "./ProfilePanel.js";
+import {
+  ALLOW_BROWSER_LLM,
+  IS_PRODUCTION_HOST,
+  PRODUCTION_REGISTRY_TRUST,
+  PRODUCTION_REGISTRY_URL,
+} from "./hostConfig.js";
 
 type Provider = "mock" | "llm" | "ag-ui";
 type SidePanel = "none" | "log" | "profile";
@@ -70,10 +81,12 @@ function loadAgUiConfig(): AgUiAgentConfig {
 }
 
 function loadRegistryUrl(): string {
+  if (IS_PRODUCTION_HOST) return PRODUCTION_REGISTRY_URL;
   return loadStringFromStorage(REGISTRY_URL_KEY)?.trim() || DEFAULT_REGISTRY_URL;
 }
 
 function loadRegistryTrust(): RegistryTrustPolicy {
+  if (IS_PRODUCTION_HOST) return PRODUCTION_REGISTRY_TRUST;
   const parsed = loadJsonFromStorage<RegistryTrustPolicy>(REGISTRY_TRUST_KEY);
   if (!parsed) return { requireIntegrity: true };
   return {
@@ -87,13 +100,20 @@ function loadCuratorEnabled(): boolean {
 }
 
 function loadCuratorAutoAcceptOpen(): boolean {
-  return loadBooleanFromStorage(CURATOR_AUTO_ACCEPT_KEY, true);
+  return loadBooleanFromStorage(CURATOR_AUTO_ACCEPT_KEY, false);
+}
+
+function loadLlmConnection(store: SecretStore): LlmConnectionConfig | null {
+  if (IS_PRODUCTION_HOST) {
+    return loadLlmConnectionFromSession(store);
+  }
+  return loadAndMigrateLlmConnection(store);
 }
 
 function loadSavedProvider(store: SecretStore): Provider {
   try {
     const saved = loadStringFromStorage(PROVIDER_KEY);
-    if (saved === "llm" && isLlmConnectionReady(loadAndMigrateLlmConnection(store), store)) {
+    if (saved === "llm" && ALLOW_BROWSER_LLM && isLlmConnectionReady(loadLlmConnection(store), store)) {
       return "llm";
     }
     if (saved === "ag-ui") return "ag-ui";
@@ -140,11 +160,18 @@ export function App() {
     [],
   );
 
-  const secretStore = useMemo(() => createDefaultSecretStore(), []);
+  const secretStore = useMemo(
+    () => (IS_PRODUCTION_HOST ? createProductionSecretStore() : createDefaultSecretStore()),
+    [],
+  );
+
+  useEffect(() => {
+    if (IS_PRODUCTION_HOST) purgeInsecureLocalCredentials(LLM_CONNECTION_STORAGE_KEY);
+  }, []);
 
   const [provider, setProvider] = useState<Provider>(() => loadSavedProvider(secretStore));
   const [llmConnection, setLlmConnection] = useState<LlmConnectionConfig | null>(() =>
-    loadAndMigrateLlmConnection(secretStore),
+    loadLlmConnection(secretStore),
   );
   const llmConfig = useMemo((): LlmConfig | null => {
     if (!llmConnection) return null;
@@ -420,6 +447,7 @@ export function App() {
   }
 
   function switchProvider(next: Provider) {
+    if (next === "llm" && !ALLOW_BROWSER_LLM) return;
     if (next === "llm" && !isLlmConnectionReady(llmConnection, secretStore)) {
       setSettingsIntent("llm");
       setSettingsOpen(true);
@@ -476,12 +504,14 @@ export function App() {
             >
               Mock
             </button>
-            <button
-              className={provider === "llm" || settingsIntent === "llm" ? "active" : ""}
-              onClick={() => switchProvider("llm")}
-            >
-              Live LLM
-            </button>
+            {ALLOW_BROWSER_LLM ? (
+              <button
+                className={provider === "llm" || settingsIntent === "llm" ? "active" : ""}
+                onClick={() => switchProvider("llm")}
+              >
+                Live LLM
+              </button>
+            ) : null}
             <button
               className={provider === "ag-ui" || settingsIntent === "ag-ui" ? "active" : ""}
               onClick={() => switchProvider("ag-ui")}
@@ -682,13 +712,18 @@ export function App() {
           revokedModules={revokedModules}
           curatorInitial={curatorEnabled}
           curatorAutoAcceptInitial={curatorAutoAcceptOpen}
+          productionLocked={IS_PRODUCTION_HOST}
           intent={settingsIntent}
           onClose={closeSettings}
           onSaveLlm={(connection, apiKey) => {
             if (apiKey !== undefined) {
               secretStore.set(connection.secretRef, apiKey);
             }
-            persistLlmConnection(connection);
+            if (IS_PRODUCTION_HOST) {
+              persistLlmConnectionToSession(connection);
+            } else {
+              persistLlmConnection(connection);
+            }
             setLlmConnection(connection);
             setSettingsIntent(null);
             setSettingsOpen(false);
@@ -706,6 +741,7 @@ export function App() {
             conversationRef.current.reset();
           }}
           onSaveRegistry={(url, trust) => {
+            if (IS_PRODUCTION_HOST) return;
             saveStringToStorage(REGISTRY_URL_KEY, url);
             saveJsonToStorage(REGISTRY_TRUST_KEY, trust);
             registry.uninstallAll(catalog);
@@ -745,6 +781,7 @@ function SettingsDialog({
   revokedModules,
   curatorInitial,
   curatorAutoAcceptInitial,
+  productionLocked,
   intent,
   onClose,
   onSaveLlm,
@@ -760,6 +797,7 @@ function SettingsDialog({
   revokedModules: readonly RegistryRevocation[];
   curatorInitial: boolean;
   curatorAutoAcceptInitial: boolean;
+  productionLocked: boolean;
   intent: Provider | null;
   onClose: () => void;
   onSaveLlm: (connection: LlmConnectionConfig, apiKey?: string) => void;
@@ -826,10 +864,16 @@ function SettingsDialog({
         ) : null}
         <section className="settings-section settings-section-first">
           <h3>Live LLM</h3>
+          {productionLocked ? (
+            <p className="settings-note">
+              Browser-direct API keys are disabled on this deployment. Use <strong>AG-UI</strong> with
+              a server-side agent so credentials never enter the browser.
+            </p>
+          ) : (
+            <>
           <p className="settings-note">
-            OpenAI-compatible chat endpoint. Browser-direct mode stores your API key separately
-            from connection settings (local dev backend). For production, use AG-UI so keys stay
-            on your server.
+            OpenAI-compatible chat endpoint. Keys are stored in memory for this session only (local
+            dev). For production embedders, use AG-UI or inject a host SecretStore.
           </p>
           <label className="atom-field">
             <span className="atom-field-label">Endpoint base URL</span>
@@ -869,6 +913,20 @@ function SettingsDialog({
               />
             </label>
           )}
+          {!intent ? (
+            <div className="chrome-actions settings-section-actions">
+              <button
+                type="button"
+                className="chrome-approve"
+                disabled={!llmValid}
+                onClick={saveLlmAndEnable}
+              >
+                Use live LLM
+              </button>
+            </div>
+          ) : null}
+            </>
+          )}
           <label className="atom-field atom-field-checkbox">
             <input type="checkbox" checked={curatorOn} onChange={(e) => setCuratorOn(e.target.checked)} />
             <span>Curator pass after each turn (extracts profile records from conversation)</span>
@@ -884,18 +942,6 @@ function SettingsDialog({
               Auto-save open (non-guarded) curator records so preferences apply on your next turn
             </span>
           </label>
-          {!intent ? (
-            <div className="chrome-actions settings-section-actions">
-              <button
-                type="button"
-                className="chrome-approve"
-                disabled={!llmValid}
-                onClick={saveLlmAndEnable}
-              >
-                Use live LLM
-              </button>
-            </div>
-          ) : null}
         </section>
         <section className="settings-section">
           <h3>AG-UI backend</h3>
@@ -919,6 +965,17 @@ function SettingsDialog({
         </section>
         <section className="settings-section">
           <h3>Module registry</h3>
+          {productionLocked ? (
+            <>
+              <p className="settings-note">
+                Registry URL and trust policy are pinned on this deployment.
+              </p>
+              <p className="settings-note">
+                <code>{PRODUCTION_REGISTRY_URL}</code> — integrity required.
+              </p>
+            </>
+          ) : (
+            <>
           <p className="settings-note">
             Static index URL (Homebrew-tap style). Modules lazy-load on first composition
             reference. Manifest and bundle sha256 verified at install; optional Sigstore bundle
@@ -944,6 +1001,21 @@ function SettingsDialog({
             />
             <span>Require Sigstore signatureUrl on manifests (digest match at install)</span>
           </label>
+          {!productionLocked ? (
+          <div className="chrome-actions settings-section-actions">
+            <button
+              className="chrome-approve"
+              disabled={!registryIndexUrl.trim()}
+              onClick={() =>
+                onSaveRegistry(registryIndexUrl.trim(), { requireIntegrity, requireSignature })
+              }
+            >
+              Save registry settings
+            </button>
+          </div>
+          ) : null}
+            </>
+          )}
           {revokedModules.length > 0 ? (
             <div className="settings-revocations">
               <span className="atom-field-label">Revoked modules ({revokedModules.length})</span>
@@ -956,24 +1028,13 @@ function SettingsDialog({
                 ))}
               </ul>
             </div>
-          ) : (
+          ) : !productionLocked ? (
             <p className="settings-note">No revoked modules in the current index revocations list.</p>
-          )}
-          <div className="chrome-actions settings-section-actions">
-            <button
-              className="chrome-approve"
-              disabled={!registryIndexUrl.trim()}
-              onClick={() =>
-                onSaveRegistry(registryIndexUrl.trim(), { requireIntegrity, requireSignature })
-              }
-            >
-              Save registry settings
-            </button>
-          </div>
+          ) : null}
         </section>
         </div>
         <div className="settings-dialog-footer">
-          {intent === "llm" ? (
+          {intent === "llm" && !productionLocked ? (
             <button
               type="button"
               className="chrome-approve"

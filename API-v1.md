@@ -100,9 +100,9 @@ Hosts resolve LLM and other credentials via the `SecretStore` interface. Adapter
 
 ## Module sandbox (web v1)
 
-- iframe with `sandbox="allow-scripts allow-same-origin"`.
-- Props in via URL hash `#init=<json>` and optional `{ type: "init", props, theme }` postMessage.
-- Module signals `{ type: "ready" }` when loaded.
+- iframe with `sandbox="allow-scripts"` only — **no** `allow-same-origin` (parent storage isolation).
+- Props via `{ type: "init", props, theme }` postMessage after module `{ type: "ready" }`; shell validates `event.origin`.
+- Module bundles should be served **cross-origin** from the shell in production (registry host).
 - Outbound events: `{ type: "event", name, payload }` — `name` must be declared in manifest.
 - No network, storage, navigation, or sensors from module code.
 

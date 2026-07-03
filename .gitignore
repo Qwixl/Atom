@@ -9,6 +9,13 @@
 /scratch/
 *.local.*
 *.private.*
+*.pem
+*.key
+credentials.json
+id_rsa
+.env
+.env.*
+!.env.example
 
 # ------------------------------------------------------------------
 # Build/tooling artifacts

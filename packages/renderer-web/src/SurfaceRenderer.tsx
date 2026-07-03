@@ -1,11 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import type {
-  JsonObject,
-  JsonValue,
-  ResolvedNode,
-  ResolvedSurface,
-  UiEvent,
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  validateHttpsUrl,
+  type JsonObject,
+  type JsonValue,
+  type ResolvedNode,
+  type ResolvedSurface,
+  type UiEvent,
 } from "@qwixl/shell-core";
+import { createModuleBridge, MODULE_IFRAME_SANDBOX } from "./moduleBridge.js";
 
 export interface SurfaceRendererProps {
   surface: ResolvedSurface;
@@ -182,22 +184,18 @@ function ModuleFrameView({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const propsRef = useRef(node.node.props);
   propsRef.current = node.node.props;
-
-  const iframeSrc = `${bundleUrl}#init=${encodeURIComponent(JSON.stringify(node.node.props ?? {}))}`;
+  const bridge = useMemo(() => createModuleBridge(bundleUrl), [bundleUrl]);
 
   const sendInit = useCallback(() => {
-    // Retry path when the iframe reloads; primary init is the URL hash above
-    // because sandboxed iframes without allow-same-origin may ignore parent
-    // postMessage in some hosts.
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: "init", props: propsRef.current ?? {}, theme: {} },
-      "*",
-    );
-  }, []);
+    const win = iframeRef.current?.contentWindow;
+    if (!win) return;
+    bridge.sendInit(win, (propsRef.current ?? {}) as Record<string, unknown>);
+  }, [bridge]);
 
   useEffect(() => {
     function onMessage(event: MessageEvent): void {
       if (event.source !== iframeRef.current?.contentWindow) return;
+      if (!bridge.isAllowedMessageOrigin(event.origin)) return;
       const data = event.data as { type?: string; name?: string; payload?: JsonValue } | null;
       if (!data || typeof data !== "object") return;
       if (data.type === "ready") {
@@ -210,17 +208,16 @@ function ModuleFrameView({
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [context, node, sendInit]);
+  }, [bridge, context, node, sendInit]);
 
   return (
     <div className="atom-module">
       <div className="atom-module-badge">{node.entry.spec.name}</div>
       <iframe
-        key={iframeSrc}
         ref={iframeRef}
         className="atom-module-frame"
-        src={iframeSrc}
-        sandbox="allow-scripts allow-same-origin"
+        src={bundleUrl}
+        sandbox={MODULE_IFRAME_SANDBOX}
         title={node.entry.spec.name}
         onLoad={sendInit}
       />
@@ -334,13 +331,22 @@ function renderResolved(resolved: ResolvedNode, context: RenderContext): ReactNo
       return <Tag className="atom-heading">{str(props, "text")}</Tag>;
     }
 
-    case "core/image":
+    case "core/image": {
+      const src = validateHttpsUrl(str(props, "src"));
+      if (!src) {
+        return (
+          <figure className="atom-image atom-image-blocked">
+            <figcaption>Image blocked — https URL required</figcaption>
+          </figure>
+        );
+      }
       return (
         <figure className="atom-image">
-          <img src={str(props, "src")} alt={str(props, "alt")} />
+          <img src={src} alt={str(props, "alt")} referrerPolicy="no-referrer" />
           {str(props, "caption") ? <figcaption>{str(props, "caption")}</figcaption> : null}
         </figure>
       );
+    }
 
     case "core/list": {
       const items = (props?.items ?? []) as JsonValue[];

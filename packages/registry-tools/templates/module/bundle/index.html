@@ -32,19 +32,21 @@
     <button type="button" id="btn">Click me</button>
     <script>
       let props = {};
-      try {
-        const hash = location.hash.slice(1);
-        const init = new URLSearchParams(hash).get("init");
-        if (init) props = JSON.parse(decodeURIComponent(init));
-      } catch {}
+      let shellOrigin = null;
 
-      document.getElementById("label").textContent =
-        props.label ?? "{{MODULE_ID}} module";
+      window.addEventListener("message", (event) => {
+        if (event.data?.type !== "init") return;
+        shellOrigin = event.origin;
+        props = event.data.props ?? {};
+        document.getElementById("label").textContent =
+          props.label ?? "{{MODULE_ID}} module";
+      });
 
       document.getElementById("btn").addEventListener("click", () => {
+        if (!shellOrigin) return;
         window.parent.postMessage(
           { type: "event", name: "clicked", payload: { at: Date.now() } },
-          "*",
+          shellOrigin,
         );
       });
 

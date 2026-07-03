@@ -38,9 +38,9 @@ Creates:
 
 ## iframe bridge
 
-1. Read props from `#init=<url-encoded-json>` on load.
-2. Post `{ type: "ready" }` to parent when DOM is ready.
-3. Emit `{ type: "event", name: "<declared>", payload: {...} }` on user interaction.
+1. On load, post `{ type: "ready" }` to the shell (handshake).
+2. Listen for `{ type: "init", props, theme }` from the shell; record `event.origin` as the reply target.
+3. Emit `{ type: "event", name: "<declared>", payload: {...} }` with `postMessage(..., shellOrigin)`.
 
 See [API-v1.md](./API-v1.md#module-sandbox-web-v1) for the full sandbox contract.
 

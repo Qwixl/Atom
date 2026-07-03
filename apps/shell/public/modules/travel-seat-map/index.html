@@ -134,38 +134,23 @@
       const LETTERS = ["A", "B", "C", "D", "E", "F"];
       let props = {};
       let selected = null;
+      let shellOrigin = null;
 
       window.addEventListener("message", (event) => {
         if (event.data?.type !== "init") return;
+        shellOrigin = event.origin;
         props = event.data.props ?? {};
         selected = null;
         render();
       });
-
-      function readHashInit() {
-        const raw = location.hash.match(/^#init=(.+)$/);
-        if (!raw) return false;
-        try {
-          props = JSON.parse(decodeURIComponent(raw[1]));
-          selected = null;
-          render();
-          return true;
-        } catch {
-          return false;
-        }
-      }
 
       function signalReady() {
         window.parent.postMessage({ type: "ready" }, "*");
       }
 
       if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", () => {
-          readHashInit();
-          signalReady();
-        });
+        document.addEventListener("DOMContentLoaded", signalReady);
       } else {
-        readHashInit();
         signalReady();
       }
 
@@ -215,9 +200,10 @@
         document.querySelectorAll("button.seat.selected").forEach((el) => el.classList.remove("selected"));
         btn.classList.add("selected");
         document.getElementById("hint").textContent = `Selected ${seatId} — confirming with shell…`;
+        if (!shellOrigin) return;
         window.parent.postMessage(
           { type: "event", name: "seatSelected", payload: { seatId } },
-          "*",
+          shellOrigin,
         );
       }
     </script>

@@ -11,6 +11,7 @@ import {
   isSigstoreBundleShape,
 } from "./registry/signature.js";
 import { isRevoked } from "./registry/trust.js";
+import { validateHttpsUrl, isCrossOriginModuleBundle } from "./security/url.js";
 import { validateComposition, validateConsequentialAction } from "./validate.js";
 
 const validComposition = {
@@ -207,5 +208,33 @@ describe("registry revocations", () => {
     expect(isRevoked(revocations, "demo/a", "2.0.0")).toBe(false);
     expect(isRevoked(revocations, "demo/b", "9.9.9")).toBe(true);
     expect(isRevoked(revocations, "demo/c", "1.0.0")).toBe(false);
+  });
+});
+
+describe("validateHttpsUrl", () => {
+  it("accepts public https URLs", () => {
+    expect(validateHttpsUrl("https://cdn.example.com/a.png")).toBe(
+      "https://cdn.example.com/a.png",
+    );
+  });
+
+  it("rejects http, localhost, and private hosts", () => {
+    expect(validateHttpsUrl("http://example.com/x")).toBeNull();
+    expect(validateHttpsUrl("https://localhost/x")).toBeNull();
+    expect(validateHttpsUrl("https://192.168.0.1/x")).toBeNull();
+  });
+});
+
+describe("isCrossOriginModuleBundle", () => {
+  it("detects cross-host registry bundles", () => {
+    expect(
+      isCrossOriginModuleBundle(
+        "https://atom-registry.vercel.app/modules/travel-seat-map/index.html",
+        "https://shell-atom.vercel.app",
+      ),
+    ).toBe(true);
+    expect(
+      isCrossOriginModuleBundle("/modules/foo/index.html", "https://shell-atom.vercel.app"),
+    ).toBe(false);
   });
 });

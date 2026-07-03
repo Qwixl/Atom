@@ -139,3 +139,9 @@ export type {
 
 } from "./registry.js";
 
+export {
+  validateHttpsUrl,
+  resolveModuleBundleOrigin,
+  isCrossOriginModuleBundle,
+} from "./security/url.js";
+

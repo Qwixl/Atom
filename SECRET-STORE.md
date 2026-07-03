@@ -56,10 +56,16 @@ const runtime = connection ? resolveLlmConfig(connection, secretStore) : null;
 
 Legacy inline `apiKey` fields in stored JSON are migrated into `SecretStore` on first load.
 
-## Production guidance
+### Production hosts
 
-- Never persist API keys in plain `localStorage` in production.
-- Inject `host` or set `window.__QWIXL_SECRET_STORE__` before the shell mounts.
+- Use `createProductionSecretStore()` — session memory only; inject `host` for OS-backed vaults.
+- Deployed shell purges legacy `localStorage` credentials on startup.
+- Browser-direct LLM is disabled on production builds; use AG-UI or a server-side agent.
+
+### Local development
+
+- `createDefaultSecretStore()` may use `localStorage` for dev convenience.
+- Inject `host` or set `window.__QWIXL_SECRET_STORE__` before the shell mounts for integration tests.
 - Use `memory` backend in unit tests; pass seeded values via `memorySeed`.
 
 ## References
