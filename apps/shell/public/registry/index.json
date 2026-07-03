@@ -1,14 +1,14 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-03T10:00:00.000Z",
+  "updatedAt": "2026-07-03T18:03:00.356Z",
   "revocationsUrl": "revocations.json",
   "modules": [
     {
       "id": "travel/seat-map",
       "version": "1.0.0",
       "manifestUrl": "travel/seat-map/manifest.json",
-      "integrity": "sha256:15fcd525fa0616e385c7bcbdbc26d1cb2c14590f9a7af31a066b73898ae8aeda",
-      "bundleIntegrity": "sha256:1a9304be921c010b99458ae127d0ed81291ac19e81515609097a707479e05f8a",
+      "integrity": "sha256:78f32cc85cad56ff849124e0d164f6039141b23bd901c455590786708faaba40",
+      "bundleIntegrity": "sha256:f23d080c051fb90b62d1e23be01dd9b164c58f73704728414e6539c2af3a9d5d",
       "publisher": "did:key:z6Mkdemotravel0001"
     }
   ]

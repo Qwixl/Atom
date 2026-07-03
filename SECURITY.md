@@ -71,7 +71,7 @@ LLM connection metadata on production uses `sessionStorage` (tab-scoped); keys s
 
 | Risk | Mitigation path |
 |---|---|
-| Sigstore digest-only runtime check | Full Rekor/x509 verification (CLI + future runtime) |
+| Sigstore browser install check | Digest + DSSE statement match; full Rekor/x509 at registry ingress (`atom-registry verify --signatures`, enforced in CI/deploy) |
 | Public registry CORS `*` | Client trust policy; optional origin allowlist for private registries |
 | Agent prompt injection | Composition validation + catalog-only resolution; user confirms consequential actions |
 | XSS in shell bundle | CSP, dependency audit, no `dangerouslySetInnerHTML` |

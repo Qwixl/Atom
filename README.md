@@ -167,7 +167,7 @@ Optional GitHub Actions deploy (`.github/workflows/deploy.yml`) requires secrets
 
 ## Status
 
-Shell platform v0.1.0 — live at [shell-atom.vercel.app](https://shell-atom.vercel.app) and [atom-registry.vercel.app](https://atom-registry.vercel.app). Packages on npm: [@qwixl/shell-core](https://www.npmjs.com/package/@qwixl/shell-core) and siblings.
+Shell platform v0.1.1 — live at [shell-atom.vercel.app](https://shell-atom.vercel.app) and [atom-registry.vercel.app](https://atom-registry.vercel.app). Packages on npm: [@qwixl/shell-core](https://www.npmjs.com/package/@qwixl/shell-core) and siblings. After clone, `pnpm registry:verify` must pass before publish/deploy.
 
 ## License
 

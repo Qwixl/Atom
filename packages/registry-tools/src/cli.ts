@@ -27,6 +27,8 @@ Usage:
   atom-registry verify [--registry-dir <dir>] [--bundle-base <dir>] [--require-integrity] [--signatures]
   atom-registry publish [--registry-dir <dir>] [--module-dir <dir>] [--bundle-base <dir>]
 
+  --signatures  Full Sigstore verification (Rekor + x509 chain) via sigstore-js, in addition to digest match.
+
 Defaults:
   registry-dir  ${defaultRegistryDir}
   bundle-base   ${defaultBundleBase}

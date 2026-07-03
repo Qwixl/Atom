@@ -1,6 +1,6 @@
 {
   "name": "@qwixl/registry-tools",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "CLI to hash, verify, and publish Atom module registry indexes.",
   "license": "Apache-2.0",
   "type": "module",
@@ -26,10 +26,12 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
     "scaffold": "node dist/cli.js scaffold",
+    "verify": "node dist/cli.js verify --require-integrity",
     "publish-module": "node dist/cli.js publish"
   },
   "dependencies": {
-    "@qwixl/shell-core": "workspace:*"
+    "@qwixl/shell-core": "workspace:*",
+    "sigstore": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

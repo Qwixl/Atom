@@ -1,6 +1,6 @@
 {
   "name": "@qwixl/renderer-web",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Web (React) renderer for Atom shell core primitives, with plain-render fallback.",
   "license": "Apache-2.0",
   "type": "module",

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { verify as verifySigstoreBundle } from "sigstore";
 import {
   formatIntegrity,
   validateModuleManifest,
@@ -122,6 +123,7 @@ async function verifyEntry(
           signatureUrl,
           manifestPath,
           options.bundleBase,
+          true,
         );
       } catch (error) {
         errors.push(
@@ -137,6 +139,7 @@ async function verifySignatureDigest(
   signatureUrl: string,
   manifestPath: string,
   bundleBase: string,
+  verifyCrypto: boolean,
 ): Promise<void> {
   const signaturePath = signatureUrl.startsWith("/")
     ? path.join(bundleBase, signatureUrl.slice(1))
@@ -151,6 +154,13 @@ async function verifySignatureDigest(
   const digest = sha256File(manifestBytes);
   if (!bundleStatementReferencesDigest(bundle, digest)) {
     throw new Error("Sigstore bundle does not reference manifest digest");
+  }
+
+  if (verifyCrypto) {
+    await verifySigstoreBundle(
+      bundle as Parameters<typeof verifySigstoreBundle>[0],
+      manifestBytes,
+    );
   }
 }
 

@@ -9,10 +9,10 @@ export interface SigstoreBundleShape {
 const SIGSTORE_BUNDLE_MEDIA = /sigstore\.bundle/;
 
 /**
- * v1 runtime Sigstore check: validate bundle shape, confirm the in-toto
+ * v1 browser runtime Sigstore check: validate bundle shape, confirm the in-toto
  * statement subject digest matches the manifest bytes, then fall back to a
- * recursive digest search for legacy bundles. Full certificate/Rekor crypto
- * verification is publish-time via `atom-registry verify --signatures`.
+ * recursive digest search for legacy bundles. Full Rekor/x509 verification
+ * runs at registry ingress via `atom-registry verify --signatures` (sigstore-js).
  */
 export async function verifyManifestSignature(
   manifestBytes: Uint8Array,

@@ -1,5 +1,12 @@
 # @qwixl/a2ui-adapter
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @qwixl/shell-core@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes
