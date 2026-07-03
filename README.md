@@ -67,14 +67,60 @@ Add records in the **Profile** panel — open records personalize the LLM agent;
 
 ## Publish (maintainers)
 
-Requires an npm org with access to the `@atom` scope.
+Packages publish under the **`@atom` npm org**. This is separate from Qwixl.
+
+### 1. Create the npm org (once)
+
+1. Sign in at [npmjs.com](https://www.npmjs.com/) (create an account if needed).
+2. Open [npmjs.com/org/create](https://www.npmjs.com/org/create) and create org **`atom`** (free plan is fine).
+3. Confirm your user is an owner of `@atom`.
+
+### 2. Log in locally
+
+In a terminal (interactive — opens browser or prompts for OTP):
+
+```bash
+npm login
+npm whoami   # should print your npm username
+```
+
+### 3. Create a publish token for GitHub Actions
+
+1. [npmjs.com/settings/~tokens](https://www.npmjs.com/settings/~/tokens) → **Generate New Token** → **Granular Access Token**.
+2. Name: `github-actions-atom-publish`
+3. Expiration: your choice (90 days or no expiration).
+4. Packages and scopes: **Read and write** on org **`atom`** (or all packages in that org).
+5. Copy the token (`npm_...`) — npm shows it once.
+
+### 4. Add `NPM_TOKEN` to GitHub
+
+From any machine with `gh` logged in:
+
+```bash
+gh secret set NPM_TOKEN --repo Qwixl/Atom
+```
+
+Paste the token when prompted (nothing echoes — that's normal).
+
+### 5. Publish
+
+**First publish (v0.1.0):**
 
 ```bash
 pnpm build:packages
-pnpm changeset          # describe the change (linked packages bump together)
-pnpm version-packages   # apply versions + changelog
-pnpm release            # build + npm publish (requires npm login)
+pnpm publish -r --filter "@atom/shell-core" --filter "@atom/renderer-web" --filter "@atom/a2ui-adapter" --filter "@atom/ag-ui-adapter" --filter "@atom/owner-store" --filter "@atom/registry-tools" --access public --no-git-checks
 ```
+
+**Later releases** (after changesets):
+
+```bash
+pnpm changeset
+pnpm version-packages
+git add -A && git commit -m "Version packages" && git push
+pnpm release
+```
+
+Or push a tag `v*` to trigger `.github/workflows/release.yml` (runs `pnpm release` with `NPM_TOKEN`).
 
 ## Deploy reference hosts
 
