@@ -1,0 +1,18 @@
+{
+  "name": "@atom/secret-store",
+  "version": "0.1.0",
+  "description": "Pluggable secret storage for Atom shell connection credentials (secret refs, not inline values).",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

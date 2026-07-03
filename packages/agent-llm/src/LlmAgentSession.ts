@@ -1,12 +1,12 @@
 import {
   SessionEmitter,
-  validateComposition,
-  validateConsequentialAction,
+  parseAgentProtocolMessage,
   type AgentSession,
   type Catalog,
+  type JsonValue,
   type UiEvent,
 } from "@atom/shell-core";
-import { buildSystemPrompt } from "./prompt.js";
+import { buildSystemPrompt, type PromptProfile } from "./prompt.js";
 
 export interface LlmConfig {
   /** OpenAI-compatible base URL, e.g. "https://api.openai.com/v1". */
@@ -29,14 +29,35 @@ interface ChatMessage {
 export class LlmAgentSession extends SessionEmitter implements AgentSession {
   private messages: ChatMessage[];
   private config: LlmConfig;
+  private catalog: Catalog;
+  private profileProvider?: () => PromptProfile;
   private inFlight = false;
   private queued: string[] = [];
   private disposed = false;
+  private abortController: AbortController | null = null;
 
-  constructor(config: LlmConfig, catalog: Catalog) {
+  private static readonly REQUEST_TIMEOUT_MS = 120_000;
+
+  constructor(
+    config: LlmConfig,
+    catalog: Catalog,
+    profile?: PromptProfile | (() => PromptProfile),
+  ) {
     super();
     this.config = config;
-    this.messages = [{ role: "system", content: buildSystemPrompt(catalog) }];
+    this.catalog = catalog;
+    this.profileProvider = typeof profile === "function" ? profile : profile ? () => profile : undefined;
+    this.messages = [{ role: "system", content: this.currentSystemPrompt() }];
+  }
+
+  /**
+   * The system prompt is reassembled from the live profile on every API
+   * call. Because the endpoint is stateless, guarding a record mid-session
+   * removes it from the model's context on the next turn — the only residue
+   * is whatever the record already influenced earlier in the transcript.
+   */
+  private currentSystemPrompt(): string {
+    return buildSystemPrompt(this.catalog, this.profileProvider?.());
   }
 
   sendUserMessage(text: string): void {
@@ -58,11 +79,26 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
     this.enqueue(`[action-decision] ${JSON.stringify({ actionId, decision })}`);
   }
 
+  sendDataDisclosure(
+    requestId: string,
+    decision: "approved" | "declined",
+    records: Array<{ category: string; label: string; value: JsonValue }>,
+  ): void {
+    const payload =
+      decision === "approved" ? { requestId, decision, records } : { requestId, decision };
+    this.enqueue(`[data-disclosure] ${JSON.stringify(payload)}`);
+  }
+
   dispose(): void {
     this.disposed = true;
+    this.abortController?.abort();
+    this.queued = [];
   }
 
   private enqueue(content: string): void {
+    // React Strict Mode remounts reuse the same useMemo session instance after
+    // dispose() ran in effect cleanup — re-activate on new user input.
+    this.disposed = false;
     this.queued.push(content);
     if (!this.inFlight) void this.drain();
   }
@@ -78,6 +114,7 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
       }
     } finally {
       this.inFlight = false;
+      this.abortController = null;
       if (!this.disposed) this.emit({ type: "done" });
     }
   }
@@ -108,64 +145,57 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
   }
 
   private emitAgentMessage(message: unknown): void {
-    if (typeof message !== "object" || message === null) return;
-    const m = message as Record<string, unknown>;
-
-    if (m.type === "text" && typeof m.text === "string") {
-      this.emit({ type: "text", text: m.text });
+    const parsed = parseAgentProtocolMessage(message);
+    if (!parsed) return;
+    if (parsed.kind === "reject") {
+      this.emit({ type: "text", text: parsed.text });
       return;
     }
-
-    if (m.type === "composition") {
-      const result = validateComposition(m.composition);
-      if (result.ok) {
-        this.emit({ type: "composition", composition: result.value });
-      } else {
-        this.emit({
-          type: "text",
-          text: `(The agent produced an invalid surface, discarded by the shell: ${result.errors.join("; ")})`,
-        });
-      }
-      return;
-    }
-
-    if (m.type === "consequential-action") {
-      const result = validateConsequentialAction(m.action);
-      if (result.ok && typeof m.surfaceId === "string") {
-        this.emit({ type: "consequential-action", surfaceId: m.surfaceId, action: result.value });
-      } else {
-        const errors = result.ok ? ["surfaceId: required string"] : result.errors;
-        this.emit({
-          type: "text",
-          text: `(The agent requested a malformed consequential action, blocked by the shell: ${errors.join("; ")})`,
-        });
-      }
-    }
+    this.emit(parsed.output);
   }
 
   private async callApi(): Promise<string> {
-    const response = await fetch(`${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.config.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.config.model,
-        temperature: this.config.temperature ?? 0.4,
-        messages: this.messages,
-      }),
-    });
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(`${response.status} ${response.statusText}${body ? ` — ${body.slice(0, 200)}` : ""}`);
+    this.messages[0] = { role: "system", content: this.currentSystemPrompt() };
+    this.abortController?.abort();
+    this.abortController = new AbortController();
+    const signal = this.abortController.signal;
+    const timeout = setTimeout(() => this.abortController?.abort(), LlmAgentSession.REQUEST_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.config.model,
+          temperature: this.config.temperature ?? 0.4,
+          messages: this.messages,
+        }),
+        signal,
+      });
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        throw new Error(`${response.status} ${response.statusText}${body ? ` — ${body.slice(0, 200)}` : ""}`);
+      }
+      const data = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const content = data.choices?.[0]?.message?.content;
+      if (typeof content !== "string") throw new Error("endpoint returned no message content");
+      return content;
+    } catch (error) {
+      if (signal.aborted) {
+        throw new Error(
+          this.disposed
+            ? "request cancelled"
+            : `request timed out after ${LlmAgentSession.REQUEST_TIMEOUT_MS / 1000}s`,
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const content = data.choices?.[0]?.message?.content;
-    if (typeof content !== "string") throw new Error("endpoint returned no message content");
-    return content;
   }
 }
 

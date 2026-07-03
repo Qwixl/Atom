@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type FormEvent, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type {
   JsonObject,
   JsonValue,
@@ -170,6 +170,64 @@ function FormView({
   );
 }
 
+function ModuleFrameView({
+  node,
+  context,
+  bundleUrl,
+}: {
+  node: ResolvedNode & { kind: "component" };
+  context: RenderContext;
+  bundleUrl: string;
+}) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const propsRef = useRef(node.node.props);
+  propsRef.current = node.node.props;
+
+  const iframeSrc = `${bundleUrl}#init=${encodeURIComponent(JSON.stringify(node.node.props ?? {}))}`;
+
+  const sendInit = useCallback(() => {
+    // Retry path when the iframe reloads; primary init is the URL hash above
+    // because sandboxed iframes without allow-same-origin may ignore parent
+    // postMessage in some hosts.
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "init", props: propsRef.current ?? {}, theme: {} },
+      "*",
+    );
+  }, []);
+
+  useEffect(() => {
+    function onMessage(event: MessageEvent): void {
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      const data = event.data as { type?: string; name?: string; payload?: JsonValue } | null;
+      if (!data || typeof data !== "object") return;
+      if (data.type === "ready") {
+        sendInit();
+        return;
+      }
+      if (data.type === "event" && typeof data.name === "string") {
+        context.emit(node, data.name, data.payload);
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [context, node, sendInit]);
+
+  return (
+    <div className="atom-module">
+      <div className="atom-module-badge">{node.entry.spec.name}</div>
+      <iframe
+        key={iframeSrc}
+        ref={iframeRef}
+        className="atom-module-frame"
+        src={iframeSrc}
+        sandbox="allow-scripts allow-same-origin"
+        title={node.entry.spec.name}
+        onLoad={sendInit}
+      />
+    </div>
+  );
+}
+
 function ChartView({ node }: { node: ResolvedNode }) {
   const series = (node.node.props?.series ?? []) as Array<{
     label?: string;
@@ -245,6 +303,26 @@ function renderResolved(resolved: ResolvedNode, context: RenderContext): ReactNo
 
   const { node } = resolved;
   const props = node.props;
+
+  if (resolved.kind === "component" && resolved.entry.origin === "module") {
+    if (resolved.moduleBundleUrl) {
+      return (
+        <>
+          <ModuleFrameView node={resolved} context={context} bundleUrl={resolved.moduleBundleUrl} />
+          {children}
+        </>
+      );
+    }
+    return (
+      <>
+        <FallbackView
+          node={{ kind: "fallback", node: resolved.node, reason: "no-substitute", children: resolved.children }}
+          reason="module bundle unavailable"
+        />
+        {children}
+      </>
+    );
+  }
 
   switch (resolved.entry.spec.name) {
     case "core/text":

@@ -1,0 +1,23 @@
+{
+  "name": "@atom/registry-tools",
+  "version": "0.1.0",
+  "description": "CLI to hash, verify, and publish Atom module registry indexes.",
+  "type": "module",
+  "bin": {
+    "atom-registry": "./src/cli.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "verify": "tsx src/cli.ts verify",
+    "publish-module": "tsx src/cli.ts publish"
+  },
+  "dependencies": {
+    "@atom/shell-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
