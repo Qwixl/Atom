@@ -8,7 +8,13 @@
   },
   "scripts": {
     "dev": "pnpm --filter @atom/shell-app dev",
+    "dev:embed": "pnpm --filter @atom/embed-demo dev",
+    "dev:ag-ui": "pnpm --filter @atom/ag-ui-server dev",
+    "dev:registry": "pnpm --filter @atom/registry-host dev",
+    "registry:verify": "pnpm --filter @atom/registry-tools verify",
+    "registry:publish": "pnpm --filter @atom/registry-tools publish-module",
     "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @atom/shell-core test"
   }
 }
