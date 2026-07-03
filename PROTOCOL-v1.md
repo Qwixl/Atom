@@ -2,7 +2,7 @@
 
 **Status:** frozen as of `@qwixl/protocol@0.1.0`. Breaking changes require major semver and a migration note.
 
-Decisions: `06-decisions-log.md#d022` (did:key), `#d024` (governance). E2E transport encryption (MLS) is specified in `#d023` and implemented on the agent backend in a follow-on M6 deliverable.
+Decisions: `06-decisions-log.md#d022` (did:key), `#d024` (governance), `#d023`/`#d025` (MLS E2E on agent backend).
 
 ## Data object (`DataObject`, v1)
 
@@ -48,16 +48,19 @@ Signing: `signDataObject(body, keyPair)` after `generateAgentKeyPair()`.
 
 ## E2E encryption (agent ↔ agent)
 
-- **MLS (RFC 9420)** on the owner-controlled **agent backend** (OpenMLS, Node runtime).
+- **MLS (RFC 9420)** on the owner-controlled **agent backend** (`@qwixl/mls-session`, ts-mls per D025).
+- MLS wire bytes travel in A2A `data` parts as `{ mediaType: "application/vnd.atom.mls-wire+cbor;version=1", wire: "<base64>" }` (`@qwixl/a2a-transport`).
 - Ciphertext is exchanged over **A2A** transport; the shell never holds MLS epoch secrets (D017, D023).
 - Plaintext data objects are verified with `verifyDataObject()` after MLS decryption on the backend.
+- Pair session API: `establishPairSession()`, `MlsPairSession.encrypt()` / `.decrypt()`. Process restart persistence deferred (D025).
 
 ## Embedding fallback
 
 When `semantic.schema` is unknown, hosts MAY use vector similarity against `embeddingHint` — rendering and policy remain host-owned. No wire-format change in v1.
 
-## References
+## A2A transport (agent ↔ agent)
 
-- W3C DID Core (`did:key`)
-- RFC 9420 (MLS)
-- A2A Protocol (`@a2a-js/sdk`) — transport layer (M6 in progress)
+- Signed `DataObject` payloads travel in A2A `data` parts as `{ mediaType, object }` (`@qwixl/a2a-transport`).
+- Reference agent backend: `pnpm dev:a2a` → `http://127.0.0.1:5204` (JSON-RPC at `/a2a/jsonrpc`, admin at `/inbox`, `/send`).
+- Verification on receive: `verifyMessageDataObjects()` with purpose allowlist.
+- MLS wire parts: `mlsWireToPart()` / `parseMlsWireFromPart()` for encrypted payloads (handshake + application messages).

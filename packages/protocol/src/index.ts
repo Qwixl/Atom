@@ -9,7 +9,7 @@ export type {
   VerifyDataObjectOptions,
 } from "./types.js";
 
-export { stableStringify, signingPayload } from "./canonical.js";
+export { stableStringify, signingPayload, bytesToBase64, base64ToBytes } from "./canonical.js";
 export { didToPublicKey, isDidKey, publicKeyToDid } from "./did.js";
 export { generateAgentKeyPair, signBytes, verifyBytes } from "./identity.js";
 export {

@@ -11,7 +11,9 @@
       "@qwixl/ag-ui-adapter",
       "@qwixl/owner-store",
       "@qwixl/registry-tools",
-      "@qwixl/protocol"
+      "@qwixl/protocol",
+      "@qwixl/mls-session",
+      "@qwixl/a2a-transport"
     ]
   ],
   "access": "public",

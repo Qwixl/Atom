@@ -1,0 +1,61 @@
+{
+  "name": "@qwixl/a2a-transport",
+  "version": "0.1.0",
+  "description": "A2A transport for Atom signed data objects between agent backends.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "development": "./src/server-entry.ts",
+      "types": "./dist/server-entry.d.ts",
+      "import": "./dist/server-entry.js",
+      "default": "./dist/server-entry.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Qwixl/Atom.git",
+    "directory": "packages/a2a-transport"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "^0.3.13",
+    "@qwixl/mls-session": "workspace:*",
+    "@qwixl/protocol": "workspace:*",
+    "uuid": "^11.1.0"
+  },
+  "peerDependencies": {
+    "express": "^4.21.2 || ^5.1.0"
+  },
+  "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.0.0",
+    "express": "^5.1.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.4"
+  }
+}
