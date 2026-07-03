@@ -6,7 +6,7 @@
     "web"
   ],
   "bundleUrl": "/modules/travel-seat-map/index.html",
-  "bundleIntegrity": "sha256:f23d080c051fb90b62d1e23be01dd9b164c58f73704728414e6539c2af3a9d5d",
+  "bundleIntegrity": "sha256:2143262eb8e3abacf7688735991f32defa348f2e1a262400684ee68be9efb968",
   "components": [
     {
       "name": "travel/seat-map",

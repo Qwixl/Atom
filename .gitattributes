@@ -1,0 +1,2 @@
+# Registry and module bundles must hash identically on all platforms.
+apps/shell/public/** text eol=lf

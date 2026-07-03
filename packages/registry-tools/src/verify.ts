@@ -21,8 +21,19 @@ export interface VerifyOptions {
   verifySignatures?: boolean;
 }
 
-function sha256File(bytes: Uint8Array): string {
-  return createHash("sha256").update(bytes).digest("hex");
+const TEXT_HASH_EXTENSIONS = new Set([".html", ".json", ".js", ".css", ".mjs", ".ts"]);
+
+/** Normalize CRLF→LF before hashing text bundles so verify matches Linux CI and production hosts. */
+function normalizeTextBytes(bytes: Uint8Array, filePath: string): Uint8Array {
+  const ext = path.extname(filePath).toLowerCase();
+  if (!TEXT_HASH_EXTENSIONS.has(ext)) return bytes;
+  const text = Buffer.from(bytes).toString("utf8").replace(/\r\n/g, "\n");
+  return Buffer.from(text, "utf8");
+}
+
+function sha256File(bytes: Uint8Array, filePath?: string): string {
+  const normalized = filePath ? normalizeTextBytes(bytes, filePath) : bytes;
+  return createHash("sha256").update(normalized).digest("hex");
 }
 
 function resolveBundlePath(bundleUrl: string, manifestPath: string, bundleBase: string): string {
@@ -72,7 +83,7 @@ async function verifyEntry(
 
   const manifestPath = path.resolve(options.registryDir, entry.manifestUrl);
   const manifestBytes = await readFile(manifestPath);
-  const manifestDigest = sha256File(manifestBytes);
+  const manifestDigest = sha256File(manifestBytes, manifestPath);
 
   if (entry.integrity) {
     const expected = entry.integrity.replace(/^sha256:/, "");
@@ -95,7 +106,7 @@ async function verifyEntry(
 
   const bundlePath = resolveBundlePath(manifest.bundleUrl, manifestPath, options.bundleBase);
   const bundleBytes = await readFile(bundlePath);
-  const bundleDigest = sha256File(bundleBytes);
+  const bundleDigest = sha256File(bundleBytes, bundlePath);
   const expectedBundle = manifest.bundleIntegrity.replace(/^sha256:/, "");
 
   if (bundleDigest !== expectedBundle) {
@@ -151,7 +162,7 @@ async function verifySignatureDigest(
     throw new Error("invalid Sigstore bundle structure");
   }
 
-  const digest = sha256File(manifestBytes);
+  const digest = sha256File(manifestBytes, manifestPath);
   if (!bundleStatementReferencesDigest(bundle, digest)) {
     throw new Error("Sigstore bundle does not reference manifest digest");
   }
@@ -166,7 +177,7 @@ async function verifySignatureDigest(
 
 export async function hashFile(filePath: string): Promise<string> {
   const bytes = await readFile(filePath);
-  return formatIntegrity(sha256File(bytes));
+  return formatIntegrity(sha256File(bytes, filePath));
 }
 
 export interface PublishOptions {
@@ -185,8 +196,8 @@ export async function publishModule(options: PublishOptions): Promise<void> {
   const bundlePath = resolveBundlePath(manifest.bundleUrl, manifestPath, options.bundleBase);
   const bundleBytes = await readFile(bundlePath);
 
-  const manifestIntegrity = formatIntegrity(sha256File(manifestBytes));
-  const bundleIntegrity = formatIntegrity(sha256File(bundleBytes));
+  const manifestIntegrity = formatIntegrity(sha256File(manifestBytes, manifestPath));
+  const bundleIntegrity = formatIntegrity(sha256File(bundleBytes, bundlePath));
 
   const updatedManifest = {
     ...manifest,
@@ -196,7 +207,7 @@ export async function publishModule(options: PublishOptions): Promise<void> {
   await writeFile(manifestPath, `${JSON.stringify(updatedManifest, null, 2)}\n`);
 
   const freshManifestBytes = await readFile(manifestPath);
-  const freshIntegrity = formatIntegrity(sha256File(freshManifestBytes));
+  const freshIntegrity = formatIntegrity(sha256File(freshManifestBytes, manifestPath));
 
   const indexPath = path.join(options.registryDir, "index.json");
   let index: RegistryIndex;
