@@ -107,14 +107,15 @@ Paste the token when prompted (nothing echoes — that's normal).
 
 **First publish (v0.1.0):**
 
-Use a granular token with **bypass 2FA** (see step 3), then either:
-
 ```bash
-# Option A: one-off local publish with token
-npm config set //registry.npmjs.org/:_authToken npm_YOUR_TOKEN_HERE
+# Option A: one-off local publish (paste your real npm_... token, not a placeholder)
+npm config set //registry.npmjs.org/:_authToken npm_PASTE_YOUR_TOKEN_HERE
 pnpm build:packages
 pnpm publish -r --filter "@qwixl/shell-core" --filter "@qwixl/renderer-web" --filter "@qwixl/a2ui-adapter" --filter "@qwixl/ag-ui-adapter" --filter "@qwixl/owner-store" --filter "@qwixl/registry-tools" --access public --no-git-checks
+npm logout   # optional: clear token from local config when done
 ```
+
+If local publish fails with 401/404 after `npm config set`, run `npm login` again — a bad token overrides your login session.
 
 Or push tag `v0.1.1` after updating `NPM_TOKEN` in GitHub secrets (the `v0.1.0` tag predates the `@qwixl` rename).
 
@@ -152,7 +153,7 @@ Optional GitHub Actions deploy (`.github/workflows/deploy.yml`) requires secrets
 
 ## Status
 
-Shell platform v0.1.0 — live reference hosts at [shell-atom.vercel.app](https://shell-atom.vercel.app) and [atom-registry.vercel.app](https://atom-registry.vercel.app). npm publish pending org login.
+Shell platform v0.1.0 — live at [shell-atom.vercel.app](https://shell-atom.vercel.app) and [atom-registry.vercel.app](https://atom-registry.vercel.app). Packages on npm: [@qwixl/shell-core](https://www.npmjs.com/package/@qwixl/shell-core) and siblings.
 
 ## License
 
