@@ -23,6 +23,7 @@ An open, user-owned shell for agent-driven interfaces. Your agent composes a dec
 | `@qwixl/ag-ui-adapter` | yes | AG-UI wire transport implementing `AgentSession`. |
 | `@qwixl/owner-store` | yes | Owner-controlled profile/memory store with guarded disclosure. |
 | `@qwixl/registry-tools` | yes | CLI: hash, verify, and publish module registry indexes. |
+| `@qwixl/protocol` | yes | Data-object model, did:key identity, signed envelopes, governance policy. |
 | `@qwixl/agent-llm` | monorepo only | LLM-backed `AgentSession` for the reference shell. |
 | `@qwixl/secret-store` | monorepo only | Pluggable secret storage for connection credentials. |
 
@@ -45,6 +46,7 @@ Build your app with any bundler that resolves the package `development` export c
 | [EMBED.md](./EMBED.md) | Third-party hosts embedding the engine |
 | [MODULES.md](./MODULES.md) | Module authors publishing to a registry |
 | [API-v1.md](./API-v1.md) | Frozen v1 contracts (composition, session, manifest, sandbox) |
+| [PROTOCOL-v1.md](./PROTOCOL-v1.md) | Frozen v1 data-object + did:key contracts |
 | [SECURITY.md](./SECURITY.md) | Threat model for shipped surface |
 | [SECRET-STORE.md](./SECRET-STORE.md) | Credential adapter priority for embedders |
 

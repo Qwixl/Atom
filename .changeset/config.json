@@ -10,7 +10,8 @@
       "@qwixl/a2ui-adapter",
       "@qwixl/ag-ui-adapter",
       "@qwixl/owner-store",
-      "@qwixl/registry-tools"
+      "@qwixl/registry-tools",
+      "@qwixl/protocol"
     ]
   ],
   "access": "public",
