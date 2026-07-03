@@ -31,7 +31,7 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_SHELL_ATOM }}
           working-directory: apps/shell
-          vercel-version: 47.2.2
+          vercel-version: latest
           vercel-args: "--prod"
 
   deploy-atom-registry:
@@ -57,5 +57,5 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_ATOM_REGISTRY }}
           working-directory: apps/registry-host
-          vercel-version: 47.2.2
+          vercel-version: latest
           vercel-args: "--prod"
