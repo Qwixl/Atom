@@ -20,7 +20,9 @@ export default defineConfig({
     include: [
       "@ag-ui/client",
       "@qwixl/a2ui-adapter",
+      "@qwixl/a2a-transport",
       "@qwixl/ag-ui-adapter",
+      "@qwixl/protocol",
       "@qwixl/renderer-web",
       "@qwixl/secret-store",
       "@qwixl/shell-core",

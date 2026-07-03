@@ -11,9 +11,11 @@
   },
   "dependencies": {
     "@qwixl/a2ui-adapter": "workspace:*",
+    "@qwixl/a2a-transport": "workspace:*",
     "@qwixl/ag-ui-adapter": "workspace:*",
     "@qwixl/agent-llm": "workspace:*",
     "@qwixl/owner-store": "workspace:*",
+    "@qwixl/protocol": "workspace:*",
     "@qwixl/renderer-web": "workspace:*",
     "@qwixl/secret-store": "workspace:*",
     "@qwixl/shell-core": "workspace:*",

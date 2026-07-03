@@ -46,6 +46,9 @@ import {
 } from "@qwixl/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
 import { ProfilePanel } from "./ProfilePanel.js";
+import { CommsPanel } from "./CommsPanel.js";
+import { loadContacts } from "./comms/storage.js";
+import type { AgentContact } from "./comms/types.js";
 import {
   ALLOW_BROWSER_LLM,
   IS_PRODUCTION_HOST,
@@ -54,7 +57,7 @@ import {
 } from "./hostConfig.js";
 
 type Provider = "mock" | "llm" | "ag-ui";
-type SidePanel = "none" | "log" | "profile";
+type SidePanel = "none" | "log" | "profile" | "comms";
 
 type ShellSession = AgentSession & { dispose?: () => void };
 
@@ -191,6 +194,7 @@ export function App() {
     attestationLog.list(),
   );
   const [panel, setPanel] = useState<SidePanel>("none");
+  const [commsContacts, setCommsContacts] = useState<AgentContact[]>(() => loadContacts());
   const [profileRecords, setProfileRecords] = useState<OwnerRecord[]>(ownerStore.list());
   const [profileProposals, setProfileProposals] = useState<RecordProposal[]>(
     ownerStore.listProposals(),
@@ -531,6 +535,15 @@ export function App() {
           </button>
           <button
             className="shell-log-toggle"
+            onClick={() => setPanel((current) => (current === "comms" ? "none" : "comms"))}
+          >
+            Comms
+            {commsContacts.length > 0 ? (
+              <span className="shell-log-count">{commsContacts.length}</span>
+            ) : null}
+          </button>
+          <button
+            className="shell-log-toggle"
             onClick={() => setPanel((current) => (current === "profile" ? "none" : "profile"))}
           >
             Profile
@@ -609,6 +622,14 @@ export function App() {
           )}
           {busy ? <div className="feed-busy">agent working…</div> : null}
         </main>
+
+        {panel === "comms" ? (
+          <CommsPanel
+            contacts={commsContacts}
+            ownerStore={ownerStore}
+            onContactsChanged={() => setCommsContacts(loadContacts())}
+          />
+        ) : null}
 
         {panel === "profile" ? (
           <ProfilePanel

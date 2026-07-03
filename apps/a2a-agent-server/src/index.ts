@@ -90,6 +90,24 @@ async function main(): Promise<void> {
 
   const a2aApp = createAtomA2aExpressApp({ agentCard, executor });
   const adminApp = express();
+
+  adminApp.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (typeof origin === "string" && ALLOWED_ORIGINS.has(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    }
+    if (req.method === "OPTIONS") {
+      if (typeof origin === "string" && ALLOWED_ORIGINS.has(origin)) {
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      }
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
+
   adminApp.use(express.json({ limit: "512kb" }));
 
   adminApp.get("/health", (_req, res) => {
@@ -238,25 +256,6 @@ async function main(): Promise<void> {
         error: error instanceof Error ? error.message : String(error),
       });
     }
-  });
-
-  adminApp.use((req, res, next) => {
-    const origin = req.headers.origin;
-    if (req.method === "OPTIONS") {
-      if (typeof origin === "string" && ALLOWED_ORIGINS.has(origin)) {
-        res.setHeader("Access-Control-Allow-Origin", origin);
-        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-        res.setHeader("Vary", "Origin");
-      }
-      res.status(204).end();
-      return;
-    }
-    if (typeof origin === "string" && ALLOWED_ORIGINS.has(origin)) {
-      res.setHeader("Access-Control-Allow-Origin", origin);
-      res.setHeader("Vary", "Origin");
-    }
-    next();
   });
 
   const app = express();

@@ -5,6 +5,7 @@ import {
   type DataObject,
 } from "@qwixl/protocol";
 import { CONTACT_INVITE_PURPOSE } from "./constants.js";
+import { base64UrlDecodeUtf8, base64UrlEncodeUtf8 } from "./base64url.js";
 
 /** Default invitation lifetime: 7 days. */
 export const DEFAULT_INVITE_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -41,7 +42,7 @@ export async function createContactInvite(opts: {
     },
     opts.identity,
   );
-  const token = Buffer.from(JSON.stringify(object), "utf8").toString("base64url");
+  const token = base64UrlEncodeUtf8(JSON.stringify(object));
   return { object, token };
 }
 
@@ -59,7 +60,7 @@ export interface VerifiedContactInvite {
 export async function verifyContactInvite(token: string): Promise<VerifiedContactInvite> {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(Buffer.from(token, "base64url").toString("utf8"));
+    parsed = JSON.parse(base64UrlDecodeUtf8(token));
   } catch {
     throw new Error("Invalid invitation token encoding");
   }

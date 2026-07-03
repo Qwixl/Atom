@@ -18,6 +18,9 @@ export const ATOM_COMMS_SKILL_ID = "atom-comms";
 /** Default purpose for Phase 1 private comms. */
 export const COMMS_MESSAGE_PURPOSE = "comms:message";
 
+/** Schema for Phase 1 chat message payloads (`payload.text`). */
+export const COMMS_MESSAGE_SCHEMA = "https://atom.qwixl.dev/schema/CommsMessage";
+
 /** Default purpose for delivery receipts. */
 export const COMMS_RECEIPT_PURPOSE = "comms:receipt";
 
