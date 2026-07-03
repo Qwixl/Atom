@@ -10,7 +10,7 @@
   "bin": {
     "atom-registry": "./dist/cli.js"
   },
-  "files": ["dist"],
+  "files": ["dist", "templates"],
   "publishConfig": {
     "access": "public"
   },
@@ -22,7 +22,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "verify": "node dist/cli.js verify",
+    "scaffold": "node dist/cli.js scaffold",
     "publish-module": "node dist/cli.js publish"
   },
   "dependencies": {

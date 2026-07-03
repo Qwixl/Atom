@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { hashFile, publishModule, verifyRegistry } from "./verify.js";
+import { scaffoldModule } from "./scaffold.js";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const monorepoRoot = path.resolve(packageRoot, "../..");
@@ -21,6 +22,7 @@ function usage(): never {
   console.log(`atom-registry — hash, verify, and publish module registry indexes
 
 Usage:
+  atom-registry scaffold --id <namespace/name> --out <dir> [--publisher <did>]
   atom-registry hash <file>
   atom-registry verify [--registry-dir <dir>] [--bundle-base <dir>] [--require-integrity]
   atom-registry publish [--registry-dir <dir>] [--module-dir <dir>] [--bundle-base <dir>]
@@ -42,7 +44,21 @@ function readFlag(args: string[], name: string): string | undefined {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const command = args[0];
+  const userCwd = process.env.INIT_CWD ?? process.cwd();
   if (!command) usage();
+
+  if (command === "scaffold") {
+    const moduleId = readFlag(args, "--id");
+    const outDir = readFlag(args, "--out");
+    const publisher = readFlag(args, "--publisher");
+    if (!moduleId || !outDir) usage();
+    scaffoldModule({
+      moduleId,
+      outDir: path.resolve(userCwd, outDir),
+      publisher,
+    });
+    return;
+  }
 
   if (command === "hash") {
     const file = args[1];

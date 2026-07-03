@@ -10,7 +10,8 @@ import {
 } from "@qwixl/shell-core";
 import { SurfaceRenderer } from "@qwixl/renderer-web";
 
-const CROSS_HOST_REGISTRY = "http://localhost:5202/registry/index.json";
+const CROSS_HOST_REGISTRY =
+  import.meta.env.VITE_REGISTRY_URL ?? "https://atom-registry.vercel.app/registry/index.json";
 
 const DEMO_COMPOSITION: Composition = {
   version: 1,
@@ -54,7 +55,7 @@ const SEAT_MAP_COMPOSITION: Composition = {
   root: {
     id: "root",
     component: "core/card",
-    props: { title: "Seat selection", subtitle: "Module from registry host :5202" },
+        props: { title: "Seat selection", subtitle: "Module from atom-registry.vercel.app" },
     children: [
       {
         id: "map",

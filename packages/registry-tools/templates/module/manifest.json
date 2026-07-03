@@ -1,0 +1,17 @@
+{
+  "id": "{{MODULE_ID}}",
+  "version": "1.0.0",
+  "publisher": "{{PUBLISHER}}",
+  "targets": ["web"],
+  "bundleUrl": "/modules/{{BUNDLE_SLUG}}/index.html",
+  "components": [
+    {
+      "name": "{{COMPONENT_NAME}}",
+      "semanticRole": "{{SEMANTIC_ROLE}}",
+      "events": [{ "name": "clicked" }],
+      "agentHint": "Simple demo widget; replace with your module's agentHint."
+    }
+  ],
+  "capabilities": [],
+  "categories": ["demo"]
+}

@@ -36,7 +36,17 @@ pnpm add @qwixl/shell-core @qwixl/renderer-web react
 pnpm add @qwixl/a2ui-adapter @qwixl/ag-ui-adapter @qwixl/owner-store
 ```
 
-Build your app with any bundler that resolves the package `development` export condition in dev (Vite, etc.).
+Build your app with any bundler that resolves the package `development` export condition in dev (Vite, etc.). See **[EMBED.md](./EMBED.md)** for a <1 hour integration guide.
+
+## Guides
+
+| Doc | Audience |
+|---|---|
+| [EMBED.md](./EMBED.md) | Third-party hosts embedding the engine |
+| [MODULES.md](./MODULES.md) | Module authors publishing to a registry |
+| [API-v1.md](./API-v1.md) | Frozen v1 contracts (composition, session, manifest, sandbox) |
+
+Live hosts: [shell-atom.vercel.app](https://shell-atom.vercel.app) · [atom-registry.vercel.app](https://atom-registry.vercel.app)
 
 ## Quick start (monorepo)
 
@@ -49,6 +59,7 @@ pnpm dev:ag-ui        # AG-UI reference server on http://localhost:5201/agent
 pnpm dev:registry     # module registry host on http://localhost:5202
 pnpm registry:verify  # verify index + manifest + bundle hashes
 pnpm registry:publish # recompute hashes and update index.json
+pnpm registry:scaffold -- --id acme/widget --out ./tmp/widget  # module template
 pnpm test             # shell-core contract tests
 pnpm typecheck        # all packages
 pnpm build            # packages + deployable apps

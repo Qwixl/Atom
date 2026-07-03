@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{MODULE_ID}}</title>
+    <style>
+      :root {
+        font-family: system-ui, sans-serif;
+        --bg: #111;
+        --text: #eee;
+        --accent: #5aa9ff;
+      }
+      body {
+        margin: 0;
+        padding: 12px;
+        background: var(--bg);
+        color: var(--text);
+      }
+      button {
+        padding: 8px 14px;
+        border: 1px solid var(--accent);
+        background: transparent;
+        color: var(--accent);
+        border-radius: 6px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <p id="label">Loading…</p>
+    <button type="button" id="btn">Click me</button>
+    <script>
+      let props = {};
+      try {
+        const hash = location.hash.slice(1);
+        const init = new URLSearchParams(hash).get("init");
+        if (init) props = JSON.parse(decodeURIComponent(init));
+      } catch {}
+
+      document.getElementById("label").textContent =
+        props.label ?? "{{MODULE_ID}} module";
+
+      document.getElementById("btn").addEventListener("click", () => {
+        window.parent.postMessage(
+          { type: "event", name: "clicked", payload: { at: Date.now() } },
+          "*",
+        );
+      });
+
+      window.parent.postMessage({ type: "ready" }, "*");
+    </script>
+  </body>
+</html>
