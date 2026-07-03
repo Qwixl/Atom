@@ -48,6 +48,11 @@ export interface ModuleRegistryOptions {
   verifySignature?: boolean;
 }
 
+/** Browser fetch must keep global `this`; unbound references throw "Illegal invocation". */
+function bindFetch(fetchImpl: typeof fetch): typeof fetch {
+  return ((input, init?) => fetchImpl(input, init)) as typeof fetch;
+}
+
 function parseReference(reference: string): { name: string; version?: string } {
   const at = reference.lastIndexOf("@");
   if (at > 0) {
@@ -109,7 +114,7 @@ export class ModuleRegistry {
 
   constructor(options: ModuleRegistryOptions) {
     this.indexUrl = options.indexUrl;
-    this.fetchFn = options.fetch ?? fetch;
+    this.fetchFn = bindFetch(options.fetch ?? fetch);
     this.trust = {
       requireIntegrity: true,
       requireSignature: false,
