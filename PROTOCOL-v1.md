@@ -64,3 +64,4 @@ When `semantic.schema` is unknown, hosts MAY use vector similarity against `embe
 - Reference agent backend: `pnpm dev:a2a` → `http://127.0.0.1:5204` (JSON-RPC at `/a2a/jsonrpc`, admin at `/inbox`, `/send`).
 - Verification on receive: `verifyMessageDataObjects()` with purpose allowlist.
 - MLS wire parts: `mlsWireToPart()` / `parseMlsWireFromPart()` for encrypted payloads (handshake + application messages).
+- MLS handshake: `sendMlsHandshake()` delivers Welcome + ratchet tree; `POST /mls/connect` on reference agent orchestrates pair setup.

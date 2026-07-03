@@ -20,6 +20,9 @@ importers:
       '@qwixl/a2a-transport':
         specifier: workspace:*
         version: link:../../packages/a2a-transport
+      '@qwixl/mls-session':
+        specifier: workspace:*
+        version: link:../../packages/mls-session
       '@qwixl/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol

@@ -1,8 +1,11 @@
 import { v4 as uuidv4 } from "uuid";
-import type { Message, MessageSendParams } from "@a2a-js/sdk";
+import type { Message, MessageSendParams, Part } from "@a2a-js/sdk";
 import type { Client } from "@a2a-js/sdk/client";
 import type { DataObject } from "@qwixl/protocol";
 import { dataObjectToPart } from "./parts.js";
+import { mlsWireToPart } from "./mlsWire.js";
+import type { MlsWireMessage } from "@qwixl/mls-session";
+import { mlsHandshakeToPart, type AtomMlsHandshakeEnvelope } from "./mlsHandshake.js";
 
 export interface SendDataObjectParams {
   object: DataObject;
@@ -10,10 +13,22 @@ export interface SendDataObjectParams {
   role?: "user" | "agent";
 }
 
-/** Send a verified data object to a peer agent via A2A. */
-export async function sendDataObject(
+export interface SendMlsWireParams {
+  wire: MlsWireMessage;
+  contextId?: string;
+  role?: "user" | "agent";
+}
+
+export interface SendMlsHandshakeParams {
+  handshake: AtomMlsHandshakeEnvelope;
+  contextId?: string;
+  role?: "user" | "agent";
+}
+
+async function sendParts(
   client: Client,
-  params: SendDataObjectParams,
+  parts: Part[],
+  params: { contextId?: string; role?: "user" | "agent" },
 ): Promise<Message> {
   const sendParams: MessageSendParams = {
     message: {
@@ -21,7 +36,7 @@ export async function sendDataObject(
       messageId: uuidv4(),
       role: params.role ?? "user",
       contextId: params.contextId,
-      parts: [dataObjectToPart(params.object)],
+      parts,
     },
   };
   const response = await client.sendMessage(sendParams);
@@ -29,4 +44,25 @@ export async function sendDataObject(
     throw new Error("Peer agent did not return a message");
   }
   return response as Message;
+}
+
+/** Send a verified data object to a peer agent via A2A. */
+export async function sendDataObject(
+  client: Client,
+  params: SendDataObjectParams,
+): Promise<Message> {
+  return sendParts(client, [dataObjectToPart(params.object)], params);
+}
+
+/** Send MLS wire bytes (application message, welcome, or key package) via A2A. */
+export async function sendMlsWire(client: Client, params: SendMlsWireParams): Promise<Message> {
+  return sendParts(client, [mlsWireToPart(params.wire)], params);
+}
+
+/** Send MLS pair handshake metadata via A2A. */
+export async function sendMlsHandshake(
+  client: Client,
+  params: SendMlsHandshakeParams,
+): Promise<Message> {
+  return sendParts(client, [mlsHandshakeToPart(params.handshake)], params);
 }

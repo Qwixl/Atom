@@ -102,9 +102,9 @@ export class MlsPairSession {
   static async joinFromWelcome(opts: {
     localDid: string;
     welcomeWire: MlsWireMessage;
-    ratchetTree: GroupState["ratchetTree"];
     publicPackage: KeyPackage;
     privatePackage: PrivateKeyPackage;
+    ratchetTree?: GroupState["ratchetTree"];
   }): Promise<MlsPairSession> {
     const impl = await defaultCiphersuite();
     const decoded = decodeMlsMessage(opts.welcomeWire, 0)?.[0];
@@ -229,9 +229,9 @@ export async function establishPairSession(opts: {
   const responder = await MlsPairSession.joinFromWelcome({
     localDid: opts.responderDid,
     welcomeWire,
-    ratchetTree: initiator.ratchetTree(),
     publicPackage: responderKp.publicPackage,
     privatePackage: responderKp.privatePackage,
+    ratchetTree: initiator.ratchetTree(),
   });
   responder.peerDid = opts.initiatorDid;
 

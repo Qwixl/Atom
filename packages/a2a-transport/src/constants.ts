@@ -6,6 +6,10 @@ export const ATOM_DATA_OBJECT_MEDIA_TYPE =
 export const ATOM_MLS_WIRE_MEDIA_TYPE =
   "application/vnd.atom.mls-wire+cbor;version=1";
 
+/** MLS pair handshake metadata (Welcome + ratchet tree) over A2A between agent backends. */
+export const ATOM_MLS_HANDSHAKE_MEDIA_TYPE =
+  "application/vnd.atom.mls-handshake+json;version=1";
+
 export const ATOM_A2A_EXTENSION = "https://atom.qwixl.dev/a2a/data-object/v1";
 
 /** Default A2A skill id for comms data-object exchange. */
