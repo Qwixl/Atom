@@ -1,5 +1,12 @@
 # @qwixl/agent-llm
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [b353746]
+  - @qwixl/shell-core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

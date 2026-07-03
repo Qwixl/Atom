@@ -1,5 +1,19 @@
 # @qwixl/agent-backend
 
+## 0.2.0
+
+### Minor Changes
+
+- b353746: M8 Phase 2: coordination data objects, agent-backend `/coordination/*` routes, CommsPanel scheduling/RSVP, module store `ModulePricing` and Settings catalog.
+
+### Patch Changes
+
+- Updated dependencies [b353746]
+  - @qwixl/a2a-transport@0.2.0
+  - @qwixl/shell-core@0.2.0
+  - @qwixl/ag-ui-adapter@0.2.0
+  - @qwixl/agent-llm@0.1.1
+
 ## 0.1.2
 
 ### Patch Changes

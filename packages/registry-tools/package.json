@@ -1,6 +1,6 @@
 {
   "name": "@qwixl/registry-tools",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "CLI to hash, verify, and publish Atom module registry indexes.",
   "license": "Apache-2.0",
   "type": "module",
