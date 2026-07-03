@@ -4,8 +4,8 @@ import {
   type Composition,
   type ConsequentialAction,
   type UiEvent,
-} from "@atom/shell-core";
-import type { PromptProfile } from "@atom/agent-llm";
+} from "@qwixl/shell-core";
+import type { PromptProfile } from "@qwixl/agent-llm";
 
 interface MockAgentOptions {
   profileProvider?: () => PromptProfile;

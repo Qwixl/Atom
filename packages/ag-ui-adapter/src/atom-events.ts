@@ -3,7 +3,7 @@ import {
   A2UI_AGUI_EVENT,
   A2uiSurfaceAssembler,
   parseA2uiEnvelope,
-} from "@atom/a2ui-adapter";
+} from "@qwixl/a2ui-adapter";
 import {
   parseCompositionValue,
   parseConsequentialPayload,
@@ -13,7 +13,7 @@ import {
   type Composition,
   type ConsequentialAction,
   type DataRequest,
-} from "@atom/shell-core";
+} from "@qwixl/shell-core";
 
 const a2uiAssembler = new A2uiSurfaceAssembler();
 

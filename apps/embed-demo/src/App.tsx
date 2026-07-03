@@ -7,8 +7,8 @@ import {
   type Composition,
   type ResolvedSurface,
   type UiEvent,
-} from "@atom/shell-core";
-import { SurfaceRenderer } from "@atom/renderer-web";
+} from "@qwixl/shell-core";
+import { SurfaceRenderer } from "@qwixl/renderer-web";
 
 const CROSS_HOST_REGISTRY = "http://localhost:5202/registry/index.json";
 
@@ -28,7 +28,7 @@ const DEMO_COMPOSITION: Composition = {
         id: "intro",
         component: "core/text",
         props: {
-          text: "Any product can import @atom/shell-core and @atom/renderer-web, register the catalog, resolve agent compositions, and render — without using the reference shell app.",
+          text: "Any product can import @qwixl/shell-core and @qwixl/renderer-web, register the catalog, resolve agent compositions, and render — without using the reference shell app.",
         },
       },
       {

@@ -23,7 +23,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:packages
-      - run: pnpm --filter @atom/shell-app build
+      - run: pnpm --filter @qwixl/shell-app build
 
       - uses: amondnet/vercel-action@v25
         with:
@@ -48,7 +48,7 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @atom/registry-host build
+      - run: pnpm --filter @qwixl/registry-host build
 
       - uses: amondnet/vercel-action@v25
         with:

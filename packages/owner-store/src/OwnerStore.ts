@@ -1,4 +1,4 @@
-import type { JsonValue } from "@atom/shell-core";
+import type { JsonValue } from "@qwixl/shell-core";
 import {
   type CuratorSignal,
   derivePreferenceWeights,

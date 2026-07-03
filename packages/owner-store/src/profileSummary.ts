@@ -1,4 +1,4 @@
-import type { JsonValue } from "@atom/shell-core";
+import type { JsonValue } from "@qwixl/shell-core";
 import type { ProfileContextOpenRecord } from "./OwnerStore.js";
 
 /** Compact category → label → value map so the model sees one picture, not 18 scattered rows. */

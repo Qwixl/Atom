@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { derivePreferenceWeights, formatRecordValue, activeContextTags, type OwnerRecord, type OwnerStore, type RecordProposal, type PreferenceTier } from "@atom/owner-store";
+import { derivePreferenceWeights, formatRecordValue, activeContextTags, type OwnerRecord, type OwnerStore, type RecordProposal, type PreferenceTier } from "@qwixl/owner-store";
 
 /**
  * Owner profile editor: the user-visible face of the owner store. Everything

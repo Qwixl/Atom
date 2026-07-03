@@ -5,7 +5,7 @@ import {
   type Catalog,
   type JsonValue,
   type UiEvent,
-} from "@atom/shell-core";
+} from "@qwixl/shell-core";
 import { buildSystemPrompt, type PromptProfile } from "./prompt.js";
 
 export interface LlmConfig {

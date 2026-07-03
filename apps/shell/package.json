@@ -1,5 +1,5 @@
 {
-  "name": "@atom/shell-app",
+  "name": "@qwixl/shell-app",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,13 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@atom/a2ui-adapter": "workspace:*",
-    "@atom/ag-ui-adapter": "workspace:*",
-    "@atom/agent-llm": "workspace:*",
-    "@atom/owner-store": "workspace:*",
-    "@atom/renderer-web": "workspace:*",
-    "@atom/secret-store": "workspace:*",
-    "@atom/shell-core": "workspace:*",
+    "@qwixl/a2ui-adapter": "workspace:*",
+    "@qwixl/ag-ui-adapter": "workspace:*",
+    "@qwixl/agent-llm": "workspace:*",
+    "@qwixl/owner-store": "workspace:*",
+    "@qwixl/renderer-web": "workspace:*",
+    "@qwixl/secret-store": "workspace:*",
+    "@qwixl/shell-core": "workspace:*",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
   },

@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue } from "@atom/shell-core";
+import type { JsonObject, JsonValue } from "@qwixl/shell-core";
 
 /** Raw A2UI component object from updateComponents.components[]. */
 export type A2uiComponentRecord = JsonObject & {

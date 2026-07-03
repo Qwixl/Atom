@@ -17,13 +17,13 @@ importers:
       '@ag-ui/client':
         specifier: 0.0.57
         version: 0.0.57
-      '@atom/a2ui-adapter':
+      '@qwixl/a2ui-adapter':
         specifier: workspace:*
         version: link:../../packages/a2ui-adapter
-      '@atom/ag-ui-adapter':
+      '@qwixl/ag-ui-adapter':
         specifier: workspace:*
         version: link:../../packages/ag-ui-adapter
-      '@atom/shell-core':
+      '@qwixl/shell-core':
         specifier: workspace:*
         version: link:../../packages/shell-core
       uuid:
@@ -42,10 +42,10 @@ importers:
 
   apps/embed-demo:
     dependencies:
-      '@atom/renderer-web':
+      '@qwixl/renderer-web':
         specifier: workspace:*
         version: link:../../packages/renderer-web
-      '@atom/shell-core':
+      '@qwixl/shell-core':
         specifier: workspace:*
         version: link:../../packages/shell-core
       react:
@@ -82,25 +82,25 @@ importers:
 
   apps/shell:
     dependencies:
-      '@atom/a2ui-adapter':
+      '@qwixl/a2ui-adapter':
         specifier: workspace:*
         version: link:../../packages/a2ui-adapter
-      '@atom/ag-ui-adapter':
+      '@qwixl/ag-ui-adapter':
         specifier: workspace:*
         version: link:../../packages/ag-ui-adapter
-      '@atom/agent-llm':
+      '@qwixl/agent-llm':
         specifier: workspace:*
         version: link:../../packages/agent-llm
-      '@atom/owner-store':
+      '@qwixl/owner-store':
         specifier: workspace:*
         version: link:../../packages/owner-store
-      '@atom/renderer-web':
+      '@qwixl/renderer-web':
         specifier: workspace:*
         version: link:../../packages/renderer-web
-      '@atom/secret-store':
+      '@qwixl/secret-store':
         specifier: workspace:*
         version: link:../../packages/secret-store
-      '@atom/shell-core':
+      '@qwixl/shell-core':
         specifier: workspace:*
         version: link:../../packages/shell-core
       react:
@@ -128,7 +128,7 @@ importers:
 
   packages/a2ui-adapter:
     dependencies:
-      '@atom/shell-core':
+      '@qwixl/shell-core':
         specifier: workspace:*
         version: link:../shell-core
     devDependencies:
@@ -141,10 +141,10 @@ importers:
       '@ag-ui/client':
         specifier: 0.0.57
         version: 0.0.57
-      '@atom/a2ui-adapter':
+      '@qwixl/a2ui-adapter':
         specifier: workspace:*
         version: link:../a2ui-adapter
-      '@atom/shell-core':
+      '@qwixl/shell-core':
         specifier: workspace:*
         version: link:../shell-core
       uuid:
@@ -157,7 +157,7 @@ importers:
 
   packages/agent-llm:
     dependencies:
-      '@atom/shell-core':
+      '@qwixl/shell-core':
         specifier: workspace:*
         version: link:../shell-core
     devDependencies:
@@ -167,7 +167,7 @@ importers:
 
   packages/owner-store:
     dependencies:
-      '@atom/shell-core':
+      '@qwixl/shell-core':
         specifier: workspace:*
         version: link:../shell-core
     devDependencies:
@@ -177,7 +177,7 @@ importers:
 
   packages/registry-tools:
     dependencies:
-      '@atom/shell-core':
+      '@qwixl/shell-core':
         specifier: workspace:*
         version: link:../shell-core
     devDependencies:
@@ -190,7 +190,7 @@ importers:
 
   packages/renderer-web:
     dependencies:
-      '@atom/shell-core':
+      '@qwixl/shell-core':
         specifier: workspace:*
         version: link:../shell-core
     devDependencies:

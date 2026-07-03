@@ -1,6 +1,6 @@
 {
   "installCommand": "cd ../.. && pnpm install",
-  "buildCommand": "cd ../.. && pnpm --filter @atom/registry-host build",
+  "buildCommand": "cd ../.. && pnpm --filter @qwixl/registry-host build",
   "outputDirectory": "dist",
   "headers": [
     {

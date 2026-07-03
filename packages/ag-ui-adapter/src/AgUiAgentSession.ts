@@ -5,7 +5,7 @@ import {
   type AgentSession,
   type JsonValue,
   type UiEvent,
-} from "@atom/shell-core";
+} from "@qwixl/shell-core";
 import { mapCustomEventToOutput, resetA2uiAssembler } from "./atom-events.js";
 
 export interface AgUiAgentConfig {
@@ -18,7 +18,7 @@ export interface AgUiAgentConfig {
 /**
  * AgentSession backed by an AG-UI HttpAgent. Translates the AG-UI event stream
  * into shell-core AgentOutput; outbound shell messages become user messages on
- * the AG-UI thread (same wire shape as @atom/agent-llm for backend parity).
+ * the AG-UI thread (same wire shape as @qwixl/agent-llm for backend parity).
  */
 export class AgUiAgentSession extends SessionEmitter implements AgentSession {
   private agent: HttpAgent;

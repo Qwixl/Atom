@@ -1,6 +1,6 @@
-import type { Catalog, JsonValue } from "@atom/shell-core";
+import type { Catalog, JsonValue } from "@qwixl/shell-core";
 
-/** Owner profile slice passed at session assembly (see @atom/owner-store). */
+/** Owner profile slice passed at session assembly (see @qwixl/owner-store). */
 export interface PromptProfile {
   open: Array<{
     category: string;

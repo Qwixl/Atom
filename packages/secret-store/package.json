@@ -1,5 +1,5 @@
 {
-  "name": "@atom/secret-store",
+  "name": "@qwixl/secret-store",
   "version": "0.1.0",
   "description": "Pluggable secret storage for Atom shell connection credentials (secret refs, not inline values).",
   "type": "module",

@@ -1,4 +1,4 @@
-import type { JsonValue, UiEvent } from "@atom/shell-core";
+import type { JsonValue, UiEvent } from "@qwixl/shell-core";
 import type { OwnerStore } from "./OwnerStore.js";
 
 function normalizeFieldKey(name: string): string {

@@ -1,4 +1,4 @@
-import type { Composition, CompositionNode, JsonObject, JsonValue } from "@atom/shell-core";
+import type { Composition, CompositionNode, JsonObject, JsonValue } from "@qwixl/shell-core";
 import { mapA2uiComponentName } from "./catalog-map.js";
 import type { A2uiComponentRecord, A2uiEnvelope, A2uiSurfaceState } from "./types.js";
 

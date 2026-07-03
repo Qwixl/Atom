@@ -3,9 +3,9 @@ import {
   atomCompositionEvent,
   atomConsequentialActionEvent,
   atomDataRequestEvent,
-} from "@atom/ag-ui-adapter";
-import { A2UI_AGUI_EVENT, type A2uiEnvelope } from "@atom/a2ui-adapter";
-import type { Composition, ConsequentialAction } from "@atom/shell-core";
+} from "@qwixl/ag-ui-adapter";
+import { A2UI_AGUI_EVENT, type A2uiEnvelope } from "@qwixl/a2ui-adapter";
+import type { Composition, ConsequentialAction } from "@qwixl/shell-core";
 import { v4 as uuid } from "uuid";
 
 function a2uiCustomEvent(envelope: A2uiEnvelope): BaseEvent {
@@ -174,7 +174,7 @@ export function* scenarioEvents(input: RunAgentInput): Generator<BaseEvent> {
             {
               id: "intro",
               component: "Text",
-              text: "Pick a flight — rendered from A2UI basic catalog via @atom/a2ui-adapter",
+              text: "Pick a flight — rendered from A2UI basic catalog via @qwixl/a2ui-adapter",
               variant: "body",
             },
             {

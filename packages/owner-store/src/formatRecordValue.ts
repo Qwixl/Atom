@@ -1,4 +1,4 @@
-import type { JsonValue } from "@atom/shell-core";
+import type { JsonValue } from "@qwixl/shell-core";
 
 /** Human-readable display for owner record / proposal values. */
 export function formatRecordValue(value: JsonValue): string {

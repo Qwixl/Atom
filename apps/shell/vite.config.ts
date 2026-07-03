@@ -19,11 +19,11 @@ export default defineConfig({
   optimizeDeps: {
     include: [
       "@ag-ui/client",
-      "@atom/a2ui-adapter",
-      "@atom/ag-ui-adapter",
-      "@atom/renderer-web",
-      "@atom/secret-store",
-      "@atom/shell-core",
+      "@qwixl/a2ui-adapter",
+      "@qwixl/ag-ui-adapter",
+      "@qwixl/renderer-web",
+      "@qwixl/secret-store",
+      "@qwixl/shell-core",
     ],
   },
 });

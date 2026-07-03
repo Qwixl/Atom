@@ -1,5 +1,5 @@
 {
-  "name": "@atom/shell-core",
+  "name": "@qwixl/shell-core",
   "version": "0.1.0",
   "description": "Embeddable engine for the Atom shell: composition model, catalog, resolver, attestation log, agent session contract.",
   "license": "Apache-2.0",

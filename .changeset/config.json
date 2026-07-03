@@ -5,16 +5,16 @@
   "fixed": [],
   "linked": [
     [
-      "@atom/shell-core",
-      "@atom/renderer-web",
-      "@atom/a2ui-adapter",
-      "@atom/ag-ui-adapter",
-      "@atom/owner-store",
-      "@atom/registry-tools"
+      "@qwixl/shell-core",
+      "@qwixl/renderer-web",
+      "@qwixl/a2ui-adapter",
+      "@qwixl/ag-ui-adapter",
+      "@qwixl/owner-store",
+      "@qwixl/registry-tools"
     ]
   ],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@atom/shell-app", "@atom/embed-demo", "@atom/ag-ui-server", "@atom/registry-host", "@atom/agent-llm", "@atom/secret-store"]
+  "ignore": ["@qwixl/shell-app", "@qwixl/embed-demo", "@qwixl/ag-ui-server", "@qwixl/registry-host", "@qwixl/agent-llm", "@qwixl/secret-store"]
 }

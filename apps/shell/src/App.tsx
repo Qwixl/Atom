@@ -17,17 +17,17 @@ import {
   type RegistryRevocation,
   type RegistryTrustPolicy,
   type UiEvent,
-} from "@atom/shell-core";
-import { SurfaceRenderer } from "@atom/renderer-web";
-import { LlmAgentSession, runCuratorPass, type LlmConfig } from "@atom/agent-llm";
-import { AgUiAgentSession, type AgUiAgentConfig } from "@atom/ag-ui-adapter";
+} from "@qwixl/shell-core";
+import { SurfaceRenderer } from "@qwixl/renderer-web";
+import { LlmAgentSession, runCuratorPass, type LlmConfig } from "@qwixl/agent-llm";
+import { AgUiAgentSession, type AgUiAgentConfig } from "@qwixl/ag-ui-adapter";
 import {
   OwnerStore,
   activeContextTags,
   type OwnerRecord,
   type RecordProposal,
   recordUiPreferenceFeedback,
-} from "@atom/owner-store";
+} from "@qwixl/owner-store";
 import {
   createLocalStorageSecretStore,
   DEFAULT_LLM_SECRET_REF,
@@ -37,7 +37,7 @@ import {
   persistLlmConnection,
   resolveLlmConfig,
   type LlmConnectionConfig,
-} from "@atom/secret-store";
+} from "@qwixl/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
 import { ProfilePanel } from "./ProfilePanel.js";
 

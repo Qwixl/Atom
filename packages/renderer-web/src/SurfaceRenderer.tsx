@@ -5,7 +5,7 @@ import type {
   ResolvedNode,
   ResolvedSurface,
   UiEvent,
-} from "@atom/shell-core";
+} from "@qwixl/shell-core";
 
 export interface SurfaceRendererProps {
   surface: ResolvedSurface;

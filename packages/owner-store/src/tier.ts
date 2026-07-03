@@ -1,4 +1,4 @@
-import type { JsonValue } from "@atom/shell-core";
+import type { JsonValue } from "@qwixl/shell-core";
 
 /** Stakes classification for a preference record. See docs/02-architecture/08-preference-evidence.md. */
 export type PreferenceTier = "constraint" | "preference" | "taste";

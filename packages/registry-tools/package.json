@@ -1,5 +1,5 @@
 {
-  "name": "@atom/registry-tools",
+  "name": "@qwixl/registry-tools",
   "version": "0.1.0",
   "description": "CLI to hash, verify, and publish Atom module registry indexes.",
   "license": "Apache-2.0",
@@ -26,7 +26,7 @@
     "publish-module": "node dist/cli.js publish"
   },
   "dependencies": {
-    "@atom/shell-core": "workspace:*"
+    "@qwixl/shell-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

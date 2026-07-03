@@ -4,7 +4,7 @@ import {
   type AgentSession,
   type ConversationRuntimeOptions,
   type ConversationSnapshot,
-} from "@atom/shell-core";
+} from "@qwixl/shell-core";
 
 export interface UseConversationRuntimeResult {
   runtime: ConversationRuntime;

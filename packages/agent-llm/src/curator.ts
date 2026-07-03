@@ -1,4 +1,4 @@
-import type { JsonValue } from "@atom/shell-core";
+import type { JsonValue } from "@qwixl/shell-core";
 
 export type CuratorSignalKind = "reinforce" | "contradict" | "override";
 

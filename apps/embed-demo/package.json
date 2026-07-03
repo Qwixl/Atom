@@ -1,5 +1,5 @@
 {
-  "name": "@atom/embed-demo",
+  "name": "@qwixl/embed-demo",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@atom/renderer-web": "workspace:*",
-    "@atom/shell-core": "workspace:*",
+    "@qwixl/renderer-web": "workspace:*",
+    "@qwixl/shell-core": "workspace:*",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
   },

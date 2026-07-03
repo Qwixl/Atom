@@ -1,5 +1,5 @@
 {
-  "name": "@atom/owner-store",
+  "name": "@qwixl/owner-store",
   "version": "0.1.0",
   "description": "Owner-controlled profile/memory store for the Atom shell: portable records, guarded categories, scoped context slices for agent disclosure.",
   "license": "Apache-2.0",
@@ -29,7 +29,7 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@atom/shell-core": "workspace:*"
+    "@qwixl/shell-core": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.6.0"

@@ -6,7 +6,7 @@ import {
   validateModuleManifest,
   type RegistryIndex,
   type RegistryModuleEntry,
-} from "@atom/shell-core";
+} from "@qwixl/shell-core";
 
 export interface VerifyOptions {
   registryDir: string;
