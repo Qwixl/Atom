@@ -11,6 +11,7 @@ import {
   findTrustedAgentRecord,
 } from "./comms/trustedAgent.js";
 import type { AgentContact, CommsThreadItem, InboxEntryWire } from "./comms/types.js";
+import type { ConsequentialAction } from "@qwixl/shell-core";
 
 const INBOX_POLL_MS = 4000;
 
@@ -43,12 +44,14 @@ export function CommsPanel({
   ownerStore,
   onContactsChanged,
   onProfileChanged,
+  onRequestConfirmation,
 }: {
   contacts: AgentContact[];
   ownerRecords: OwnerRecord[];
   ownerStore: OwnerStore;
   onContactsChanged: () => void;
   onProfileChanged: () => void;
+  onRequestConfirmation: (action: ConsequentialAction) => Promise<"approved" | "declined">;
 }) {
   const [agentUrl, setAgentUrl] = useState(() => loadCommsAgentConfig().adminUrl);
   const [localDid, setLocalDid] = useState<string | null>(null);
@@ -286,6 +289,22 @@ export function CommsPanel({
 
   async function respondScheduling(proposalId: string, response: "accept" | "decline", slot?: SchedulingSlot) {
     if (!selected) return;
+    const action: ConsequentialAction = {
+      id: crypto.randomUUID(),
+      kind: "confirmation",
+      title: response === "accept" ? "Confirm meeting time" : "Decline scheduling proposal",
+      terms: {
+        contact: selected.name,
+        proposalId,
+        response,
+        slot: slot?.label ?? "",
+        action: response === "accept" ? "Send acceptance to contact agent" : "Send decline to contact agent",
+      },
+      confirmLabel: response === "accept" ? "Confirm & send" : "Send decline",
+      declineLabel: "Cancel",
+    };
+    const decision = await onRequestConfirmation(action);
+    if (decision !== "approved") return;
     setBusy(true);
     setActionNote(null);
     try {
@@ -321,6 +340,21 @@ export function CommsPanel({
 
   async function respondRsvp(rsvpId: string, response: RsvpAnswer) {
     if (!selected) return;
+    const action: ConsequentialAction = {
+      id: crypto.randomUUID(),
+      kind: "confirmation",
+      title: "Update RSVP",
+      terms: {
+        contact: selected.name,
+        rsvpId,
+        response,
+        action: `Send RSVP (${response}) to contact agent`,
+      },
+      confirmLabel: "Confirm & send",
+      declineLabel: "Cancel",
+    };
+    const decision = await onRequestConfirmation(action);
+    if (decision !== "approved") return;
     setBusy(true);
     setActionNote(null);
     try {

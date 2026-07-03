@@ -26,3 +26,13 @@ export {
   resolveLlmConfig,
 } from "./llmConnection.js";
 export type { LlmConnectionConfig, ResolvedLlmConfig } from "./llmConnection.js";
+export {
+  DEFAULT_GOOGLE_CALENDAR_OAUTH_REF,
+  OAUTH_CONNECTIONS_STORAGE_KEY,
+  isOAuthConnectionReady,
+  loadOAuthConnections,
+  persistOAuthConnections,
+  resolveOAuthToken,
+  upsertOAuthConnection,
+} from "./oauthConnection.js";
+export type { OAuthConnectionConfig } from "./oauthConnection.js";

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   AttestationLog,
   Catalog,
@@ -14,6 +14,7 @@ import {
   saveStringToStorage,
   type AgentSession,
   type AttestationEntry,
+  type ConsequentialAction,
   type RegistryRevocation,
   type RegistryTrustPolicy,
   type UiEvent,
@@ -32,16 +33,20 @@ import {
   createDefaultSecretStore,
   createProductionSecretStore,
   DEFAULT_LLM_SECRET_REF,
+  DEFAULT_GOOGLE_CALENDAR_OAUTH_REF,
   isLlmConnectionReady,
   loadAndMigrateLlmConnection,
   loadLlmConnectionFromSession,
+  loadOAuthConnections,
   LLM_CONNECTION_STORAGE_KEY,
   maskSecret,
   persistLlmConnection,
   persistLlmConnectionToSession,
   purgeInsecureLocalCredentials,
   resolveLlmConfig,
+  upsertOAuthConnection,
   type LlmConnectionConfig,
+  type OAuthConnectionConfig,
   type SecretStore,
 } from "@qwixl/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
@@ -186,6 +191,18 @@ export function App() {
     const key = secretStore.get(llmConnection.secretRef);
     return key ? maskSecret(key) : null;
   }, [llmConnection, secretStore]);
+  const [oauthConnections, setOauthConnections] = useState<OAuthConnectionConfig[]>(() =>
+    loadOAuthConnections(),
+  );
+  const googleCalendarOAuth = useMemo(
+    () => oauthConnections.find((c) => c.secretRef === DEFAULT_GOOGLE_CALENDAR_OAUTH_REF) ?? null,
+    [oauthConnections],
+  );
+  const savedGoogleCalendarTokenHint = useMemo(() => {
+    if (!googleCalendarOAuth) return null;
+    const token = secretStore.get(googleCalendarOAuth.secretRef);
+    return token ? maskSecret(token) : null;
+  }, [googleCalendarOAuth, secretStore]);
   const [agUiConfig, setAgUiConfig] = useState<AgUiAgentConfig>(() => loadAgUiConfig());
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Set when user picks a provider that needs configuration first. */
@@ -194,6 +211,10 @@ export function App() {
   const [attestations, setAttestations] = useState<readonly AttestationEntry[]>(
     attestationLog.list(),
   );
+  const [commsPending, setCommsPending] = useState<{
+    action: ConsequentialAction;
+    resolve: (decision: "approved" | "declined") => void;
+  } | null>(null);
   const [panel, setPanel] = useState<SidePanel>("none");
   const [commsContacts, setCommsContacts] = useState<AgentContact[]>(() =>
     loadContacts(ownerRecordsPersistence.load()),
@@ -453,6 +474,36 @@ export function App() {
     }
   }
 
+  const requestCommsConfirmation = useCallback(
+    (action: ConsequentialAction) =>
+      new Promise<"approved" | "declined">((resolve) => {
+        setCommsPending({ action, resolve });
+      }),
+    [],
+  );
+
+  async function decideChrome(decision: "approved" | "declined") {
+    if (commsPending) {
+      const pendingComms = commsPending;
+      await attestationLog.append({
+        surfaceId: "comms",
+        action: pendingComms.action,
+        decision,
+      });
+      setAttestations([...attestationLog.list()]);
+      setCommsPending(null);
+      pendingComms.resolve(decision);
+      return;
+    }
+    await decide(decision);
+  }
+
+  const chromePending =
+    pending ??
+    (commsPending
+      ? { action: commsPending.action, surfaceId: "comms", dataRequest: undefined }
+      : null);
+
   function switchProvider(next: Provider) {
     if (next === "llm" && !ALLOW_BROWSER_LLM) return;
     if (next === "llm" && !isLlmConnectionReady(llmConnection, secretStore)) {
@@ -636,6 +687,7 @@ export function App() {
               setProfileRecords(ownerStore.list());
               setCommsContacts(loadContacts(ownerStore.list()));
             }}
+            onRequestConfirmation={requestCommsConfirmation}
           />
         ) : null}
 
@@ -699,17 +751,19 @@ export function App() {
         </button>
       </footer>
 
-      {pending ? (
+      {chromePending ? (
         <div className="chrome-overlay" role="dialog" aria-modal="true">
           <div className="chrome-dialog">
             <div className="chrome-dialog-banner">
-              {pending.dataRequest
+              {chromePending.dataRequest
                 ? "Shell-verified request · guarded data disclosure"
-                : "Shell-verified request · terms restated from the data object"}
+                : chromePending.surfaceId === "comms"
+                  ? "Shell-verified request · coordination action"
+                  : "Shell-verified request · terms restated from the data object"}
             </div>
-            <h2>{pending.action.title}</h2>
+            <h2>{chromePending.action.title}</h2>
             <dl className="chrome-terms">
-              {Object.entries(pending.action.terms).map(([key, value]) => (
+              {Object.entries(chromePending.action.terms).map(([key, value]) => (
                 <div key={key}>
                   <dt>{key}</dt>
                   <dd>{String(value)}</dd>
@@ -717,11 +771,11 @@ export function App() {
               ))}
             </dl>
             <div className="chrome-actions">
-              <button className="chrome-decline" onClick={() => decide("declined")}>
-                {pending.action.declineLabel ?? "Decline"}
+              <button className="chrome-decline" onClick={() => void decideChrome("declined")}>
+                {chromePending.action.declineLabel ?? "Decline"}
               </button>
-              <button className="chrome-approve" onClick={() => decide("approved")}>
-                {pending.action.confirmLabel ?? "Approve"}
+              <button className="chrome-approve" onClick={() => void decideChrome("approved")}>
+                {chromePending.action.confirmLabel ?? "Approve"}
               </button>
             </div>
             <p className="chrome-footnote">
@@ -735,6 +789,8 @@ export function App() {
         <SettingsDialog
           llmConnectionInitial={llmConnection}
           savedLlmKeyHint={savedLlmKeyHint}
+          googleCalendarOAuthInitial={googleCalendarOAuth}
+          savedGoogleCalendarTokenHint={savedGoogleCalendarTokenHint}
           agUiInitial={agUiConfig}
           registryInitial={registryUrl}
           trustInitial={registryTrust}
@@ -795,6 +851,12 @@ export function App() {
               }
             }
           }}
+          onSaveGoogleCalendarOAuth={(connection, accessToken) => {
+            if (accessToken !== undefined) {
+              secretStore.set(connection.secretRef, accessToken);
+            }
+            setOauthConnections(upsertOAuthConnection(connection));
+          }}
         />
       ) : null}
     </div>
@@ -804,6 +866,8 @@ export function App() {
 function SettingsDialog({
   llmConnectionInitial,
   savedLlmKeyHint,
+  googleCalendarOAuthInitial,
+  savedGoogleCalendarTokenHint,
   agUiInitial,
   registryInitial,
   trustInitial,
@@ -814,12 +878,15 @@ function SettingsDialog({
   intent,
   onClose,
   onSaveLlm,
+  onSaveGoogleCalendarOAuth,
   onSaveAgUi,
   onSaveRegistry,
   onSaveCurator,
 }: {
   llmConnectionInitial: LlmConnectionConfig | null;
   savedLlmKeyHint: string | null;
+  googleCalendarOAuthInitial: OAuthConnectionConfig | null;
+  savedGoogleCalendarTokenHint: string | null;
   agUiInitial: AgUiAgentConfig;
   registryInitial: string;
   trustInitial: RegistryTrustPolicy;
@@ -830,6 +897,7 @@ function SettingsDialog({
   intent: Provider | null;
   onClose: () => void;
   onSaveLlm: (connection: LlmConnectionConfig, apiKey?: string) => void;
+  onSaveGoogleCalendarOAuth: (connection: OAuthConnectionConfig, accessToken?: string) => void;
   onSaveAgUi: (config: AgUiAgentConfig) => void;
   onSaveRegistry: (url: string, trust: RegistryTrustPolicy) => void;
   onSaveCurator: (enabled: boolean, autoAcceptOpen: boolean) => void;
@@ -846,10 +914,18 @@ function SettingsDialog({
   const [requireSignature, setRequireSignature] = useState(trustInitial.requireSignature === true);
   const [curatorOn, setCuratorOn] = useState(curatorInitial);
   const [curatorAutoAcceptOn, setCuratorAutoAcceptOn] = useState(curatorAutoAcceptInitial);
+  const [googleCalendarToken, setGoogleCalendarToken] = useState("");
+  const [changingGoogleCalendarToken, setChangingGoogleCalendarToken] = useState(
+    !savedGoogleCalendarTokenHint,
+  );
   const hasSavedKey = Boolean(savedLlmKeyHint) && !changingKey;
+  const hasSavedGoogleCalendarToken =
+    Boolean(savedGoogleCalendarTokenHint) && !changingGoogleCalendarToken;
   const llmValid =
     Boolean(baseUrl.trim() && model.trim()) &&
     (hasSavedKey || Boolean(apiKey.trim()));
+  const googleCalendarOAuthValid =
+    hasSavedGoogleCalendarToken || Boolean(googleCalendarToken.trim());
   const agUiValid = agUiUrl.trim().length > 0;
 
   function saveLlmAndEnable() {
@@ -860,6 +936,19 @@ function SettingsDialog({
       secretRef: llmConnectionInitial?.secretRef ?? DEFAULT_LLM_SECRET_REF,
     };
     onSaveLlm(connection, hasSavedKey ? undefined : apiKey.trim());
+  }
+
+  function saveGoogleCalendarOAuth() {
+    const connection: OAuthConnectionConfig = {
+      provider: "google",
+      scopes: ["https://www.googleapis.com/auth/calendar"],
+      secretRef: googleCalendarOAuthInitial?.secretRef ?? DEFAULT_GOOGLE_CALENDAR_OAUTH_REF,
+      label: "Google Calendar",
+    };
+    onSaveGoogleCalendarOAuth(
+      connection,
+      hasSavedGoogleCalendarToken ? undefined : googleCalendarToken.trim(),
+    );
   }
 
   useEffect(() => {
@@ -971,6 +1060,54 @@ function SettingsDialog({
               Auto-save open (non-guarded) curator records so preferences apply on your next turn
             </span>
           </label>
+        </section>
+        <section className="settings-section">
+          <h3>Google Calendar (OAuth)</h3>
+          <p className="settings-note">
+            Scoped calendar access for low-stakes scheduling actions. Live OAuth redirect is not
+            wired yet — paste an access token from your OAuth flow for local dev (stored in
+            SecretStore, same pattern as LLM keys).
+          </p>
+          {hasSavedGoogleCalendarToken ? (
+            <div className="settings-saved-key">
+              <span className="settings-saved-key-label">Access token</span>
+              <span className="settings-saved-key-value">
+                Using saved token ({savedGoogleCalendarTokenHint})
+              </span>
+              <button
+                type="button"
+                className="settings-saved-key-change"
+                onClick={() => {
+                  setChangingGoogleCalendarToken(true);
+                  setGoogleCalendarToken("");
+                }}
+              >
+                Change token
+              </button>
+            </div>
+          ) : (
+            <label className="atom-field">
+              <span className="atom-field-label">Access token</span>
+              <input
+                type="password"
+                value={googleCalendarToken}
+                placeholder={
+                  savedGoogleCalendarTokenHint ? "Enter new access token" : undefined
+                }
+                onChange={(e) => setGoogleCalendarToken(e.target.value)}
+              />
+            </label>
+          )}
+          <div className="chrome-actions settings-section-actions">
+            <button
+              type="button"
+              className="chrome-approve"
+              disabled={!googleCalendarOAuthValid}
+              onClick={saveGoogleCalendarOAuth}
+            >
+              Save calendar connection
+            </button>
+          </div>
         </section>
         <section className="settings-section">
           <h3>AG-UI backend</h3>
