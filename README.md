@@ -27,7 +27,7 @@ An open, user-owned shell for agent-driven interfaces. Your agent composes a dec
 | `@qwixl/a2a-transport` | yes | A2A wire format for signed data objects + MLS handshake. |
 | `@qwixl/mls-session` | yes | RFC 9420 MLS pair sessions for agent backends. |
 | `@qwixl/agent-backend` | yes | Self-hostable owner agent (`atom-agent` CLI): A2A + MLS + admin API. |
-| `@qwixl/agent-llm` | monorepo only | LLM-backed `AgentSession` for the reference shell. |
+| `@qwixl/agent-llm` | yes | LLM-backed `AgentSession` for the reference shell. |
 | `@qwixl/secret-store` | monorepo only | Pluggable secret storage for connection credentials. |
 
 Reference apps (not published): `apps/shell`, `apps/embed-demo`, `apps/ag-ui-server`, `apps/registry-host`.

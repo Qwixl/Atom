@@ -1,5 +1,13 @@
 # @qwixl/agent-backend
 
+## 0.1.2
+
+### Patch Changes
+
+- M7 completion: `POST /agent` AG-UI SSE on agent-backend with server-side LLM keys; publish `@qwixl/agent-llm` for npm-only installs.
+- Updated dependencies
+  - @qwixl/agent-llm@0.1.0
+
 ## 0.1.1
 
 ### Patch Changes
