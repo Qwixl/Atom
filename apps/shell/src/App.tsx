@@ -47,8 +47,9 @@ type SidePanel = "none" | "log" | "profile";
 type ShellSession = AgentSession & { dispose?: () => void };
 
 const SUGGESTIONS = [
-  "Book me a flight to Tokyo",
-  "Which seats should I book?",
+  "Schedule a team standup next week",
+  "RSVP to the design review",
+  "What time works for our standup?",
   "Show me my spending this quarter",
 ];
 const AGUI_CONFIG_KEY = "atom-agui-config";

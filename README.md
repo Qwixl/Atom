@@ -67,10 +67,11 @@ pnpm build            # packages + deployable apps
 
 Try the mock-agent demos (no API keys needed):
 
-- **"Book me a flight to Tokyo"** — flight choice → `travel/seat-map` module (iframe sandbox) → shell-chrome payment confirmation → attested receipt. Toggle **Modules off** in the header to skip the module step.
-- **AG-UI + A2UI:** switch to **AG-UI** provider, ask **"a2ui flight to Tokyo"** — surfaces arrive as A2UI v0.9.1 envelopes and render via `@qwixl/a2ui-adapter`.
-- **"Which seats should I book?"** — guarded preference disclosure: add a guarded record in **Profile**, then ask; shell permission chrome → attestation → agent receives disclosed records only after approval.
-- **"Show me my spending"** — compositions referencing uninstalled modules, degrading gracefully to semantic-role substitution and raw fallback.
+- **"Schedule a team standup next week"** — time slot choice → shell-chrome **confirmation** (no payment) → attested calendar receipt.
+- **"RSVP to the design review"** — accept/decline → confirmation in shell chrome.
+- **"What time works for our standup?"** — guarded preference disclosure: add a guarded record in **Profile**, then ask; shell permission chrome → attestation → agent proposes filtered slots.
+- **AG-UI + A2UI:** switch to **AG-UI** provider, ask **"a2ui schedule standup"** — surfaces arrive as A2UI v0.9.1 envelopes.
+- **"Show me my spending"** — compositions referencing uninstalled modules, degrading gracefully to semantic-role substitution.
 
 Or switch to **AG-UI** in the app header (start `pnpm dev:ag-ui` first), or **Live LLM** and configure any OpenAI-compatible endpoint in Settings.
 

@@ -11,16 +11,19 @@ interface MockAgentOptions {
   profileProvider?: () => PromptProfile;
 }
 
+type PendingStep =
+  | { kind: "slot"; eventTitle: string; slotId: string; slotLabel: string }
+  | { kind: "rsvp"; response: string };
+
 /**
- * Scripted stand-in for a real agent backend (proof point 1 validates the
- * vocabulary before any model is wired in). Speaks the same AgentSession
- * contract an AG-UI adapter will.
+ * Scripted stand-in for a real agent backend. Primary vertical (M3): scheduling /
+ * RSVP — trust-ladder phase 2/3, confirmation in shell chrome, no payment rails.
  */
 export class MockAgentSession extends SessionEmitter implements AgentSession {
   private queue: ReturnType<typeof setTimeout>[] = [];
   private surfaceCounter = 0;
   private profileProvider?: () => PromptProfile;
-  private pendingFlightOption: string | null = null;
+  private pending: PendingStep | null = null;
 
   constructor(options?: MockAgentOptions) {
     super();
@@ -43,12 +46,19 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
   sendUserMessage(text: string): void {
     const lower = text.toLowerCase();
     if (
-      lower.includes("seat") &&
-      (lower.includes("prefer") || lower.includes("book") || lower.includes("which"))
+      lower.includes("time") &&
+      (lower.includes("standup") || lower.includes("schedule") || lower.includes("works"))
     ) {
       this.runGuardedPreferenceScenario();
-    } else if (lower.includes("flight") || lower.includes("tokyo")) {
-      this.runFlightScenario();
+    } else if (lower.includes("rsvp") || lower.includes("design review")) {
+      this.runRsvpScenario();
+    } else if (
+      lower.includes("schedule") ||
+      lower.includes("standup") ||
+      lower.includes("meeting") ||
+      lower.includes("calendar")
+    ) {
+      this.runScheduleScenario();
     } else if (lower.includes("spend") || lower.includes("budget")) {
       this.runSpendingScenario();
     } else {
@@ -56,7 +66,8 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
         this.emit({
           type: "text",
           text:
-            "This mock agent knows three scripts: ask about seats/preferences (guarded disclosure), a flight to Tokyo (optional seat-map module), or your spending.",
+            'Mock agent scripts: "Schedule a team standup next week", "RSVP to the design review", ' +
+            '"What time works for our standup?" (guarded disclosure), or spending overview (fallback demo).',
         }),
       );
       this.later(450, () => this.finishTurn());
@@ -66,31 +77,55 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
   sendUiEvent(event: UiEvent): void {
     if (event.name === "selected") {
       const optionId = (event.payload as { optionId?: string })?.optionId ?? "unknown";
-      this.pendingFlightOption = optionId;
-      this.later(400, () =>
-        this.emit({
-          type: "text",
-          text: "Flight option noted. Pick a seat on the map — the shell will lazy-load travel/seat-map from your registry.",
-        }),
-      );
-      this.later(900, () =>
-        this.emit({ type: "composition", composition: this.seatMapSurface(this.nextSurfaceId()) }),
-      );
-      this.later(950, () => this.finishTurn());
-      return;
-    }
+      const label = (event.payload as { label?: string })?.label;
 
-    if (event.name === "seatSelected") {
-      const seatId = (event.payload as { seatId?: string })?.seatId ?? "unknown";
-      const optionId = this.pendingFlightOption ?? "unknown";
+      if (optionId === "rsvp-yes" || optionId === "rsvp-maybe" || optionId === "rsvp-no") {
+        if (optionId === "rsvp-no") {
+          this.later(400, () =>
+            this.emit({ type: "text", text: "Declined — I won't add the design review to your calendar." }),
+          );
+          this.later(500, () => this.finishTurn());
+          return;
+        }
+        this.pending = { kind: "rsvp", response: optionId === "rsvp-maybe" ? "Maybe" : "Yes" };
+        const rsvpResponse = this.pending.response;
+        this.later(400, () =>
+          this.emit({
+            type: "text",
+            text: `${rsvpResponse} noted. Confirm calendar update in shell chrome…`,
+          }),
+        );
+        this.later(900, () =>
+          this.emit({
+            type: "consequential-action",
+            surfaceId: event.surfaceId,
+            action: this.rsvpConfirmation(rsvpResponse),
+          }),
+        );
+        this.later(950, () => this.finishTurn());
+        return;
+      }
+
+      const slots: Record<string, string> = {
+        "tue-10": "Tue 8 Jul · 10:00–10:30",
+        "wed-14": "Wed 9 Jul · 14:00–14:30",
+        "thu-09": "Thu 10 Jul · 09:00–09:30",
+      };
+      const slotLabel = label ?? slots[optionId] ?? optionId;
+      this.pending = {
+        kind: "slot",
+        eventTitle: "Team standup",
+        slotId: optionId,
+        slotLabel,
+      };
       this.later(400, () =>
-        this.emit({ type: "text", text: `Seat ${seatId} selected. Confirming booking terms…` }),
+        this.emit({ type: "text", text: `${slotLabel} works. Confirm the calendar hold in shell chrome…` }),
       );
       this.later(900, () =>
         this.emit({
           type: "consequential-action",
           surfaceId: event.surfaceId,
-          action: this.flightConfirmation(optionId, seatId),
+          action: this.scheduleConfirmation(this.pending as PendingStep & { kind: "slot" }),
         }),
       );
       this.later(950, () => this.finishTurn());
@@ -103,57 +138,68 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
       this.later(600, () =>
         this.emit({
           type: "text",
-          text: "Booked. The signed receipt is above; it's also in your attestation log.",
+          text: "Done. Calendar updated — details above and in your attestation log.",
         }),
       );
     } else {
       this.later(400, () =>
-        this.emit({ type: "text", text: "Declined — nothing was booked and no funds were held." }),
+        this.emit({ type: "text", text: "Declined — nothing was added to your calendar." }),
       );
     }
+    this.pending = null;
     this.later(700, () => this.finishTurn());
   }
 
   sendDataDisclosure(
-    requestId: string,
+    _requestId: string,
     decision: "approved" | "declined",
     records: Array<{ category: string; label: string; value: unknown }>,
   ): void {
     if (decision === "approved" && records.length > 0) {
-      const summary = records.map((record) => `${record.label}: ${String(record.value)}`).join("; ");
+      const summary = records.map((r) => `${r.label}: ${String(r.value)}`).join("; ");
       this.later(400, () =>
         this.emit({
           type: "text",
-          text: `Thanks — I'll use your disclosed preferences (${summary}) for seat selection.`,
+          text: `Using your disclosed availability (${summary}) to pick standup slots…`,
         }),
+      );
+      this.later(900, () =>
+        this.emit({ type: "composition", composition: this.scheduleSlots(this.nextSurfaceId()) }),
       );
     } else {
       this.later(400, () =>
         this.emit({
           type: "text",
-          text: "Understood — I won't use stored preferences without your approval.",
+          text: "Understood — showing all slots without preference filtering.",
         }),
       );
+      this.later(900, () =>
+        this.emit({ type: "composition", composition: this.scheduleSlots(this.nextSurfaceId()) }),
+      );
     }
-    this.later(500, () => this.finishTurn());
+    this.later(950, () => this.finishTurn());
   }
 
   dispose(): void {
     for (const handle of this.queue) clearTimeout(handle);
   }
 
-  // --- Scenario: guarded preference disclosure ---
+  // --- Guarded scheduling preferences ---
 
   private runGuardedPreferenceScenario(): void {
     const profile = this.profileProvider?.();
-    const hasGuardedPrefs = profile?.guardedCategories.includes("preferences") ?? false;
+    const hasGuarded =
+      profile?.guardedCategories.some((c) =>
+        ["preferences", "scheduling", "calendar"].includes(c),
+      ) ?? false;
 
-    if (!hasGuardedPrefs) {
+    if (!hasGuarded) {
       this.later(300, () =>
         this.emit({
           type: "text",
           text:
-            'Add a guarded record in the "preferences" category via Profile, then ask again — e.g. "Which seats should I book?"',
+            'Add a guarded record in Profile (category "preferences" or "scheduling"), then ask ' +
+            '"What time works for our standup?"',
         }),
       );
       this.later(350, () => this.finishTurn());
@@ -163,75 +209,73 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
     this.later(300, () =>
       this.emit({
         type: "text",
-        text: "I can see you have guarded preferences but not their contents. I'll ask the shell to disclose them.",
+        text: "I see guarded scheduling preferences — I'll ask the shell to disclose them.",
       }),
     );
     this.later(800, () =>
       this.emit({
         type: "data-request",
         request: {
-          requestId: "req-seat-pref",
+          requestId: "req-sched-pref",
           categories: ["preferences"],
-          reason: "To select seats that match your stated aisle/window preference when booking.",
+          reason: "To propose standup times that match your stated availability windows.",
         },
       }),
     );
     this.later(850, () => this.finishTurn());
   }
 
-  // --- Scenario 1: flight booking (choice → optional module seat map → chrome) ---
+  // --- Schedule standup ---
 
-  private runFlightScenario(): void {
+  private runScheduleScenario(): void {
     const surfaceId = this.nextSurfaceId();
     this.later(300, () =>
-      this.emit({ type: "text", text: "Searching flights to Tokyo for your dates…" }),
+      this.emit({ type: "text", text: "Checking shared calendars for next week…" }),
     );
-    this.later(1400, () =>
-      this.emit({ type: "composition", composition: this.flightOptions(surfaceId) }),
+    this.later(1200, () =>
+      this.emit({ type: "composition", composition: this.scheduleSlots(surfaceId) }),
     );
-    this.later(1500, () =>
+    this.later(1300, () =>
       this.emit({
         type: "text",
-        text: "Three options fit your preferences. Pick one — you'll choose a seat via the travel/seat-map module next (lazy-loaded from registry when modules are on).",
+        text: "Three slots work for everyone. Pick one — the shell will confirm before anything hits your calendar.",
       }),
     );
-    this.later(1550, () => this.finishTurn());
+    this.later(1350, () => this.finishTurn());
   }
 
-  private flightOptions(surfaceId: string): Composition {
+  private scheduleSlots(surfaceId: string): Composition {
     return {
       version: 1,
       surfaceId,
-      intent: "Choose a flight to Tokyo",
+      intent: "Choose a standup time",
       root: {
         id: "root",
         component: "core/card",
-        props: { title: "Flights to Tokyo", subtitle: "12–19 August · 1 adult · economy" },
+        props: { title: "Team standup", subtitle: "Weekly · 30 min · Zoom link on confirm" },
         children: [
           {
-            id: "options",
+            id: "slots",
             component: "core/choice",
             semanticRole: "input/choice",
             events: ["selected"],
             props: {
               options: [
                 {
-                  id: "ana-direct",
-                  label: "ANA · direct · £612",
-                  description: "LHR 11:35 → HND 07:15 (+1) · 13h 40m",
-                  detail: "Arrives before hotel check-in; matches your aisle-seat preference.",
+                  id: "tue-10",
+                  label: "Tue 8 Jul · 10:00",
+                  description: "Works for 4/5 attendees",
                   recommended: true,
                 },
                 {
-                  id: "ba-direct",
-                  label: "British Airways · direct · £648",
-                  description: "LHR 13:40 → HND 09:55 (+1) · 14h 15m",
+                  id: "wed-14",
+                  label: "Wed 9 Jul · 14:00",
+                  description: "Works for 5/5 attendees",
                 },
                 {
-                  id: "klm-1stop",
-                  label: "KLM · 1 stop (AMS) · £489",
-                  description: "LHR 06:20 → HND 08:05 (+1) · 18h 45m",
-                  detail: "Cheapest, but the 6am departure conflicts with your stated morning constraint.",
+                  id: "thu-09",
+                  label: "Thu 10 Jul · 09:00",
+                  description: "Early slot — conflicts with your morning focus block",
                 },
               ],
             },
@@ -239,32 +283,53 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
           {
             id: "note",
             component: "core/status",
-            props: { text: "Prices held for 20 minutes via reservation soft-lock.", tone: "info" },
+            props: { text: "Illustrative slots — no live calendar connected in mock mode.", tone: "info" },
           },
         ],
       },
     };
   }
 
-  private seatMapSurface(surfaceId: string): Composition {
+  // --- RSVP design review ---
+
+  private runRsvpScenario(): void {
+    const surfaceId = this.nextSurfaceId();
+    this.later(300, () =>
+      this.emit({
+        type: "text",
+        text: "Design review invite from Alex — Thu 10 Jul, 15:00, Room 3 / Zoom.",
+      }),
+    );
+    this.later(1000, () =>
+      this.emit({ type: "composition", composition: this.rsvpSurface(surfaceId) }),
+    );
+    this.later(1100, () => this.finishTurn());
+  }
+
+  private rsvpSurface(surfaceId: string): Composition {
     return {
       version: 1,
       surfaceId,
-      intent: "Choose your seat",
+      intent: "RSVP to design review",
       root: {
         id: "root",
         component: "core/card",
-        props: { title: "Seat selection", subtitle: "ANA NH212 · economy cabin" },
+        props: {
+          title: "Design review — shell v1 contracts",
+          subtitle: "Thu 10 Jul · 15:00–16:00 · hosted by Alex",
+        },
         children: [
           {
-            id: "map",
-            component: "travel/seat-map@1",
-            semanticRole: "input/seat-map",
-            events: ["seatSelected"],
+            id: "rsvp",
+            component: "core/choice",
+            semanticRole: "input/choice",
+            events: ["selected"],
             props: {
-              flight: "ANA NH212 · LHR → HND",
-              taken: ["18A", "19B", "20C", "22D"],
-              recommended: ["22C", "23C"],
+              options: [
+                { id: "rsvp-yes", label: "Yes, I'll attend", recommended: true },
+                { id: "rsvp-maybe", label: "Maybe" },
+                { id: "rsvp-no", label: "No, decline" },
+              ],
             },
           },
         ],
@@ -272,28 +337,35 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
     };
   }
 
-  private flightConfirmation(optionId: string, seatId?: string): ConsequentialAction {
-    const flights: Record<string, { label: string; price: string }> = {
-      "ana-direct": { label: "ANA NH212 · LHR → HND · 12 Aug, 11:35", price: "£612.00" },
-      "ba-direct": { label: "BA005 · LHR → HND · 12 Aug, 13:40", price: "£648.00" },
-      "klm-1stop": { label: "KLM · LHR → AMS → HND · 12 Aug, 06:20", price: "£489.00" },
-    };
-    const flight = flights[optionId] ?? { label: optionId, price: "unknown" };
-    const terms: Record<string, string> = {
-      flight: flight.label,
-      "return flight": "19 Aug (same routing)",
-      passenger: "1 adult",
-      total: flight.price,
-      payment: "Authorization hold on Visa ····4421, captured only on airline confirmation",
-      cancellation: "Free cancellation for 24 hours",
-    };
-    if (seatId) terms.seat = seatId;
+  private scheduleConfirmation(step: PendingStep & { kind: "slot" }): ConsequentialAction {
     return {
-      id: `book-${optionId}${seatId ? `-${seatId}` : ""}`,
-      kind: "payment",
-      title: "Book flight and authorize payment",
-      terms,
-      confirmLabel: `Authorize ${flight.price}`,
+      id: `sched-${step.slotId}`,
+      kind: "confirmation",
+      title: "Schedule team standup",
+      terms: {
+        event: step.eventTitle,
+        when: step.slotLabel,
+        recurrence: "Weekly until 5 Sep 2026",
+        attendees: "You, Alex, Sam, Jordan (4)",
+        action: "Create calendar event and send invites",
+      },
+      confirmLabel: "Add to calendar",
+      declineLabel: "Cancel",
+    };
+  }
+
+  private rsvpConfirmation(response: string): ConsequentialAction {
+    return {
+      id: "rsvp-design-review",
+      kind: "confirmation",
+      title: "Update RSVP",
+      terms: {
+        event: "Design review — shell v1 contracts",
+        when: "Thu 10 Jul · 15:00–16:00",
+        response,
+        action: "Send RSVP to organizer and update your calendar",
+      },
+      confirmLabel: "Confirm RSVP",
       declineLabel: "Cancel",
     };
   }
@@ -302,48 +374,30 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
     return {
       version: 1,
       surfaceId: this.nextSurfaceId(),
-      intent: "Booking receipt",
+      intent: "Calendar confirmation",
       root: {
         id: "root",
         component: "core/card",
-        props: { title: "Booking confirmed", subtitle: `Reference ATM-2026-${actionId}` },
+        props: { title: "Calendar updated", subtitle: `Ref ${actionId}` },
         children: [
           {
             id: "summary",
             component: "core/table",
             props: {
-              columns: ["Item", "Detail"],
+              columns: ["Field", "Value"],
               rows: [
-                ["Status", "Ticketed"],
-                ["Funds", "Hold captured on confirmation"],
-                ["Receipt object", "Signed by counterpart agent"],
+                ["Status", "Confirmed"],
+                ["Attestation", "Recorded in shell log"],
+                ["Counterpart", "Mock scheduling agent"],
               ],
             },
-          },
-          {
-            id: "next",
-            component: "core/disclosure",
-            props: { summary: "What happens next" },
-            children: [
-              {
-                id: "next-list",
-                component: "core/list",
-                props: {
-                  items: [
-                    "Check-in opens 24h before departure; I'll handle it.",
-                    "Seat held per your selection.",
-                    "I'll monitor for schedule changes and rebook within your constraints if needed.",
-                  ],
-                },
-              },
-            ],
           },
         ],
       },
     };
   }
 
-  // --- Scenario 2: spending view (module missing → semantic-role fallback) ---
+  // --- Spending fallback (module missing → semantic-role fallback) ---
 
   private runSpendingScenario(): void {
     const surfaceId = this.nextSurfaceId();
@@ -354,7 +408,7 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
     this.later(1300, () =>
       this.emit({
         type: "text",
-        text: "Note: I composed this with the finance/spend-chart module, which isn't installed in your shell — watch it degrade gracefully to core primitives.",
+        text: "finance/spend-chart isn't installed — watch semantic-role fallback to core/chart.",
       }),
     );
     this.later(1400, () => this.finishTurn());
@@ -389,21 +443,9 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
             },
           },
           {
-            id: "insights",
-            component: "finance/insight-panel@1",
-            props: {
-              topCategory: "Groceries",
-              largestSingle: "£312 — flight deposit",
-              vsLastQuarter: "-8%",
-            },
-          },
-          {
             id: "note",
             component: "core/status",
-            props: {
-              text: "Two modules were unavailable; everything above is shell-rendered fallback.",
-              tone: "warn",
-            },
+            props: { text: "Module unavailable — shell-rendered fallback.", tone: "warn" },
           },
         ],
       },

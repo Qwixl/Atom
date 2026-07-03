@@ -30,34 +30,25 @@ function textEvents(messageId: string, text: string): BaseEvent[] {
   ];
 }
 
-function flightOptions(surfaceId: string): Composition {
+function scheduleSlots(surfaceId: string): Composition {
   return {
     version: 1,
     surfaceId,
-    intent: "Choose a flight to Tokyo",
+    intent: "Choose a standup time",
     root: {
       id: "root",
       component: "core/card",
-      props: { title: "Flights to Tokyo", subtitle: "12–19 August · 1 adult · economy" },
+      props: { title: "Team standup", subtitle: "Weekly · 30 min" },
       children: [
         {
-          id: "options",
+          id: "slots",
           component: "core/choice",
           semanticRole: "input/choice",
           events: ["selected"],
           props: {
             options: [
-              {
-                id: "ana-direct",
-                label: "ANA · direct · £612",
-                description: "LHR 11:35 → HND 07:15 (+1)",
-                recommended: true,
-              },
-              {
-                id: "ba-direct",
-                label: "British Airways · direct · £648",
-                description: "LHR 13:40 → HND 09:55 (+1)",
-              },
+              { id: "tue-10", label: "Tue 8 Jul · 10:00", recommended: true },
+              { id: "wed-14", label: "Wed 9 Jul · 14:00" },
             ],
           },
         },
@@ -66,92 +57,112 @@ function flightOptions(surfaceId: string): Composition {
   };
 }
 
-function flightConfirmation(optionId: string, seatId?: string): ConsequentialAction {
-  const terms: Record<string, string> = {
-    flight: "ANA NH212 · LHR → HND · 12 Aug, 11:35",
-    total: "£612.00",
-    payment: "Authorization hold on Visa ····4421",
-  };
-  if (seatId) terms.seat = seatId;
+function scheduleConfirmation(slotId: string): ConsequentialAction {
+  const when =
+    slotId === "wed-14" ? "Wed 9 Jul · 14:00–14:30" : "Tue 8 Jul · 10:00–10:30";
   return {
-    id: `book-${optionId}${seatId ? `-${seatId}` : ""}`,
-    kind: "payment",
-    title: "Book flight and authorize payment",
-    terms,
-    confirmLabel: "Authorize £612.00",
+    id: `sched-${slotId}`,
+    kind: "confirmation",
+    title: "Schedule team standup",
+    terms: {
+      event: "Team standup",
+      when,
+      action: "Create calendar event and send invites",
+    },
+    confirmLabel: "Add to calendar",
     declineLabel: "Cancel",
   };
 }
 
-/** Reference AG-UI backend: mock scenarios as standard + Atom CUSTOM events. */
+function rsvpSurface(surfaceId: string): Composition {
+  return {
+    version: 1,
+    surfaceId,
+    intent: "RSVP to design review",
+    root: {
+      id: "root",
+      component: "core/card",
+      props: { title: "Design review", subtitle: "Thu 10 Jul · 15:00" },
+      children: [
+        {
+          id: "rsvp",
+          component: "core/choice",
+          semanticRole: "input/choice",
+          events: ["selected"],
+          props: {
+            options: [
+              { id: "rsvp-yes", label: "Yes, I'll attend", recommended: true },
+              { id: "rsvp-no", label: "No, decline" },
+            ],
+          },
+        },
+      ],
+    },
+  };
+}
+
+/** Reference AG-UI backend: scheduling/RSVP vertical (M3). */
 export function* scenarioEvents(input: RunAgentInput): Generator<BaseEvent> {
   const text = lastUserText(input).toLowerCase();
   const messageId = uuid();
 
-  if (text.includes("seat") && (text.includes("prefer") || text.includes("book"))) {
-    yield* textEvents(
-      messageId,
-      "Guarded preferences detected — requesting disclosure via shell chrome.",
-    );
+  if (text.includes("time") && (text.includes("standup") || text.includes("works"))) {
+    yield* textEvents(messageId, "Requesting guarded scheduling preferences via shell chrome.");
     yield atomDataRequestEvent({
-      requestId: "req-seat-pref",
+      requestId: "req-sched-pref",
       categories: ["preferences"],
-      reason: "To select seats matching your stated aisle/window preference.",
+      reason: "To propose standup times matching your availability.",
     });
     return;
   }
 
   if (text.includes("[data-disclosure]")) {
-    yield* textEvents(messageId, "Thanks — I'll use your disclosed preferences for seating.");
-    return;
-  }
-
-  if (text.includes("[ui-event]") && text.includes("seatselected")) {
-    const match = lastUserText(input).match(/"seatId"\s*:\s*"([^"]+)"/);
-    const seatId = match?.[1] ?? "unknown";
-    yield* textEvents(messageId, `Seat ${seatId} selected — confirm booking terms in shell chrome.`);
-    yield atomConsequentialActionEvent("seat-map", flightConfirmation("ana-direct", seatId));
+    yield* textEvents(messageId, "Thanks — proposing slots that match your availability.");
+    yield atomCompositionEvent(scheduleSlots(uuid()));
     return;
   }
 
   if (text.includes("[ui-event]") && text.includes("selected")) {
-    yield* textEvents(messageId, "Flight noted. Pick a seat on the travel/seat-map module.");
-    yield atomCompositionEvent({
-      version: 1,
-      surfaceId: uuid(),
-      intent: "Choose your seat",
-      root: {
-        id: "root",
-        component: "core/card",
-        props: { title: "Seat selection", subtitle: "ANA NH212 · economy cabin" },
-        children: [
-          {
-            id: "map",
-            component: "travel/seat-map@1",
-            semanticRole: "input/seat-map",
-            events: ["seatSelected"],
-            props: {
-              flight: "ANA NH212 · LHR → HND",
-              taken: ["18A", "19B", "20C", "22D"],
-              recommended: ["22C", "23C"],
-            },
-          },
-        ],
-      },
-    });
+    const optionMatch = lastUserText(input).match(/"optionId"\s*:\s*"([^"]+)"/);
+    const optionId = optionMatch?.[1] ?? "tue-10";
+    if (optionId.startsWith("rsvp-") && optionId !== "rsvp-no") {
+      yield* textEvents(messageId, "Confirm RSVP in shell chrome.");
+      yield atomConsequentialActionEvent("rsvp", {
+        id: "rsvp-design-review",
+        kind: "confirmation",
+        title: "Update RSVP",
+        terms: {
+          event: "Design review",
+          when: "Thu 10 Jul · 15:00",
+          response: optionId === "rsvp-yes" ? "Yes" : "Maybe",
+          action: "Send RSVP to organizer",
+        },
+        confirmLabel: "Confirm RSVP",
+        declineLabel: "Cancel",
+      });
+      return;
+    }
+    yield* textEvents(messageId, "Slot selected — confirm calendar update in shell chrome.");
+    yield atomConsequentialActionEvent("schedule", scheduleConfirmation(optionId));
     return;
   }
 
-  if (text.includes("flight") || text.includes("tokyo")) {
+  if (text.includes("rsvp") || text.includes("design review")) {
+    yield* textEvents(messageId, "Design review invite — pick your response.");
+    yield atomCompositionEvent(rsvpSurface(uuid()));
+    return;
+  }
+
+  if (text.includes("schedule") || text.includes("standup") || text.includes("meeting")) {
     if (text.includes("a2ui")) {
       const surfaceId = uuid();
-      yield* textEvents(messageId, "Flights via A2UI v0.9.1 envelopes (createSurface + updateComponents)…");
+      yield* textEvents(messageId, "Standup slots via A2UI v0.9.1 envelopes…");
       yield a2uiCustomEvent({
         version: "v0.9.1",
         createSurface: {
           surfaceId,
           catalogId: "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json",
-          intent: "Choose a flight to Tokyo",
+          intent: "Choose a standup time",
         },
       });
       yield a2uiCustomEvent({
@@ -162,43 +173,29 @@ export function* scenarioEvents(input: RunAgentInput): Generator<BaseEvent> {
             {
               id: "root",
               component: "Card",
-              title: "Flights to Tokyo",
-              subtitle: "12–19 August · 1 adult · economy",
+              title: "Team standup",
+              subtitle: "Pick a slot",
               child: "body",
             },
             {
               id: "body",
               component: "Column",
-              children: ["intro", "ana_btn", "ba_btn"],
+              children: ["slot_a", "slot_b"],
             },
-            {
-              id: "intro",
-              component: "Text",
-              text: "Pick a flight — rendered from A2UI basic catalog via @qwixl/a2ui-adapter",
-              variant: "body",
-            },
-            {
-              id: "ana_btn",
-              component: "Button",
-              label: "ANA · direct · £612",
-            },
-            {
-              id: "ba_btn",
-              component: "Button",
-              label: "British Airways · direct · £648",
-            },
+            { id: "slot_a", component: "Button", label: "Tue 8 Jul · 10:00" },
+            { id: "slot_b", component: "Button", label: "Wed 9 Jul · 14:00" },
           ],
         },
       });
       return;
     }
-    yield* textEvents(messageId, "Searching flights to Tokyo…");
-    yield atomCompositionEvent(flightOptions(uuid()));
+    yield* textEvents(messageId, "Checking calendars for next week…");
+    yield atomCompositionEvent(scheduleSlots(uuid()));
     return;
   }
 
   if (text.includes("spend") || text.includes("budget")) {
-    yield* textEvents(messageId, "Monthly spending (finance module unavailable — expect fallback).");
+    yield* textEvents(messageId, "Spending overview (finance module unavailable — expect fallback).");
     yield atomCompositionEvent({
       version: 1,
       surfaceId: uuid(),
@@ -233,6 +230,6 @@ export function* scenarioEvents(input: RunAgentInput): Generator<BaseEvent> {
 
   yield* textEvents(
     messageId,
-    "AG-UI reference server: try a flight to Tokyo, 'a2ui flight to Tokyo', spending, or seat preference disclosure.",
+    "AG-UI reference: try scheduling a standup, RSVP to design review, 'a2ui schedule standup', or spending.",
   );
 }
