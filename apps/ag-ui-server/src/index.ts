@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage } from "node:http";
-import { EventType, type BaseEvent, type RunAgentInput } from "@ag-ui/client";
+import { EventType, type RunAgentInput } from "@ag-ui/client";
+import { writeAgUiSse } from "@qwixl/agent-backend";
 import { scenarioEvents } from "./scenarios.js";
 
 const PORT = Number(process.env.PORT ?? 5201);
@@ -19,10 +20,6 @@ function readBody(req: IncomingMessage): Promise<string> {
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
     req.on("error", reject);
   });
-}
-
-function writeSse(res: import("node:http").ServerResponse, event: BaseEvent): void {
-  res.write(`data: ${JSON.stringify(event)}\n\n`);
 }
 
 function resolveCorsOrigin(req: IncomingMessage): string | null {
@@ -79,24 +76,8 @@ createServer(async (req, res) => {
     Vary: "Origin",
   });
 
-  const { threadId, runId } = input;
-  writeSse(res, { type: EventType.RUN_STARTED, threadId, runId });
-
-  try {
-    for (const event of scenarioEvents(input)) {
-      writeSse(res, event);
-    }
-    writeSse(res, { type: EventType.RUN_FINISHED, threadId, runId });
-  } catch (error) {
-    writeSse(res, {
-      type: EventType.RUN_ERROR,
-      threadId,
-      runId,
-      message: error instanceof Error ? error.message : String(error),
-    });
-  }
-
-  res.end();
+  await writeAgUiSse((chunk) => res.write(chunk), input, { scenario: scenarioEvents });
 }).listen(PORT, HOST, () => {
   console.log(`Atom AG-UI reference server http://${HOST}:${PORT}/agent`);
+  console.log(`  LLM mode when LLM_API_KEY or OPENAI_API_KEY is set; otherwise scripted scenarios.`);
 });

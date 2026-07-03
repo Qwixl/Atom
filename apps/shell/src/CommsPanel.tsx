@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { verifyContactInvite } from "@qwixl/a2a-transport";
 import { COMMS_MESSAGE_PURPOSE } from "@qwixl/a2a-transport";
-import type { OwnerStore } from "@qwixl/owner-store";
+import type { OwnerRecord, OwnerStore } from "@qwixl/owner-store";
 import { CommsAgentClient } from "./comms/client.js";
 import { DEFAULT_COMMS_AGENT_URL, loadCommsAgentConfig, saveCommsAgentConfig, saveContacts } from "./comms/storage.js";
+import {
+  contactToTrustedAgentPayload,
+  findTrustedAgentRecord,
+} from "./comms/trustedAgent.js";
 import type { AgentContact, CommsMessage, InboxEntryWire } from "./comms/types.js";
 
 const INBOX_POLL_MS = 4000;
@@ -38,19 +42,32 @@ function syncContactToOwnerStore(store: OwnerStore, contact: AgentContact): void
   store.upsert({
     category: "trusted-agents",
     label: contact.name || shortDid(contact.did),
-    value: JSON.stringify({ did: contact.did, endpoint: contact.endpoint }),
+    value: JSON.stringify(contactToTrustedAgentPayload(contact)),
     guarded: true,
   });
 }
 
+function uniqueOwnerCategories(records: OwnerRecord[]): string[] {
+  const categories = new Set<string>();
+  for (const record of records) {
+    if (record.category === "trusted-agents") continue;
+    categories.add(record.category);
+  }
+  return [...categories].sort();
+}
+
 export function CommsPanel({
   contacts,
+  ownerRecords,
   ownerStore,
   onContactsChanged,
+  onProfileChanged,
 }: {
   contacts: AgentContact[];
+  ownerRecords: OwnerRecord[];
   ownerStore: OwnerStore;
   onContactsChanged: () => void;
+  onProfileChanged: () => void;
 }) {
   const [agentUrl, setAgentUrl] = useState(() => loadCommsAgentConfig().adminUrl);
   const [localDid, setLocalDid] = useState<string | null>(null);
@@ -70,6 +87,7 @@ export function CommsPanel({
 
   const client = useMemo(() => new CommsAgentClient(agentUrl), [agentUrl]);
   const selected = contacts.find((c) => c.id === selectedId) ?? null;
+  const ownerCategories = useMemo(() => uniqueOwnerCategories(ownerRecords), [ownerRecords]);
 
   const refreshAgentStatus = useCallback(async () => {
     try {
@@ -223,10 +241,33 @@ export function CommsPanel({
   }
 
   function removeContact(id: string) {
+    const contact = contacts.find((c) => c.id === id);
+    if (contact) {
+      const record = findTrustedAgentRecord(ownerRecords, contact.did);
+      if (record) ownerStore.remove(record.id);
+    }
     const next = contacts.filter((c) => c.id !== id);
     saveContacts(next);
     onContactsChanged();
+    onProfileChanged();
     if (selectedId === id) setSelectedId(next[0]?.id ?? null);
+  }
+
+  function toggleStandingDisclosure(category: string) {
+    if (!selected) return;
+    const current = new Set(selected.standingDisclosure ?? []);
+    if (current.has(category)) current.delete(category);
+    else current.add(category);
+    const standingDisclosure = [...current].sort();
+    const updated: AgentContact = {
+      ...selected,
+      standingDisclosure: standingDisclosure.length > 0 ? standingDisclosure : undefined,
+    };
+    const next = contacts.map((c) => (c.id === selected.id ? updated : c));
+    saveContacts(next);
+    syncContactToOwnerStore(ownerStore, updated);
+    onContactsChanged();
+    onProfileChanged();
   }
 
   return (
@@ -350,6 +391,42 @@ export function CommsPanel({
                 <strong>{selected.name}</strong>
                 <span>{sessionReady ? "Encrypted (MLS)" : "Plaintext (connect MLS first)"}</span>
               </div>
+              <section className="shell-comms-disclosure">
+                <h4>Disclosure policy</h4>
+                <p className="shell-comms-hint">
+                  Categories pre-approved for this contact&apos;s agent. Guarded records outside this
+                  list still require shell chrome every time.
+                </p>
+                {ownerCategories.length === 0 ? (
+                  <p className="shell-comms-empty">Add owner profile records to configure categories.</p>
+                ) : (
+                  <ul className="shell-comms-disclosure-list">
+                    {ownerCategories.map((category) => {
+                      const checked = selected.standingDisclosure?.includes(category) ?? false;
+                      const hasGuarded = ownerRecords.some(
+                        (r) => r.category === category && r.guarded,
+                      );
+                      return (
+                        <li key={category}>
+                          <label className="atom-field atom-field-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleStandingDisclosure(category)}
+                            />
+                            <span>
+                              {category}
+                              {hasGuarded ? (
+                                <span className="shell-comms-disclosure-guarded"> guarded records</span>
+                              ) : null}
+                            </span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
               <div className="shell-comms-messages">
                 {thread.length === 0 ? (
                   <p className="shell-comms-empty">No messages yet.</p>

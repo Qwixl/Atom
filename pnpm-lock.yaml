@@ -39,6 +39,9 @@ importers:
       '@qwixl/ag-ui-adapter':
         specifier: workspace:*
         version: link:../../packages/ag-ui-adapter
+      '@qwixl/agent-backend':
+        specifier: workspace:*
+        version: link:../../packages/agent-backend
       '@qwixl/shell-core':
         specifier: workspace:*
         version: link:../../packages/shell-core
@@ -213,18 +216,33 @@ importers:
       '@a2a-js/sdk':
         specifier: ^0.3.13
         version: 0.3.13(@bufbuild/protobuf@2.12.1)(express@5.2.1)
+      '@ag-ui/client':
+        specifier: 0.0.57
+        version: 0.0.57
       '@qwixl/a2a-transport':
         specifier: workspace:*
         version: link:../a2a-transport
+      '@qwixl/ag-ui-adapter':
+        specifier: workspace:*
+        version: link:../ag-ui-adapter
+      '@qwixl/agent-llm':
+        specifier: workspace:*
+        version: link:../agent-llm
       '@qwixl/mls-session':
         specifier: workspace:*
         version: link:../mls-session
       '@qwixl/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@qwixl/shell-core':
+        specifier: workspace:*
+        version: link:../shell-core
       express:
         specifier: ^5.1.0
         version: 5.2.1
+      uuid:
+        specifier: ^11.1.0
+        version: 11.1.1
     devDependencies:
       '@types/express':
         specifier: ^5.0.3

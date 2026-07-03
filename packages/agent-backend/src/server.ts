@@ -252,6 +252,16 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     }
   });
 
+  adminApp.post("/agent", async (req, res) => {
+    const { writeAgUiSse } = await import("./agUi/handler.js");
+    const input = req.body as import("@ag-ui/client").RunAgentInput;
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    await writeAgUiSse((chunk) => res.write(chunk), input);
+    res.end();
+  });
+
   const app = express();
   app.use(adminApp);
   app.use(a2aApp);
@@ -264,6 +274,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       console.log(`  identity file: ${identityPath()}`);
       console.log(`  agent card:    ${config.publicBaseUrl}/.well-known/agent-card.json`);
       console.log(`  A2A JSON-RPC:  ${config.publicBaseUrl}/a2a/jsonrpc`);
+      console.log(`  AG-UI:         POST ${config.publicBaseUrl}/agent (SSE; set LLM_API_KEY)`);
       console.log(`  admin inbox:   ${config.publicBaseUrl}/inbox`);
       console.log(`  invite:        POST ${config.publicBaseUrl}/invite { ttlSeconds? }`);
       console.log(`  MLS connect:   POST ${config.publicBaseUrl}/mls/connect { peerUrl | invite }`);

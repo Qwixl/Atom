@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ag-ui/client": "0.0.57",
+    "@qwixl/agent-backend": "workspace:*",
     "@qwixl/a2ui-adapter": "workspace:*",
     "@qwixl/ag-ui-adapter": "workspace:*",
     "@qwixl/shell-core": "workspace:*",

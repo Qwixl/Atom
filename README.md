@@ -50,6 +50,7 @@ Build your app with any bundler that resolves the package `development` export c
 | [MODULES.md](./MODULES.md) | Module authors publishing to a registry |
 | [API-v1.md](./API-v1.md) | Frozen v1 contracts (composition, session, manifest, sandbox) |
 | [AGENT-BACKEND.md](./AGENT-BACKEND.md) | Self-hosting the owner agent backend |
+| [LAUNCH.md](./LAUNCH.md) | Phase 1 launch guide (private agent comms) |
 | [PROTOCOL-v1.md](./PROTOCOL-v1.md) | Frozen v1 data-object + did:key contracts |
 | [SECURITY.md](./SECURITY.md) | Threat model for shipped surface |
 | [SECRET-STORE.md](./SECRET-STORE.md) | Credential adapter priority for embedders |

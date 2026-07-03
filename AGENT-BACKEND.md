@@ -11,6 +11,7 @@ Owner-controlled agent backend for Phase 1 private comms: **did:key** identity, 
 | `POST /invite` | Mint contact invitation token |
 | `POST /mls/connect` | Establish MLS pair session (`peerUrl` or `invite`) |
 | `POST /send` | Send signed data object (plain or MLS-encrypted) |
+| `POST /agent` | AG-UI SSE endpoint (LLM when `LLM_API_KEY` set) |
 | `/.well-known/agent-card.json` | A2A agent card |
 | `/a2a/jsonrpc` | A2A JSON-RPC transport |
 
@@ -71,6 +72,19 @@ Bind is `0.0.0.0` inside the container; expose port `5204` or terminate TLS at t
 | `ATOM_DATA_DIR` | `~/.atom` | Data directory |
 | `ATOM_AGENT_IDENTITY_PATH` | `$ATOM_DATA_DIR/agent-identity.json` | Identity key file |
 | `ATOM_SHELL_ORIGINS` | — | Extra comma-separated CORS origins for shell admin API |
+| `LLM_API_KEY` | — | OpenAI-compatible API key for `POST /agent` (also accepts `OPENAI_API_KEY`) |
+| `LLM_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible base URL |
+| `LLM_MODEL` | `gpt-4o-mini` | Model name for AG-UI responses |
+
+## AG-UI (shell chat)
+
+The reference shell can point its AG-UI transport at the same backend as comms:
+
+```
+http://127.0.0.1:5204/agent
+```
+
+Set `LLM_API_KEY` (or `OPENAI_API_KEY`) on the agent backend process. Without a key, `POST /agent` returns a short fallback message; use `pnpm dev:ag-ui` for the mock scenario server during local development.
 
 ## Connect two agents
 

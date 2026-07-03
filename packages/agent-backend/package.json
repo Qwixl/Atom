@@ -37,10 +37,15 @@
   },
   "dependencies": {
     "@a2a-js/sdk": "^0.3.13",
+    "@ag-ui/client": "0.0.57",
     "@qwixl/a2a-transport": "workspace:*",
+    "@qwixl/ag-ui-adapter": "workspace:*",
+    "@qwixl/agent-llm": "workspace:*",
     "@qwixl/mls-session": "workspace:*",
     "@qwixl/protocol": "workspace:*",
-    "express": "^5.1.0"
+    "@qwixl/shell-core": "workspace:*",
+    "express": "^5.1.0",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",

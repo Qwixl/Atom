@@ -1,4 +1,6 @@
 import { loadJsonFromStorage, loadStringFromStorage, saveJsonToStorage, saveStringToStorage } from "@qwixl/shell-core";
+import type { OwnerRecord } from "@qwixl/owner-store";
+import { mergeContactFromTrustedAgent } from "./trustedAgent.js";
 import type { AgentContact, CommsAgentConfig } from "./types.js";
 
 const CONTACTS_KEY = "atom-comms-contacts";
@@ -15,15 +17,17 @@ export function saveCommsAgentConfig(config: CommsAgentConfig): void {
   saveStringToStorage(AGENT_URL_KEY, config.adminUrl.trim());
 }
 
-export function loadContacts(): AgentContact[] {
+export function loadContacts(ownerRecords?: readonly OwnerRecord[]): AgentContact[] {
   const parsed = loadJsonFromStorage<AgentContact[]>(CONTACTS_KEY);
   if (!Array.isArray(parsed)) return [];
-  return parsed.filter(
+  const contacts = parsed.filter(
     (item): item is AgentContact =>
       typeof item?.id === "string" &&
       typeof item?.did === "string" &&
       typeof item?.endpoint === "string",
   );
+  if (!ownerRecords?.length) return contacts;
+  return contacts.map((contact) => mergeContactFromTrustedAgent(contact, ownerRecords));
 }
 
 export function saveContacts(contacts: AgentContact[]): void {

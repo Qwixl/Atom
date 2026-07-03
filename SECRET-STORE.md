@@ -2,13 +2,16 @@
 
 How embedders wire credential storage for LLM keys and other secrets. The reference shell uses `@qwixl/secret-store` (monorepo-only); production hosts should implement the same `SecretStore` interface against an OS-backed vault.
 
-## Adapter priority
+## Adapter priority (D027)
 
 | Priority | Backend | When to use |
 |---|---|---|
-| 1 | **Host `SecretStore`** | Production embedders — OS keychain, passkey-protected vault, server-side proxy |
+| 1 | **Agent-backend proxy** | Browser production — AG-UI to `@qwixl/agent-backend` with `LLM_API_KEY` on the server (see [AGENT-BACKEND.md](./AGENT-BACKEND.md)) |
 | 2 | **`localStorage`** | Browser dev / reference shell only — not for production secrets |
-| 3 | **`memory`** | Tests, ephemeral sessions, CI |
+| 3 | **Host `SecretStore`** | Embedders — OS keychain, passkey-protected vault via `window.__QWIXL_SECRET_STORE__` or `createDefaultSecretStore({ host })` |
+| 4 | **Browser extension + native messaging** | Deferred — desktop shell (Tauri/Electron), not Phase 1 |
+
+| — | **`memory`** | Tests, ephemeral sessions, CI |
 
 ### Default factory
 

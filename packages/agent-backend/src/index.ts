@@ -8,3 +8,5 @@ export {
   peerDidFromContext,
 } from "./mlsSessions.js";
 export { startAgentServer, type StartAgentServerOptions } from "./server.js";
+export { runAgUiHandler, writeAgUiSse, type AgUiScenarioHandler } from "./agUi/handler.js";
+export { loadLlmAgUiConfigFromEnv, runLlmAgUiEvents, type LlmAgUiConfig } from "./agUi/llmRunner.js";

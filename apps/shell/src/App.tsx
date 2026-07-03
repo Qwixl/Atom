@@ -194,7 +194,9 @@ export function App() {
     attestationLog.list(),
   );
   const [panel, setPanel] = useState<SidePanel>("none");
-  const [commsContacts, setCommsContacts] = useState<AgentContact[]>(() => loadContacts());
+  const [commsContacts, setCommsContacts] = useState<AgentContact[]>(() =>
+    loadContacts(ownerRecordsPersistence.load()),
+  );
   const [profileRecords, setProfileRecords] = useState<OwnerRecord[]>(ownerStore.list());
   const [profileProposals, setProfileProposals] = useState<RecordProposal[]>(
     ownerStore.listProposals(),
@@ -626,8 +628,13 @@ export function App() {
         {panel === "comms" ? (
           <CommsPanel
             contacts={commsContacts}
+            ownerRecords={profileRecords}
             ownerStore={ownerStore}
-            onContactsChanged={() => setCommsContacts(loadContacts())}
+            onContactsChanged={() => setCommsContacts(loadContacts(ownerStore.list()))}
+            onProfileChanged={() => {
+              setProfileRecords(ownerStore.list());
+              setCommsContacts(loadContacts(ownerStore.list()));
+            }}
           />
         ) : null}
 

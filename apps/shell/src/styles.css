@@ -1478,6 +1478,36 @@ body {
   font-size: 11px;
 }
 
+.shell-comms-disclosure {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.shell-comms-disclosure h4 {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+
+.shell-comms-disclosure-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shell-comms-disclosure-list label {
+  font-size: 12px;
+}
+
+.shell-comms-disclosure-guarded {
+  color: var(--warn);
+  font-size: 11px;
+}
+
 .shell-comms-messages {
   flex: 1;
   overflow-y: auto;

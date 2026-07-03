@@ -5,6 +5,8 @@ export interface AgentContact {
   /** A2A JSON-RPC endpoint of the peer agent. */
   endpoint: string;
   connectedAt?: string;
+  /** Categories pre-approved for disclosure to this contact's agent (owner-store policy). */
+  standingDisclosure?: string[];
 }
 
 export interface CommsAgentConfig {
