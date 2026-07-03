@@ -65,3 +65,13 @@ When `semantic.schema` is unknown, hosts MAY use vector similarity against `embe
 - Verification on receive: `verifyMessageDataObjects()` with purpose allowlist.
 - MLS wire parts: `mlsWireToPart()` / `parseMlsWireFromPart()` for encrypted payloads (handshake + application messages).
 - MLS handshake: `sendMlsHandshake()` delivers Welcome + ratchet tree; `POST /mls/connect` on reference agent orchestrates pair setup.
+
+## First contact (online invitations)
+
+- Online first contact uses **signed invitation tokens** (DIDComm v2 Out-of-Band pattern).
+- An invitation is a signed data object: schema `https://atom.qwixl.dev/schema/ContactInvite`, purpose `contact:invite`, TTL (default 7 days), payload `{ endpoint, name? }`.
+- Token encoding: base64url of the JSON object — shareable over any channel (link, email, DM, QR).
+- Verification (`verifyContactInvite`): Ed25519 signature + TTL + purpose via `verifyDataObject()`; endpoint must be http(s).
+- On connect via invite, the peer's reported DID **must** match the invite's `issuerDid` (mismatch aborts the MLS handshake).
+- API: `createContactInvite()` / `verifyContactInvite()` in `@qwixl/a2a-transport`; reference agent `POST /invite` and `POST /mls/connect { invite }`.
+- A published agent card (`/.well-known/agent-card.json`) acts as an implicit invitation for agents opting into public reachability (Aries RFC 0434 precedent).

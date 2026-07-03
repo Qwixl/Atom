@@ -20,3 +20,6 @@ export const COMMS_MESSAGE_PURPOSE = "comms:message";
 
 /** Default purpose for delivery receipts. */
 export const COMMS_RECEIPT_PURPOSE = "comms:receipt";
+
+/** Purpose for online first-contact invitation tokens (D026). */
+export const CONTACT_INVITE_PURPOSE = "contact:invite";

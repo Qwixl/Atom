@@ -6,11 +6,13 @@ import {
   buildAtomAgentCard,
   COMMS_MESSAGE_PURPOSE,
   COMMS_RECEIPT_PURPOSE,
+  createContactInvite,
   decodeEncryptedObjectPayload,
   encodeEncryptedObjectPayload,
   sendDataObject,
   sendMlsHandshake,
   sendMlsWire,
+  verifyContactInvite,
 } from "@qwixl/a2a-transport";
 import { createAtomA2aExpressApp } from "@qwixl/a2a-transport/server";
 import { base64ToBytes, signDataObject, verifyDataObject, type UnsignedDataObject } from "@qwixl/protocol";
@@ -116,14 +118,36 @@ async function main(): Promise<void> {
     res.json({ peers: mlsStore.listPeers() });
   });
 
+  adminApp.post("/invite", async (req, res) => {
+    try {
+      const body = req.body as { ttlSeconds?: number };
+      const { token, object } = await createContactInvite({
+        identity,
+        endpoint: `${PUBLIC_BASE_URL}/a2a/jsonrpc`,
+        name: AGENT_NAME,
+        ttlSeconds: body?.ttlSeconds,
+      });
+      res.json({ token, expiresBy: object.governance.ttlSeconds, issuerDid: identity.did });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   adminApp.post("/mls/connect", async (req, res) => {
     try {
-      const body = req.body as { peerUrl?: string };
-      if (!body.peerUrl?.trim()) {
-        res.status(400).json({ error: "peerUrl required (A2A JSON-RPC URL of peer)" });
+      const body = req.body as { peerUrl?: string; invite?: string };
+      let peerUrl = body.peerUrl?.trim();
+      let expectedDid: string | undefined;
+      if (body.invite?.trim()) {
+        const invite = await verifyContactInvite(body.invite.trim());
+        peerUrl = invite.endpoint;
+        expectedDid = invite.inviterDid;
+      }
+      if (!peerUrl) {
+        res.status(400).json({ error: "peerUrl or invite token required" });
         return;
       }
-      const adminBase = adminBaseFromPeerUrl(body.peerUrl);
+      const adminBase = adminBaseFromPeerUrl(peerUrl);
       const kpResp = await fetch(`${adminBase}/mls/key-package`);
       if (!kpResp.ok) {
         res.status(502).json({ error: `Peer key package fetch failed: ${kpResp.status}` });
@@ -134,13 +158,19 @@ async function main(): Promise<void> {
         res.status(502).json({ error: "Peer returned invalid key package" });
         return;
       }
+      if (expectedDid && kp.did !== expectedDid) {
+        res.status(502).json({
+          error: `Peer DID mismatch: invite was signed by ${expectedDid} but endpoint reports ${kp.did}`,
+        });
+        return;
+      }
       const handshake = await mlsStore.connectAsInitiator({
         localDid: identity.did,
         peerDid: kp.did,
         peerKeyPackageWire: base64ToBytes(kp.wire),
       });
       const factory = new ClientFactory();
-      const client = await factory.createFromUrl(body.peerUrl.replace(/\/$/, ""));
+      const client = await factory.createFromUrl(peerUrl.replace(/\/$/, ""));
       await sendMlsHandshake(client, {
         handshake,
         contextId: mlsContextId(kp.did),
@@ -239,7 +269,8 @@ async function main(): Promise<void> {
     console.log(`  agent card:    ${PUBLIC_BASE_URL}/.well-known/agent-card.json`);
     console.log(`  A2A JSON-RPC:  ${PUBLIC_BASE_URL}/a2a/jsonrpc`);
     console.log(`  admin inbox:   ${PUBLIC_BASE_URL}/inbox`);
-    console.log(`  MLS connect:   POST ${PUBLIC_BASE_URL}/mls/connect { peerUrl }`);
+    console.log(`  invite:        POST ${PUBLIC_BASE_URL}/invite { ttlSeconds? }`);
+    console.log(`  MLS connect:   POST ${PUBLIC_BASE_URL}/mls/connect { peerUrl | invite }`);
     console.log(`  admin send:    POST ${PUBLIC_BASE_URL}/send { peerUrl, message, encrypt?, peerDid? }`);
   });
 }

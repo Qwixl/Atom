@@ -6,7 +6,16 @@ export {
   ATOM_MLS_WIRE_MEDIA_TYPE,
   COMMS_MESSAGE_PURPOSE,
   COMMS_RECEIPT_PURPOSE,
+  CONTACT_INVITE_PURPOSE,
 } from "./constants.js";
+export {
+  CONTACT_INVITE_SCHEMA,
+  DEFAULT_INVITE_TTL_SECONDS,
+  createContactInvite,
+  verifyContactInvite,
+  type ContactInvitePayload,
+  type VerifiedContactInvite,
+} from "./invitation.js";
 
 export { buildAtomAgentCard, type AtomAgentCardOptions } from "./agentCard.js";
 export {
