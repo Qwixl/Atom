@@ -34,7 +34,26 @@ Creates:
 - `capabilities` must be `[]`.
 - `bundleUrl` is relative to your static host root (e.g. `/modules/acme-widget/index.html`).
 - `components[].events` lists every outbound postMessage event name.
-- Run `atom-registry publish` to compute `bundleIntegrity` and update `index.json`.
+- Run `atom-registry publish` to compute `bundleIntegrity`, copy `pricing` to `index.json`, and update the index entry.
+
+## Paid listings (M8 store)
+
+Optional `pricing` on `manifest.json` and mirrored on the index entry:
+
+```json
+{
+  "pricing": {
+    "model": "paid",
+    "priceCents": 499,
+    "currency": "USD",
+    "purchaseUrl": "https://your-store.example/checkout/widget"
+  }
+}
+```
+
+Omit `pricing` or set `"model": "free"` for free modules. During beta, paid modules still install in the reference shell (see `05-economics/02-revenue-model.md`). Target rev share when billing ships: ~15% (Q13).
+
+Governance of the default curated store: `06-decisions-log.md#d029`.
 
 ## iframe bridge
 

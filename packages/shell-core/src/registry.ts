@@ -30,6 +30,14 @@ export { validateModuleManifest } from "./registry/manifest.js";
 export { formatIntegrity, parseIntegrity, sha256Hex, integrityMatches } from "./registry/hash.js";
 export { assertTrustPolicy, isRevoked } from "./registry/trust.js";
 export {
+  validateModulePricing,
+  normalizeModulePricing,
+  formatModulePrice,
+  modulePriceLabel,
+  MODULE_STORE_BETA_FREE,
+} from "./registry/pricing.js";
+export type { ModulePricing } from "./registry/pricing.js";
+export {
   verifyManifestSignature,
   isSigstoreBundleShape,
   bundleStatementReferencesDigest,

@@ -1,5 +1,5 @@
 import type { AgentCard } from "@a2a-js/sdk";
-import { ATOM_A2A_EXTENSION, ATOM_COMMS_SKILL_ID } from "./constants.js";
+import { ATOM_A2A_EXTENSION, ATOM_COMMS_SKILL_ID, ATOM_COORDINATION_SKILL_ID } from "./constants.js";
 
 export interface AtomAgentCardOptions {
   name: string;
@@ -24,6 +24,12 @@ export function buildAtomAgentCard(options: AtomAgentCardOptions): AgentCard {
         name: "Atom comms",
         description: "Exchange signed Atom data objects",
         tags: ["comms", "data-object"],
+      },
+      {
+        id: ATOM_COORDINATION_SKILL_ID,
+        name: "Atom coordination",
+        description: "Scheduling and RSVP data objects between agents",
+        tags: ["coordination", "scheduling", "rsvp"],
       },
     ],
     capabilities: {

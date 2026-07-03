@@ -254,6 +254,60 @@ body {
   font-size: 11px;
 }
 
+.settings-registry-store {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.settings-registry-catalog {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-registry-catalog-item {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.settings-registry-catalog-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.settings-registry-price {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.settings-registry-publisher {
+  font-size: 11px;
+  color: var(--text-dim);
+  word-break: break-all;
+}
+
+.settings-registry-purchase {
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.settings-registry-error {
+  color: #c0392b;
+}
+
 .settings-section {
   border-top: 1px solid var(--border);
   padding-top: 12px;
@@ -1575,5 +1629,74 @@ body {
   padding: 8px;
   margin: 0;
   list-style: none;
+}
+
+.shell-comms-coordination-organizer {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.shell-comms-coordination-organizer h4 {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+
+.shell-comms-coord {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.shell-comms-coord-out {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+}
+
+.shell-comms-coord-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.shell-comms-coord-head strong {
+  font-size: 12px;
+}
+
+.shell-comms-coord-meta {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.shell-comms-coord-slots {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shell-comms-coord-slots li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.shell-comms-coord-rsvp {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.shell-comms-coord time {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
 }
 

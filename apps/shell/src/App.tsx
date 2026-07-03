@@ -47,6 +47,7 @@ import {
 import { MockAgentSession } from "./mock-agent.js";
 import { ProfilePanel } from "./ProfilePanel.js";
 import { CommsPanel } from "./CommsPanel.js";
+import { RegistryCatalogList } from "./RegistryCatalogList.js";
 import { loadContacts } from "./comms/storage.js";
 import type { AgentContact } from "./comms/types.js";
 import {
@@ -1059,6 +1060,14 @@ function SettingsDialog({
           ) : !productionLocked ? (
             <p className="settings-note">No revoked modules in the current index revocations list.</p>
           ) : null}
+          <div className="settings-registry-store">
+            <span className="atom-field-label">Module store catalog</span>
+            <p className="settings-note">
+              Paid listings show price and external purchase URL. During beta, paid modules still
+              install free (D028).
+            </p>
+            <RegistryCatalogList indexUrl={registryIndexUrl.trim() || registryInitial} />
+          </div>
         </section>
         </div>
         <div className="settings-dialog-footer">

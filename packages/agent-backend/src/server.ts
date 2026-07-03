@@ -6,17 +6,18 @@ import {
   buildAtomAgentCard,
   COMMS_MESSAGE_PURPOSE,
   COMMS_RECEIPT_PURPOSE,
+  COORDINATION_PURPOSES,
   createContactInvite,
   decodeEncryptedObjectPayload,
   encodeEncryptedObjectPayload,
-  sendDataObject,
   sendMlsHandshake,
-  sendMlsWire,
   verifyContactInvite,
 } from "@qwixl/a2a-transport";
 import { createAtomA2aExpressApp } from "@qwixl/a2a-transport/server";
 import { base64ToBytes, signDataObject, verifyDataObject, type UnsignedDataObject } from "@qwixl/protocol";
 import { loadAgentBackendConfig, type AgentBackendConfig } from "./config.js";
+import { registerCoordinationAdminRoutes } from "./coordinationAdmin.js";
+import { deliverSignedObject } from "./deliverObject.js";
 import { DataObjectInbox } from "./inbox.js";
 import { identityPath, loadOrCreateIdentity } from "./identity.js";
 import {
@@ -43,9 +44,12 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     publisherDid: identity.did,
   });
 
+  const inboxPurposes = [COMMS_MESSAGE_PURPOSE, COMMS_RECEIPT_PURPOSE, ...COORDINATION_PURPOSES];
+  const mlsPurposes = [COMMS_MESSAGE_PURPOSE, ...COORDINATION_PURPOSES];
+
   const executor = new AtomDataObjectExecutor({
     identity,
-    allowedPurposes: [COMMS_MESSAGE_PURPOSE, COMMS_RECEIPT_PURPOSE],
+    allowedPurposes: inboxPurposes,
     onReceive: (event) => {
       inbox.push(event);
       console.log(
@@ -69,7 +73,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       const plaintext = await mlsStore.decryptFrom(peerDid, event.wire);
       const object = decodeEncryptedObjectPayload(plaintext);
       const verified = await verifyDataObject(object, {
-        allowedPurposes: [COMMS_MESSAGE_PURPOSE],
+        allowedPurposes: mlsPurposes,
       });
       inbox.push({
         object: verified,
@@ -103,6 +107,8 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   });
 
   adminApp.use(express.json({ limit: "512kb" }));
+
+  registerCoordinationAdminRoutes(adminApp, { identity, mlsStore });
 
   adminApp.get("/health", (_req, res) => {
     res.json({
@@ -213,40 +219,20 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       }
 
       const object = await signDataObject(body.message, identity);
-      const factory = new ClientFactory();
-      const client = await factory.createFromUrl(body.peerUrl.replace(/\/$/, ""));
 
-      if (body.encrypt) {
-        const peerDid = body.peerDid?.trim();
-        if (!peerDid) {
-          res.status(400).json({ error: "peerDid required when encrypt=true" });
-          return;
-        }
-        if (!mlsStore.hasSession(peerDid)) {
-          res.status(409).json({ error: `No MLS session for ${peerDid} — POST /mls/connect first` });
-          return;
-        }
-        const wire = await mlsStore.encryptFor(
-          peerDid,
-          encodeEncryptedObjectPayload(object),
-        );
-        const response = await sendMlsWire(client, {
-          wire,
-          contextId: body.contextId ?? mlsContextId(peerDid),
-          role: "user",
-        });
-        res.json({ sent: { encrypted: true, objectId: object.id }, response });
-        return;
-      }
-
-      const response = await sendDataObject(client, {
+      const result = await deliverSignedObject({
+        mlsStore,
+        peerUrl: body.peerUrl,
+        peerDid: body.peerDid,
         object,
+        encrypt: body.encrypt,
         contextId: body.contextId,
-        role: "user",
       });
-      res.json({ sent: object, response });
+      res.json({ sent: { objectId: result.objectId, encrypted: result.encrypted }, object });
     } catch (error) {
-      res.status(502).json({
+      res.status(
+        error instanceof Error && error.message.includes("MLS session") ? 409 : 502,
+      ).json({
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -279,6 +265,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       console.log(`  invite:        POST ${config.publicBaseUrl}/invite { ttlSeconds? }`);
       console.log(`  MLS connect:   POST ${config.publicBaseUrl}/mls/connect { peerUrl | invite }`);
       console.log(`  admin send:    POST ${config.publicBaseUrl}/send { peerUrl, message, encrypt?, peerDid? }`);
+      console.log(`  coordination:  POST ${config.publicBaseUrl}/coordination/* (scheduling, rsvp)`);
       resolve(server);
     });
   });

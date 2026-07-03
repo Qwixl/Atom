@@ -1,10 +1,30 @@
 import {
   COMMS_MESSAGE_PURPOSE,
   COMMS_MESSAGE_SCHEMA,
+  type RsvpAnswer,
+  type SchedulingResponseKind,
+  type SchedulingSlot,
   type VerifiedContactInvite,
 } from "@qwixl/a2a-transport";
 import type { UnsignedDataObject } from "@qwixl/protocol";
 import type { InboxEntryWire } from "./types.js";
+
+async function postJson<T>(
+  adminUrl: string,
+  path: string,
+  body: Record<string, unknown>,
+): Promise<T> {
+  const resp = await fetch(`${adminUrl.replace(/\/$/, "")}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const err = (await resp.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Request failed (${resp.status})`);
+  }
+  return resp.json() as Promise<T>;
+}
 
 export class CommsAgentClient {
   constructor(private readonly adminUrl: string) {}
@@ -63,20 +83,90 @@ export class CommsAgentClient {
       payload: { text: opts.text.trim() },
       governance: { purpose: COMMS_MESSAGE_PURPOSE },
     };
-    const resp = await fetch(`${this.base()}/send`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    await postJson(this.base(), "/send", {
+      peerUrl: opts.peerUrl,
+      peerDid: opts.peerDid,
+      message,
+      encrypt: opts.encrypt,
+    });
+  }
+
+  async sendSchedulingProposal(opts: {
+    peerUrl: string;
+    peerDid: string;
+    title: string;
+    slots: SchedulingSlot[];
+    encrypt?: boolean;
+  }): Promise<{ objectId: string }> {
+    const result = await postJson<{ sent?: { objectId?: string } }>(
+      this.base(),
+      "/coordination/scheduling-proposal",
+      {
         peerUrl: opts.peerUrl,
         peerDid: opts.peerDid,
-        message,
-        encrypt: opts.encrypt,
-      }),
+        title: opts.title,
+        slots: opts.slots,
+        encrypt: opts.encrypt ?? true,
+      },
+    );
+    return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
+  }
+
+  async sendSchedulingResponse(opts: {
+    peerUrl: string;
+    peerDid: string;
+    proposalId: string;
+    response: SchedulingResponseKind;
+    slotId?: string;
+    encrypt?: boolean;
+  }): Promise<void> {
+    await postJson(this.base(), "/coordination/scheduling-response", {
+      peerUrl: opts.peerUrl,
+      peerDid: opts.peerDid,
+      proposalId: opts.proposalId,
+      response: opts.response,
+      slotId: opts.slotId,
+      encrypt: opts.encrypt ?? true,
     });
-    if (!resp.ok) {
-      const err = (await resp.json().catch(() => ({}))) as { error?: string };
-      throw new Error(err.error ?? `Send failed (${resp.status})`);
-    }
+  }
+
+  async sendRsvpRequest(opts: {
+    peerUrl: string;
+    peerDid: string;
+    eventTitle: string;
+    eventAt: string;
+    location?: string;
+    encrypt?: boolean;
+  }): Promise<{ objectId: string }> {
+    const result = await postJson<{ sent?: { objectId?: string } }>(
+      this.base(),
+      "/coordination/rsvp",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        eventTitle: opts.eventTitle,
+        eventAt: opts.eventAt,
+        location: opts.location,
+        encrypt: opts.encrypt ?? true,
+      },
+    );
+    return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
+  }
+
+  async sendRsvpResponse(opts: {
+    peerUrl: string;
+    peerDid: string;
+    rsvpId: string;
+    response: RsvpAnswer;
+    encrypt?: boolean;
+  }): Promise<void> {
+    await postJson(this.base(), "/coordination/rsvp-response", {
+      peerUrl: opts.peerUrl,
+      peerDid: opts.peerDid,
+      rsvpId: opts.rsvpId,
+      response: opts.response,
+      encrypt: opts.encrypt ?? true,
+    });
   }
 }
 

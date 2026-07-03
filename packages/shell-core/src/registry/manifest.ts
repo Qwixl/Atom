@@ -1,4 +1,5 @@
 import type { ModuleManifest } from "../catalog.js";
+import { validateModulePricing } from "./pricing.js";
 
 export function validateModuleManifest(raw: unknown): ModuleManifest {
   if (typeof raw !== "object" || raw === null) {
@@ -26,5 +27,10 @@ export function validateModuleManifest(raw: unknown): ModuleManifest {
   if (m.signatureUrl !== undefined && typeof m.signatureUrl !== "string") {
     throw new Error("manifest.signatureUrl must be a string when present");
   }
-  return raw as ModuleManifest;
+  const pricing = validateModulePricing(m.pricing, String(m.id));
+  const manifest = raw as ModuleManifest;
+  if (pricing !== undefined) {
+    manifest.pricing = pricing;
+  }
+  return manifest;
 }

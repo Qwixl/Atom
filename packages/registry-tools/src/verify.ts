@@ -4,6 +4,7 @@ import path from "node:path";
 import { verify as verifySigstoreBundle } from "sigstore";
 import {
   formatIntegrity,
+  normalizeModulePricing,
   validateModuleManifest,
   bundleStatementReferencesDigest,
   isSigstoreBundleShape,
@@ -125,6 +126,12 @@ async function verifyEntry(
     errors.push(`${entry.id}: index publisher mismatch`);
   }
 
+  const indexPricing = normalizeModulePricing(entry.pricing);
+  const manifestPricing = normalizeModulePricing(manifest.pricing);
+  if (JSON.stringify(indexPricing) !== JSON.stringify(manifestPricing)) {
+    errors.push(`${entry.id}: index pricing mismatch with manifest`);
+  }
+
   if (options.verifySignatures) {
     const signatureUrl = manifest.signatureUrl ?? entry.signatureUrl;
     if (signatureUrl) {
@@ -225,6 +232,7 @@ export async function publishModule(options: PublishOptions): Promise<void> {
     integrity: freshIntegrity,
     bundleIntegrity,
     publisher: updatedManifest.publisher,
+    ...(updatedManifest.pricing ? { pricing: updatedManifest.pricing } : {}),
   };
 
   index.modules = index.modules.filter(

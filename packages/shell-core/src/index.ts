@@ -117,6 +117,16 @@ export {
 
   bundleStatementReferencesDigest,
 
+  validateModulePricing,
+
+  normalizeModulePricing,
+
+  formatModulePrice,
+
+  modulePriceLabel,
+
+  MODULE_STORE_BETA_FREE,
+
 } from "./registry.js";
 
 export type {
@@ -136,6 +146,8 @@ export type {
   RegistryCacheSnapshot,
 
   RegistryCacheStore,
+
+  ModulePricing,
 
 } from "./registry.js";
 

@@ -1,3 +1,5 @@
+import type { RsvpAnswer, SchedulingResponseKind, SchedulingSlot } from "@qwixl/a2a-transport";
+
 export interface AgentContact {
   id: string;
   did: string;
@@ -33,3 +35,44 @@ export interface CommsMessage {
   at: string;
   peerDid: string;
 }
+
+export type CommsThreadItem =
+  | ({ kind: "message" } & CommsMessage)
+  | {
+      kind: "scheduling-proposal";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      title: string;
+      slots: SchedulingSlot[];
+    }
+  | {
+      kind: "scheduling-response";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      proposalId: string;
+      response: SchedulingResponseKind;
+      slotId?: string;
+    }
+  | {
+      kind: "rsvp-request";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      eventTitle: string;
+      eventAt: string;
+      location?: string;
+    }
+  | {
+      kind: "rsvp-response";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      rsvpId: string;
+      response: RsvpAnswer;
+    };

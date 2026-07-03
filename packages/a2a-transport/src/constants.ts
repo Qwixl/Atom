@@ -15,6 +15,9 @@ export const ATOM_A2A_EXTENSION = "https://atom.qwixl.dev/a2a/data-object/v1";
 /** Default A2A skill id for comms data-object exchange. */
 export const ATOM_COMMS_SKILL_ID = "atom-comms";
 
+/** Default A2A skill id for M8 coordination (scheduling / RSVP). */
+export const ATOM_COORDINATION_SKILL_ID = "atom-coordination";
+
 /** Default purpose for Phase 1 private comms. */
 export const COMMS_MESSAGE_PURPOSE = "comms:message";
 
@@ -26,3 +29,35 @@ export const COMMS_RECEIPT_PURPOSE = "comms:receipt";
 
 /** Purpose for online first-contact invitation tokens (D026). */
 export const CONTACT_INVITE_PURPOSE = "contact:invite";
+
+/** M8 coordination — scheduling proposal (organizer → invitee). */
+export const COORDINATION_PROPOSAL_PURPOSE = "coordination:proposal";
+export const SCHEDULING_PROPOSAL_SCHEMA = "https://atom.qwixl.dev/schema/SchedulingProposal";
+
+/** M8 coordination — slot selection / counter (invitee → organizer). */
+export const COORDINATION_RESPONSE_PURPOSE = "coordination:response";
+export const SCHEDULING_RESPONSE_SCHEMA = "https://atom.qwixl.dev/schema/SchedulingResponse";
+
+/** M8 coordination — RSVP request (organizer → invitee). */
+export const COORDINATION_RSVP_PURPOSE = "coordination:rsvp";
+export const RSVP_REQUEST_SCHEMA = "https://atom.qwixl.dev/schema/RsvpRequest";
+
+/** M8 coordination — RSVP answer (invitee → organizer). */
+export const COORDINATION_RSVP_RESPONSE_PURPOSE = "coordination:rsvp-response";
+export const RSVP_RESPONSE_SCHEMA = "https://atom.qwixl.dev/schema/RsvpResponse";
+
+/** M8 coordination — attested outcome receipt (either direction). */
+export const COORDINATION_RECEIPT_PURPOSE = "coordination:receipt";
+export const COORDINATION_RECEIPT_SCHEMA = "https://atom.qwixl.dev/schema/CoordinationReceipt";
+
+/** All M8 coordination purposes (receiver allowlists). */
+export const COORDINATION_PURPOSES = [
+  COORDINATION_PROPOSAL_PURPOSE,
+  COORDINATION_RESPONSE_PURPOSE,
+  COORDINATION_RSVP_PURPOSE,
+  COORDINATION_RSVP_RESPONSE_PURPOSE,
+  COORDINATION_RECEIPT_PURPOSE,
+] as const;
+
+/** Default coordination object lifetime: 14 days. */
+export const DEFAULT_COORDINATION_TTL_SECONDS = 14 * 24 * 60 * 60;

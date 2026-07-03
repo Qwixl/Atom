@@ -1,3 +1,5 @@
+import type { ModulePricing } from "./pricing.js";
+
 /** Registry index entry pointing at a module manifest. */
 export interface RegistryModuleEntry {
   id: string;
@@ -12,8 +14,9 @@ export interface RegistryModuleEntry {
   publisher?: string;
   /** URL to Sigstore bundle JSON; runtime DSSE digest match; CLI `--signatures` for publish verify. */
   signatureUrl?: string;
+  /** Store listing price for discovery before manifest fetch. Must match manifest when both set. */
+  pricing?: ModulePricing;
 }
-
 export interface RegistryIndex {
   registryVersion: 1;
   modules: RegistryModuleEntry[];

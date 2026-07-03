@@ -1,4 +1,5 @@
 import type { JsonObject } from "./types.js";
+import type { ModulePricing } from "./registry/pricing.js";
 
 /** Declaration of a single renderable component in the catalog. */
 export interface ComponentSpec {
@@ -34,6 +35,8 @@ export interface ModuleManifest {
   }>;
   capabilities: never[] | [];
   categories?: string[];
+  /** Optional store listing price (M8). Omitted = free. */
+  pricing?: ModulePricing;
 }
 
 export interface CatalogEntry {

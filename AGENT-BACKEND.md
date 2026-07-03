@@ -11,6 +11,10 @@ Owner-controlled agent backend for Phase 1 private comms: **did:key** identity, 
 | `POST /invite` | Mint contact invitation token |
 | `POST /mls/connect` | Establish MLS pair session (`peerUrl` or `invite`) |
 | `POST /send` | Send signed data object (plain or MLS-encrypted) |
+| `POST /coordination/scheduling-proposal` | Send scheduling proposal (`title`, `slots`, `peerUrl`, `peerDid`, `encrypt?`) |
+| `POST /coordination/scheduling-response` | Reply to proposal (`proposalId`, `response`, `slotId?`) |
+| `POST /coordination/rsvp` | Send RSVP request (`eventTitle`, `eventAt`, `location?`) |
+| `POST /coordination/rsvp-response` | Reply to RSVP (`rsvpId`, `response: yes\|maybe\|no`) |
 | `POST /agent` | AG-UI SSE endpoint (LLM when `LLM_API_KEY` set) |
 | `/.well-known/agent-card.json` | A2A agent card |
 | `/a2a/jsonrpc` | A2A JSON-RPC transport |

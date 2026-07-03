@@ -1,41 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { verifyContactInvite } from "@qwixl/a2a-transport";
-import { COMMS_MESSAGE_PURPOSE } from "@qwixl/a2a-transport";
 import type { OwnerRecord, OwnerStore } from "@qwixl/owner-store";
+import type { RsvpAnswer, SchedulingSlot } from "@qwixl/a2a-transport";
+import { ThreadItemView, useRespondedProposalIds, threadItemNeedsActions } from "./comms/CoordinationCard.js";
 import { CommsAgentClient } from "./comms/client.js";
+import { defaultStandupSlots, mergeThread } from "./comms/coordinationThread.js";
 import { DEFAULT_COMMS_AGENT_URL, loadCommsAgentConfig, saveCommsAgentConfig, saveContacts } from "./comms/storage.js";
 import {
   contactToTrustedAgentPayload,
   findTrustedAgentRecord,
 } from "./comms/trustedAgent.js";
-import type { AgentContact, CommsMessage, InboxEntryWire } from "./comms/types.js";
+import type { AgentContact, CommsThreadItem, InboxEntryWire } from "./comms/types.js";
 
 const INBOX_POLL_MS = 4000;
 
 function shortDid(did: string): string {
   if (did.length <= 24) return did;
   return `${did.slice(0, 14)}…${did.slice(-6)}`;
-}
-
-function inboxToMessages(entries: InboxEntryWire[], contactDid: string): CommsMessage[] {
-  return entries
-    .filter(
-      (entry) =>
-        entry.object.governance.purpose === COMMS_MESSAGE_PURPOSE &&
-        entry.object.issuerDid === contactDid,
-    )
-    .map((entry) => {
-      const text = typeof entry.object.payload.text === "string" ? entry.object.payload.text : "";
-      const peerDid = entry.object.issuerDid;
-      return {
-        id: entry.object.id,
-        direction: "in" as const,
-        text,
-        at: entry.receivedAt || entry.object.issuedAt,
-        peerDid,
-      };
-    })
-    .sort((a, b) => a.at.localeCompare(b.at));
 }
 
 function syncContactToOwnerStore(store: OwnerStore, contact: AgentContact): void {
@@ -83,7 +64,7 @@ export function CommsPanel({
   const [busy, setBusy] = useState(false);
   const [actionNote, setActionNote] = useState<string | null>(null);
   const [myInviteToken, setMyInviteToken] = useState<string | null>(null);
-  const [outbound, setOutbound] = useState<CommsMessage[]>([]);
+  const [outbound, setOutbound] = useState<CommsThreadItem[]>([]);
 
   const client = useMemo(() => new CommsAgentClient(agentUrl), [agentUrl]);
   const selected = contacts.find((c) => c.id === selectedId) ?? null;
@@ -123,18 +104,10 @@ export function CommsPanel({
 
   const thread = useMemo(() => {
     if (!selected) return [];
-    const inbound = inboxToMessages(inbox, selected.did);
-    const localOut = outbound.filter((msg) => msg.peerDid === selected.did);
-    const merged = [...inbound, ...localOut];
-    const seen = new Set<string>();
-    return merged
-      .filter((msg) => {
-        if (seen.has(msg.id)) return false;
-        seen.add(msg.id);
-        return true;
-      })
-      .sort((a, b) => a.at.localeCompare(b.at));
+    return mergeThread(inbox, outbound, selected.did);
   }, [inbox, outbound, selected]);
+
+  const respondedIds = useRespondedProposalIds(thread);
 
   const sessionReady = selected ? mlsPeers.includes(selected.did) : false;
 
@@ -223,6 +196,7 @@ export function CommsPanel({
       setOutbound((current) => [
         ...current,
         {
+          kind: "message",
           id: crypto.randomUUID(),
           direction: "out",
           text: sentText,
@@ -232,6 +206,144 @@ export function CommsPanel({
       ]);
       setCompose("");
       setActionNote(sessionReady ? "Encrypted message sent." : "Message sent (plain — no MLS session).");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendStandupProposal() {
+    if (!selected) return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      const slots = defaultStandupSlots();
+      const { objectId } = await client.sendSchedulingProposal({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        title: "Team standup",
+        slots,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "scheduling-proposal",
+          id: objectId,
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          title: "Team standup",
+          slots,
+        },
+      ]);
+      setActionNote(sessionReady ? "Scheduling proposal sent (MLS)." : "Proposal sent (plain).");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendDesignReviewRsvp() {
+    if (!selected) return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      const eventAt = "2026-07-10T15:00:00.000Z";
+      const { objectId } = await client.sendRsvpRequest({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        eventTitle: "Design review",
+        eventAt,
+        location: "Room 4",
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "rsvp-request",
+          id: objectId,
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          eventTitle: "Design review",
+          eventAt,
+          location: "Room 4",
+        },
+      ]);
+      setActionNote(sessionReady ? "RSVP request sent (MLS)." : "RSVP request sent (plain).");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function respondScheduling(proposalId: string, response: "accept" | "decline", slot?: SchedulingSlot) {
+    if (!selected) return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      await client.sendSchedulingResponse({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        proposalId,
+        response,
+        slotId: slot?.id,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "scheduling-response",
+          id: crypto.randomUUID(),
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          proposalId,
+          response,
+          slotId: slot?.id,
+        },
+      ]);
+      setActionNote("Scheduling response sent.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function respondRsvp(rsvpId: string, response: RsvpAnswer) {
+    if (!selected) return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      await client.sendRsvpResponse({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        rsvpId,
+        response,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "rsvp-response",
+          id: crypto.randomUUID(),
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          rsvpId,
+          response,
+        },
+      ]);
+      setActionNote("RSVP response sent.");
       await refreshInbox();
     } catch (error) {
       setActionNote(error instanceof Error ? error.message : String(error));
@@ -427,15 +539,37 @@ export function CommsPanel({
                   </ul>
                 )}
               </section>
+              <section className="shell-comms-coordination-organizer">
+                <h4>Coordination (M8)</h4>
+                <p className="shell-comms-hint">
+                  Send scheduling or RSVP data objects to this contact&apos;s agent. Requires MLS for
+                  encrypted delivery.
+                </p>
+                <div className="shell-comms-actions">
+                  <button type="button" disabled={busy} onClick={() => void sendStandupProposal()}>
+                    Propose standup slots
+                  </button>
+                  <button type="button" disabled={busy} onClick={() => void sendDesignReviewRsvp()}>
+                    Send design review RSVP
+                  </button>
+                </div>
+              </section>
               <div className="shell-comms-messages">
                 {thread.length === 0 ? (
                   <p className="shell-comms-empty">No messages yet.</p>
                 ) : (
-                  thread.map((msg) => (
-                    <div key={msg.id} className={`shell-comms-msg shell-comms-msg-${msg.direction}`}>
-                      <div className="shell-comms-msg-text">{msg.text}</div>
-                      <time>{new Date(msg.at).toLocaleTimeString()}</time>
-                    </div>
+                  thread.map((item) => (
+                    <ThreadItemView
+                      key={item.id}
+                      item={item}
+                      busy={busy}
+                      showActions={threadItemNeedsActions(item, respondedIds)}
+                      onAcceptSlot={(proposalId, slot) =>
+                        void respondScheduling(proposalId, "accept", slot)
+                      }
+                      onDeclineProposal={(proposalId) => void respondScheduling(proposalId, "decline")}
+                      onRsvp={(rsvpId, response) => void respondRsvp(rsvpId, response)}
+                    />
                   ))
                 )}
               </div>

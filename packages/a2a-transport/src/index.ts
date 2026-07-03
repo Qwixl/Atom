@@ -1,6 +1,7 @@
 export {
   ATOM_A2A_EXTENSION,
   ATOM_COMMS_SKILL_ID,
+  ATOM_COORDINATION_SKILL_ID,
   ATOM_DATA_OBJECT_MEDIA_TYPE,
   ATOM_MLS_HANDSHAKE_MEDIA_TYPE,
   ATOM_MLS_WIRE_MEDIA_TYPE,
@@ -8,6 +9,18 @@ export {
   COMMS_MESSAGE_SCHEMA,
   COMMS_RECEIPT_PURPOSE,
   CONTACT_INVITE_PURPOSE,
+  COORDINATION_PROPOSAL_PURPOSE,
+  COORDINATION_RECEIPT_PURPOSE,
+  COORDINATION_RESPONSE_PURPOSE,
+  COORDINATION_RSVP_PURPOSE,
+  COORDINATION_RSVP_RESPONSE_PURPOSE,
+  COORDINATION_PURPOSES,
+  COORDINATION_RECEIPT_SCHEMA,
+  DEFAULT_COORDINATION_TTL_SECONDS,
+  RSVP_REQUEST_SCHEMA,
+  RSVP_RESPONSE_SCHEMA,
+  SCHEDULING_PROPOSAL_SCHEMA,
+  SCHEDULING_RESPONSE_SCHEMA,
 } from "./constants.js";
 export {
   CONTACT_INVITE_SCHEMA,
@@ -17,6 +30,28 @@ export {
   type ContactInvitePayload,
   type VerifiedContactInvite,
 } from "./invitation.js";
+export {
+  createCoordinationReceipt,
+  createRsvpRequest,
+  createRsvpResponse,
+  createSchedulingProposal,
+  createSchedulingResponse,
+  verifyCoordinationObjectByPurpose,
+  verifyCoordinationReceipt,
+  verifyRsvpRequest,
+  verifyRsvpResponse,
+  verifySchedulingProposal,
+  verifySchedulingResponse,
+  type CoordinationPurpose,
+  type CoordinationReceiptPayload,
+  type RsvpAnswer,
+  type RsvpRequestPayload,
+  type RsvpResponsePayload,
+  type SchedulingProposalPayload,
+  type SchedulingResponseKind,
+  type SchedulingResponsePayload,
+  type SchedulingSlot,
+} from "./coordination.js";
 
 export { buildAtomAgentCard, type AtomAgentCardOptions } from "./agentCard.js";
 export {

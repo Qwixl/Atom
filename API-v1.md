@@ -78,6 +78,7 @@ Required fields:
 | `components` | ≥1 entry with `name`, `semanticRole`, `events` |
 | `capabilities` | **must be `[]`** in v1 (pure renderers) |
 | `bundleIntegrity` | `sha256:<hex>` — set by `atom-registry publish` |
+| `pricing` | Optional — `{ model: "free" \| "paid", priceCents?, purchaseUrl? }` (USD; external checkout in v1) |
 
 Optional: `signatureUrl` (Sigstore bundle JSON). Runtime verifies bundle structure and that the in-toto statement subject digest matches manifest bytes; use `atom-registry verify --signatures` at publish time. Full Rekor/x509 verification is deferred.
 
