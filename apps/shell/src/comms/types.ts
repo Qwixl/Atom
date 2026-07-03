@@ -1,4 +1,4 @@
-import type { RsvpAnswer, SchedulingResponseKind, SchedulingSlot } from "@qwixl/a2a-transport";
+import type { RsvpAnswer, SchedulingResponseKind, SchedulingSlot, ActionReserveRefKind } from "@qwixl/a2a-transport";
 
 export interface AgentContact {
   id: string;
@@ -75,4 +75,15 @@ export type CommsThreadItem =
       peerDid: string;
       rsvpId: string;
       response: RsvpAnswer;
+    }
+  | {
+      kind: "action-reserve";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      refId: string;
+      refKind: ActionReserveRefKind;
+      label: string;
+      attestationRef: string;
     };

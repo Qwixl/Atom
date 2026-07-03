@@ -1,6 +1,7 @@
 import {
   COMMS_MESSAGE_PURPOSE,
   COMMS_MESSAGE_SCHEMA,
+  type ActionReserveRefKind,
   type RsvpAnswer,
   type SchedulingResponseKind,
   type SchedulingSlot,
@@ -167,6 +168,38 @@ export class CommsAgentClient {
       response: opts.response,
       encrypt: opts.encrypt ?? true,
     });
+  }
+
+  async calendarStatus(): Promise<{ configured: boolean; protocol: string; provider: string }> {
+    const resp = await fetch(`${this.base()}/calendar/status`);
+    if (!resp.ok) throw new Error(`Calendar status failed (${resp.status})`);
+    return resp.json() as Promise<{ configured: boolean; protocol: string; provider: string }>;
+  }
+
+  async createCalendarEvent(opts: {
+    title: string;
+    start: string;
+    end: string;
+    location?: string;
+    description?: string;
+    accessToken?: string;
+  }): Promise<{ created: { uid: string; href: string } }> {
+    return postJson(this.base(), "/calendar/events", opts);
+  }
+
+  async createActionReserve(opts: {
+    refId: string;
+    refKind: ActionReserveRefKind;
+    attestationRef: string;
+    subjectId?: string;
+    label?: string;
+    start?: string;
+    end?: string;
+    peerDid?: string;
+    peerUrl?: string;
+    encrypt?: boolean;
+  }): Promise<{ object: { id: string } }> {
+    return postJson(this.base(), "/actions/reserve", opts);
   }
 }
 

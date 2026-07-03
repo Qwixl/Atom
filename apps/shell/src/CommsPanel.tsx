@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { verifyContactInvite } from "@qwixl/a2a-transport";
 import type { OwnerRecord, OwnerStore } from "@qwixl/owner-store";
-import type { RsvpAnswer, SchedulingSlot } from "@qwixl/a2a-transport";
+import type { ActionReserveRefKind, RsvpAnswer, SchedulingSlot } from "@qwixl/a2a-transport";
 import { ThreadItemView, useRespondedProposalIds, threadItemNeedsActions } from "./comms/CoordinationCard.js";
 import { CommsAgentClient } from "./comms/client.js";
 import { defaultStandupSlots, mergeThread } from "./comms/coordinationThread.js";
@@ -12,6 +12,10 @@ import {
 } from "./comms/trustedAgent.js";
 import type { AgentContact, CommsThreadItem, InboxEntryWire } from "./comms/types.js";
 import type { ConsequentialAction } from "@qwixl/shell-core";
+
+export type CommsConfirmationResult =
+  | { decision: "declined" }
+  | { decision: "approved"; attestationRef: string };
 
 const INBOX_POLL_MS = 4000;
 
@@ -45,13 +49,16 @@ export function CommsPanel({
   onContactsChanged,
   onProfileChanged,
   onRequestConfirmation,
+  calendarAccessToken,
 }: {
   contacts: AgentContact[];
   ownerRecords: OwnerRecord[];
   ownerStore: OwnerStore;
   onContactsChanged: () => void;
   onProfileChanged: () => void;
-  onRequestConfirmation: (action: ConsequentialAction) => Promise<"approved" | "declined">;
+  onRequestConfirmation: (action: ConsequentialAction) => Promise<CommsConfirmationResult>;
+  /** Dev: shell SecretStore token forwarded to agent-backend CalDAV proxy. */
+  calendarAccessToken?: string | null;
 }) {
   const [agentUrl, setAgentUrl] = useState(() => loadCommsAgentConfig().adminUrl);
   const [localDid, setLocalDid] = useState<string | null>(null);
@@ -287,8 +294,57 @@ export function CommsPanel({
     }
   }
 
-  async function respondScheduling(proposalId: string, response: "accept" | "decline", slot?: SchedulingSlot) {
+  async function mintActionReserve(opts: {
+    refId: string;
+    refKind: ActionReserveRefKind;
+    attestationRef: string;
+    subjectId?: string;
+    label?: string;
+    start?: string;
+    end?: string;
+  }): Promise<string | null> {
+    if (!selected) return null;
+    try {
+      const result = await client.createActionReserve({
+        ...opts,
+        peerDid: selected.did,
+        peerUrl: selected.endpoint,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "action-reserve",
+          id: result.object.id,
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          refId: opts.refId,
+          refKind: opts.refKind,
+          label: opts.label ?? opts.refId,
+          attestationRef: opts.attestationRef,
+        },
+      ]);
+      return result.object.id;
+    } catch (error) {
+      console.warn("action:reserve failed", error);
+      return null;
+    }
+  }
+
+  async function respondScheduling(
+    proposalId: string,
+    response: "accept" | "decline",
+    slot?: SchedulingSlot,
+    proposalTitle?: string,
+  ) {
     if (!selected) return;
+    const calendarWrite =
+      response === "accept" && slot && calendarAccessToken
+        ? "Create Google Calendar event and send acceptance"
+        : response === "accept"
+          ? "Send acceptance to contact agent"
+          : "Send decline to contact agent";
     const action: ConsequentialAction = {
       id: crypto.randomUUID(),
       kind: "confirmation",
@@ -298,16 +354,27 @@ export function CommsPanel({
         proposalId,
         response,
         slot: slot?.label ?? "",
-        action: response === "accept" ? "Send acceptance to contact agent" : "Send decline to contact agent",
+        action: calendarWrite,
       },
       confirmLabel: response === "accept" ? "Confirm & send" : "Send decline",
       declineLabel: "Cancel",
     };
-    const decision = await onRequestConfirmation(action);
-    if (decision !== "approved") return;
+    const confirmation = await onRequestConfirmation(action);
+    if (confirmation.decision !== "approved") return;
     setBusy(true);
     setActionNote(null);
     try {
+      if (response === "accept" && slot) {
+        await mintActionReserve({
+          refId: slot.id,
+          refKind: "scheduling-slot",
+          attestationRef: confirmation.attestationRef,
+          subjectId: proposalId,
+          label: slot.label,
+          start: slot.start,
+          end: slot.end,
+        });
+      }
       await client.sendSchedulingResponse({
         peerUrl: selected.endpoint,
         peerDid: selected.did,
@@ -316,6 +383,24 @@ export function CommsPanel({
         slotId: slot?.id,
         encrypt: sessionReady,
       });
+      if (response === "accept" && slot && calendarAccessToken) {
+        try {
+          await client.createCalendarEvent({
+            title: proposalTitle?.trim() || `Meeting with ${selected.name}`,
+            start: slot.start,
+            end: slot.end,
+            accessToken: calendarAccessToken,
+          });
+        } catch (calendarError) {
+          setActionNote(
+            `Scheduling response sent; calendar write failed: ${
+              calendarError instanceof Error ? calendarError.message : String(calendarError)
+            }`,
+          );
+          await refreshInbox();
+          return;
+        }
+      }
       setOutbound((current) => [
         ...current,
         {
@@ -329,7 +414,11 @@ export function CommsPanel({
           slotId: slot?.id,
         },
       ]);
-      setActionNote("Scheduling response sent.");
+      setActionNote(
+        response === "accept" && slot && calendarAccessToken
+          ? "Scheduling response sent; calendar event created."
+          : "Scheduling response sent.",
+      );
       await refreshInbox();
     } catch (error) {
       setActionNote(error instanceof Error ? error.message : String(error));
@@ -340,6 +429,14 @@ export function CommsPanel({
 
   async function respondRsvp(rsvpId: string, response: RsvpAnswer) {
     if (!selected) return;
+    const rsvpItem = thread.find(
+      (item): item is Extract<CommsThreadItem, { kind: "rsvp-request" }> =>
+        item.kind === "rsvp-request" && item.id === rsvpId,
+    );
+    const calendarWrite =
+      response === "yes" && calendarAccessToken && rsvpItem
+        ? "Create Google Calendar event and send RSVP"
+        : `Send RSVP (${response}) to contact agent`;
     const action: ConsequentialAction = {
       id: crypto.randomUUID(),
       kind: "confirmation",
@@ -348,16 +445,29 @@ export function CommsPanel({
         contact: selected.name,
         rsvpId,
         response,
-        action: `Send RSVP (${response}) to contact agent`,
+        action: calendarWrite,
       },
       confirmLabel: "Confirm & send",
       declineLabel: "Cancel",
     };
-    const decision = await onRequestConfirmation(action);
-    if (decision !== "approved") return;
+    const confirmation = await onRequestConfirmation(action);
+    if (confirmation.decision !== "approved") return;
     setBusy(true);
     setActionNote(null);
     try {
+      if (response === "yes" && rsvpItem) {
+        const start = rsvpItem.eventAt;
+        const end = new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString();
+        await mintActionReserve({
+          refId: rsvpId,
+          refKind: "rsvp",
+          attestationRef: confirmation.attestationRef,
+          subjectId: rsvpId,
+          label: rsvpItem.eventTitle,
+          start,
+          end,
+        });
+      }
       await client.sendRsvpResponse({
         peerUrl: selected.endpoint,
         peerDid: selected.did,
@@ -365,6 +475,27 @@ export function CommsPanel({
         response,
         encrypt: sessionReady,
       });
+      if (response === "yes" && calendarAccessToken && rsvpItem) {
+        const start = rsvpItem.eventAt;
+        const end = new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString();
+        try {
+          await client.createCalendarEvent({
+            title: rsvpItem.eventTitle,
+            start,
+            end,
+            location: rsvpItem.location,
+            accessToken: calendarAccessToken,
+          });
+        } catch (calendarError) {
+          setActionNote(
+            `RSVP response sent; calendar write failed: ${
+              calendarError instanceof Error ? calendarError.message : String(calendarError)
+            }`,
+          );
+          await refreshInbox();
+          return;
+        }
+      }
       setOutbound((current) => [
         ...current,
         {
@@ -377,7 +508,11 @@ export function CommsPanel({
           response,
         },
       ]);
-      setActionNote("RSVP response sent.");
+      setActionNote(
+        response === "yes" && calendarAccessToken && rsvpItem
+          ? "RSVP response sent; calendar event created."
+          : "RSVP response sent.",
+      );
       await refreshInbox();
     } catch (error) {
       setActionNote(error instanceof Error ? error.message : String(error));
@@ -598,9 +733,18 @@ export function CommsPanel({
                       item={item}
                       busy={busy}
                       showActions={threadItemNeedsActions(item, respondedIds)}
-                      onAcceptSlot={(proposalId, slot) =>
-                        void respondScheduling(proposalId, "accept", slot)
-                      }
+                      onAcceptSlot={(proposalId, slot) => {
+                        const proposal = thread.find(
+                          (item): item is Extract<CommsThreadItem, { kind: "scheduling-proposal" }> =>
+                            item.kind === "scheduling-proposal" && item.id === proposalId,
+                        );
+                        void respondScheduling(
+                          proposalId,
+                          "accept",
+                          slot,
+                          proposal?.title,
+                        );
+                      }}
                       onDeclineProposal={(proposalId) => void respondScheduling(proposalId, "decline")}
                       onRsvp={(rsvpId, response) => void respondRsvp(rsvpId, response)}
                     />

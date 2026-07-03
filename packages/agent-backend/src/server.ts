@@ -10,12 +10,15 @@ import {
   createContactInvite,
   decodeEncryptedObjectPayload,
   encodeEncryptedObjectPayload,
+  ACTION_PURPOSES,
   sendMlsHandshake,
   verifyContactInvite,
 } from "@qwixl/a2a-transport";
 import { createAtomA2aExpressApp } from "@qwixl/a2a-transport/server";
 import { base64ToBytes, signDataObject, verifyDataObject, type UnsignedDataObject } from "@qwixl/protocol";
 import { loadAgentBackendConfig, type AgentBackendConfig } from "./config.js";
+import { registerActionAdminRoutes } from "./actionAdmin.js";
+import { registerCalendarAdminRoutes } from "./calendarAdmin.js";
 import { registerCoordinationAdminRoutes } from "./coordinationAdmin.js";
 import { deliverSignedObject } from "./deliverObject.js";
 import { DataObjectInbox } from "./inbox.js";
@@ -44,8 +47,13 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     publisherDid: identity.did,
   });
 
-  const inboxPurposes = [COMMS_MESSAGE_PURPOSE, COMMS_RECEIPT_PURPOSE, ...COORDINATION_PURPOSES];
-  const mlsPurposes = [COMMS_MESSAGE_PURPOSE, ...COORDINATION_PURPOSES];
+  const inboxPurposes = [
+    COMMS_MESSAGE_PURPOSE,
+    COMMS_RECEIPT_PURPOSE,
+    ...COORDINATION_PURPOSES,
+    ...ACTION_PURPOSES,
+  ];
+  const mlsPurposes = [COMMS_MESSAGE_PURPOSE, ...COORDINATION_PURPOSES, ...ACTION_PURPOSES];
 
   const executor = new AtomDataObjectExecutor({
     identity,
@@ -109,6 +117,10 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   adminApp.use(express.json({ limit: "512kb" }));
 
   registerCoordinationAdminRoutes(adminApp, { identity, mlsStore });
+  registerActionAdminRoutes(adminApp, { identity, mlsStore });
+  registerCalendarAdminRoutes(adminApp, {
+    googleCalendarAccessToken: config.googleCalendarAccessToken,
+  });
 
   adminApp.get("/health", (_req, res) => {
     res.json({
@@ -116,6 +128,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       did: identity.did,
       inbox: inbox.count(),
       mlsPeers: mlsStore.listPeers(),
+      calendarConfigured: Boolean(config.googleCalendarAccessToken?.trim()),
     });
   });
 
@@ -266,6 +279,10 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       console.log(`  MLS connect:   POST ${config.publicBaseUrl}/mls/connect { peerUrl | invite }`);
       console.log(`  admin send:    POST ${config.publicBaseUrl}/send { peerUrl, message, encrypt?, peerDid? }`);
       console.log(`  coordination:  POST ${config.publicBaseUrl}/coordination/* (scheduling, rsvp)`);
+      console.log(
+        `  calendar:      POST ${config.publicBaseUrl}/calendar/events (CalDAV; set GOOGLE_CALENDAR_ACCESS_TOKEN)`,
+      );
+      console.log(`  actions:       POST ${config.publicBaseUrl}/actions/reserve`);
       resolve(server);
     });
   });

@@ -1,6 +1,6 @@
 # Secret storage (v1)
 
-How embedders wire credential storage for LLM keys and other secrets. The reference shell uses `@qwixl/secret-store` (monorepo-only); production hosts should implement the same `SecretStore` interface against an OS-backed vault.
+How embedders wire credential storage for LLM keys and other secrets. The reference shell uses `@qwixl/secret-store` (**monorepo-only** — not on npm; see D030 in private decisions log). Production hosts should implement the same `SecretStore` interface against an OS-backed vault. Publish to npm later only if embedders need installable dev helpers.
 
 ## Adapter priority (D027)
 

@@ -17,6 +17,11 @@ export {
   COORDINATION_PURPOSES,
   COORDINATION_RECEIPT_SCHEMA,
   DEFAULT_COORDINATION_TTL_SECONDS,
+  ACTION_PURPOSES,
+  ACTION_RESERVE_PURPOSE,
+  ACTION_RESERVE_SCHEMA,
+  ATOM_ACTIONS_SKILL_ID,
+  DEFAULT_ACTION_RESERVE_TTL_SECONDS,
   RSVP_REQUEST_SCHEMA,
   RSVP_RESPONSE_SCHEMA,
   SCHEDULING_PROPOSAL_SCHEMA,
@@ -52,6 +57,13 @@ export {
   type SchedulingResponsePayload,
   type SchedulingSlot,
 } from "./coordination.js";
+export {
+  createActionReserve,
+  verifyActionReserve,
+  type ActionPurpose,
+  type ActionReservePayload,
+  type ActionReserveRefKind,
+} from "./actions.js";
 
 export { buildAtomAgentCard, type AtomAgentCardOptions } from "./agentCard.js";
 export {

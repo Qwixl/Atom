@@ -112,6 +112,21 @@ export function CoordinationCard({
     );
   }
 
+  if (item.kind === "action-reserve") {
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
+        <div className="shell-comms-coord-head">
+          <strong>Soft reserve</strong>
+          <span>{item.label}</span>
+        </div>
+        <p className="shell-comms-coord-meta">
+          {item.refKind} · attestation {item.attestationRef}
+        </p>
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
   return null;
 }
 

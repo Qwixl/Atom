@@ -4,6 +4,7 @@ export interface AgentBackendConfig {
   publicBaseUrl: string;
   agentName: string;
   allowedOrigins: ReadonlySet<string>;
+  googleCalendarAccessToken: string | null;
 }
 
 const DEFAULT_SHELL_ORIGINS = [
@@ -29,5 +30,9 @@ export function loadAgentBackendConfig(env: NodeJS.ProcessEnv = process.env): Ag
     publicBaseUrl,
     agentName,
     allowedOrigins: new Set([...DEFAULT_SHELL_ORIGINS, ...extra]),
+    googleCalendarAccessToken:
+      env.GOOGLE_CALENDAR_ACCESS_TOKEN?.trim() ||
+      env.GOOGLE_OAUTH_ACCESS_TOKEN?.trim() ||
+      null,
   };
 }

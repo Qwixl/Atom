@@ -59,5 +59,18 @@ export const COORDINATION_PURPOSES = [
   COORDINATION_RECEIPT_PURPOSE,
 ] as const;
 
+/** M9 transaction-flow — soft reserve after owner confirm (no ring-fence). */
+export const ACTION_RESERVE_PURPOSE = "action:reserve";
+export const ACTION_RESERVE_SCHEMA = "https://atom.qwixl.dev/schema/ActionReserve";
+
+/** Default A2A skill id for M9 low-stakes actions. */
+export const ATOM_ACTIONS_SKILL_ID = "atom-actions";
+
+/** All M9 action purposes (receiver allowlists). */
+export const ACTION_PURPOSES = [ACTION_RESERVE_PURPOSE] as const;
+
+/** Default soft-hold lifetime for action:reserve (24 hours). */
+export const DEFAULT_ACTION_RESERVE_TTL_SECONDS = 24 * 60 * 60;
+
 /** Default coordination object lifetime: 14 days. */
 export const DEFAULT_COORDINATION_TTL_SECONDS = 14 * 24 * 60 * 60;

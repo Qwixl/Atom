@@ -203,6 +203,11 @@ export function App() {
     const token = secretStore.get(googleCalendarOAuth.secretRef);
     return token ? maskSecret(token) : null;
   }, [googleCalendarOAuth, secretStore]);
+  const calendarAccessToken = useMemo(() => {
+    if (!googleCalendarOAuth) return null;
+    const token = secretStore.get(googleCalendarOAuth.secretRef);
+    return token?.trim() ? token.trim() : null;
+  }, [googleCalendarOAuth, secretStore]);
   const [agUiConfig, setAgUiConfig] = useState<AgUiAgentConfig>(() => loadAgUiConfig());
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Set when user picks a provider that needs configuration first. */
@@ -213,7 +218,11 @@ export function App() {
   );
   const [commsPending, setCommsPending] = useState<{
     action: ConsequentialAction;
-    resolve: (decision: "approved" | "declined") => void;
+    resolve: (
+      result:
+        | { decision: "declined" }
+        | { decision: "approved"; attestationRef: string },
+    ) => void;
   } | null>(null);
   const [panel, setPanel] = useState<SidePanel>("none");
   const [commsContacts, setCommsContacts] = useState<AgentContact[]>(() =>
@@ -476,7 +485,10 @@ export function App() {
 
   const requestCommsConfirmation = useCallback(
     (action: ConsequentialAction) =>
-      new Promise<"approved" | "declined">((resolve) => {
+      new Promise<
+        | { decision: "declined" }
+        | { decision: "approved"; attestationRef: string }
+      >((resolve) => {
         setCommsPending({ action, resolve });
       }),
     [],
@@ -485,14 +497,21 @@ export function App() {
   async function decideChrome(decision: "approved" | "declined") {
     if (commsPending) {
       const pendingComms = commsPending;
-      await attestationLog.append({
+      const entry = await attestationLog.append({
         surfaceId: "comms",
         action: pendingComms.action,
         decision,
       });
       setAttestations([...attestationLog.list()]);
       setCommsPending(null);
-      pendingComms.resolve(decision);
+      if (decision === "approved") {
+        pendingComms.resolve({
+          decision: "approved",
+          attestationRef: `attestation:${entry.seq}:${entry.hash.slice(0, 16)}`,
+        });
+      } else {
+        pendingComms.resolve({ decision: "declined" });
+      }
       return;
     }
     await decide(decision);
@@ -688,6 +707,7 @@ export function App() {
               setCommsContacts(loadContacts(ownerStore.list()));
             }}
             onRequestConfirmation={requestCommsConfirmation}
+            calendarAccessToken={calendarAccessToken}
           />
         ) : null}
 

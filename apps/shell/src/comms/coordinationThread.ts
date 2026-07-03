@@ -3,7 +3,9 @@ import {
   COORDINATION_RESPONSE_PURPOSE,
   COORDINATION_RSVP_PURPOSE,
   COORDINATION_RSVP_RESPONSE_PURPOSE,
+  ACTION_RESERVE_PURPOSE,
   COMMS_MESSAGE_PURPOSE,
+  type ActionReserveRefKind,
   type RsvpAnswer,
   type SchedulingResponseKind,
   type SchedulingSlot,
@@ -99,6 +101,29 @@ export function inboxEntryToThreadItem(
       peerDid,
       rsvpId: String(payload.rsvpId ?? ""),
       response,
+    };
+  }
+
+  if (purpose === ACTION_RESERVE_PURPOSE) {
+    const refKind = payload.refKind as ActionReserveRefKind;
+    if (
+      refKind !== "scheduling-proposal" &&
+      refKind !== "scheduling-slot" &&
+      refKind !== "rsvp" &&
+      refKind !== "generic"
+    ) {
+      return null;
+    }
+    return {
+      kind: "action-reserve",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      refId: String(payload.refId ?? ""),
+      refKind,
+      label: typeof payload.label === "string" ? payload.label : String(payload.refId ?? "Reserved"),
+      attestationRef: String(payload.attestationRef ?? ""),
     };
   }
 

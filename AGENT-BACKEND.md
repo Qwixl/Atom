@@ -15,6 +15,10 @@ Owner-controlled agent backend for Phase 1 private comms: **did:key** identity, 
 | `POST /coordination/scheduling-response` | Reply to proposal (`proposalId`, `response`, `slotId?`) |
 | `POST /coordination/rsvp` | Send RSVP request (`eventTitle`, `eventAt`, `location?`) |
 | `POST /coordination/rsvp-response` | Reply to RSVP (`rsvpId`, `response: yes\|maybe\|no`) |
+| `GET /calendar/status` | Whether `GOOGLE_CALENDAR_ACCESS_TOKEN` is set on the server |
+| `POST /calendar/query` | CalDAV query events (`timeMin`, `timeMax`, optional `accessToken`) |
+| `POST /calendar/events` | Create CalDAV event (`title`, `start`, `end`, optional `location`, `accessToken`) |
+| `POST /actions/reserve` | Mint `action:reserve` object (`refId`, `refKind`, `attestationRef`; optional peer send) |
 | `POST /agent` | AG-UI SSE endpoint (LLM when `LLM_API_KEY` set) |
 | `/.well-known/agent-card.json` | A2A agent card |
 | `/a2a/jsonrpc` | A2A JSON-RPC transport |
@@ -79,6 +83,8 @@ Bind is `0.0.0.0` inside the container; expose port `5204` or terminate TLS at t
 | `LLM_API_KEY` | — | OpenAI-compatible API key for `POST /agent` (also accepts `OPENAI_API_KEY`) |
 | `LLM_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible base URL |
 | `LLM_MODEL` | `gpt-4o-mini` | Model name for AG-UI responses |
+| `GOOGLE_CALENDAR_ACCESS_TOKEN` | — | Google OAuth access token with calendar scope for CalDAV proxy |
+| `GOOGLE_OAUTH_ACCESS_TOKEN` | — | Alias for `GOOGLE_CALENDAR_ACCESS_TOKEN` |
 
 ## AG-UI (shell chat)
 
