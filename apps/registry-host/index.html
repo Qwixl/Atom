@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Atom module registry</title>
+  </head>
+  <body>
+    <h1>Atom module registry (reference host)</h1>
+    <p>Static index for cross-origin shell loads. Serves the same files as the shell app public dir.</p>
+    <ul>
+      <li><a href="/registry/index.json">/registry/index.json</a></li>
+      <li><a href="/registry/revocations.json">/registry/revocations.json</a></li>
+    </ul>
+    <p>Run <code>pnpm dev:registry</code> (port 5202). Point any shell at <code>http://localhost:5202/registry/index.json</code>.</p>
+  </body>
+</html>

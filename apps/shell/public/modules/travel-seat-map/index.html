@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>travel/seat-map</title>
+    <style>
+      :root {
+        --bg: #10151d;
+        --border: #2a3342;
+        --text: #e6ebf2;
+        --text-dim: #93a1b5;
+        --accent: #5aa9ff;
+        --good: #3fca7c;
+        --warn: #e6b34d;
+        --taken: #3d4a5f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 12px;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 12px;
+        font-size: 13px;
+      }
+      .flight {
+        color: var(--text-dim);
+      }
+      .legend {
+        display: flex;
+        gap: 12px;
+        font-size: 11px;
+        color: var(--text-dim);
+        margin-bottom: 10px;
+      }
+      .legend span::before {
+        content: "";
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        margin-right: 4px;
+        border-radius: 2px;
+        vertical-align: middle;
+        border: 1px solid var(--border);
+      }
+      .legend .avail::before {
+        background: transparent;
+      }
+      .legend .rec::before {
+        background: rgba(90, 169, 255, 0.25);
+        border-color: var(--accent);
+      }
+      .legend .taken::before {
+        background: var(--taken);
+      }
+      .cabin {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: center;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 24px repeat(3, 36px) 16px repeat(3, 36px);
+        gap: 4px;
+        align-items: center;
+      }
+      .row-num {
+        font-size: 11px;
+        color: var(--text-dim);
+        text-align: right;
+      }
+      .aisle {
+        width: 16px;
+      }
+      button.seat {
+        width: 36px;
+        height: 32px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: transparent;
+        color: var(--text);
+        font-size: 10px;
+        cursor: pointer;
+        padding: 0;
+      }
+      button.seat.recommended {
+        border-color: var(--accent);
+        background: rgba(90, 169, 255, 0.12);
+      }
+      button.seat.taken {
+        background: var(--taken);
+        color: var(--text-dim);
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+      button.seat.selected {
+        border-color: var(--good);
+        background: rgba(63, 202, 124, 0.18);
+      }
+      button.seat:not(.taken):hover {
+        border-color: var(--accent);
+      }
+      .hint {
+        margin-top: 10px;
+        font-size: 12px;
+        color: var(--text-dim);
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <strong>Seat map</strong>
+      <span class="flight" id="flight"></span>
+    </div>
+    <div class="legend">
+      <span class="avail">Available</span>
+      <span class="rec">Recommended</span>
+      <span class="taken">Taken</span>
+    </div>
+    <div class="cabin" id="cabin"></div>
+    <p class="hint" id="hint">Waiting for shell…</p>
+    <script>
+      const LETTERS = ["A", "B", "C", "D", "E", "F"];
+      let props = {};
+      let selected = null;
+
+      window.addEventListener("message", (event) => {
+        if (event.data?.type !== "init") return;
+        props = event.data.props ?? {};
+        selected = null;
+        render();
+      });
+
+      function readHashInit() {
+        const raw = location.hash.match(/^#init=(.+)$/);
+        if (!raw) return false;
+        try {
+          props = JSON.parse(decodeURIComponent(raw[1]));
+          selected = null;
+          render();
+          return true;
+        } catch {
+          return false;
+        }
+      }
+
+      function signalReady() {
+        window.parent.postMessage({ type: "ready" }, "*");
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", () => {
+          readHashInit();
+          signalReady();
+        });
+      } else {
+        readHashInit();
+        signalReady();
+      }
+
+      function render() {
+        document.getElementById("flight").textContent = props.flight ?? "";
+        const taken = new Set(Array.isArray(props.taken) ? props.taken : []);
+        const recommended = new Set(Array.isArray(props.recommended) ? props.recommended : []);
+        const rows = Array.isArray(props.rows) ? props.rows : [18, 19, 20, 21, 22, 23, 24];
+        const cabin = document.getElementById("cabin");
+        cabin.innerHTML = "";
+
+        document.getElementById("hint").textContent = "Click an available seat to select it.";
+        for (const row of rows) {
+          const rowEl = document.createElement("div");
+          rowEl.className = "row";
+          const num = document.createElement("span");
+          num.className = "row-num";
+          num.textContent = String(row);
+          rowEl.appendChild(num);
+
+          for (let i = 0; i < 6; i++) {
+            if (i === 3) {
+              const aisle = document.createElement("span");
+              aisle.className = "aisle";
+              rowEl.appendChild(aisle);
+            }
+            const seatId = `${row}${LETTERS[i]}`;
+            const btn = document.createElement("button");
+            btn.className = "seat";
+            btn.textContent = LETTERS[i];
+            btn.title = seatId;
+            if (taken.has(seatId)) {
+              btn.classList.add("taken");
+              btn.disabled = true;
+            } else {
+              if (recommended.has(seatId)) btn.classList.add("recommended");
+              btn.addEventListener("click", () => select(seatId, btn));
+            }
+            rowEl.appendChild(btn);
+          }
+          cabin.appendChild(rowEl);
+        }
+      }
+
+      function select(seatId, btn) {
+        selected = seatId;
+        document.querySelectorAll("button.seat.selected").forEach((el) => el.classList.remove("selected"));
+        btn.classList.add("selected");
+        document.getElementById("hint").textContent = `Selected ${seatId} — confirming with shell…`;
+        window.parent.postMessage(
+          { type: "event", name: "seatSelected", payload: { seatId } },
+          "*",
+        );
+      }
+    </script>
+  </body>
+</html>

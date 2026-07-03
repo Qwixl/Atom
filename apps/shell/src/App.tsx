@@ -1,49 +1,114 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   AttestationLog,
   Catalog,
+  ConversationRuntime,
+  ModuleRegistry,
+  createAttestationPersistence,
+  createJsonPersistence,
+  loadBooleanFromStorage,
+  loadJsonFromStorage,
+  loadStringFromStorage,
   registerCorePrimitives,
-  resolveComposition,
+  saveJsonToStorage,
+  saveStringToStorage,
   type AgentSession,
   type AttestationEntry,
-  type ConsequentialAction,
-  type ResolvedSurface,
+  type RegistryRevocation,
+  type RegistryTrustPolicy,
   type UiEvent,
 } from "@atom/shell-core";
 import { SurfaceRenderer } from "@atom/renderer-web";
-import { LlmAgentSession, type LlmConfig } from "@atom/agent-llm";
+import { LlmAgentSession, runCuratorPass, type LlmConfig } from "@atom/agent-llm";
+import { AgUiAgentSession, type AgUiAgentConfig } from "@atom/ag-ui-adapter";
+import {
+  OwnerStore,
+  activeContextTags,
+  type OwnerRecord,
+  type RecordProposal,
+  recordUiPreferenceFeedback,
+} from "@atom/owner-store";
+import {
+  createLocalStorageSecretStore,
+  DEFAULT_LLM_SECRET_REF,
+  isLlmConnectionReady,
+  loadAndMigrateLlmConnection,
+  maskSecret,
+  persistLlmConnection,
+  resolveLlmConfig,
+  type LlmConnectionConfig,
+} from "@atom/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
+import { ProfilePanel } from "./ProfilePanel.js";
 
-type FeedItem =
-  | { kind: "user"; id: string; text: string }
-  | { kind: "agent-text"; id: string; text: string }
-  | { kind: "surface"; id: string; surface: ResolvedSurface };
-
-interface PendingAction {
-  surfaceId: string;
-  action: ConsequentialAction;
-}
-
-type Provider = "mock" | "llm";
+type Provider = "mock" | "llm" | "ag-ui";
+type SidePanel = "none" | "log" | "profile";
 
 type ShellSession = AgentSession & { dispose?: () => void };
 
-const SUGGESTIONS = ["Book me a flight to Tokyo", "Show me my spending this quarter"];
-const LLM_CONFIG_KEY = "atom-llm-config";
+const SUGGESTIONS = [
+  "Book me a flight to Tokyo",
+  "Which seats should I book?",
+  "Show me my spending this quarter",
+];
+const AGUI_CONFIG_KEY = "atom-agui-config";
+const REGISTRY_URL_KEY = "atom-registry-url";
+const REGISTRY_TRUST_KEY = "atom-registry-trust";
+const CURATOR_ENABLED_KEY = "atom-curator-enabled";
+const CURATOR_AUTO_ACCEPT_KEY = "atom-curator-auto-accept-open";
+const PROVIDER_KEY = "atom-provider";
+const DEFAULT_AGUI_URL = "http://localhost:5201/agent";
+const DEFAULT_REGISTRY_URL = "/registry/index.json";
 
-function loadLlmConfig(): LlmConfig | null {
-  try {
-    const raw = localStorage.getItem(LLM_CONFIG_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<LlmConfig>;
-    if (parsed.baseUrl && parsed.apiKey && parsed.model) {
-      return { baseUrl: parsed.baseUrl, apiKey: parsed.apiKey, model: parsed.model };
-    }
-    return null;
-  } catch {
-    return null;
-  }
+function loadAgUiConfig(): AgUiAgentConfig {
+  const parsed = loadJsonFromStorage<{ url?: string }>(AGUI_CONFIG_KEY);
+  if (parsed?.url?.trim()) return { url: parsed.url.trim() };
+  return { url: DEFAULT_AGUI_URL };
 }
+
+function loadRegistryUrl(): string {
+  return loadStringFromStorage(REGISTRY_URL_KEY)?.trim() || DEFAULT_REGISTRY_URL;
+}
+
+function loadRegistryTrust(): RegistryTrustPolicy {
+  const parsed = loadJsonFromStorage<RegistryTrustPolicy>(REGISTRY_TRUST_KEY);
+  if (!parsed) return { requireIntegrity: true };
+  return {
+    requireIntegrity: parsed.requireIntegrity !== false,
+    requireSignature: parsed.requireSignature === true,
+  };
+}
+
+function loadCuratorEnabled(): boolean {
+  return loadBooleanFromStorage(CURATOR_ENABLED_KEY, true);
+}
+
+function loadCuratorAutoAcceptOpen(): boolean {
+  return loadBooleanFromStorage(CURATOR_AUTO_ACCEPT_KEY, true);
+}
+
+function loadSavedProvider(store: ReturnType<typeof createLocalStorageSecretStore>): Provider {
+  try {
+    const saved = loadStringFromStorage(PROVIDER_KEY);
+    if (saved === "llm" && isLlmConnectionReady(loadAndMigrateLlmConnection(store), store)) {
+      return "llm";
+    }
+    if (saved === "ag-ui") return "ag-ui";
+  } catch {
+    // fall through
+  }
+  return "mock";
+}
+
+const attestationPersistence = createAttestationPersistence();
+const ownerRecordsPersistence = createJsonPersistence<OwnerRecord[]>({
+  key: "atom-owner-store",
+  validate: (value): value is OwnerRecord[] => Array.isArray(value),
+});
+const ownerProposalsPersistence = createJsonPersistence<RecordProposal[]>({
+  key: "atom-owner-proposals",
+  validate: (value): value is RecordProposal[] => Array.isArray(value),
+});
 
 export function App() {
   const catalog = useMemo(() => {
@@ -55,65 +120,219 @@ export function App() {
   const attestationLog = useMemo(
     () =>
       new AttestationLog({
-        persist: (entries) => {
-          try {
-            localStorage.setItem("atom-attestation", JSON.stringify(entries));
-          } catch {
-            // Persistence is best-effort in v1.
-          }
-        },
-        restore: (() => {
-          try {
-            const raw = localStorage.getItem("atom-attestation");
-            return raw ? (JSON.parse(raw) as AttestationEntry[]) : undefined;
-          } catch {
-            return undefined;
-          }
-        })(),
+        persist: (entries) => attestationPersistence.save([...entries]),
+        restore: attestationPersistence.load() as AttestationEntry[] | undefined,
       }),
     [],
   );
 
-  const [provider, setProvider] = useState<Provider>("mock");
-  const [llmConfig, setLlmConfig] = useState<LlmConfig | null>(() => loadLlmConfig());
+  const ownerStore = useMemo(
+    () =>
+      new OwnerStore({
+        persist: (records) => ownerRecordsPersistence.save([...records]),
+        restore: ownerRecordsPersistence.load(),
+        persistProposals: (proposals) => ownerProposalsPersistence.save([...proposals]),
+        restoreProposals: ownerProposalsPersistence.load(),
+      }),
+    [],
+  );
+
+  const secretStore = useMemo(() => createLocalStorageSecretStore(), []);
+
+  const [provider, setProvider] = useState<Provider>(() => loadSavedProvider(secretStore));
+  const [llmConnection, setLlmConnection] = useState<LlmConnectionConfig | null>(() =>
+    loadAndMigrateLlmConnection(secretStore),
+  );
+  const llmConfig = useMemo((): LlmConfig | null => {
+    if (!llmConnection) return null;
+    return resolveLlmConfig(llmConnection, secretStore);
+  }, [llmConnection, secretStore]);
+  const savedLlmKeyHint = useMemo(() => {
+    if (!llmConnection) return null;
+    const key = secretStore.get(llmConnection.secretRef);
+    return key ? maskSecret(key) : null;
+  }, [llmConnection, secretStore]);
+  const [agUiConfig, setAgUiConfig] = useState<AgUiAgentConfig>(() => loadAgUiConfig());
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [feed, setFeed] = useState<FeedItem[]>([]);
+  /** Set when user picks a provider that needs configuration first. */
+  const [settingsIntent, setSettingsIntent] = useState<Provider | null>(null);
   const [input, setInput] = useState("");
-  const [pending, setPending] = useState<PendingAction | null>(null);
   const [attestations, setAttestations] = useState<readonly AttestationEntry[]>(
     attestationLog.list(),
   );
-  const [logOpen, setLogOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [panel, setPanel] = useState<SidePanel>("none");
+  const [profileRecords, setProfileRecords] = useState<OwnerRecord[]>(ownerStore.list());
+  const [profileProposals, setProfileProposals] = useState<RecordProposal[]>(
+    ownerStore.listProposals(),
+  );
+  const [curatorEnabled, setCuratorEnabled] = useState(() => loadCuratorEnabled());
+  const [curatorAutoAcceptOpen, setCuratorAutoAcceptOpen] = useState(() =>
+    loadCuratorAutoAcceptOpen(),
+  );
+  const [modulesEnabled, setModulesEnabled] = useState(true);
+  const [registryUrl, setRegistryUrl] = useState(() => loadRegistryUrl());
+  const [registryTrust, setRegistryTrust] = useState(() => loadRegistryTrust());
+  const [registryError, setRegistryError] = useState<string | null>(null);
+  const [revokedModules, setRevokedModules] = useState<readonly RegistryRevocation[]>([]);
   const feedRef = useRef<HTMLDivElement>(null);
-  const idCounter = useRef(0);
+  const turnTranscript = useRef<Array<{ role: "user" | "assistant"; text: string }>>([]);
+
+  const registry = useMemo(
+    () => new ModuleRegistry({ indexUrl: registryUrl, trust: registryTrust }),
+    [registryUrl, registryTrust],
+  );
+
+  useEffect(() => {
+    if (!modulesEnabled) {
+      registry.uninstallAll(catalog);
+    }
+  }, [modulesEnabled, catalog, registry]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void registry.loadRevocations().then(() => {
+      if (!cancelled) setRevokedModules(registry.listRevoked());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [registry, registryUrl]);
+
+  /** Promote persisted non-guarded curator proposals into open profile records. */
+  useEffect(() => {
+    if (!curatorAutoAcceptOpen) return;
+    const accepted = ownerStore.acceptOpenProposals();
+    if (accepted > 0) {
+      setProfileRecords(ownerStore.list());
+      setProfileProposals(ownerStore.listProposals());
+    }
+  }, [ownerStore, curatorAutoAcceptOpen]);
 
   const session: ShellSession = useMemo(() => {
     if (provider === "llm" && llmConfig) {
-      return new LlmAgentSession(llmConfig, catalog);
+      // Live provider: the slice is reassembled from the store on every
+      // model call, so guarding/unguarding a record applies from the
+      // agent's next turn (earlier transcript influence remains).
+      return new LlmAgentSession(llmConfig, catalog, () => ownerStore.contextSlice());
     }
-    return new MockAgentSession();
-  }, [provider, llmConfig, catalog]);
+    if (provider === "ag-ui") {
+      return new AgUiAgentSession(agUiConfig);
+    }
+    return new MockAgentSession({
+      profileProvider: () => ownerStore.contextSlice(),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider, llmConfig, agUiConfig, catalog, ownerStore]);
+
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+
+  const prevSessionRef = useRef<ShellSession | null>(null);
+
+  const modulesEnabledRef = useRef(modulesEnabled);
+  modulesEnabledRef.current = modulesEnabled;
+  const registryRef = useRef(registry);
+  registryRef.current = registry;
+  const catalogRef = useRef(catalog);
+  catalogRef.current = catalog;
+  const ownerStoreRef = useRef(ownerStore);
+  ownerStoreRef.current = ownerStore;
+  const providerRef = useRef(provider);
+  providerRef.current = provider;
+  const llmConfigRef = useRef(llmConfig);
+  llmConfigRef.current = llmConfig;
+  const curatorEnabledRef = useRef(curatorEnabled);
+  curatorEnabledRef.current = curatorEnabled;
+  const curatorAutoAcceptOpenRef = useRef(curatorAutoAcceptOpen);
+  curatorAutoAcceptOpenRef.current = curatorAutoAcceptOpen;
+  const setRegistryErrorRef = useRef(setRegistryError);
+  setRegistryErrorRef.current = setRegistryError;
+  const setPanelRef = useRef(setPanel);
+  setPanelRef.current = setPanel;
+  const setProfileRecordsRef = useRef(setProfileRecords);
+  setProfileRecordsRef.current = setProfileRecords;
+  const setProfileProposalsRef = useRef(setProfileProposals);
+  setProfileProposalsRef.current = setProfileProposals;
+
+  const conversation = useMemo(
+    () =>
+      new ConversationRuntime({
+        catalog,
+        beforeResolveComposition: async (composition) => {
+          if (!modulesEnabledRef.current) return;
+          setRegistryErrorRef.current(null);
+          await registryRef.current.ensureModules(catalogRef.current, composition);
+        },
+        onRegistryError: (message) => setRegistryErrorRef.current(message),
+        guardedRecordCount: (categories) =>
+          ownerStoreRef.current.guardedRecords(categories).length,
+        onTranscriptLine: (role, text) => {
+          turnTranscript.current.push({ role, text });
+        },
+        onTurnComplete: () => {
+          const activeProvider = providerRef.current;
+          const activeLlmConfig = llmConfigRef.current;
+          const activeOwnerStore = ownerStoreRef.current;
+          if (activeProvider !== "llm" || !activeLlmConfig || !curatorEnabledRef.current) {
+            return;
+          }
+          const transcript = turnTranscript.current;
+          if (transcript.length < 2) return;
+          void runCuratorPass(activeLlmConfig, {
+            transcript,
+            existingRecords: activeOwnerStore.list().map((record) => {
+              const weights = activeOwnerStore.weightsFor(record);
+              return {
+                category: record.category,
+                label: record.label,
+                value: record.value,
+                tier: record.tier,
+                confidence: weights.confidence,
+                strength: weights.strength,
+                contextTags: activeContextTags(record.evidence ?? []),
+              };
+            }),
+          })
+            .then((result) => {
+              if (result.signals.length > 0) {
+                activeOwnerStore.applyCuratorSignals(result.signals);
+              }
+              if (result.proposals.length === 0 && result.signals.length === 0) return;
+              for (const proposal of result.proposals) {
+                const queued = activeOwnerStore.ingestCuratorProposal(proposal);
+                if (queued && curatorAutoAcceptOpenRef.current && !queued.guarded) {
+                  activeOwnerStore.acceptProposal(queued.id);
+                }
+              }
+              setProfileRecordsRef.current(activeOwnerStore.list());
+              setProfileProposalsRef.current(activeOwnerStore.listProposals());
+              if (activeOwnerStore.listProposals().length > 0) {
+                setPanelRef.current("profile");
+              }
+            })
+            .catch((error) => console.error("Curator pass failed:", error));
+        },
+      }),
+    [catalog],
+  );
+
+  const conversationRef = useRef(conversation);
+  conversationRef.current = conversation;
+
+  const { feed, busy, pending } = useSyncExternalStore(
+    (listener) => conversation.subscribe(listener),
+    () => conversation.getSnapshot(),
+  );
 
   useEffect(() => {
-    const unsubscribe = session.subscribe((output) => {
-      const id = `item-${++idCounter.current}`;
-      if (output.type === "text") {
-        setFeed((current) => [...current, { kind: "agent-text", id, text: output.text }]);
-      } else if (output.type === "composition") {
-        const surface = resolveComposition(output.composition, catalog);
-        setFeed((current) => [...current, { kind: "surface", id, surface }]);
-      } else if (output.type === "consequential-action") {
-        setPending({ surfaceId: output.surfaceId, action: output.action });
-      } else if (output.type === "done") {
-        setBusy(false);
-      }
-    });
-    return () => {
-      unsubscribe();
-      session.dispose?.();
-    };
-  }, [session, catalog]);
+    if (prevSessionRef.current && prevSessionRef.current !== session) {
+      prevSessionRef.current.dispose?.();
+      conversationRef.current.setBusy(false);
+    }
+    prevSessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => conversation.wireSession(session), [session, conversation]);
 
   useEffect(() => {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
@@ -122,18 +341,25 @@ export function App() {
   function submitMessage(text: string) {
     const trimmed = text.trim();
     if (!trimmed) return;
-    setFeed((current) => [
-      ...current,
-      { kind: "user", id: `item-${++idCounter.current}`, text: trimmed },
-    ]);
+    if (provider === "llm" && !llmConfig) {
+      conversationRef.current.appendUserAndAgentText(
+        trimmed,
+        "Live LLM is selected but no API key is configured. Open Settings to add your key.",
+      );
+      return;
+    }
+    turnTranscript.current = [];
+    conversationRef.current.appendUser(trimmed);
     setInput("");
-    setBusy(true);
-    session.sendUserMessage(trimmed);
+    sessionRef.current.sendUserMessage(trimmed);
   }
 
   function handleUiEvent(event: UiEvent) {
-    setBusy(true);
-    session.sendUiEvent(event);
+    if (recordUiPreferenceFeedback(ownerStore, event) > 0) {
+      setProfileRecords(ownerStore.list());
+    }
+    conversationRef.current.setBusy(true);
+    sessionRef.current.sendUiEvent(event);
   }
 
   async function decide(decision: "approved" | "declined") {
@@ -144,19 +370,50 @@ export function App() {
       decision,
     });
     setAttestations([...attestationLog.list()]);
-    setPending(null);
-    setBusy(true);
-    session.sendActionDecision(entry.action.id, decision);
+    const { dataRequest } = pending;
+    conversationRef.current.clearPending();
+    conversationRef.current.setBusy(true);
+    if (dataRequest) {
+      const records =
+        decision === "approved"
+          ? ownerStore.guardedRecords(dataRequest.categories).map((record) => ({
+              category: record.category,
+              label: record.label,
+              value: record.value,
+            }))
+          : [];
+      sessionRef.current.sendDataDisclosure?.(dataRequest.requestId, decision, records);
+    } else {
+      sessionRef.current.sendActionDecision(entry.action.id, decision);
+    }
   }
 
   function switchProvider(next: Provider) {
-    if (next === "llm" && !llmConfig) {
+    if (next === "llm" && !isLlmConnectionReady(llmConnection, secretStore)) {
+      setSettingsIntent("llm");
       setSettingsOpen(true);
       return;
     }
+    setSettingsIntent(null);
+    try {
+      saveStringToStorage(PROVIDER_KEY, next);
+    } catch {
+      // Best-effort persistence.
+    }
+    if (next === "llm") {
+      const accepted = ownerStore.acceptOpenProposals();
+      if (accepted > 0) {
+        setProfileRecords(ownerStore.list());
+        setProfileProposals(ownerStore.listProposals());
+      }
+    }
     setProvider(next);
-    setFeed([]);
-    setBusy(false);
+    conversationRef.current.reset();
+  }
+
+  function closeSettings() {
+    setSettingsOpen(false);
+    setSettingsIntent(null);
   }
 
   return (
@@ -166,9 +423,20 @@ export function App() {
           <span className="shell-brand-mark" />
           Atom Shell
           <span className="shell-brand-tag">
-            v1 · {provider === "mock" ? "mock agent" : `live agent · ${llmConfig?.model}`}
+            v1 ·{" "}
+            {provider === "mock"
+              ? "mock agent"
+              : provider === "ag-ui"
+                ? `ag-ui · ${agUiConfig.url.replace(/^https?:\/\//, "")}`
+                : `live agent · ${llmConfig?.model}`}
+            {modulesEnabled ? ` · registry · ${registry.installedModuleIds().length} installed` : ""}
           </span>
         </div>
+        {registryError ? (
+          <span className="shell-brand-tag shell-registry-error" title={registryError}>
+            registry error
+          </span>
+        ) : null}
         <div className="shell-titlebar-actions">
           <div className="shell-provider">
             <button
@@ -178,16 +446,43 @@ export function App() {
               Mock
             </button>
             <button
-              className={provider === "llm" ? "active" : ""}
+              className={provider === "llm" || settingsIntent === "llm" ? "active" : ""}
               onClick={() => switchProvider("llm")}
             >
               Live LLM
             </button>
+            <button
+              className={provider === "ag-ui" || settingsIntent === "ag-ui" ? "active" : ""}
+              onClick={() => switchProvider("ag-ui")}
+            >
+              AG-UI
+            </button>
           </div>
-          <button className="shell-log-toggle" onClick={() => setSettingsOpen(true)}>
+          <button
+            className={`shell-log-toggle${modulesEnabled ? " active" : ""}`}
+            onClick={() => setModulesEnabled((current) => !current)}
+            title="Toggle module registry (off → resolver fallback for community refs)"
+          >
+            Modules {modulesEnabled ? "on" : "off"}
+          </button>
+          <button className="shell-log-toggle" onClick={() => { setSettingsIntent(null); setSettingsOpen(true); }}>
             Settings
           </button>
-          <button className="shell-log-toggle" onClick={() => setLogOpen((open) => !open)}>
+          <button
+            className="shell-log-toggle"
+            onClick={() => setPanel((current) => (current === "profile" ? "none" : "profile"))}
+          >
+            Profile
+            {profileProposals.length > 0 ? (
+              <span className="shell-log-count shell-log-count-proposal">{profileProposals.length}</span>
+            ) : profileRecords.length > 0 ? (
+              <span className="shell-log-count">{profileRecords.length}</span>
+            ) : null}
+          </button>
+          <button
+            className="shell-log-toggle"
+            onClick={() => setPanel((current) => (current === "log" ? "none" : "log"))}
+          >
             Attestation log
             {attestations.length > 0 ? (
               <span className="shell-log-count">{attestations.length}</span>
@@ -216,6 +511,12 @@ export function App() {
                 <p className="shell-empty-note">
                   Live agent: composes unscripted from the catalog vocabulary. It has no live data
                   integrations yet, so content is illustrative.
+                </p>
+              ) : null}
+              {provider === "ag-ui" ? (
+                <p className="shell-empty-note">
+                  AG-UI transport: connects to an agent backend over SSE. Start the reference server
+                  with <code>pnpm dev:ag-ui</code> (default {DEFAULT_AGUI_URL}).
                 </p>
               ) : null}
             </div>
@@ -248,7 +549,19 @@ export function App() {
           {busy ? <div className="feed-busy">agent working…</div> : null}
         </main>
 
-        {logOpen ? (
+        {panel === "profile" ? (
+          <ProfilePanel
+            store={ownerStore}
+            records={profileRecords}
+            proposals={profileProposals}
+            onChanged={() => {
+              setProfileRecords(ownerStore.list());
+              setProfileProposals(ownerStore.listProposals());
+            }}
+          />
+        ) : null}
+
+        {panel === "log" ? (
           <aside className="shell-attestations">
             <h2>Attestation log</h2>
             <p className="shell-attestations-note">
@@ -300,7 +613,9 @@ export function App() {
         <div className="chrome-overlay" role="dialog" aria-modal="true">
           <div className="chrome-dialog">
             <div className="chrome-dialog-banner">
-              Shell-verified request · terms restated from the data object
+              {pending.dataRequest
+                ? "Shell-verified request · guarded data disclosure"
+                : "Shell-verified request · terms restated from the data object"}
             </div>
             <h2>{pending.action.title}</h2>
             <dl className="chrome-terms">
@@ -328,18 +643,61 @@ export function App() {
 
       {settingsOpen ? (
         <SettingsDialog
-          initial={llmConfig}
-          onClose={() => setSettingsOpen(false)}
-          onSave={(config) => {
-            try {
-              localStorage.setItem(LLM_CONFIG_KEY, JSON.stringify(config));
-            } catch {
-              // Best-effort persistence; the session still gets the config.
+          llmConnectionInitial={llmConnection}
+          savedLlmKeyHint={savedLlmKeyHint}
+          agUiInitial={agUiConfig}
+          registryInitial={registryUrl}
+          trustInitial={registryTrust}
+          revokedModules={revokedModules}
+          curatorInitial={curatorEnabled}
+          curatorAutoAcceptInitial={curatorAutoAcceptOpen}
+          intent={settingsIntent}
+          onClose={closeSettings}
+          onSaveLlm={(connection, apiKey) => {
+            if (apiKey !== undefined) {
+              secretStore.set(connection.secretRef, apiKey);
             }
-            setLlmConfig(config);
+            persistLlmConnection(connection);
+            setLlmConnection(connection);
+            setSettingsIntent(null);
             setSettingsOpen(false);
+            saveStringToStorage(PROVIDER_KEY, "llm");
             setProvider("llm");
-            setFeed([]);
+            conversationRef.current.reset();
+          }}
+          onSaveAgUi={(config) => {
+            saveJsonToStorage(AGUI_CONFIG_KEY, config);
+            setAgUiConfig(config);
+            setSettingsIntent(null);
+            setSettingsOpen(false);
+            saveStringToStorage(PROVIDER_KEY, "ag-ui");
+            setProvider("ag-ui");
+            conversationRef.current.reset();
+          }}
+          onSaveRegistry={(url, trust) => {
+            saveStringToStorage(REGISTRY_URL_KEY, url);
+            saveJsonToStorage(REGISTRY_TRUST_KEY, trust);
+            registry.uninstallAll(catalog);
+            registry.clearCache();
+            setRegistryUrl(url);
+            setRegistryTrust(trust);
+            setRegistryError(null);
+            void registry.refreshRevocations().then(() => {
+              setRevokedModules(registry.listRevoked());
+            });
+          }}
+          onSaveCurator={(enabled, autoAcceptOpen) => {
+            saveStringToStorage(CURATOR_ENABLED_KEY, String(enabled));
+            saveStringToStorage(CURATOR_AUTO_ACCEPT_KEY, String(autoAcceptOpen));
+            setCuratorEnabled(enabled);
+            setCuratorAutoAcceptOpen(autoAcceptOpen);
+            if (autoAcceptOpen) {
+              const accepted = ownerStore.acceptOpenProposals();
+              if (accepted > 0) {
+                setProfileRecords(ownerStore.list());
+                setProfileProposals(ownerStore.listProposals());
+              }
+            }
           }}
         />
       ) : null}
@@ -348,55 +706,254 @@ export function App() {
 }
 
 function SettingsDialog({
-  initial,
+  llmConnectionInitial,
+  savedLlmKeyHint,
+  agUiInitial,
+  registryInitial,
+  trustInitial,
+  revokedModules,
+  curatorInitial,
+  curatorAutoAcceptInitial,
+  intent,
   onClose,
-  onSave,
+  onSaveLlm,
+  onSaveAgUi,
+  onSaveRegistry,
+  onSaveCurator,
 }: {
-  initial: LlmConfig | null;
+  llmConnectionInitial: LlmConnectionConfig | null;
+  savedLlmKeyHint: string | null;
+  agUiInitial: AgUiAgentConfig;
+  registryInitial: string;
+  trustInitial: RegistryTrustPolicy;
+  revokedModules: readonly RegistryRevocation[];
+  curatorInitial: boolean;
+  curatorAutoAcceptInitial: boolean;
+  intent: Provider | null;
   onClose: () => void;
-  onSave: (config: LlmConfig) => void;
+  onSaveLlm: (connection: LlmConnectionConfig, apiKey?: string) => void;
+  onSaveAgUi: (config: AgUiAgentConfig) => void;
+  onSaveRegistry: (url: string, trust: RegistryTrustPolicy) => void;
+  onSaveCurator: (enabled: boolean, autoAcceptOpen: boolean) => void;
 }) {
-  const [baseUrl, setBaseUrl] = useState(initial?.baseUrl ?? "https://api.openai.com/v1");
-  const [model, setModel] = useState(initial?.model ?? "");
-  const [apiKey, setApiKey] = useState(initial?.apiKey ?? "");
-  const valid = baseUrl.trim() && model.trim() && apiKey.trim();
+  const [baseUrl, setBaseUrl] = useState(
+    llmConnectionInitial?.baseUrl ?? "https://api.openai.com/v1",
+  );
+  const [model, setModel] = useState(llmConnectionInitial?.model ?? "");
+  const [apiKey, setApiKey] = useState("");
+  const [changingKey, setChangingKey] = useState(!savedLlmKeyHint);
+  const [agUiUrl, setAgUiUrl] = useState(agUiInitial.url);
+  const [registryIndexUrl, setRegistryIndexUrl] = useState(registryInitial);
+  const [requireIntegrity, setRequireIntegrity] = useState(trustInitial.requireIntegrity !== false);
+  const [requireSignature, setRequireSignature] = useState(trustInitial.requireSignature === true);
+  const [curatorOn, setCuratorOn] = useState(curatorInitial);
+  const [curatorAutoAcceptOn, setCuratorAutoAcceptOn] = useState(curatorAutoAcceptInitial);
+  const hasSavedKey = Boolean(savedLlmKeyHint) && !changingKey;
+  const llmValid =
+    Boolean(baseUrl.trim() && model.trim()) &&
+    (hasSavedKey || Boolean(apiKey.trim()));
+  const agUiValid = agUiUrl.trim().length > 0;
+
+  function saveLlmAndEnable() {
+    onSaveCurator(curatorOn, curatorAutoAcceptOn);
+    const connection: LlmConnectionConfig = {
+      baseUrl: baseUrl.trim(),
+      model: model.trim(),
+      secretRef: llmConnectionInitial?.secretRef ?? DEFAULT_LLM_SECRET_REF,
+    };
+    onSaveLlm(connection, hasSavedKey ? undefined : apiKey.trim());
+  }
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
 
   return (
-    <div className="chrome-overlay" role="dialog" aria-modal="true">
-      <div className="settings-dialog">
-        <h2>Live agent settings</h2>
-        <p className="settings-note">
-          Any OpenAI-compatible chat endpoint. The key is stored only in this browser's
-          localStorage and sent only to the endpoint you configure.
-        </p>
-        <label className="atom-field">
-          <span className="atom-field-label">Endpoint base URL</span>
-          <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
-        </label>
-        <label className="atom-field">
-          <span className="atom-field-label">Model</span>
-          <input
-            value={model}
-            placeholder="e.g. gpt-4o-mini"
-            onChange={(e) => setModel(e.target.value)}
-          />
-        </label>
-        <label className="atom-field">
-          <span className="atom-field-label">API key</span>
-          <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
-        </label>
-        <div className="chrome-actions">
-          <button className="chrome-decline" onClick={onClose}>
-            Cancel
+    <div
+      className="chrome-overlay settings-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settings-dialog-title"
+      onClick={onClose}
+    >
+      <div className="settings-dialog" onClick={(event) => event.stopPropagation()}>
+        <div className="settings-dialog-header">
+          <h2 id="settings-dialog-title">Agent connection</h2>
+          <button type="button" className="settings-close" onClick={onClose} aria-label="Close settings">
+            ×
           </button>
-          <button
-            className="chrome-approve"
-            disabled={!valid}
-            onClick={() =>
-              onSave({ baseUrl: baseUrl.trim(), model: model.trim(), apiKey: apiKey.trim() })
-            }
-          >
-            Save & use live agent
+        </div>
+        <div className="settings-dialog-body">
+        {intent === "llm" ? (
+          <p className="settings-intent-note">
+            Enter your model endpoint and API key, then click <strong>Enable Live LLM</strong> below.
+          </p>
+        ) : null}
+        <section className="settings-section settings-section-first">
+          <h3>Live LLM</h3>
+          <p className="settings-note">
+            OpenAI-compatible chat endpoint. Browser-direct mode stores your API key separately
+            from connection settings (local dev backend). For production, use AG-UI so keys stay
+            on your server.
+          </p>
+          <label className="atom-field">
+            <span className="atom-field-label">Endpoint base URL</span>
+            <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+          </label>
+          <label className="atom-field">
+            <span className="atom-field-label">Model</span>
+            <input
+              value={model}
+              placeholder="e.g. gpt-4o-mini"
+              onChange={(e) => setModel(e.target.value)}
+            />
+          </label>
+          {hasSavedKey ? (
+            <div className="settings-saved-key">
+              <span className="settings-saved-key-label">API key</span>
+              <span className="settings-saved-key-value">Using saved key ({savedLlmKeyHint})</span>
+              <button
+                type="button"
+                className="settings-saved-key-change"
+                onClick={() => {
+                  setChangingKey(true);
+                  setApiKey("");
+                }}
+              >
+                Change key
+              </button>
+            </div>
+          ) : (
+            <label className="atom-field">
+              <span className="atom-field-label">API key</span>
+              <input
+                type="password"
+                value={apiKey}
+                placeholder={savedLlmKeyHint ? "Enter new API key" : undefined}
+                onChange={(e) => setApiKey(e.target.value)}
+              />
+            </label>
+          )}
+          <label className="atom-field atom-field-checkbox">
+            <input type="checkbox" checked={curatorOn} onChange={(e) => setCuratorOn(e.target.checked)} />
+            <span>Curator pass after each turn (extracts profile records from conversation)</span>
+          </label>
+          <label className="atom-field atom-field-checkbox">
+            <input
+              type="checkbox"
+              checked={curatorAutoAcceptOn}
+              disabled={!curatorOn}
+              onChange={(e) => setCuratorAutoAcceptOn(e.target.checked)}
+            />
+            <span>
+              Auto-save open (non-guarded) curator records so preferences apply on your next turn
+            </span>
+          </label>
+          {!intent ? (
+            <div className="chrome-actions settings-section-actions">
+              <button
+                type="button"
+                className="chrome-approve"
+                disabled={!llmValid}
+                onClick={saveLlmAndEnable}
+              >
+                Use live LLM
+              </button>
+            </div>
+          ) : null}
+        </section>
+        <section className="settings-section">
+          <h3>AG-UI backend</h3>
+          <p className="settings-note">
+            POST endpoint that accepts RunAgentInput and streams AG-UI events (SSE). Reference
+            server: <code>pnpm dev:ag-ui</code>
+          </p>
+          <label className="atom-field">
+            <span className="atom-field-label">Agent URL</span>
+            <input value={agUiUrl} onChange={(e) => setAgUiUrl(e.target.value)} />
+          </label>
+          <div className="chrome-actions settings-section-actions">
+            <button
+              className="chrome-approve"
+              disabled={!agUiValid}
+              onClick={() => onSaveAgUi({ url: agUiUrl.trim() })}
+            >
+              Use AG-UI
+            </button>
+          </div>
+        </section>
+        <section className="settings-section">
+          <h3>Module registry</h3>
+          <p className="settings-note">
+            Static index URL (Homebrew-tap style). Modules lazy-load on first composition
+            reference. Manifest and bundle sha256 verified at install; optional Sigstore bundle
+            digest match when signatureUrl is present.
+          </p>
+          <label className="atom-field">
+            <span className="atom-field-label">Index URL</span>
+            <input value={registryIndexUrl} onChange={(e) => setRegistryIndexUrl(e.target.value)} />
+          </label>
+          <label className="atom-field atom-field-checkbox">
+            <input
+              type="checkbox"
+              checked={requireIntegrity}
+              onChange={(e) => setRequireIntegrity(e.target.checked)}
+            />
+            <span>Require manifest integrity hash (recommended)</span>
+          </label>
+          <label className="atom-field atom-field-checkbox">
+            <input
+              type="checkbox"
+              checked={requireSignature}
+              onChange={(e) => setRequireSignature(e.target.checked)}
+            />
+            <span>Require Sigstore signatureUrl on manifests (digest match at install)</span>
+          </label>
+          {revokedModules.length > 0 ? (
+            <div className="settings-revocations">
+              <span className="atom-field-label">Revoked modules ({revokedModules.length})</span>
+              <ul className="settings-revocations-list">
+                {revokedModules.map((item) => (
+                  <li key={`${item.id}@${item.version}`}>
+                    <code>{item.id}@{item.version}</code>
+                    {item.reason ? ` — ${item.reason}` : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="settings-note">No revoked modules in the current index revocations list.</p>
+          )}
+          <div className="chrome-actions settings-section-actions">
+            <button
+              className="chrome-approve"
+              disabled={!registryIndexUrl.trim()}
+              onClick={() =>
+                onSaveRegistry(registryIndexUrl.trim(), { requireIntegrity, requireSignature })
+              }
+            >
+              Save registry settings
+            </button>
+          </div>
+        </section>
+        </div>
+        <div className="settings-dialog-footer">
+          {intent === "llm" ? (
+            <button
+              type="button"
+              className="chrome-approve"
+              disabled={!llmValid}
+              onClick={saveLlmAndEnable}
+            >
+              Enable Live LLM
+            </button>
+          ) : null}
+          <button type="button" className="chrome-decline" onClick={onClose}>
+            Cancel
           </button>
         </div>
       </div>

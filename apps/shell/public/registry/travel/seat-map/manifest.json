@@ -1,0 +1,18 @@
+{
+  "id": "travel/seat-map",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkdemotravel0001",
+  "targets": ["web"],
+  "bundleUrl": "/modules/travel-seat-map/index.html",
+  "bundleIntegrity": "sha256:1a9304be921c010b99458ae127d0ed81291ac19e81515609097a707479e05f8a",
+  "components": [
+    {
+      "name": "travel/seat-map",
+      "semanticRole": "input/seat-map",
+      "events": [{ "name": "seatSelected" }],
+      "agentHint": "Interactive aircraft seat map. Prefer over core/choice when picking a specific seat on a known layout."
+    }
+  ],
+  "capabilities": [],
+  "categories": ["travel"]
+}
