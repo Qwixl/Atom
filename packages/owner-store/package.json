@@ -1,6 +1,6 @@
 {
   "name": "@qwixl/owner-store",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Owner-controlled profile/memory store for the Atom shell: portable records, guarded categories, scoped context slices for agent disclosure.",
   "license": "Apache-2.0",
   "type": "module",
@@ -15,7 +15,9 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },

@@ -1,6 +1,6 @@
 {
   "name": "@qwixl/shell-core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Embeddable engine for the Atom shell: composition model, catalog, resolver, attestation log, agent session contract.",
   "license": "Apache-2.0",
   "type": "module",
@@ -15,7 +15,9 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },
