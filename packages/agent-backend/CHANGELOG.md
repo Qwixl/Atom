@@ -1,5 +1,20 @@
 # @qwixl/agent-backend
 
+## 0.4.0
+
+### Minor Changes
+
+- 41d7248: M10: merge shell-forwarded atomProfile into AG-UI LLM system prompt.
+
+### Patch Changes
+
+- Updated dependencies [41d7248]
+- Updated dependencies [41d7248]
+- Updated dependencies [41d7248]
+  - @qwixl/ag-ui-adapter@0.4.0
+  - @qwixl/agent-llm@0.1.2
+  - @qwixl/owner-store@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes

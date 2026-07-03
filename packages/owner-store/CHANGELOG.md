@@ -1,5 +1,11 @@
 # @qwixl/owner-store
 
+## 0.4.0
+
+### Minor Changes
+
+- 41d7248: M10: conversation memory index, lexical RAG, and personal agent context assembly.
+
 ## 0.2.0
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@qwixl/agent-llm",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "LLM-backed AgentSession for the Atom shell: any OpenAI-compatible chat endpoint composes surfaces from the shell's catalog.",
   "license": "Apache-2.0",
   "type": "module",

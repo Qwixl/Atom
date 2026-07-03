@@ -1,5 +1,16 @@
 # @qwixl/ag-ui-adapter
 
+## 0.4.0
+
+### Minor Changes
+
+- 41d7248: M10: forward owner profile and memory via AG-UI forwardedProps.atomProfile.
+
+### Patch Changes
+
+- Updated dependencies [41d7248]
+  - @qwixl/owner-store@0.4.0
+
 ## 0.2.0
 
 ### Patch Changes
