@@ -1,4 +1,10 @@
-import type { RsvpAnswer, SchedulingResponseKind, SchedulingSlot, ActionReserveRefKind } from "@qwixl/a2a-transport";
+import type {
+  RsvpAnswer,
+  SchedulingResponseKind,
+  SchedulingSlot,
+  ActionReserveRefKind,
+  MonetaryAmount,
+} from "@qwixl/a2a-transport";
 
 export interface AgentContact {
   id: string;
@@ -86,4 +92,38 @@ export type CommsThreadItem =
       refKind: ActionReserveRefKind;
       label: string;
       attestationRef: string;
+    }
+  | {
+      kind: "transaction-hold";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      transactionId: string;
+      amount: MonetaryAmount;
+      label?: string;
+      rail: string;
+      expiresAt?: string;
+    }
+  | {
+      kind: "transaction-confirm";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      transactionId: string;
+      role: "payer" | "payee";
+      amount: MonetaryAmount;
+      label?: string;
+    }
+  | {
+      kind: "transaction-status";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      transactionId: string;
+      status: "capture" | "release" | "receipt";
+      amount?: MonetaryAmount;
+      reason?: string;
     };

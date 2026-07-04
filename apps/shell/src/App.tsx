@@ -48,8 +48,12 @@ import {
   purgeInsecureLocalCredentials,
   resolveLlmConfig,
   upsertOAuthConnection,
+  DEFAULT_STRIPE_PAYMENT_REF,
+  loadPaymentConnections,
+  upsertPaymentConnection,
   type LlmConnectionConfig,
   type OAuthConnectionConfig,
+  type PaymentConnectionConfig,
   type SecretStore,
 } from "@qwixl/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
@@ -201,6 +205,9 @@ export function App() {
   const [oauthConnections, setOauthConnections] = useState<OAuthConnectionConfig[]>(() =>
     loadOAuthConnections(),
   );
+  const [paymentConnections, setPaymentConnections] = useState<PaymentConnectionConfig[]>(() =>
+    loadPaymentConnections(),
+  );
   const googleCalendarOAuth = useMemo(
     () => oauthConnections.find((c) => c.secretRef === DEFAULT_GOOGLE_CALENDAR_OAUTH_REF) ?? null,
     [oauthConnections],
@@ -215,6 +222,15 @@ export function App() {
     const token = secretStore.get(googleCalendarOAuth.secretRef);
     return token?.trim() ? token.trim() : null;
   }, [googleCalendarOAuth, secretStore]);
+  const stripePayment = useMemo(
+    () => paymentConnections.find((c) => c.provider === "stripe") ?? null,
+    [paymentConnections],
+  );
+  const savedStripeSecretHint = useMemo(() => {
+    if (!stripePayment) return null;
+    const key = secretStore.get(stripePayment.secretRef);
+    return key ? maskSecret(key) : null;
+  }, [stripePayment, secretStore]);
   const [agUiConfig, setAgUiConfig] = useState<AgUiAgentConfig>(() => loadAgUiConfig());
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Set when user picks a provider that needs configuration first. */
@@ -779,6 +795,7 @@ export function App() {
             }}
             onRequestConfirmation={requestCommsConfirmation}
             calendarAccessToken={calendarAccessToken}
+            attestationEntries={attestations}
           />
         ) : null}
 
@@ -882,6 +899,8 @@ export function App() {
           savedLlmKeyHint={savedLlmKeyHint}
           googleCalendarOAuthInitial={googleCalendarOAuth}
           savedGoogleCalendarTokenHint={savedGoogleCalendarTokenHint}
+          stripePaymentInitial={stripePayment}
+          savedStripeSecretHint={savedStripeSecretHint}
           agUiInitial={agUiConfig}
           registryInitial={registryUrl}
           trustInitial={registryTrust}
@@ -948,6 +967,12 @@ export function App() {
             }
             setOauthConnections(upsertOAuthConnection(connection));
           }}
+          onSaveStripePayment={(connection, secretKey) => {
+            if (secretKey !== undefined) {
+              secretStore.set(connection.secretRef, secretKey);
+            }
+            setPaymentConnections(upsertPaymentConnection(connection));
+          }}
         />
       ) : null}
     </div>
@@ -959,6 +984,8 @@ function SettingsDialog({
   savedLlmKeyHint,
   googleCalendarOAuthInitial,
   savedGoogleCalendarTokenHint,
+  stripePaymentInitial,
+  savedStripeSecretHint,
   agUiInitial,
   registryInitial,
   trustInitial,
@@ -970,6 +997,7 @@ function SettingsDialog({
   onClose,
   onSaveLlm,
   onSaveGoogleCalendarOAuth,
+  onSaveStripePayment,
   onSaveAgUi,
   onSaveRegistry,
   onSaveCurator,
@@ -978,6 +1006,8 @@ function SettingsDialog({
   savedLlmKeyHint: string | null;
   googleCalendarOAuthInitial: OAuthConnectionConfig | null;
   savedGoogleCalendarTokenHint: string | null;
+  stripePaymentInitial: PaymentConnectionConfig | null;
+  savedStripeSecretHint: string | null;
   agUiInitial: AgUiAgentConfig;
   registryInitial: string;
   trustInitial: RegistryTrustPolicy;
@@ -989,6 +1019,7 @@ function SettingsDialog({
   onClose: () => void;
   onSaveLlm: (connection: LlmConnectionConfig, apiKey?: string) => void;
   onSaveGoogleCalendarOAuth: (connection: OAuthConnectionConfig, accessToken?: string) => void;
+  onSaveStripePayment: (connection: PaymentConnectionConfig, secretKey?: string) => void;
   onSaveAgUi: (config: AgUiAgentConfig) => void;
   onSaveRegistry: (url: string, trust: RegistryTrustPolicy) => void;
   onSaveCurator: (enabled: boolean, autoAcceptOpen: boolean) => void;
@@ -1009,6 +1040,12 @@ function SettingsDialog({
   const [changingGoogleCalendarToken, setChangingGoogleCalendarToken] = useState(
     !savedGoogleCalendarTokenHint,
   );
+  const [stripeSecretKey, setStripeSecretKey] = useState("");
+  const [changingStripeSecret, setChangingStripeSecret] = useState(!savedStripeSecretHint);
+  const [stripePublishableKey, setStripePublishableKey] = useState(
+    stripePaymentInitial?.publishableKey ?? "",
+  );
+  const [stripeProductId, setStripeProductId] = useState(stripePaymentInitial?.productId ?? "");
   const hasSavedKey = Boolean(savedLlmKeyHint) && !changingKey;
   const hasSavedGoogleCalendarToken =
     Boolean(savedGoogleCalendarTokenHint) && !changingGoogleCalendarToken;
@@ -1017,6 +1054,10 @@ function SettingsDialog({
     (hasSavedKey || Boolean(apiKey.trim()));
   const googleCalendarOAuthValid =
     hasSavedGoogleCalendarToken || Boolean(googleCalendarToken.trim());
+  const hasSavedStripeSecret = Boolean(savedStripeSecretHint) && !changingStripeSecret;
+  const stripePaymentValid =
+    (hasSavedStripeSecret || Boolean(stripeSecretKey.trim())) &&
+    Boolean(stripePublishableKey.trim());
   const agUiValid = agUiUrl.trim().length > 0;
 
   function saveLlmAndEnable() {
@@ -1040,6 +1081,17 @@ function SettingsDialog({
       connection,
       hasSavedGoogleCalendarToken ? undefined : googleCalendarToken.trim(),
     );
+  }
+
+  function saveStripePayment() {
+    const connection: PaymentConnectionConfig = {
+      provider: "stripe",
+      secretRef: stripePaymentInitial?.secretRef ?? DEFAULT_STRIPE_PAYMENT_REF,
+      label: "Stripe",
+      publishableKey: stripePublishableKey.trim() || undefined,
+      productId: stripeProductId.trim() || undefined,
+    };
+    onSaveStripePayment(connection, hasSavedStripeSecret ? undefined : stripeSecretKey.trim());
   }
 
   useEffect(() => {
@@ -1197,6 +1249,66 @@ function SettingsDialog({
               onClick={saveGoogleCalendarOAuth}
             >
               Save calendar connection
+            </button>
+          </div>
+        </section>
+        <section className="settings-section">
+          <h3>Stripe wallet (M11)</h3>
+          <p className="settings-note">
+            Payment rail credentials for commerce holds. Secret key stays in SecretStore (D017
+            phase 4); publishable key is safe for Stripe.js in the browser. Set the same secret
+            key and product id on your agent-backend deployment.
+          </p>
+          {hasSavedStripeSecret ? (
+            <div className="settings-saved-key">
+              <span className="settings-saved-key-label">Secret key</span>
+              <span className="settings-saved-key-value">
+                Using saved key ({savedStripeSecretHint})
+              </span>
+              <button
+                type="button"
+                className="settings-saved-key-change"
+                onClick={() => {
+                  setChangingStripeSecret(true);
+                  setStripeSecretKey("");
+                }}
+              >
+                Change key
+              </button>
+            </div>
+          ) : (
+            <label className="atom-field">
+              <span className="atom-field-label">Secret key (sk_live_…)</span>
+              <input
+                type="password"
+                value={stripeSecretKey}
+                onChange={(e) => setStripeSecretKey(e.target.value)}
+              />
+            </label>
+          )}
+          <label className="atom-field">
+            <span className="atom-field-label">Publishable key (pk_live_…)</span>
+            <input
+              value={stripePublishableKey}
+              onChange={(e) => setStripePublishableKey(e.target.value)}
+            />
+          </label>
+          <label className="atom-field">
+            <span className="atom-field-label">Product id (optional)</span>
+            <input
+              value={stripeProductId}
+              placeholder="prod_… from setup:stripe"
+              onChange={(e) => setStripeProductId(e.target.value)}
+            />
+          </label>
+          <div className="chrome-actions settings-section-actions">
+            <button
+              type="button"
+              className="chrome-approve"
+              disabled={!stripePaymentValid}
+              onClick={saveStripePayment}
+            >
+              Save payment connection
             </button>
           </div>
         </section>

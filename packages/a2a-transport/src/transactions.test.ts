@@ -2,16 +2,19 @@ import { describe, expect, it } from "vitest";
 import { generateAgentKeyPair } from "@qwixl/protocol";
 import {
   ACTION_CAPTURE_PURPOSE,
+  ACTION_CONFIRM_PURPOSE,
   ACTION_HOLD_PURPOSE,
   ACTION_RECEIPT_PURPOSE,
   ACTION_RELEASE_PURPOSE,
 } from "./constants.js";
 import {
   createActionCapture,
+  createActionConfirm,
   createActionHold,
   createActionReceipt,
   createActionRelease,
   verifyActionCapture,
+  verifyActionConfirm,
   verifyActionHold,
   verifyActionReceipt,
   verifyActionRelease,
@@ -38,6 +41,24 @@ describe("M11 transaction objects", () => {
     expect(verified.object.governance.purpose).toBe(ACTION_HOLD_PURPOSE);
     expect(verified.payload.amount.amountMinor).toBe(22000);
     expect(verified.payload.rail).toBe("stripe");
+  });
+
+  it("round-trips a party confirm linked to hold", async () => {
+    const identity = await generateAgentKeyPair();
+    const confirm = await createActionConfirm({
+      identity,
+      payload: {
+        transactionId: "txn-1",
+        holdObjectId: "hold-obj-1",
+        role: "payee",
+        amount,
+        attestationRef: "attestation:6:ghi789",
+        label: "2 nights, Hotel Example",
+      },
+    });
+    const verified = await verifyActionConfirm(confirm);
+    expect(verified.object.governance.purpose).toBe(ACTION_CONFIRM_PURPOSE);
+    expect(verified.payload.role).toBe("payee");
   });
 
   it("round-trips capture and receipt", async () => {

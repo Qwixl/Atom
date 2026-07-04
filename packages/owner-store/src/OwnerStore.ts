@@ -67,6 +67,7 @@ export interface RecordProposal {
 export const GUARD_BY_DEFAULT_CATEGORIES = new Set([
   "identity",
   "payment",
+  "commerce-receipts",
   "health",
   "credentials",
   "trusted-agents",

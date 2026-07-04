@@ -113,6 +113,43 @@ Hold flow (after owner confirms in shell chrome):
 
 Never put `STRIPE_SECRET_KEY` in the browser — server-side only (D017).
 
+### Deploy checklist (Stripe live)
+
+Set on every agent-backend deployment:
+
+| Variable | Example |
+|---|---|
+| `STRIPE_SECRET_KEY` | `sk_live_...` |
+| `STRIPE_PUBLISHABLE_KEY` | `pk_live_...` |
+| `ATOM_STRIPE_PRODUCT_ID` | `prod_Uow5DYOhPM0O0k` (from `setup:stripe`) |
+
+## M11.3 transaction commit (two-party)
+
+Choreography: payer offers hold → payee confirms in shell → payer captures → receipt to both.
+
+| Route | Purpose |
+|---|---|
+| `POST /transactions/offer` | Payer: place hold + send `action:hold` + payer `action:confirm` to peer |
+| `POST /transactions/confirm` | Local party confirm; sends `action:confirm`; payer auto-captures when both confirms present |
+| `POST /transactions/decline` | Release hold (payer) or notify payer to release (payee) |
+| `GET /transactions` | List in-memory commit states (sweeps expired holds) |
+| `GET /transactions/:transactionId` | Single commit state |
+| `GET /qualify` | List qualify presentations (`?subjectId=` optional filter) |
+| `POST /qualify/present` | Mint `action:qualify` with VC/PSI presentation; optional peer send |
+| `GET /channels` | List bilateral dispute channel snapshots |
+| `GET /channels/:transactionId` | Channel log + anchors for a transaction |
+| `POST /channels/:transactionId/anchor` | Sign selective head-hash anchor; optional peer send |
+
+Shell payee UX: incoming `action:hold` in comms thread → Confirm / Decline (shell chrome attestation required).
+
+## M11.6 qualify (VC presentation)
+
+Before ring-fence, counterpart may require `action:qualify` with a VC/SD-JWT presentation and minimal claim summary (`eligible`, `fundsAvailable`, etc.). Issuer trust and full VC crypto verify are policy-layer concerns; the protocol verifies the signed Atom envelope only.
+
+## M11.7 dispute channels
+
+Each transaction builds an append-only bilateral channel of signed object fingerprints. `POST /channels/:transactionId/anchor` exports a signed head hash for external notarization (selective anchoring — not every event is anchored).
+
 ## AG-UI (shell chat)
 
 The reference shell can point its AG-UI transport at the same backend as comms:

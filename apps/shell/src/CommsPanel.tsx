@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { verifyContactInvite } from "@qwixl/a2a-transport";
 import type { OwnerRecord, OwnerStore } from "@qwixl/owner-store";
 import type { ActionReserveRefKind, RsvpAnswer, SchedulingSlot } from "@qwixl/a2a-transport";
-import { ThreadItemView, useRespondedProposalIds, threadItemNeedsActions } from "./comms/CoordinationCard.js";
+import type { AttestationEntry } from "@qwixl/shell-core";
+import { ThreadItemView, useRespondedProposalIds, useRespondedTransactionIds, threadItemNeedsActions } from "./comms/CoordinationCard.js";
 import { CommsAgentClient } from "./comms/client.js";
 import { defaultStandupSlots, mergeThread } from "./comms/coordinationThread.js";
+import { persistCommerceReceiptsFromInbox } from "./comms/persistReceipts.js";
 import { DEFAULT_COMMS_AGENT_URL, loadCommsAgentConfig, saveCommsAgentConfig, saveContacts } from "./comms/storage.js";
 import {
   contactToTrustedAgentPayload,
@@ -50,6 +52,7 @@ export function CommsPanel({
   onProfileChanged,
   onRequestConfirmation,
   calendarAccessToken,
+  attestationEntries,
 }: {
   contacts: AgentContact[];
   ownerRecords: OwnerRecord[];
@@ -59,6 +62,7 @@ export function CommsPanel({
   onRequestConfirmation: (action: ConsequentialAction) => Promise<CommsConfirmationResult>;
   /** Dev: shell SecretStore token forwarded to agent-backend CalDAV proxy. */
   calendarAccessToken?: string | null;
+  attestationEntries: readonly AttestationEntry[];
 }) {
   const [agentUrl, setAgentUrl] = useState(() => loadCommsAgentConfig().adminUrl);
   const [localDid, setLocalDid] = useState<string | null>(null);
@@ -75,6 +79,7 @@ export function CommsPanel({
   const [actionNote, setActionNote] = useState<string | null>(null);
   const [myInviteToken, setMyInviteToken] = useState<string | null>(null);
   const [outbound, setOutbound] = useState<CommsThreadItem[]>([]);
+  const persistedReceiptIds = useRef(new Set<string>());
 
   const client = useMemo(() => new CommsAgentClient(agentUrl), [agentUrl]);
   const selected = contacts.find((c) => c.id === selectedId) ?? null;
@@ -97,10 +102,21 @@ export function CommsPanel({
     try {
       const entries = await client.inbox();
       setInbox(entries);
+      const attestationCrossRefs = attestationEntries.map((entry) => ({
+        seq: entry.seq,
+        hash: entry.hash,
+      }));
+      const added = persistCommerceReceiptsFromInbox({
+        inbox: entries,
+        ownerStore,
+        attestationEntries: attestationCrossRefs,
+        persistedReceiptIds: persistedReceiptIds.current,
+      });
+      if (added > 0) onProfileChanged();
     } catch {
       // inbox errors surface via status poll when agent is down
     }
-  }, [client]);
+  }, [attestationEntries, client, onProfileChanged, ownerStore]);
 
   useEffect(() => {
     void refreshAgentStatus();
@@ -118,6 +134,7 @@ export function CommsPanel({
   }, [inbox, outbound, selected]);
 
   const respondedIds = useRespondedProposalIds(thread);
+  const respondedTxnIds = useRespondedTransactionIds(thread);
 
   const sessionReady = selected ? mlsPeers.includes(selected.did) : false;
 
@@ -521,6 +538,112 @@ export function CommsPanel({
     }
   }
 
+  async function respondTransactionConfirm(transactionId: string, label?: string) {
+    if (!selected) return;
+    const holdItem = thread.find(
+      (item): item is Extract<CommsThreadItem, { kind: "transaction-hold" }> =>
+        item.kind === "transaction-hold" && item.transactionId === transactionId,
+    );
+    const action: ConsequentialAction = {
+      id: crypto.randomUUID(),
+      kind: "confirmation",
+      title: "Confirm transaction",
+      terms: {
+        contact: selected.name,
+        transactionId,
+        label: label ?? transactionId,
+        amount: holdItem
+          ? `${(holdItem.amount.amountMinor / 100).toFixed(2)} ${holdItem.amount.currency}`
+          : "",
+        action: "Confirm payee side and authorize payer capture",
+      },
+      confirmLabel: "Confirm in shell chrome",
+      declineLabel: "Cancel",
+    };
+    const confirmation = await onRequestConfirmation(action);
+    if (confirmation.decision !== "approved") return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      await client.confirmTransaction({
+        transactionId,
+        attestationRef: confirmation.attestationRef,
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "transaction-confirm",
+          id: crypto.randomUUID(),
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          transactionId,
+          role: "payee",
+          amount: holdItem?.amount ?? { currency: "EUR", amountMinor: 0 },
+          label,
+        },
+      ]);
+      setActionNote("Transaction confirmed — awaiting payer capture.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function respondTransactionDecline(transactionId: string, label?: string) {
+    if (!selected) return;
+    const action: ConsequentialAction = {
+      id: crypto.randomUUID(),
+      kind: "confirmation",
+      title: "Decline transaction",
+      terms: {
+        contact: selected.name,
+        transactionId,
+        label: label ?? transactionId,
+        action: "Release payment hold and notify payer",
+      },
+      confirmLabel: "Decline & release",
+      declineLabel: "Cancel",
+    };
+    const confirmation = await onRequestConfirmation(action);
+    if (confirmation.decision !== "approved") return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      await client.declineTransaction({
+        transactionId,
+        attestationRef: confirmation.attestationRef,
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "transaction-status",
+          id: crypto.randomUUID(),
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          transactionId,
+          status: "release",
+          reason: "declined",
+        },
+      ]);
+      setActionNote("Transaction declined; hold release requested.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function removeContact(id: string) {
     const contact = contacts.find((c) => c.id === id);
     if (contact) {
@@ -732,7 +855,7 @@ export function CommsPanel({
                       key={item.id}
                       item={item}
                       busy={busy}
-                      showActions={threadItemNeedsActions(item, respondedIds)}
+                      showActions={threadItemNeedsActions(item, respondedIds, respondedTxnIds)}
                       onAcceptSlot={(proposalId, slot) => {
                         const proposal = thread.find(
                           (item): item is Extract<CommsThreadItem, { kind: "scheduling-proposal" }> =>
@@ -747,6 +870,12 @@ export function CommsPanel({
                       }}
                       onDeclineProposal={(proposalId) => void respondScheduling(proposalId, "decline")}
                       onRsvp={(rsvpId, response) => void respondRsvp(rsvpId, response)}
+                      onConfirmTransaction={(transactionId, label) =>
+                        void respondTransactionConfirm(transactionId, label)
+                      }
+                      onDeclineTransaction={(transactionId, label) =>
+                        void respondTransactionDecline(transactionId, label)
+                      }
                     />
                   ))
                 )}

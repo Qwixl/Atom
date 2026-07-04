@@ -1,5 +1,11 @@
 # @qwixl/owner-store
 
+## 0.7.0
+
+### Minor Changes
+
+- M11.3–M11.7: two-party transaction commit, qualify VC presentations, bilateral dispute channels, and commerce receipts in owner store.
+
 ## 0.5.0
 
 ### Minor Changes

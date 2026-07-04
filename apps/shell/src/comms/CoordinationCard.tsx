@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { RsvpAnswer, SchedulingSlot } from "@qwixl/a2a-transport";
 import { detectInstructionLikeContent } from "@qwixl/agent-llm";
 import type { CommsThreadItem } from "./types.js";
-import { formatRsvpResponse, formatSchedulingResponse } from "./coordinationThread.js";
+import { formatMonetaryAmount, formatRsvpResponse, formatSchedulingResponse } from "./coordinationThread.js";
 
 export function CoordinationCard({
   item,
@@ -11,6 +11,8 @@ export function CoordinationCard({
   onAcceptSlot,
   onDeclineProposal,
   onRsvp,
+  onConfirmTransaction,
+  onDeclineTransaction,
 }: {
   item: CommsThreadItem;
   busy: boolean;
@@ -18,6 +20,8 @@ export function CoordinationCard({
   onAcceptSlot: (proposalId: string, slot: SchedulingSlot) => void;
   onDeclineProposal: (proposalId: string) => void;
   onRsvp: (rsvpId: string, response: RsvpAnswer) => void;
+  onConfirmTransaction: (transactionId: string, label?: string) => void;
+  onDeclineTransaction: (transactionId: string, label?: string) => void;
 }) {
   const directionClass = item.direction === "in" ? "in" : "out";
 
@@ -128,6 +132,78 @@ export function CoordinationCard({
     );
   }
 
+  if (item.kind === "transaction-hold") {
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass} shell-comms-txn`}>
+        <div className="shell-comms-coord-head">
+          <strong>Payment hold</strong>
+          <span>{item.label ?? item.transactionId}</span>
+        </div>
+        <p className="shell-comms-coord-meta">
+          {formatMonetaryAmount(item.amount)} · {item.rail}
+          {item.expiresAt ? ` · expires ${new Date(item.expiresAt).toLocaleString()}` : null}
+        </p>
+        {showActions ? (
+          <div className="shell-comms-coord-rsvp">
+            <button
+              type="button"
+              className="chrome-approve"
+              disabled={busy}
+              onClick={() => onConfirmTransaction(item.transactionId, item.label)}
+            >
+              Confirm &amp; capture
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onDeclineTransaction(item.transactionId, item.label)}
+            >
+              Decline
+            </button>
+          </div>
+        ) : null}
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
+  if (item.kind === "transaction-confirm") {
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass} shell-comms-txn`}>
+        <div className="shell-comms-coord-head">
+          <strong>Transaction confirm</strong>
+          <span>{item.role === "payer" ? "Payer confirmed" : "Payee confirmed"}</span>
+        </div>
+        <p className="shell-comms-coord-meta">
+          {formatMonetaryAmount(item.amount)}
+          {item.label ? ` · ${item.label}` : null}
+        </p>
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
+  if (item.kind === "transaction-status") {
+    const title =
+      item.status === "capture"
+        ? "Funds captured"
+        : item.status === "receipt"
+          ? "Receipt"
+          : `Hold released${item.reason ? ` (${item.reason})` : ""}`;
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass} shell-comms-txn`}>
+        <div className="shell-comms-coord-head">
+          <strong>{title}</strong>
+          <span>{item.transactionId}</span>
+        </div>
+        {item.amount ? (
+          <p className="shell-comms-coord-meta">{formatMonetaryAmount(item.amount)}</p>
+        ) : null}
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
   return null;
 }
 
@@ -138,6 +214,8 @@ export function ThreadItemView({
   onAcceptSlot,
   onDeclineProposal,
   onRsvp,
+  onConfirmTransaction,
+  onDeclineTransaction,
 }: {
   item: CommsThreadItem;
   busy: boolean;
@@ -145,6 +223,8 @@ export function ThreadItemView({
   onAcceptSlot: (proposalId: string, slot: SchedulingSlot) => void;
   onDeclineProposal: (proposalId: string) => void;
   onRsvp: (rsvpId: string, response: RsvpAnswer) => void;
+  onConfirmTransaction: (transactionId: string, label?: string) => void;
+  onDeclineTransaction: (transactionId: string, label?: string) => void;
 }) {
   if (item.kind === "message") {
     const suspicious = item.direction === "in" && detectInstructionLikeContent(item.text);
@@ -170,8 +250,24 @@ export function ThreadItemView({
       onAcceptSlot={onAcceptSlot}
       onDeclineProposal={onDeclineProposal}
       onRsvp={onRsvp}
+      onConfirmTransaction={onConfirmTransaction}
+      onDeclineTransaction={onDeclineTransaction}
     />
   );
+}
+
+export function useRespondedTransactionIds(thread: CommsThreadItem[]): Set<string> {
+  return useMemo(() => {
+    const ids = new Set<string>();
+    for (const item of thread) {
+      if (item.direction !== "out") continue;
+      if (item.kind === "transaction-confirm") ids.add(item.transactionId);
+      if (item.kind === "transaction-status" && item.status === "release") {
+        ids.add(item.transactionId);
+      }
+    }
+    return ids;
+  }, [thread]);
 }
 
 /** Proposal/RSVP ids the local user already responded to (hide action buttons). */
@@ -193,9 +289,11 @@ export function useRespondedProposalIds(thread: CommsThreadItem[]): Set<string> 
 export function threadItemNeedsActions(
   item: CommsThreadItem,
   respondedIds: Set<string>,
+  respondedTxnIds: Set<string>,
 ): boolean {
   if (item.direction !== "in") return false;
   if (item.kind === "scheduling-proposal") return !respondedIds.has(item.id);
   if (item.kind === "rsvp-request") return !respondedIds.has(item.id);
+  if (item.kind === "transaction-hold") return !respondedTxnIds.has(item.transactionId);
   return false;
 }

@@ -13,13 +13,17 @@ function defaultDataDir(): string {
   return path.join(process.env.USERPROFILE ?? process.env.HOME ?? ".", ".atom");
 }
 
-const IDENTITY_PATH =
-  process.env.ATOM_AGENT_IDENTITY_PATH?.trim() ??
-  path.join(defaultDataDir(), "agent-identity.json");
+function resolveIdentityPath(): string {
+  return (
+    process.env.ATOM_AGENT_IDENTITY_PATH?.trim() ??
+    path.join(defaultDataDir(), "agent-identity.json")
+  );
+}
 
 export async function loadOrCreateIdentity(): Promise<AgentKeyPair> {
+  const identityPath = resolveIdentityPath();
   try {
-    const raw = await readFile(IDENTITY_PATH, "utf8");
+    const raw = await readFile(identityPath, "utf8");
     const stored = JSON.parse(raw) as StoredIdentity;
     return {
       did: stored.did,
@@ -28,17 +32,17 @@ export async function loadOrCreateIdentity(): Promise<AgentKeyPair> {
     };
   } catch {
     const keyPair = await generateAgentKeyPair();
-    await mkdir(path.dirname(IDENTITY_PATH), { recursive: true });
+    await mkdir(path.dirname(identityPath), { recursive: true });
     const stored: StoredIdentity = {
       did: keyPair.did,
       publicKey: bytesToBase64(keyPair.publicKey),
       privateKey: bytesToBase64(keyPair.privateKey),
     };
-    await writeFile(IDENTITY_PATH, `${JSON.stringify(stored, null, 2)}\n`, { mode: 0o600 });
+    await writeFile(identityPath, `${JSON.stringify(stored, null, 2)}\n`, { mode: 0o600 });
     return keyPair;
   }
 }
 
 export function identityPath(): string {
-  return IDENTITY_PATH;
+  return resolveIdentityPath();
 }

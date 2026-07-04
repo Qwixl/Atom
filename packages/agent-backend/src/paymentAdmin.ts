@@ -18,6 +18,7 @@ export interface PaymentAdminDeps {
   stripeSecretKey: string | null;
   stripePublishableKey: string | null;
   stripeProductId: string | null;
+  paymentRail?: PaymentRail;
 }
 
 interface PeerSendBody {
@@ -41,6 +42,7 @@ function parseAmount(body: {
 }
 
 function paymentRail(deps: PaymentAdminDeps, requestSecretKey?: string): PaymentRail {
+  if (deps.paymentRail) return deps.paymentRail;
   const secretKey = resolveStripeSecretKey(deps.stripeSecretKey, requestSecretKey);
   return createStripePaymentRail(secretKey, {
     productId: deps.stripeProductId ?? undefined,

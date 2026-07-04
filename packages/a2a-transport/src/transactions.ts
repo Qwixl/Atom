@@ -7,6 +7,8 @@ import {
 import {
   ACTION_CAPTURE_PURPOSE,
   ACTION_CAPTURE_SCHEMA,
+  ACTION_CONFIRM_PURPOSE,
+  ACTION_CONFIRM_SCHEMA,
   ACTION_HOLD_PURPOSE,
   ACTION_HOLD_SCHEMA,
   ACTION_RECEIPT_PURPOSE,
@@ -26,6 +28,20 @@ import {
 export type TransactionPurpose = (typeof TRANSACTION_PURPOSES)[number];
 
 export type ReleaseReason = "declined" | "timeout" | "failure" | "cancelled";
+
+export type TransactionPartyRole = "payer" | "payee";
+
+export interface ActionConfirmPayload {
+  transactionId: string;
+  /** action:hold object id this confirm attests to. */
+  holdObjectId: string;
+  role: TransactionPartyRole;
+  attestationRef: string;
+  amount: MonetaryAmount;
+  subjectId?: string;
+  label?: string;
+  peerDid?: string;
+}
 
 /** ISO 4217 currency code + minor units (cents). Never floats. */
 export interface MonetaryAmount {
@@ -109,6 +125,12 @@ function assertReleaseReason(value: unknown): asserts value is ReleaseReason {
   }
 }
 
+function assertTransactionPartyRole(value: unknown): asserts value is TransactionPartyRole {
+  if (value !== "payer" && value !== "payee") {
+    throw new Error("Transaction confirm role is invalid");
+  }
+}
+
 async function signTransactionObject(
   identity: AgentKeyPair,
   opts: {
@@ -179,6 +201,40 @@ export async function verifyActionHold(input: unknown): Promise<{
   assertNonEmptyString(object.payload.attestationRef, "attestationRef");
   assertAmount(object.payload.amount);
   return { object, payload: object.payload as unknown as ActionHoldPayload };
+}
+
+export async function createActionConfirm(opts: {
+  identity: AgentKeyPair;
+  payload: ActionConfirmPayload;
+  ttlSeconds?: number;
+}): Promise<DataObject> {
+  assertNonEmptyString(opts.payload.transactionId, "transactionId");
+  assertNonEmptyString(opts.payload.holdObjectId, "holdObjectId");
+  assertNonEmptyString(opts.payload.attestationRef, "attestationRef");
+  assertTransactionPartyRole(opts.payload.role);
+  assertAmount(opts.payload.amount);
+  return signTransactionObject(opts.identity, {
+    schema: ACTION_CONFIRM_SCHEMA,
+    purpose: ACTION_CONFIRM_PURPOSE,
+    payload: opts.payload as unknown as Record<string, unknown>,
+    ttlSeconds: opts.ttlSeconds,
+  });
+}
+
+export async function verifyActionConfirm(input: unknown): Promise<{
+  object: DataObject;
+  payload: ActionConfirmPayload;
+}> {
+  const object = await verifyTransactionObject(input, {
+    purpose: ACTION_CONFIRM_PURPOSE,
+    schema: ACTION_CONFIRM_SCHEMA,
+  });
+  assertNonEmptyString(object.payload.transactionId, "transactionId");
+  assertNonEmptyString(object.payload.holdObjectId, "holdObjectId");
+  assertNonEmptyString(object.payload.attestationRef, "attestationRef");
+  assertTransactionPartyRole(object.payload.role);
+  assertAmount(object.payload.amount);
+  return { object, payload: object.payload as unknown as ActionConfirmPayload };
 }
 
 export async function createActionCapture(opts: {

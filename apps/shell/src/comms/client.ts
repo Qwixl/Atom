@@ -201,6 +201,27 @@ export class CommsAgentClient {
   }): Promise<{ object: { id: string } }> {
     return postJson(this.base(), "/actions/reserve", opts);
   }
+
+  async confirmTransaction(opts: {
+    transactionId: string;
+    attestationRef: string;
+    peerUrl: string;
+    peerDid: string;
+    encrypt?: boolean;
+  }): Promise<{ transaction: { phase: string } }> {
+    return postJson(this.base(), "/transactions/confirm", opts);
+  }
+
+  async declineTransaction(opts: {
+    transactionId: string;
+    attestationRef?: string;
+    note?: string;
+    peerUrl: string;
+    peerDid: string;
+    encrypt?: boolean;
+  }): Promise<{ transaction: { phase: string } }> {
+    return postJson(this.base(), "/transactions/decline", opts);
+  }
 }
 
 export type { VerifiedContactInvite };

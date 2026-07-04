@@ -1,5 +1,18 @@
 # @qwixl/agent-backend
 
+## 0.6.0
+
+### Minor Changes
+
+- M11.3–M11.7: two-party transaction commit, qualify VC presentations, bilateral dispute channels, and commerce receipts in owner store.
+
+### Patch Changes
+
+- Updated dependencies
+  - @qwixl/a2a-transport@0.7.0
+  - @qwixl/owner-store@0.7.0
+  - @qwixl/ag-ui-adapter@0.7.0
+
 ## 0.5.1
 
 ### Patch Changes

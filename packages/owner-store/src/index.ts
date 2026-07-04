@@ -37,6 +37,16 @@ export {
   type TextEmbedder,
 } from "./textEmbedding.js";
 export { buildProfileSummaryByCategory } from "./profileSummary.js";
+export {
+  COMMERCE_RECEIPT_CATEGORY,
+  buildCommerceReceiptUpsert,
+  formatCommerceReceiptLabel,
+  parseAttestationRef,
+  verifyAttestationCrossRef,
+  type AttestationCrossRefEntry,
+  type CommerceReceiptAmount,
+  type CommerceReceiptValue,
+} from "./commerceReceipt.js";
 export { activeContextTags } from "./evidenceHelpers.js";
 export { recordUiPreferenceFeedback } from "./uiEvidence.js";
 export { inferTier, normalizeTier, resolveTier, type PreferenceTier } from "./tier.js";

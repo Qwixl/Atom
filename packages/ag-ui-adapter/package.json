@@ -1,6 +1,6 @@
 {
   "name": "@qwixl/ag-ui-adapter",
-  "version": "0.5.0",
+  "version": "0.7.0",
   "description": "AG-UI wire transport adapter for Atom shell-core AgentSession.",
   "license": "Apache-2.0",
   "type": "module",

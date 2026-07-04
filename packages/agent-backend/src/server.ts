@@ -12,6 +12,8 @@ import {
   encodeEncryptedObjectPayload,
   ACTION_PURPOSES,
   TRANSACTION_PURPOSES,
+  QUALIFY_PURPOSES,
+  CHANNEL_PURPOSES,
   sendMlsHandshake,
   verifyContactInvite,
 } from "@qwixl/a2a-transport";
@@ -22,6 +24,14 @@ import { registerActionAdminRoutes } from "./actionAdmin.js";
 import { registerCalendarAdminRoutes } from "./calendarAdmin.js";
 import { registerCoordinationAdminRoutes } from "./coordinationAdmin.js";
 import { registerPaymentAdminRoutes } from "./paymentAdmin.js";
+import { registerTransactionAdminRoutes } from "./transactionAdmin.js";
+import { registerQualifyAdminRoutes } from "./qualifyAdmin.js";
+import { registerChannelAdminRoutes } from "./channelAdmin.js";
+import type { PaymentRail } from "./payment/types.js";
+import { createStripePaymentRail, resolveStripeSecretKey } from "./payment/stripeRail.js";
+import { TransactionCommitStore } from "./transactionCommitStore.js";
+import { QualifyStore } from "./qualifyStore.js";
+import { DisputeChannelStore } from "./disputeChannelStore.js";
 import { deliverSignedObject } from "./deliverObject.js";
 import { DataObjectInbox } from "./inbox.js";
 import { identityPath, loadOrCreateIdentity } from "./identity.js";
@@ -34,6 +44,8 @@ import {
 
 export interface StartAgentServerOptions {
   config?: AgentBackendConfig;
+  /** Override payment rail (integration tests). */
+  paymentRail?: PaymentRail;
 }
 
 export async function startAgentServer(options: StartAgentServerOptions = {}): Promise<Server> {
@@ -41,6 +53,42 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   const identity = await loadOrCreateIdentity();
   const inbox = new DataObjectInbox();
   const mlsStore = new MlsSessionStore();
+
+  const resolvePaymentRail = (): PaymentRail => {
+    if (options.paymentRail) return options.paymentRail;
+    const secretKey = resolveStripeSecretKey(config.stripeSecretKey);
+    return createStripePaymentRail(secretKey, {
+      productId: config.stripeProductId ?? undefined,
+    });
+  };
+
+  const channelStore = new DisputeChannelStore({
+    localDid: identity.did,
+    identity,
+    mlsStore,
+  });
+
+  const qualifyStore = new QualifyStore({
+    localDid: identity.did,
+    identity,
+    mlsStore,
+    onQualifyObject: (object) => {
+      const transactionId = String(object.payload.transactionId ?? "").trim();
+      if (transactionId) {
+        channelStore.appendFromObject(transactionId, object);
+      }
+    },
+  });
+
+  const transactionStore = new TransactionCommitStore({
+    localDid: identity.did,
+    identity,
+    mlsStore,
+    resolveRail: resolvePaymentRail,
+    recordChannelObject: (transactionId, object) => {
+      channelStore.appendFromObject(transactionId, object);
+    },
+  });
 
   const agentCard = buildAtomAgentCard({
     name: config.agentName,
@@ -55,12 +103,16 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     ...COORDINATION_PURPOSES,
     ...ACTION_PURPOSES,
     ...TRANSACTION_PURPOSES,
+    ...QUALIFY_PURPOSES,
+    ...CHANNEL_PURPOSES,
   ];
   const mlsPurposes = [
     COMMS_MESSAGE_PURPOSE,
     ...COORDINATION_PURPOSES,
     ...ACTION_PURPOSES,
     ...TRANSACTION_PURPOSES,
+    ...QUALIFY_PURPOSES,
+    ...CHANNEL_PURPOSES,
   ];
 
   const executor = new AtomDataObjectExecutor({
@@ -68,6 +120,21 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     allowedPurposes: inboxPurposes,
     onReceive: (event) => {
       inbox.push(event);
+      void transactionStore.handleInboxObject(event.object).catch((error) => {
+        console.warn(
+          `[transaction] inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+      void qualifyStore.handleInboxObject(event.object).catch((error) => {
+        console.warn(
+          `[qualify] inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+      void channelStore.handleInboxObject(event.object).catch((error) => {
+        console.warn(
+          `[channel] inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
       console.log(
         `[inbox] ${event.object.governance.purpose} from ${event.object.issuerDid} id=${event.object.id}`,
       );
@@ -95,6 +162,21 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
         object: verified,
         contextId: event.contextId,
         messageId: event.messageId,
+      });
+      void transactionStore.handleInboxObject(verified).catch((error) => {
+        console.warn(
+          `[transaction] mls inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+      void qualifyStore.handleInboxObject(verified).catch((error) => {
+        console.warn(
+          `[qualify] mls inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+      void channelStore.handleInboxObject(verified).catch((error) => {
+        console.warn(
+          `[channel] mls inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
       });
       console.log(
         `[inbox/mls] ${verified.governance.purpose} from ${verified.issuerDid} id=${verified.id}`,
@@ -132,7 +214,16 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     stripeSecretKey: config.stripeSecretKey,
     stripePublishableKey: config.stripePublishableKey,
     stripeProductId: config.stripeProductId,
+    paymentRail: options.paymentRail,
   });
+  registerTransactionAdminRoutes(adminApp, {
+    stripeSecretKey: config.stripeSecretKey,
+    stripeProductId: config.stripeProductId,
+    paymentRail: options.paymentRail,
+    store: transactionStore,
+  });
+  registerQualifyAdminRoutes(adminApp, { store: qualifyStore });
+  registerChannelAdminRoutes(adminApp, { store: channelStore });
   registerCalendarAdminRoutes(adminApp, {
     googleCalendarAccessToken: config.googleCalendarAccessToken,
   });
@@ -301,6 +392,9 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       console.log(`  actions:       POST ${config.publicBaseUrl}/actions/reserve`);
       console.log(
         `  payments:      POST ${config.publicBaseUrl}/payments/{hold,capture,release} (set STRIPE_SECRET_KEY)`,
+      );
+      console.log(
+        `  transactions:  POST ${config.publicBaseUrl}/transactions/{offer,confirm,decline}`,
       );
       resolve(server);
     });

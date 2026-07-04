@@ -78,16 +78,35 @@ export const ACTION_CAPTURE_SCHEMA = "https://atom.qwixl.dev/schema/ActionCaptur
 export const ACTION_RELEASE_PURPOSE = "action:release";
 export const ACTION_RELEASE_SCHEMA = "https://atom.qwixl.dev/schema/ActionRelease";
 
+/** M11 transaction-flow — party confirm before capture (shell attestation). */
+export const ACTION_CONFIRM_PURPOSE = "action:confirm";
+export const ACTION_CONFIRM_SCHEMA = "https://atom.qwixl.dev/schema/ActionConfirm";
+
 /** M11 transaction-flow — signed receipt after capture (both parties retain). */
 export const ACTION_RECEIPT_PURPOSE = "action:receipt";
 export const ACTION_RECEIPT_SCHEMA = "https://atom.qwixl.dev/schema/ActionReceipt";
 
+/** M11.6 transaction-flow — qualify step with VC/PSI presentation (proof-not-data). */
+export const ACTION_QUALIFY_PURPOSE = "action:qualify";
+export const ACTION_QUALIFY_SCHEMA = "https://atom.qwixl.dev/schema/ActionQualify";
+
+/** M11.7 dispute evidence — selective anchor of bilateral channel head hash. */
+export const ACTION_ANCHOR_PURPOSE = "action:anchor";
+export const ACTION_ANCHOR_SCHEMA = "https://atom.qwixl.dev/schema/ActionAnchor";
+
 /** All M9 action purposes (receiver allowlists). */
 export const ACTION_PURPOSES = [ACTION_RESERVE_PURPOSE] as const;
+
+/** M11.6 qualify purposes (receiver allowlists). */
+export const QUALIFY_PURPOSES = [ACTION_QUALIFY_PURPOSE] as const;
+
+/** M11.7 channel purposes (receiver allowlists). */
+export const CHANNEL_PURPOSES = [ACTION_ANCHOR_PURPOSE] as const;
 
 /** All M11 transaction purposes (receiver allowlists). */
 export const TRANSACTION_PURPOSES = [
   ACTION_HOLD_PURPOSE,
+  ACTION_CONFIRM_PURPOSE,
   ACTION_CAPTURE_PURPOSE,
   ACTION_RELEASE_PURPOSE,
   ACTION_RECEIPT_PURPOSE,
@@ -101,3 +120,9 @@ export const DEFAULT_ACTION_HOLD_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 /** Default coordination object lifetime: 14 days. */
 export const DEFAULT_COORDINATION_TTL_SECONDS = 14 * 24 * 60 * 60;
+
+/** Default qualify presentation lifetime: 14 days. */
+export const DEFAULT_ACTION_QUALIFY_TTL_SECONDS = 14 * 24 * 60 * 60;
+
+/** Default channel anchor lifetime: 90 days (dispute evidence retention). */
+export const DEFAULT_CHANNEL_ANCHOR_TTL_SECONDS = 90 * 24 * 60 * 60;

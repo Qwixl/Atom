@@ -4,8 +4,14 @@ import {
   COORDINATION_RSVP_PURPOSE,
   COORDINATION_RSVP_RESPONSE_PURPOSE,
   ACTION_RESERVE_PURPOSE,
+  ACTION_HOLD_PURPOSE,
+  ACTION_CONFIRM_PURPOSE,
+  ACTION_CAPTURE_PURPOSE,
+  ACTION_RELEASE_PURPOSE,
+  ACTION_RECEIPT_PURPOSE,
   COMMS_MESSAGE_PURPOSE,
   type ActionReserveRefKind,
+  type MonetaryAmount,
   type RsvpAnswer,
   type SchedulingResponseKind,
   type SchedulingSlot,
@@ -32,6 +38,17 @@ function parseSlots(raw: unknown): SchedulingSlot[] {
     }
   }
   return slots;
+}
+
+function parseAmount(raw: unknown): MonetaryAmount | null {
+  if (!raw || typeof raw !== "object") return null;
+  const amount = raw as Partial<MonetaryAmount>;
+  if (typeof amount.currency !== "string" || typeof amount.amountMinor !== "number") return null;
+  return { currency: amount.currency, amountMinor: amount.amountMinor };
+}
+
+export function formatMonetaryAmount(amount: MonetaryAmount): string {
+  return `${(amount.amountMinor / 100).toFixed(2)} ${amount.currency}`;
 }
 
 export function inboxEntryToThreadItem(
@@ -124,6 +141,82 @@ export function inboxEntryToThreadItem(
       refKind,
       label: typeof payload.label === "string" ? payload.label : String(payload.refId ?? "Reserved"),
       attestationRef: String(payload.attestationRef ?? ""),
+    };
+  }
+
+  if (purpose === ACTION_HOLD_PURPOSE) {
+    const amount = parseAmount(payload.amount);
+    if (!amount) return null;
+    return {
+      kind: "transaction-hold",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      transactionId: String(payload.transactionId ?? ""),
+      amount,
+      label: typeof payload.label === "string" ? payload.label : undefined,
+      rail: typeof payload.rail === "string" ? payload.rail : "unknown",
+      expiresAt: typeof payload.expiresAt === "string" ? payload.expiresAt : undefined,
+    };
+  }
+
+  if (purpose === ACTION_CONFIRM_PURPOSE) {
+    const amount = parseAmount(payload.amount);
+    if (!amount) return null;
+    const role = payload.role;
+    if (role !== "payer" && role !== "payee") return null;
+    return {
+      kind: "transaction-confirm",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      transactionId: String(payload.transactionId ?? ""),
+      role,
+      amount,
+      label: typeof payload.label === "string" ? payload.label : undefined,
+    };
+  }
+
+  if (purpose === ACTION_CAPTURE_PURPOSE) {
+    const amount = parseAmount(payload.amount);
+    return {
+      kind: "transaction-status",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      transactionId: String(payload.transactionId ?? ""),
+      status: "capture",
+      amount: amount ?? undefined,
+    };
+  }
+
+  if (purpose === ACTION_RECEIPT_PURPOSE) {
+    const amount = parseAmount(payload.amount);
+    return {
+      kind: "transaction-status",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      transactionId: String(payload.transactionId ?? ""),
+      status: "receipt",
+      amount: amount ?? undefined,
+    };
+  }
+
+  if (purpose === ACTION_RELEASE_PURPOSE) {
+    return {
+      kind: "transaction-status",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      transactionId: String(payload.transactionId ?? ""),
+      status: "release",
+      reason: typeof payload.reason === "string" ? payload.reason : undefined,
     };
   }
 
