@@ -1,5 +1,11 @@
 # @qwixl/agent-backend
 
+## 0.5.0
+
+### Minor Changes
+
+- bfdaba7: M11.2 PaymentRail: Stripe manual-capture adapter, `/payments/{hold,capture,release}` admin routes minting signed transaction objects, `setup:stripe` catalog script.
+
 ## 0.4.2
 
 ### Patch Changes
