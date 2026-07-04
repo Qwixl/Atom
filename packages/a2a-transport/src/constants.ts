@@ -66,11 +66,38 @@ export const ACTION_RESERVE_SCHEMA = "https://atom.qwixl.dev/schema/ActionReserv
 /** Default A2A skill id for M9 low-stakes actions. */
 export const ATOM_ACTIONS_SKILL_ID = "atom-actions";
 
+/** M11 transaction-flow — authorization hold placed on a payment rail (ring-fence). */
+export const ACTION_HOLD_PURPOSE = "action:hold";
+export const ACTION_HOLD_SCHEMA = "https://atom.qwixl.dev/schema/ActionHold";
+
+/** M11 transaction-flow — capture of a previously placed hold after mutual confirm. */
+export const ACTION_CAPTURE_PURPOSE = "action:capture";
+export const ACTION_CAPTURE_SCHEMA = "https://atom.qwixl.dev/schema/ActionCapture";
+
+/** M11 transaction-flow — compensating release of a hold (decline, timeout, failure). */
+export const ACTION_RELEASE_PURPOSE = "action:release";
+export const ACTION_RELEASE_SCHEMA = "https://atom.qwixl.dev/schema/ActionRelease";
+
+/** M11 transaction-flow — signed receipt after capture (both parties retain). */
+export const ACTION_RECEIPT_PURPOSE = "action:receipt";
+export const ACTION_RECEIPT_SCHEMA = "https://atom.qwixl.dev/schema/ActionReceipt";
+
 /** All M9 action purposes (receiver allowlists). */
 export const ACTION_PURPOSES = [ACTION_RESERVE_PURPOSE] as const;
 
+/** All M11 transaction purposes (receiver allowlists). */
+export const TRANSACTION_PURPOSES = [
+  ACTION_HOLD_PURPOSE,
+  ACTION_CAPTURE_PURPOSE,
+  ACTION_RELEASE_PURPOSE,
+  ACTION_RECEIPT_PURPOSE,
+] as const;
+
 /** Default soft-hold lifetime for action:reserve (24 hours). */
 export const DEFAULT_ACTION_RESERVE_TTL_SECONDS = 24 * 60 * 60;
+
+/** Default authorization-hold lifetime (7 days — card-network auth window). */
+export const DEFAULT_ACTION_HOLD_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 /** Default coordination object lifetime: 14 days. */
 export const DEFAULT_COORDINATION_TTL_SECONDS = 14 * 24 * 60 * 60;

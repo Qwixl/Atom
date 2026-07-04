@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { RsvpAnswer, SchedulingSlot } from "@qwixl/a2a-transport";
+import { detectInstructionLikeContent } from "@qwixl/agent-llm";
 import type { CommsThreadItem } from "./types.js";
 import { formatRsvpResponse, formatSchedulingResponse } from "./coordinationThread.js";
 
@@ -146,8 +147,15 @@ export function ThreadItemView({
   onRsvp: (rsvpId: string, response: RsvpAnswer) => void;
 }) {
   if (item.kind === "message") {
+    const suspicious = item.direction === "in" && detectInstructionLikeContent(item.text);
     return (
       <div className={`shell-comms-msg shell-comms-msg-${item.direction}`}>
+        {suspicious ? (
+          <div className="shell-comms-msg-warning">
+            This message contains instruction-like text aimed at your agent. Your agent treats
+            counterpart messages as data, never commands (D031).
+          </div>
+        ) : null}
         <div className="shell-comms-msg-text">{item.text}</div>
         <time>{new Date(item.at).toLocaleTimeString()}</time>
       </div>

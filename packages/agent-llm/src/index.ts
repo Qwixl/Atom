@@ -9,3 +9,11 @@ export {
   defaultGuardForCategory,
 } from "./curator.js";
 export type { CuratorPassInput, CuratorPassResult, CuratorSignal, CuratorSignalKind, CuratorSplitProposal } from "./curator.js";
+export {
+  UNTRUSTED_CONTENT_OPEN,
+  UNTRUSTED_CONTENT_CLOSE,
+  wrapUntrustedContent,
+  sanitizeUntrustedContent,
+  detectInstructionLikeContent,
+  type UntrustedContentOptions,
+} from "./untrusted.js";

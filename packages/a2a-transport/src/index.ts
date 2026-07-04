@@ -20,8 +20,18 @@ export {
   ACTION_PURPOSES,
   ACTION_RESERVE_PURPOSE,
   ACTION_RESERVE_SCHEMA,
+  ACTION_HOLD_PURPOSE,
+  ACTION_HOLD_SCHEMA,
+  ACTION_CAPTURE_PURPOSE,
+  ACTION_CAPTURE_SCHEMA,
+  ACTION_RELEASE_PURPOSE,
+  ACTION_RELEASE_SCHEMA,
+  ACTION_RECEIPT_PURPOSE,
+  ACTION_RECEIPT_SCHEMA,
+  TRANSACTION_PURPOSES,
   ATOM_ACTIONS_SKILL_ID,
   DEFAULT_ACTION_RESERVE_TTL_SECONDS,
+  DEFAULT_ACTION_HOLD_TTL_SECONDS,
   RSVP_REQUEST_SCHEMA,
   RSVP_RESPONSE_SCHEMA,
   SCHEDULING_PROPOSAL_SCHEMA,
@@ -64,6 +74,23 @@ export {
   type ActionReservePayload,
   type ActionReserveRefKind,
 } from "./actions.js";
+export {
+  createActionHold,
+  verifyActionHold,
+  createActionCapture,
+  verifyActionCapture,
+  createActionRelease,
+  verifyActionRelease,
+  createActionReceipt,
+  verifyActionReceipt,
+  type ActionCapturePayload,
+  type ActionHoldPayload,
+  type ActionReceiptPayload,
+  type ActionReleasePayload,
+  type MonetaryAmount,
+  type ReleaseReason,
+  type TransactionPurpose,
+} from "./transactions.js";
 
 export { buildAtomAgentCard, type AtomAgentCardOptions } from "./agentCard.js";
 export {

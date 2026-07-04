@@ -1606,6 +1606,16 @@ body {
   color: var(--text-dim);
 }
 
+.shell-comms-msg-warning {
+  background: rgba(230, 179, 77, 0.12);
+  border: 1px solid rgba(230, 179, 77, 0.45);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--warn);
+}
+
 .shell-comms-compose {
   display: flex;
   gap: 8px;
