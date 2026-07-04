@@ -77,7 +77,7 @@ Bind is `0.0.0.0` inside the container; expose port `5204` or terminate TLS at t
 
 | Variable | Default | Description |
 |---|---|---|
-| `PORT` | `5204` | Listen port |
+| `PORT` | `5204` | Listen port. If unset and the default is busy in an interactive terminal, prompts: try another port `[p]` or kill and retry `[k]`. |
 | `HOST` | `127.0.0.1` (`0.0.0.0` in Docker) | Bind address |
 | `PUBLIC_BASE_URL` | `http://HOST:PORT` | Public URL in agent card and invites |
 | `AGENT_NAME` | `Atom agent` | Label in invitations |

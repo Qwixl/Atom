@@ -16,7 +16,7 @@ Usage:
   atom-agent [--help]
 
 Environment:
-  PORT                  Listen port (default 5204)
+  PORT                  Listen port (default 5204; prompts if default is taken)
   HOST                  Bind address (default 127.0.0.1; use 0.0.0.0 in Docker)
   PUBLIC_BASE_URL       Public URL for agent card + invitations (default http://HOST:PORT)
   AGENT_NAME            Human-readable agent label (default "Atom agent")

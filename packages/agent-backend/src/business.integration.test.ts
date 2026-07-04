@@ -36,6 +36,7 @@ function testConfig(port: number, publicBaseUrl: string, businessMode: boolean):
     stripeProductId: null,
     businessMode,
     businessDomain: businessMode ? "example.com" : null,
+    interactivePortResolve: false,
   };
 }
 

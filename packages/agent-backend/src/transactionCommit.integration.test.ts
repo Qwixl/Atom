@@ -36,6 +36,7 @@ function testConfig(port: number, publicBaseUrl: string): AgentBackendConfig {
     stripeProductId: null,
     businessMode: false,
     businessDomain: null,
+    interactivePortResolve: false,
   };
 }
 

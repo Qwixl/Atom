@@ -21,6 +21,7 @@ import {
 import { createAtomA2aExpressApp } from "@qwixl/a2a-transport/server";
 import { base64ToBytes, signDataObject, verifyDataObject, type UnsignedDataObject } from "@qwixl/protocol";
 import { loadAgentBackendConfig, type AgentBackendConfig } from "./config.js";
+import { publicBaseUrlForPort, resolvePortWithPrompt } from "./portConflict.js";
 import { registerActionAdminRoutes } from "./actionAdmin.js";
 import { registerCalendarAdminRoutes } from "./calendarAdmin.js";
 import { registerCoordinationAdminRoutes } from "./coordinationAdmin.js";
@@ -55,7 +56,19 @@ export interface StartAgentServerOptions {
 }
 
 export async function startAgentServer(options: StartAgentServerOptions = {}): Promise<Server> {
-  const config = options.config ?? loadAgentBackendConfig();
+  let config = options.config ?? loadAgentBackendConfig();
+  if (config.interactivePortResolve) {
+    const port = await resolvePortWithPrompt({
+      host: config.host,
+      startPort: config.port,
+      interactive: process.stdin.isTTY === true,
+    });
+    config = {
+      ...config,
+      port,
+      publicBaseUrl: publicBaseUrlForPort(config.host, port),
+    };
+  }
   const identity = await loadOrCreateIdentity();
   const inbox = new DataObjectInbox();
   const mlsStore = new MlsSessionStore();

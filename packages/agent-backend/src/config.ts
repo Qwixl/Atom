@@ -10,6 +10,8 @@ export interface AgentBackendConfig {
   stripeProductId: string | null;
   businessMode: boolean;
   businessDomain: string | null;
+  /** Prompt on port conflict when using default PORT (dev CLI). */
+  interactivePortResolve: boolean;
 }
 
 const DEFAULT_SHELL_ORIGINS = [
@@ -22,7 +24,9 @@ const DEFAULT_SHELL_ORIGINS = [
 
 export function loadAgentBackendConfig(env: NodeJS.ProcessEnv = process.env): AgentBackendConfig {
   const host = env.HOST?.trim() || "127.0.0.1";
+  const portExplicit = env.PORT !== undefined && env.PORT.trim() !== "";
   const port = Number(env.PORT ?? 5204);
+  const publicBaseUrlExplicit = Boolean(env.PUBLIC_BASE_URL?.trim());
   const publicBaseUrl = env.PUBLIC_BASE_URL?.trim() || `http://${host}:${port}`;
   const agentName = env.AGENT_NAME?.trim() || "Atom agent";
   const extra =
@@ -44,5 +48,6 @@ export function loadAgentBackendConfig(env: NodeJS.ProcessEnv = process.env): Ag
     stripeProductId: env.ATOM_STRIPE_PRODUCT_ID?.trim() || null,
     businessMode: env.ATOM_BUSINESS_MODE === "1" || env.ATOM_BUSINESS_MODE === "true",
     businessDomain: env.ATOM_BUSINESS_DOMAIN?.trim() || null,
+    interactivePortResolve: !portExplicit && !publicBaseUrlExplicit,
   };
 }
