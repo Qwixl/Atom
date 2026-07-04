@@ -1,5 +1,11 @@
 # @qwixl/owner-store
 
+## 0.8.0
+
+### Minor Changes
+
+- 1a1d2a8: M12 business agent: commerce intent/offer/decline objects, business owner-store schema, catalog matching, domain verification tier 1, business admin routes, shell commerce UX and catalog sync.
+
 ## 0.7.0
 
 ### Minor Changes

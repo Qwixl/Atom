@@ -1,5 +1,12 @@
 # @qwixl/ag-ui-adapter
 
+## 0.8.0
+
+### Patch Changes
+
+- Updated dependencies [1a1d2a8]
+  - @qwixl/owner-store@0.8.0
+
 ## 0.7.0
 
 ### Patch Changes
