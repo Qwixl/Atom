@@ -99,7 +99,7 @@ Qwixl uses **dynamic-amount** PaymentIntents with manual capture (authorization 
 
 ```bash
 # One-time setup (test or live key):
-STRIPE_SECRET_KEY=sk_test_... pnpm --filter @qwixl/agent-backend setup:stripe
+STRIPE_SECRET_KEY=sk_live_... pnpm --filter @qwixl/agent-backend setup:stripe
 ```
 
 The script creates (or reuses) **Atom Agent Commerce** product + a €1.00 placeholder price, then prints `ATOM_STRIPE_PRODUCT_ID` for your environment.

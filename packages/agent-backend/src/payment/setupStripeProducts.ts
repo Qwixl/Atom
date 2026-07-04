@@ -1,10 +1,11 @@
 /**
  * Idempotent Stripe catalog setup for Atom agent-mediated commerce.
- * Run: STRIPE_SECRET_KEY=sk_test_... pnpm --filter @qwixl/agent-backend setup:stripe
+ * Run: STRIPE_SECRET_KEY=sk_live_... pnpm --filter @qwixl/agent-backend setup:stripe
  *
  * Creates (or reuses) a Product + optional catalog Price. PaymentIntents for
  * holds use dynamic amounts; the Product groups transactions in Stripe Dashboard.
  */
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadAgentBackendConfig } from "../config.js";
 import {
@@ -107,7 +108,7 @@ async function main(): Promise<void> {
 
 const isMain =
   process.argv[1] !== undefined &&
-  fileURLToPath(import.meta.url) === fileURLToPath(process.argv[1]);
+  path.resolve(fileURLToPath(import.meta.url)) === path.resolve(process.argv[1]);
 
 if (isMain) {
   main().catch((error) => {
