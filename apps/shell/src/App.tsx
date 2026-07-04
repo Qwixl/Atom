@@ -251,6 +251,7 @@ export function App() {
   const feedRef = useRef<HTMLDivElement>(null);
   const turnTranscript = useRef<Array<{ role: "user" | "assistant"; text: string }>>([]);
   const lastUserMessageRef = useRef("");
+  const sessionContextTagsRef = useRef<string[]>([]);
 
   const conversationMemory = useMemo(
     () =>
@@ -262,6 +263,14 @@ export function App() {
   );
   const conversationMemoryRef = useRef(conversationMemory);
   conversationMemoryRef.current = conversationMemory;
+
+  const buildContext = useCallback(
+    () =>
+      buildPersonalAgentContext(ownerStore, conversationMemory, lastUserMessageRef.current, {
+        sessionContextTags: sessionContextTagsRef.current,
+      }),
+    [ownerStore, conversationMemory],
+  );
 
   const registry = useMemo(
     () => new ModuleRegistry({ indexUrl: registryUrl, trust: registryTrust }),
@@ -327,23 +336,19 @@ export function App() {
       // Live provider: the slice is reassembled from the store on every
       // model call, so guarding/unguarding a record applies from the
       // agent's next turn (earlier transcript influence remains).
-      return new LlmAgentSession(llmConfig, catalog, () =>
-        buildPersonalAgentContext(ownerStore, conversationMemory, lastUserMessageRef.current),
-      );
+      return new LlmAgentSession(llmConfig, catalog, buildContext);
     }
     if (provider === "ag-ui") {
       return new AgUiAgentSession({
         ...agUiConfig,
-        profileProvider: () =>
-          buildPersonalAgentContext(ownerStore, conversationMemory, lastUserMessageRef.current),
+        profileProvider: buildContext,
       });
     }
     return new MockAgentSession({
-      profileProvider: () =>
-        buildPersonalAgentContext(ownerStore, conversationMemory, lastUserMessageRef.current),
+      profileProvider: buildContext,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, llmConfig, agUiConfig, catalog, ownerStore, conversationMemory]);
+  }, [provider, llmConfig, agUiConfig, catalog, ownerStore, conversationMemory, buildContext]);
 
   const sessionRef = useRef(session);
   sessionRef.current = session;
@@ -415,15 +420,45 @@ export function App() {
                 confidence: weights.confidence,
                 strength: weights.strength,
                 contextTags: activeContextTags(record.evidence ?? []),
+                conditions: record.conditions,
               };
             }),
           })
             .then((result) => {
+              const mergeSessionTags = (tags: string[] | undefined) => {
+                if (!tags?.length) return;
+                const set = new Set(sessionContextTagsRef.current);
+                for (const tag of tags) set.add(tag.trim().toLowerCase());
+                sessionContextTagsRef.current = [...set];
+              };
               if (result.signals.length > 0) {
                 activeOwnerStore.applyCuratorSignals(result.signals);
+                for (const signal of result.signals) mergeSessionTags(signal.contextTags);
               }
-              if (result.proposals.length === 0 && result.signals.length === 0) return;
+              for (const split of result.splitProposals) {
+                mergeSessionTags(split.conditions.flatMap((c) => c.contextTags));
+                const queued = activeOwnerStore.proposeConditionalSplit({
+                  category: split.category,
+                  label: split.label,
+                  defaultValue: split.defaultValue,
+                  conditions: split.conditions,
+                  reason: split.reason,
+                  guarded: split.guarded,
+                  tier: split.tier,
+                });
+                if (queued && curatorAutoAcceptOpenRef.current && !queued.guarded) {
+                  activeOwnerStore.acceptProposal(queued.id);
+                }
+              }
+              if (
+                result.proposals.length === 0 &&
+                result.signals.length === 0 &&
+                result.splitProposals.length === 0
+              ) {
+                return;
+              }
               for (const proposal of result.proposals) {
+                mergeSessionTags(proposal.contextTags);
                 const queued = activeOwnerStore.ingestCuratorProposal(proposal);
                 if (queued && curatorAutoAcceptOpenRef.current && !queued.guarded) {
                   activeOwnerStore.acceptProposal(queued.id);

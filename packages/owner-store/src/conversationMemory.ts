@@ -1,9 +1,17 @@
-/** One indexed excerpt from a past turn or owner correction (M10 RAG v1). */
+import {
+  hashEmbedText,
+  hybridRetrievalScore,
+  type TextEmbedder,
+} from "./textEmbedding.js";
+
+/** One indexed excerpt from a past turn or owner correction (M10 RAG). */
 export interface MemoryChunk {
   id: string;
   at: number;
   text: string;
   source: "conversation" | "correction";
+  /** Stored at index time when an embedder is configured (M10.5). */
+  embedding?: number[];
 }
 
 export interface ConversationMemoryOptions {
@@ -11,6 +19,8 @@ export interface ConversationMemoryOptions {
   persist?: (chunks: readonly MemoryChunk[]) => void;
   /** Cap stored chunks (oldest dropped). Default 200. */
   maxChunks?: number;
+  /** Embedding function; defaults to on-device hash embedder (M10.5). */
+  embedder?: TextEmbedder;
 }
 
 const DEFAULT_MAX_CHUNKS = 200;
@@ -38,18 +48,20 @@ export function scoreTokenOverlap(query: string, document: string): number {
 }
 
 /**
- * Local conversation + correction index. v1: lexical overlap retrieval
- * (no embedding API). Precedent: classic IR / BM25-lite for on-device RAG.
+ * Local conversation + correction index. v1: lexical overlap; M10.5 adds
+ * hybrid lexical + embedding retrieval when an embedder is configured.
  */
 export class ConversationMemoryIndex {
   private chunks: MemoryChunk[] = [];
   private readonly persist?: (chunks: readonly MemoryChunk[]) => void;
   private readonly maxChunks: number;
+  private readonly embedder: TextEmbedder;
 
   constructor(options: ConversationMemoryOptions = {}) {
     this.chunks = [...(options.restore ?? [])];
     this.persist = options.persist;
     this.maxChunks = options.maxChunks ?? DEFAULT_MAX_CHUNKS;
+    this.embedder = options.embedder ?? hashEmbedText;
   }
 
   list(): readonly MemoryChunk[] {
@@ -73,8 +85,14 @@ export class ConversationMemoryIndex {
   retrieve(query: string, limit = 3): MemoryChunk[] {
     const trimmed = query.trim();
     if (!trimmed || this.chunks.length === 0) return [];
+    const queryEmbedding = this.embedder(trimmed);
     const scored = this.chunks
-      .map((chunk) => ({ chunk, score: scoreTokenOverlap(trimmed, chunk.text) }))
+      .map((chunk) => {
+        const lexical = scoreTokenOverlap(trimmed, chunk.text);
+        const documentEmbedding = chunk.embedding ?? this.embedder(chunk.text);
+        const score = hybridRetrievalScore(lexical, queryEmbedding, documentEmbedding);
+        return { chunk, score };
+      })
       .filter((entry) => entry.score >= MIN_RETRIEVAL_SCORE)
       .sort((a, b) => b.score - a.score || b.chunk.at - a.chunk.at);
     return scored.slice(0, limit).map((entry) => entry.chunk);
@@ -86,6 +104,7 @@ export class ConversationMemoryIndex {
       at: Date.now(),
       text,
       source,
+      embedding: this.embedder(text),
     };
     this.chunks.push(chunk);
     if (this.chunks.length > this.maxChunks) {

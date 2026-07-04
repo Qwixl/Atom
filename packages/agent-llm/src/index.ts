@@ -8,4 +8,4 @@ export {
   parseCuratorResponse,
   defaultGuardForCategory,
 } from "./curator.js";
-export type { CuratorPassInput, CuratorPassResult, CuratorSignal, CuratorSignalKind } from "./curator.js";
+export type { CuratorPassInput, CuratorPassResult, CuratorSignal, CuratorSignalKind, CuratorSplitProposal } from "./curator.js";

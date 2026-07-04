@@ -4,6 +4,7 @@ export type {
   ProfileContext,
   ProfileContextOpenRecord,
   RecordProposal,
+  RecordCondition,
 } from "./OwnerStore.js";
 export { formatRecordValue } from "./formatRecordValue.js";
 export {
@@ -12,7 +13,29 @@ export {
   tokenize,
   type MemoryChunk,
 } from "./conversationMemory.js";
-export { buildPersonalAgentContext, type PersonalAgentContext, ATOM_AGUI_PROFILE_PROP, retrieveRecordSnippets } from "./personalAgentContext.js";
+export {
+  buildPersonalAgentContext,
+  type PersonalAgentContext,
+  type PersonalAgentContextOptions,
+  ATOM_AGUI_PROFILE_PROP,
+  retrieveRecordSnippets,
+} from "./personalAgentContext.js";
+export {
+  resolveRecordValue,
+  formatConditionalValue,
+  formatSplitProposal,
+  hasTagContextConflict,
+  evidenceSuggestsConditionalSplit,
+  mergeConditions,
+  normalizeConditions,
+  shouldProposeConditionalSplit,
+} from "./conditionalValue.js";
+export {
+  hashEmbedText,
+  cosineSimilarity,
+  hybridRetrievalScore,
+  type TextEmbedder,
+} from "./textEmbedding.js";
 export { buildProfileSummaryByCategory } from "./profileSummary.js";
 export { activeContextTags } from "./evidenceHelpers.js";
 export { recordUiPreferenceFeedback } from "./uiEvidence.js";

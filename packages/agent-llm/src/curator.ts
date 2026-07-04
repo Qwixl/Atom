@@ -42,7 +42,18 @@ export interface CuratorPassInput {
     confidence?: number;
     strength?: number;
     contextTags?: string[];
+    conditions?: Array<{ contextTags: string[]; value: JsonValue }>;
   }>;
+}
+
+export interface CuratorSplitProposal {
+  category: string;
+  label: string;
+  defaultValue: JsonValue;
+  conditions: Array<{ contextTags: string[]; value: JsonValue }>;
+  reason?: string;
+  tier?: "constraint" | "preference" | "taste";
+  guarded?: boolean;
 }
 
 export interface CuratorPassResult {
@@ -56,6 +67,7 @@ export interface CuratorPassResult {
     contextTags?: string[];
   }>;
   signals: CuratorSignal[];
+  splitProposals: CuratorSplitProposal[];
 }
 
 function parseTier(raw: unknown): "constraint" | "preference" | "taste" | undefined {
@@ -78,7 +90,11 @@ export function buildCuratorPrompt(input: CuratorPassInput): string {
               r.contextTags && r.contextTags.length > 0
                 ? ` [context: ${r.contextTags.join(", ")}]`
                 : "";
-            return `- ${r.category}/${r.label}${tier}${weights}${tags}: ${JSON.stringify(r.value)}`;
+            const conditions =
+              r.conditions && r.conditions.length > 0
+                ? ` [conditional: ${JSON.stringify(r.conditions)}]`
+                : "";
+            return `- ${r.category}/${r.label}${tier}${weights}${tags}${conditions}: ${JSON.stringify(r.value)}`;
           })
           .join("\n");
 
@@ -105,11 +121,13 @@ Rules:
 - Return JSON only:
 {
   "proposals": [{ "category", "label", "value", "guarded", "tier", "reason", "contextTags"? }],
-  "signals": [{ "kind": "reinforce"|"contradict"|"override", "category", "label", "reason", "contextTags"? }]
+  "signals": [{ "kind": "reinforce"|"contradict"|"override", "category", "label", "reason", "contextTags"? }],
+  "splitProposals": [{ "category", "label", "defaultValue", "conditions": [{ "contextTags": [...], "value": ... }], "reason", "tier"? }]
 }
 - signals reinforce existing records restated or acted on; contradict when the owner corrects a stored value; override when they chose differently from a prior default.
+- splitProposals: when the SAME label needs DIFFERENT values under DIFFERENT context tags (e.g. premium economy normally, economy on short hops with kids), propose a conditional split instead of overwriting the default.
 - Match signals and proposals to existing records by category + label.
-- If nothing worth remembering or updating, return { "proposals": [], "signals": [] }
+- If nothing worth remembering or updating, return { "proposals": [], "signals": [], "splitProposals": [] }
 
 Existing records:
 ${existing}
@@ -122,11 +140,12 @@ export function parseCuratorResponse(raw: string): CuratorPassResult {
   const trimmed = raw.trim();
   const jsonStart = trimmed.indexOf("{");
   const jsonEnd = trimmed.lastIndexOf("}");
-  if (jsonStart === -1 || jsonEnd === -1) return { proposals: [], signals: [] };
+  if (jsonStart === -1 || jsonEnd === -1) return { proposals: [], signals: [], splitProposals: [] };
 
   const parsed = JSON.parse(trimmed.slice(jsonStart, jsonEnd + 1)) as {
     proposals?: unknown[];
     signals?: unknown[];
+    splitProposals?: unknown[];
   };
 
   const proposals: CuratorPassResult["proposals"] = [];
@@ -170,5 +189,37 @@ export function parseCuratorResponse(raw: string): CuratorPassResult {
     }
   }
 
-  return { proposals, signals };
+  const splitProposals: CuratorSplitProposal[] = [];
+  if (Array.isArray(parsed.splitProposals)) {
+    for (const item of parsed.splitProposals) {
+      if (typeof item !== "object" || item === null) continue;
+      const s = item as Record<string, unknown>;
+      if (typeof s.category !== "string" || typeof s.label !== "string") continue;
+      if (s.defaultValue === undefined) continue;
+      if (!Array.isArray(s.conditions)) continue;
+      const conditions: CuratorSplitProposal["conditions"] = [];
+      for (const raw of s.conditions) {
+        if (typeof raw !== "object" || raw === null) continue;
+        const c = raw as Record<string, unknown>;
+        if (!Array.isArray(c.contextTags) || c.value === undefined) continue;
+        const contextTags = parseContextTags(c.contextTags);
+        if (!contextTags?.length) continue;
+        conditions.push({ contextTags, value: c.value as JsonValue });
+      }
+      if (conditions.length === 0) continue;
+      const category = s.category.trim().toLowerCase();
+      splitProposals.push({
+        category,
+        label: s.label.trim(),
+        defaultValue: s.defaultValue as JsonValue,
+        conditions,
+        reason: typeof s.reason === "string" ? s.reason.trim() : undefined,
+        tier: parseTier(s.tier),
+        guarded:
+          typeof s.guarded === "boolean" ? s.guarded : defaultGuardForCategory(category),
+      });
+    }
+  }
+
+  return { proposals, signals, splitProposals };
 }

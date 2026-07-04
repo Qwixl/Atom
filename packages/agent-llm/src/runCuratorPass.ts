@@ -6,9 +6,10 @@ import {
   type CuratorPassResult,
   type CuratorSignal,
   type CuratorSignalKind,
+  type CuratorSplitProposal,
 } from "./curator.js";
 
-export type { CuratorPassInput, CuratorPassResult, CuratorSignal, CuratorSignalKind };
+export type { CuratorPassInput, CuratorPassResult, CuratorSignal, CuratorSignalKind, CuratorSplitProposal };
 export { buildCuratorPrompt, parseCuratorResponse, defaultGuardForCategory } from "./curator.js";
 
 /**

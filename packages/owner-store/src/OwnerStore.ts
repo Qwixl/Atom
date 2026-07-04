@@ -5,9 +5,20 @@ import {
   evidenceKindForSignal,
   type PreferenceEvidence,
 } from "./evidence.js";
+import {
+  formatConditionalValue,
+  hasTagContextConflict,
+  mergeConditions,
+  normalizeConditions,
+  resolveRecordValue,
+  shouldProposeConditionalSplit,
+  type RecordCondition,
+} from "./conditionalValue.js";
 import { appendEvidence, activeContextTags, normalizeEvidence } from "./evidenceHelpers.js";
 import { buildProfileSummaryByCategory } from "./profileSummary.js";
 import { inferTier, resolveTier, type PreferenceTier } from "./tier.js";
+
+export type { RecordCondition };
 
 /**
  * One owner-held fact: an identity detail, a stated preference, a piece of
@@ -33,6 +44,8 @@ export interface OwnerRecord {
   evidence?: PreferenceEvidence[];
   /** Stakes classification: constraint (hard rule), preference (durable default), taste (ephemeral). */
   tier?: PreferenceTier;
+  /** Contextual overrides when evidence diverges by tags (M10.6). */
+  conditions?: RecordCondition[];
 }
 
 /** Agent-proposed record awaiting owner approval in the profile panel. */
@@ -46,6 +59,8 @@ export interface RecordProposal {
   contextTags?: string[];
   tier?: PreferenceTier;
   proposedAt: number;
+  /** When set, accepting applies conditional branches instead of a flat value replace (M10.6). */
+  splitConditions?: RecordCondition[];
 }
 
 /** Categories that default to guarded on curator capture (fail-safe). */
@@ -64,12 +79,17 @@ export function defaultGuardForCategory(category: string): boolean {
 export interface ProfileContextOpenRecord {
   category: string;
   label: string;
+  /** Value resolved for the active session context tags. */
   value: JsonValue;
+  /** Default when no conditional branch matches. */
+  defaultValue?: JsonValue;
   confidence: number;
   strength: number;
   tier: PreferenceTier;
   /** Recent context tags from evidence (e.g. traveling-with-family). */
   contextTags: string[];
+  /** Conditional branches, when present (M10.6). */
+  conditions?: RecordCondition[];
 }
 
 /**
@@ -194,6 +214,7 @@ export class OwnerStore {
     reason?: string;
     contextTags?: string[];
     tier?: PreferenceTier;
+    splitConditions?: RecordCondition[];
   }): RecordProposal {
     const duplicate = this.listProposals().find(
       (p) =>
@@ -218,6 +239,9 @@ export class OwnerStore {
         .filter(Boolean),
       tier,
       proposedAt: Date.now(),
+      splitConditions: input.splitConditions
+        ? normalizeConditions(input.splitConditions)
+        : undefined,
     };
     this.proposals.set(proposal.id, proposal);
     this.saveProposals();
@@ -251,7 +275,68 @@ export class OwnerStore {
       return null;
     }
 
+    if (
+      sameLabel &&
+      JSON.stringify(sameLabel.value) !== JSON.stringify(input.value) &&
+      shouldProposeConditionalSplit(sameLabel, input.value, input.contextTags)
+    ) {
+      return this.proposeConditionalSplit({
+        category: sameLabel.category,
+        label: sameLabel.label,
+        defaultValue: sameLabel.value,
+        conditions: [{ contextTags: input.contextTags ?? [], value: input.value }],
+        reason: input.reason ?? "Context-specific value diverges from default",
+        guarded: input.guarded ?? sameLabel.guarded,
+        tier: input.tier ?? sameLabel.tier,
+      });
+    }
+
     return this.propose(input);
+  }
+
+  /** Queue a conditional split for owner approval (M10.6). */
+  proposeConditionalSplit(input: {
+    category: string;
+    label: string;
+    defaultValue: JsonValue;
+    conditions: RecordCondition[];
+    reason?: string;
+    guarded?: boolean;
+    tier?: PreferenceTier;
+  }): RecordProposal | null {
+    const conditions = normalizeConditions(input.conditions);
+    if (conditions.length === 0) return null;
+    const duplicate = this.listProposals().find(
+      (p) =>
+        p.category === input.category.trim().toLowerCase() &&
+        p.label === input.label.trim() &&
+        p.splitConditions?.length,
+    );
+    if (duplicate) return duplicate;
+    return this.propose({
+      category: input.category,
+      label: input.label,
+      value: input.defaultValue,
+      guarded: input.guarded,
+      reason: input.reason,
+      tier: input.tier,
+      splitConditions: conditions,
+    });
+  }
+
+  /** Apply conditional branches to an existing record. */
+  applyConditions(id: string, conditions: readonly RecordCondition[]): OwnerRecord | null {
+    const existing = this.records.get(id);
+    if (!existing) return null;
+    const merged = mergeConditions(existing.conditions, conditions);
+    const record: OwnerRecord = {
+      ...existing,
+      conditions: merged.length ? merged : undefined,
+      updated: Date.now(),
+    };
+    this.records.set(id, record);
+    this.save();
+    return record;
   }
 
   /** Merge records that share a label across categories (keeps preferences, most evidence). */
@@ -304,7 +389,35 @@ export class OwnerStore {
       (r) => r.category === proposal.category && r.label === proposal.label,
     );
     let record: OwnerRecord;
-    if (existing && JSON.stringify(existing.value) === JSON.stringify(proposal.value)) {
+    if (proposal.splitConditions?.length) {
+      const existingRecord = this.list().find(
+        (r) => r.category === proposal.category && r.label === proposal.label,
+      );
+      if (existingRecord) {
+        record = this.upsert({
+          id: existingRecord.id,
+          category: proposal.category,
+          label: proposal.label,
+          value: proposal.value,
+          guarded: proposal.guarded,
+          evidenceNote: proposal.reason,
+          contextTags: proposal.contextTags,
+          tier: proposal.tier,
+        });
+        record = this.applyConditions(record.id, proposal.splitConditions) ?? record;
+      } else {
+        record = this.upsert({
+          category: proposal.category,
+          label: proposal.label,
+          value: proposal.value,
+          guarded: proposal.guarded,
+          evidenceNote: proposal.reason,
+          contextTags: proposal.contextTags,
+          tier: proposal.tier,
+        });
+        record = this.applyConditions(record.id, proposal.splitConditions) ?? record;
+      }
+    } else if (existing && JSON.stringify(existing.value) === JSON.stringify(proposal.value)) {
       record =
         this.appendEvidence(
           existing.id,
@@ -438,7 +551,7 @@ export class OwnerStore {
    * Assemble the disclosure slice for a session: open records inline,
    * guarded categories by name only.
    */
-  contextSlice(): ProfileContext {
+  contextSlice(sessionContextTags: readonly string[] = []): ProfileContext {
     const open: ProfileContext["open"] = [];
     const guarded = new Set<string>();
     for (const record of this.list()) {
@@ -447,14 +560,18 @@ export class OwnerStore {
       } else {
         const weights = this.weightsFor(record);
         const tier = record.tier ?? inferTier(record);
+        const conditions = record.conditions?.length ? record.conditions : undefined;
+        const resolved = resolveRecordValue(record, sessionContextTags);
         open.push({
           category: record.category,
           label: record.label,
-          value: record.value,
+          value: resolved,
+          defaultValue: conditions ? record.value : undefined,
           confidence: weights.confidence,
           strength: weights.strength,
           tier,
           contextTags: activeContextTags(record.evidence ?? []),
+          conditions,
         });
       }
     }

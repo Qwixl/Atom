@@ -22,6 +22,26 @@ describe("conversationMemory", () => {
     expect(hits[0]?.text.toLowerCase()).toContain("aisle");
   });
 
+  it("stores embeddings on indexed chunks (M10.5)", () => {
+    const memory = new ConversationMemoryIndex();
+    const chunk = memory.indexTurn([{ role: "user", text: "Vienna hotel recommendation" }]);
+    expect(chunk?.embedding?.length).toBeGreaterThan(0);
+  });
+
+  it("retrieves semantically related chunks beyond exact token overlap", () => {
+    const memory = new ConversationMemoryIndex();
+    memory.indexTurn([
+      { role: "user", text: "I always book extra legroom on overnight flights" },
+      { role: "assistant", text: "Noted your long-haul comfort preference." },
+    ]);
+    memory.indexTurn([
+      { role: "user", text: "Add milk to the grocery list" },
+      { role: "assistant", text: "Added." },
+    ]);
+    const hits = memory.retrieve("overnight flight comfort seating", 1);
+    expect(hits[0]?.text.toLowerCase()).toContain("legroom");
+  });
+
   it("indexes corrections separately", () => {
     const memory = new ConversationMemoryIndex();
     memory.indexCorrection("Declined meeting with Alex");

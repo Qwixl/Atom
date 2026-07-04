@@ -10,6 +10,8 @@ export interface PromptProfile {
     confidence?: number;
     strength?: number;
     contextTags?: string[];
+    defaultValue?: JsonValue;
+    conditions?: Array<{ contextTags: string[]; value: JsonValue }>;
   }>;
   guardedCategories: string[];
   summaryByCategory?: Record<string, Record<string, JsonValue>>;
@@ -40,6 +42,7 @@ ${JSON.stringify(profile.summaryByCategory, null, 2)}`
 - tier=constraint → hard rule; never violate; mention when relevant (allergies, accessibility).
 - tier=preference → durable default; apply even if rare-domain; pre-fill forms.
 - tier=taste → soft suggestion for this context; easy override.
+- When a record includes \`conditions\`, \`value\` is resolved for the current session context; \`defaultValue\` applies when no branch matches.
 confidence ≥ 0.5 → treat as known; apply in compositions and pre-fill form defaults.
 strength ≥ 0.6 → firm habit; below that → soft default, easy override.
 ${JSON.stringify(profile.open, null, 2)}`

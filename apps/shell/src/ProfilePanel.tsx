@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { derivePreferenceWeights, formatRecordValue, activeContextTags, type OwnerRecord, type OwnerStore, type RecordProposal, type PreferenceTier } from "@qwixl/owner-store";
+import { derivePreferenceWeights, formatRecordValue, formatConditionalValue, formatSplitProposal, activeContextTags, type OwnerRecord, type OwnerStore, type RecordProposal, type PreferenceTier } from "@qwixl/owner-store";
 
 /**
  * Owner profile editor: the user-visible face of the owner store. Everything
@@ -72,7 +72,14 @@ export function ProfilePanel({
                     </span>
                   ) : null}
                 </span>
-                <span className="shell-profile-record-value">{formatRecordValue(proposal.value)}</span>
+                <span className="shell-profile-record-value">
+                  {proposal.splitConditions?.length
+                    ? formatSplitProposal(proposal)
+                    : formatRecordValue(proposal.value)}
+                </span>
+                {proposal.splitConditions?.length ? (
+                  <span className="shell-profile-badge">conditional split</span>
+                ) : null}
                 {proposal.reason ? (
                   <span className="shell-profile-proposal-reason">{proposal.reason}</span>
                 ) : null}
@@ -158,7 +165,9 @@ export function ProfilePanel({
                       </span>
                     ) : null}
                   </span>
-                  <span className="shell-profile-record-value">{formatRecordValue(record.value)}</span>
+                  <span className="shell-profile-record-value">
+                    {formatConditionalValue(record)}
+                  </span>
                   {tags.length > 0 ? (
                     <span className="shell-profile-context-tags">context: {tags.join(", ")}</span>
                   ) : null}
