@@ -5,6 +5,9 @@ export interface AgentBackendConfig {
   agentName: string;
   allowedOrigins: ReadonlySet<string>;
   googleCalendarAccessToken: string | null;
+  stripeSecretKey: string | null;
+  stripePublishableKey: string | null;
+  stripeProductId: string | null;
 }
 
 const DEFAULT_SHELL_ORIGINS = [
@@ -34,5 +37,8 @@ export function loadAgentBackendConfig(env: NodeJS.ProcessEnv = process.env): Ag
       env.GOOGLE_CALENDAR_ACCESS_TOKEN?.trim() ||
       env.GOOGLE_OAUTH_ACCESS_TOKEN?.trim() ||
       null,
+    stripeSecretKey: env.STRIPE_SECRET_KEY?.trim() || null,
+    stripePublishableKey: env.STRIPE_PUBLISHABLE_KEY?.trim() || null,
+    stripeProductId: env.ATOM_STRIPE_PRODUCT_ID?.trim() || null,
   };
 }

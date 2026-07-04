@@ -11,6 +11,7 @@ import {
   decodeEncryptedObjectPayload,
   encodeEncryptedObjectPayload,
   ACTION_PURPOSES,
+  TRANSACTION_PURPOSES,
   sendMlsHandshake,
   verifyContactInvite,
 } from "@qwixl/a2a-transport";
@@ -20,6 +21,7 @@ import { loadAgentBackendConfig, type AgentBackendConfig } from "./config.js";
 import { registerActionAdminRoutes } from "./actionAdmin.js";
 import { registerCalendarAdminRoutes } from "./calendarAdmin.js";
 import { registerCoordinationAdminRoutes } from "./coordinationAdmin.js";
+import { registerPaymentAdminRoutes } from "./paymentAdmin.js";
 import { deliverSignedObject } from "./deliverObject.js";
 import { DataObjectInbox } from "./inbox.js";
 import { identityPath, loadOrCreateIdentity } from "./identity.js";
@@ -52,8 +54,14 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     COMMS_RECEIPT_PURPOSE,
     ...COORDINATION_PURPOSES,
     ...ACTION_PURPOSES,
+    ...TRANSACTION_PURPOSES,
   ];
-  const mlsPurposes = [COMMS_MESSAGE_PURPOSE, ...COORDINATION_PURPOSES, ...ACTION_PURPOSES];
+  const mlsPurposes = [
+    COMMS_MESSAGE_PURPOSE,
+    ...COORDINATION_PURPOSES,
+    ...ACTION_PURPOSES,
+    ...TRANSACTION_PURPOSES,
+  ];
 
   const executor = new AtomDataObjectExecutor({
     identity,
@@ -118,6 +126,13 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
 
   registerCoordinationAdminRoutes(adminApp, { identity, mlsStore });
   registerActionAdminRoutes(adminApp, { identity, mlsStore });
+  registerPaymentAdminRoutes(adminApp, {
+    identity,
+    mlsStore,
+    stripeSecretKey: config.stripeSecretKey,
+    stripePublishableKey: config.stripePublishableKey,
+    stripeProductId: config.stripeProductId,
+  });
   registerCalendarAdminRoutes(adminApp, {
     googleCalendarAccessToken: config.googleCalendarAccessToken,
   });
@@ -129,6 +144,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       inbox: inbox.count(),
       mlsPeers: mlsStore.listPeers(),
       calendarConfigured: Boolean(config.googleCalendarAccessToken?.trim()),
+      stripeConfigured: Boolean(config.stripeSecretKey?.trim()),
     });
   });
 
@@ -283,6 +299,9 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
         `  calendar:      POST ${config.publicBaseUrl}/calendar/events (CalDAV; set GOOGLE_CALENDAR_ACCESS_TOKEN)`,
       );
       console.log(`  actions:       POST ${config.publicBaseUrl}/actions/reserve`);
+      console.log(
+        `  payments:      POST ${config.publicBaseUrl}/payments/{hold,capture,release} (set STRIPE_SECRET_KEY)`,
+      );
       resolve(server);
     });
   });

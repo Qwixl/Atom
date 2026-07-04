@@ -10,3 +10,6 @@ export {
 export { startAgentServer, type StartAgentServerOptions } from "./server.js";
 export { runAgUiHandler, writeAgUiSse, type AgUiScenarioHandler } from "./agUi/handler.js";
 export { loadLlmAgUiConfigFromEnv, runLlmAgUiEvents, type LlmAgUiConfig } from "./agUi/llmRunner.js";
+export type { PaymentRail, PaymentHoldResult, PaymentCaptureResult, PaymentReleaseResult } from "./payment/types.js";
+export { StripePaymentRail, createStripePaymentRail, resolveStripeSecretKey } from "./payment/stripeRail.js";
+export { setupAtomStripeCatalog, type StripeCatalogSetupResult } from "./payment/setupStripeProducts.js";

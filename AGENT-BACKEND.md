@@ -19,6 +19,10 @@ Owner-controlled agent backend for Phase 1 private comms: **did:key** identity, 
 | `POST /calendar/query` | CalDAV query events (`timeMin`, `timeMax`, optional `accessToken`) |
 | `POST /calendar/events` | Create CalDAV event (`title`, `start`, `end`, optional `location`, `accessToken`) |
 | `POST /actions/reserve` | Mint `action:reserve` object (`refId`, `refKind`, `attestationRef`; optional peer send) |
+| `GET /payments/status` | Stripe rail configured + publishable key + product id |
+| `POST /payments/hold` | Place Stripe auth hold + mint `action:hold` (`transactionId`, `attestationRef`, `paymentMethodId`, `amountMinor`, `currency`) |
+| `POST /payments/capture` | Capture hold + mint `action:capture` + `action:receipt` |
+| `POST /payments/release` | Cancel hold + mint `action:release` |
 | `POST /agent` | AG-UI SSE endpoint (LLM when `LLM_API_KEY` set). Shell forwards owner profile via `forwardedProps.atomProfile`. |
 | `/.well-known/agent-card.json` | A2A agent card |
 | `/a2a/jsonrpc` | A2A JSON-RPC transport |
@@ -85,6 +89,29 @@ Bind is `0.0.0.0` inside the container; expose port `5204` or terminate TLS at t
 | `LLM_MODEL` | `gpt-4o-mini` | Model name for AG-UI responses |
 | `GOOGLE_CALENDAR_ACCESS_TOKEN` | — | Google OAuth access token with calendar scope for CalDAV proxy |
 | `GOOGLE_OAUTH_ACCESS_TOKEN` | — | Alias for `GOOGLE_CALENDAR_ACCESS_TOKEN` |
+| `STRIPE_SECRET_KEY` | — | Stripe secret key for payment hold/capture/release (`sk_test_...` or `sk_live_...`) |
+| `STRIPE_PUBLISHABLE_KEY` | — | Stripe publishable key for shell Stripe.js (`pk_test_...` or `pk_live_...`) |
+| `ATOM_STRIPE_PRODUCT_ID` | — | Stripe Product id from catalog setup (optional; groups holds in Dashboard) |
+
+## Stripe catalog setup
+
+Qwixl uses **dynamic-amount** PaymentIntents with manual capture (authorization holds). A Stripe Product is still useful for Dashboard reporting.
+
+```bash
+# One-time setup (test or live key):
+STRIPE_SECRET_KEY=sk_test_... pnpm --filter @qwixl/agent-backend setup:stripe
+```
+
+The script creates (or reuses) **Atom Agent Commerce** product + a €1.00 placeholder price, then prints `ATOM_STRIPE_PRODUCT_ID` for your environment.
+
+Hold flow (after owner confirms in shell chrome):
+
+1. Shell collects a payment method via Stripe.js using `STRIPE_PUBLISHABLE_KEY`.
+2. Shell calls `POST /payments/hold` with `paymentMethodId`, `amountMinor`, `currency`, `attestationRef`.
+3. Agent-backend places a manual-capture PaymentIntent and returns signed `action:hold`.
+4. After mutual confirm, `POST /payments/capture` or `POST /payments/release` on decline/timeout.
+
+Never put `STRIPE_SECRET_KEY` in the browser — server-side only (D017).
 
 ## AG-UI (shell chat)
 

@@ -36,3 +36,13 @@ export {
   upsertOAuthConnection,
 } from "./oauthConnection.js";
 export type { OAuthConnectionConfig } from "./oauthConnection.js";
+export {
+  DEFAULT_STRIPE_PAYMENT_REF,
+  PAYMENT_CONNECTIONS_STORAGE_KEY,
+  isPaymentConnectionReady,
+  loadPaymentConnections,
+  persistPaymentConnections,
+  resolvePaymentSecret,
+  upsertPaymentConnection,
+} from "./paymentConnection.js";
+export type { PaymentConnectionConfig } from "./paymentConnection.js";
