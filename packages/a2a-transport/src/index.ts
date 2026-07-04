@@ -40,6 +40,17 @@ export {
   DEFAULT_ACTION_QUALIFY_TTL_SECONDS,
   DEFAULT_CHANNEL_ANCHOR_TTL_SECONDS,
   ATOM_ACTIONS_SKILL_ID,
+  ATOM_COMMERCE_SKILL_ID,
+  ATOM_BUSINESS_EXTENSION,
+  BUSINESS_VERIFICATION_TIER_1_LABEL,
+  COMMERCE_INTENT_PURPOSE,
+  COMMERCE_INTENT_SCHEMA,
+  COMMERCE_OFFER_PURPOSE,
+  COMMERCE_OFFER_SCHEMA,
+  COMMERCE_DECLINE_PURPOSE,
+  COMMERCE_DECLINE_SCHEMA,
+  COMMERCE_PURPOSES,
+  DEFAULT_COMMERCE_TTL_SECONDS,
   DEFAULT_ACTION_RESERVE_TTL_SECONDS,
   DEFAULT_ACTION_HOLD_TTL_SECONDS,
   RSVP_REQUEST_SCHEMA,
@@ -125,8 +136,21 @@ export {
   type ChannelEntryKind,
   type DisputeChannelEntry,
 } from "./disputeChannel.js";
+export {
+  createCommerceIntent,
+  verifyCommerceIntent,
+  createCommerceOffer,
+  verifyCommerceOffer,
+  createCommerceDecline,
+  verifyCommerceDecline,
+  type CommerceDeclinePayload,
+  type CommerceIntentConstraints,
+  type CommerceIntentPayload,
+  type CommerceOfferPayload,
+  type CommercePurpose,
+} from "./commerce.js";
+export { buildAtomAgentCard, type AtomAgentCardOptions, type AtomBusinessProfile } from "./agentCard.js";
 
-export { buildAtomAgentCard, type AtomAgentCardOptions } from "./agentCard.js";
 export {
   sendDataObject,
   sendMlsWire,

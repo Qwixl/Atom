@@ -9,6 +9,9 @@ import {
   ACTION_CAPTURE_PURPOSE,
   ACTION_RELEASE_PURPOSE,
   ACTION_RECEIPT_PURPOSE,
+  COMMERCE_INTENT_PURPOSE,
+  COMMERCE_OFFER_PURPOSE,
+  COMMERCE_DECLINE_PURPOSE,
   COMMS_MESSAGE_PURPOSE,
   type ActionReserveRefKind,
   type MonetaryAmount,
@@ -217,6 +220,55 @@ export function inboxEntryToThreadItem(
       transactionId: String(payload.transactionId ?? ""),
       status: "release",
       reason: typeof payload.reason === "string" ? payload.reason : undefined,
+    };
+  }
+
+  if (purpose === COMMERCE_INTENT_PURPOSE) {
+    return {
+      kind: "commerce-intent",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      intentId: String(payload.intentId ?? ""),
+      catalogItemId: typeof payload.catalogItemId === "string" ? payload.catalogItemId : undefined,
+      query: typeof payload.query === "string" ? payload.query : undefined,
+    };
+  }
+
+  if (purpose === COMMERCE_OFFER_PURPOSE) {
+    const amount = parseAmount(payload.amount);
+    if (!amount) return null;
+    const terms = Array.isArray(payload.terms)
+      ? payload.terms.filter((t): t is string => typeof t === "string")
+      : [];
+    return {
+      kind: "commerce-offer",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      offerId: String(payload.offerId ?? ""),
+      intentId: String(payload.intentId ?? ""),
+      catalogItemId: String(payload.catalogItemId ?? ""),
+      label: typeof payload.label === "string" ? payload.label : "Offer",
+      amount,
+      available: payload.available === true,
+      terms,
+      sponsored: payload.sponsored === true,
+    };
+  }
+
+  if (purpose === COMMERCE_DECLINE_PURPOSE) {
+    return {
+      kind: "commerce-decline",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      intentId: String(payload.intentId ?? ""),
+      reasonCode: String(payload.reasonCode ?? "other"),
+      note: typeof payload.note === "string" ? payload.note : undefined,
     };
   }
 

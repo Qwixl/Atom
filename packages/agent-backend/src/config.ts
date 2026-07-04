@@ -8,6 +8,8 @@ export interface AgentBackendConfig {
   stripeSecretKey: string | null;
   stripePublishableKey: string | null;
   stripeProductId: string | null;
+  businessMode: boolean;
+  businessDomain: string | null;
 }
 
 const DEFAULT_SHELL_ORIGINS = [
@@ -40,5 +42,7 @@ export function loadAgentBackendConfig(env: NodeJS.ProcessEnv = process.env): Ag
     stripeSecretKey: env.STRIPE_SECRET_KEY?.trim() || null,
     stripePublishableKey: env.STRIPE_PUBLISHABLE_KEY?.trim() || null,
     stripeProductId: env.ATOM_STRIPE_PRODUCT_ID?.trim() || null,
+    businessMode: env.ATOM_BUSINESS_MODE === "1" || env.ATOM_BUSINESS_MODE === "true",
+    businessDomain: env.ATOM_BUSINESS_DOMAIN?.trim() || null,
   };
 }

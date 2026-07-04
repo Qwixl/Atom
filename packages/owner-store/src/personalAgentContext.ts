@@ -22,6 +22,8 @@ export interface PersonalAgentContext {
   summaryByCategory: ReturnType<OwnerStore["contextSlice"]>["summaryByCategory"];
   memorySnippets: string[];
   sessionContextTags: string[];
+  /** Business catalog/brand/policy summary when owner-store has M12 records. */
+  businessContext?: string;
 }
 
 function scoreRecordText(query: string, text: string, embedder: TextEmbedder): number {

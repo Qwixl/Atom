@@ -150,6 +150,33 @@ Before ring-fence, counterpart may require `action:qualify` with a VC/SD-JWT pre
 
 Each transaction builds an append-only bilateral channel of signed object fingerprints. `POST /channels/:transactionId/anchor` exports a signed head hash for external notarization (selective anchoring — not every event is anchored).
 
+## M12 business agent (commerce)
+
+Business agents use the same backend with `ATOM_BUSINESS_MODE=true`. Catalog lives in-memory on the server; sync from the shell profile panel or manage via admin routes.
+
+| Route | Purpose |
+|---|---|
+| `GET /business/catalog` | List catalog items |
+| `POST /business/catalog` | Upsert one catalog item (`catalogItemId`, `label`, `currency`, `amountMinor`, …) |
+| `POST /business/catalog/sync` | Replace catalog from `{ items: [...] }` |
+| `DELETE /business/catalog/:catalogItemId` | Remove catalog item |
+| `GET /business/verification` | Current tier-1 domain verification (re-checks DNS/well-known) |
+| `POST /business/verification/claim` | Claim domain `{ domain }` — automated tier-1 proof |
+| `POST /business/verification/revoke` | Revoke verification `{ reason? }` |
+| `POST /business/intent` | Send `commerce:intent` to peer (`intentId`, `catalogItemId` or `query`, `replyUrl`, `peerUrl`, `peerDid`) |
+| `POST /business/offer` | Manual offer reply (`intentId`, `catalogItemId`, `peerUrl`, `peerDid?`) |
+
+With business mode enabled, inbound `commerce:intent` objects are matched against the catalog; the agent replies with signed `commerce:offer` or `commerce:decline` to the buyer's `replyUrl`.
+
+Domain verification (tier 1, D039): publish DNS TXT at `_atom.<domain>` with `atom-did=<agent-did>`, or serve a matching agent card at `https://<domain>/.well-known/agent-card.json`. For local dev, set `ATOM_BUSINESS_DOMAIN=example.com` to grant tier 1 without DNS.
+
+| Variable | Default | Description |
+|---|---|---|
+| `ATOM_BUSINESS_MODE` | off | `true` or `1` — enable catalog, intent ingestion, business agent card fields |
+| `ATOM_BUSINESS_DOMAIN` | — | Dev shortcut: grant tier-1 domain verification without DNS |
+
+Agent card includes optional `business` extension when verified: `verificationTier`, `businessDomain`, `tierLabel`.
+
 ## AG-UI (shell chat)
 
 The reference shell can point its AG-UI transport at the same backend as comms:

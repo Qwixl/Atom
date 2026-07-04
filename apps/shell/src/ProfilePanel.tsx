@@ -1,5 +1,21 @@
 import { useState } from "react";
-import { derivePreferenceWeights, formatRecordValue, formatConditionalValue, formatSplitProposal, activeContextTags, type OwnerRecord, type OwnerStore, type RecordProposal, type PreferenceTier } from "@qwixl/owner-store";
+import {
+  BUSINESS_BRAND_CATEGORY,
+  BUSINESS_CATALOG_CATEGORY,
+  BUSINESS_POLICY_CATEGORY,
+  catalogItemsFromStore,
+  derivePreferenceWeights,
+  formatRecordValue,
+  formatConditionalValue,
+  formatSplitProposal,
+  activeContextTags,
+  type OwnerRecord,
+  type OwnerStore,
+  type RecordProposal,
+  type PreferenceTier,
+} from "@qwixl/owner-store";
+import { CommsAgentClient } from "./comms/client.js";
+import { loadCommsAgentConfig } from "./comms/storage.js";
 
 /**
  * Owner profile editor: the user-visible face of the owner store. Everything
@@ -25,6 +41,51 @@ export function ProfilePanel({
   const [label, setLabel] = useState("");
   const [value, setValue] = useState("");
   const [guarded, setGuarded] = useState(false);
+  const [catalogItemId, setCatalogItemId] = useState("");
+  const [catalogLabel, setCatalogLabel] = useState("");
+  const [catalogCurrency, setCatalogCurrency] = useState("EUR");
+  const [catalogAmount, setCatalogAmount] = useState("");
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+
+  function addCatalogItem() {
+    const amountMajor = Number(catalogAmount);
+    if (!catalogItemId.trim() || !catalogLabel.trim() || !Number.isFinite(amountMajor) || amountMajor <= 0) {
+      return;
+    }
+    const amountMinor = Math.round(amountMajor * 100);
+    store.upsert({
+      category: BUSINESS_CATALOG_CATEGORY,
+      label: catalogLabel.trim(),
+      value: {
+        catalogItemId: catalogItemId.trim(),
+        label: catalogLabel.trim(),
+        amount: { currency: catalogCurrency.trim().toUpperCase() || "EUR", amountMinor },
+        available: true,
+      },
+      guarded: false,
+    });
+    setCatalogItemId("");
+    setCatalogLabel("");
+    setCatalogAmount("");
+    onChanged();
+  }
+
+  async function syncCatalogToAgent() {
+    const url = loadCommsAgentConfig().adminUrl;
+    const items = catalogItemsFromStore(records);
+    if (items.length === 0) {
+      setSyncStatus("Add catalog items below before syncing.");
+      return;
+    }
+    setSyncStatus("Syncing…");
+    try {
+      const client = new CommsAgentClient(url);
+      await client.syncBusinessCatalog(items);
+      setSyncStatus(`Synced ${items.length} item${items.length === 1 ? "" : "s"} to agent backend.`);
+    } catch (error) {
+      setSyncStatus(error instanceof Error ? error.message : String(error));
+    }
+  }
 
   function addRecord() {
     if (!label.trim() || !value.trim()) return;
@@ -106,6 +167,50 @@ export function ProfilePanel({
           ))}
         </div>
       ) : null}
+
+      <div className="shell-profile-business">
+        <h3>Business catalog (M12)</h3>
+        <p className="shell-profile-note">
+          Add sellable items here, then sync to a business-mode agent backend (
+          <code>ATOM_BUSINESS_MODE=true</code>). Brand voice uses{" "}
+          <code>{BUSINESS_BRAND_CATEGORY}</code>; policies use <code>{BUSINESS_POLICY_CATEGORY}</code>.
+        </p>
+        <div className="shell-profile-add">
+          <input
+            value={catalogItemId}
+            placeholder="catalog item id (e.g. room-standard)"
+            onChange={(e) => setCatalogItemId(e.target.value)}
+          />
+          <input
+            value={catalogLabel}
+            placeholder="label (e.g. Standard room · 2 nights)"
+            onChange={(e) => setCatalogLabel(e.target.value)}
+          />
+          <div className="shell-profile-add-row">
+            <input
+              value={catalogCurrency}
+              placeholder="currency"
+              onChange={(e) => setCatalogCurrency(e.target.value)}
+            />
+            <input
+              value={catalogAmount}
+              placeholder="price (major units, e.g. 89.00)"
+              onChange={(e) => setCatalogAmount(e.target.value)}
+            />
+          </div>
+          <button
+            className="atom-button"
+            onClick={() => void addCatalogItem()}
+            disabled={!catalogItemId.trim() || !catalogLabel.trim() || !catalogAmount.trim()}
+          >
+            Add catalog item
+          </button>
+          <button className="atom-button" onClick={() => void syncCatalogToAgent()}>
+            Sync {catalogItemsFromStore(records).length} item(s) to agent
+          </button>
+          {syncStatus ? <p className="shell-profile-sync-status">{syncStatus}</p> : null}
+        </div>
+      </div>
 
       <div className="shell-profile-add">
         <div className="shell-profile-add-row">

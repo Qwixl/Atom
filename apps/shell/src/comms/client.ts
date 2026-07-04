@@ -7,6 +7,7 @@ import {
   type SchedulingSlot,
   type VerifiedContactInvite,
 } from "@qwixl/a2a-transport";
+import type { BusinessCatalogItemValue } from "@qwixl/owner-store";
 import type { UnsignedDataObject } from "@qwixl/protocol";
 import type { InboxEntryWire } from "./types.js";
 
@@ -221,6 +222,42 @@ export class CommsAgentClient {
     encrypt?: boolean;
   }): Promise<{ transaction: { phase: string } }> {
     return postJson(this.base(), "/transactions/decline", opts);
+  }
+
+  async sendCommerceIntent(opts: {
+    intentId: string;
+    catalogItemId?: string;
+    query?: string;
+    replyUrl: string;
+    peerUrl: string;
+    peerDid: string;
+    encrypt?: boolean;
+    maxAmountMinor?: number;
+    currency?: string;
+  }): Promise<{ object: { id: string } }> {
+    return postJson(this.base(), "/business/intent", opts);
+  }
+
+  async offerTransaction(opts: {
+    transactionId: string;
+    attestationRef: string;
+    paymentMethodId: string;
+    peerUrl: string;
+    peerDid: string;
+    amountMinor: number;
+    currency: string;
+    label?: string;
+    subjectId?: string;
+    stripeSecretKey?: string;
+    encrypt?: boolean;
+  }): Promise<{ transaction: { phase: string } }> {
+    return postJson(this.base(), "/transactions/offer", opts);
+  }
+
+  async syncBusinessCatalog(
+    items: BusinessCatalogItemValue[],
+  ): Promise<{ catalog: unknown[] }> {
+    return postJson(this.base(), "/business/catalog/sync", { items });
   }
 }
 

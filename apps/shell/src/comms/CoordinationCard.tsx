@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { RsvpAnswer, SchedulingSlot } from "@qwixl/a2a-transport";
+import type { MonetaryAmount, RsvpAnswer, SchedulingSlot } from "@qwixl/a2a-transport";
 import { detectInstructionLikeContent } from "@qwixl/agent-llm";
 import type { CommsThreadItem } from "./types.js";
 import { formatMonetaryAmount, formatRsvpResponse, formatSchedulingResponse } from "./coordinationThread.js";
@@ -13,6 +13,7 @@ export function CoordinationCard({
   onRsvp,
   onConfirmTransaction,
   onDeclineTransaction,
+  onAcceptOffer,
 }: {
   item: CommsThreadItem;
   busy: boolean;
@@ -22,6 +23,12 @@ export function CoordinationCard({
   onRsvp: (rsvpId: string, response: RsvpAnswer) => void;
   onConfirmTransaction: (transactionId: string, label?: string) => void;
   onDeclineTransaction: (transactionId: string, label?: string) => void;
+  onAcceptOffer: (
+    offerId: string,
+    intentId: string,
+    label: string,
+    amount: MonetaryAmount,
+  ) => void;
 }) {
   const directionClass = item.direction === "in" ? "in" : "out";
 
@@ -204,6 +211,72 @@ export function CoordinationCard({
     );
   }
 
+  if (item.kind === "commerce-intent") {
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
+        <div className="shell-comms-coord-head">
+          <strong>Purchase intent</strong>
+          <span>{item.intentId}</span>
+        </div>
+        <p className="shell-comms-coord-meta">
+          {item.catalogItemId ? `Item ${item.catalogItemId}` : item.query ?? "General query"}
+        </p>
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
+  if (item.kind === "commerce-offer") {
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass} shell-comms-txn`}>
+        <div className="shell-comms-coord-head">
+          <strong>Signed offer</strong>
+          <span>{item.label}</span>
+        </div>
+        <p className="shell-comms-coord-meta">
+          {formatMonetaryAmount(item.amount)}
+          {item.sponsored ? " · sponsored (disclosed)" : ""}
+        </p>
+        {item.terms.length > 0 ? (
+          <ul className="shell-comms-offer-terms">
+            {item.terms.map((term) => (
+              <li key={term}>{term}</li>
+            ))}
+          </ul>
+        ) : null}
+        {showActions && item.available ? (
+          <div className="shell-comms-coord-rsvp">
+            <button
+              type="button"
+              className="chrome-approve"
+              disabled={busy}
+              onClick={() => onAcceptOffer(item.offerId, item.intentId, item.label, item.amount)}
+            >
+              Accept offer
+            </button>
+          </div>
+        ) : null}
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
+  if (item.kind === "commerce-decline") {
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
+        <div className="shell-comms-coord-head">
+          <strong>Offer declined</strong>
+          <span>{item.intentId}</span>
+        </div>
+        <p className="shell-comms-coord-meta">
+          {item.reasonCode}
+          {item.note ? ` — ${item.note}` : ""}
+        </p>
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
   return null;
 }
 
@@ -216,6 +289,7 @@ export function ThreadItemView({
   onRsvp,
   onConfirmTransaction,
   onDeclineTransaction,
+  onAcceptOffer,
 }: {
   item: CommsThreadItem;
   busy: boolean;
@@ -225,6 +299,12 @@ export function ThreadItemView({
   onRsvp: (rsvpId: string, response: RsvpAnswer) => void;
   onConfirmTransaction: (transactionId: string, label?: string) => void;
   onDeclineTransaction: (transactionId: string, label?: string) => void;
+  onAcceptOffer: (
+    offerId: string,
+    intentId: string,
+    label: string,
+    amount: MonetaryAmount,
+  ) => void;
 }) {
   if (item.kind === "message") {
     const suspicious = item.direction === "in" && detectInstructionLikeContent(item.text);
@@ -252,6 +332,7 @@ export function ThreadItemView({
       onRsvp={onRsvp}
       onConfirmTransaction={onConfirmTransaction}
       onDeclineTransaction={onDeclineTransaction}
+      onAcceptOffer={onAcceptOffer}
     />
   );
 }
@@ -290,10 +371,12 @@ export function threadItemNeedsActions(
   item: CommsThreadItem,
   respondedIds: Set<string>,
   respondedTxnIds: Set<string>,
+  respondedOfferIds: Set<string>,
 ): boolean {
   if (item.direction !== "in") return false;
   if (item.kind === "scheduling-proposal") return !respondedIds.has(item.id);
   if (item.kind === "rsvp-request") return !respondedIds.has(item.id);
   if (item.kind === "transaction-hold") return !respondedTxnIds.has(item.transactionId);
+  if (item.kind === "commerce-offer") return !respondedOfferIds.has(item.offerId);
   return false;
 }

@@ -16,6 +16,8 @@ export interface LlmAgUiConfig {
   model: string;
   temperature?: number;
   profile?: PromptProfile;
+  /** Server-side business catalog summary when ATOM_BUSINESS_MODE (M12). */
+  businessContext?: string;
 }
 
 const REQUEST_TIMEOUT_MS = 120_000;
@@ -143,10 +145,21 @@ export async function* runLlmAgUiEvents(
   if (history.length === 0 && lastUserContent(input)) {
     history.push({ role: "user", content: lastUserContent(input) });
   }
+  const profile = profileFromRunAgentInput(input, config.profile);
+  const mergedProfile: PromptProfile | undefined = profile
+    ? {
+        ...profile,
+        businessContext: [profile.businessContext, config.businessContext]
+          .filter((s) => s?.trim())
+          .join("\n\n") || undefined,
+      }
+    : config.businessContext?.trim()
+      ? { open: [], guardedCategories: [], businessContext: config.businessContext.trim() }
+      : undefined;
   const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
     {
       role: "system",
-      content: buildSystemPrompt(catalog, profileFromRunAgentInput(input, config.profile)),
+      content: buildSystemPrompt(catalog, mergedProfile),
     },
     ...history,
   ];

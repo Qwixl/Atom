@@ -34,6 +34,8 @@ function testConfig(port: number, publicBaseUrl: string): AgentBackendConfig {
     stripeSecretKey: "sk_test_mock",
     stripePublishableKey: null,
     stripeProductId: null,
+    businessMode: false,
+    businessDomain: null,
   };
 }
 

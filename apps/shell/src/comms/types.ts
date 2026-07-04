@@ -126,4 +126,39 @@ export type CommsThreadItem =
       status: "capture" | "release" | "receipt";
       amount?: MonetaryAmount;
       reason?: string;
+    }
+  | {
+      kind: "commerce-intent";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      intentId: string;
+      catalogItemId?: string;
+      query?: string;
+    }
+  | {
+      kind: "commerce-offer";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      offerId: string;
+      intentId: string;
+      catalogItemId: string;
+      label: string;
+      amount: MonetaryAmount;
+      available: boolean;
+      terms: string[];
+      sponsored?: boolean;
+    }
+  | {
+      kind: "commerce-decline";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      intentId: string;
+      reasonCode: string;
+      note?: string;
     };

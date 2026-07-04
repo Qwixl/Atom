@@ -18,6 +18,8 @@ export interface PromptProfile {
   summaryByCategory?: Record<string, Record<string, JsonValue>>;
   /** Retrieved prior-turn excerpts (M10 local RAG). */
   memorySnippets?: string[];
+  /** Business agent catalog/brand/policy summary (M12.1). */
+  businessContext?: string;
 }
 
 function profileSection(profile: PromptProfile | undefined): string {
@@ -80,8 +82,16 @@ function memorySection(profile: PromptProfile | undefined): string {
 ${snippets.map((snippet, index) => `${index + 1}. ${snippet}`).join("\n")}`;
 }
 
+function businessSection(profile: PromptProfile | undefined): string {
+  const ctx = profile?.businessContext?.trim();
+  if (!ctx) return "";
+  return `## Business agent context\n\n${ctx}\n\nWhen answering on behalf of the business, honor catalog availability and signed offer terms. Brand voice may style replies; prices and availability must match catalog fields.`;
+}
+
 function profileAndMemorySection(profile: PromptProfile | undefined): string {
-  return `${profileSection(profile)}\n\n## Retrieved memory\n\n${memorySection(profile)}`;
+  const business = businessSection(profile);
+  const core = `${profileSection(profile)}\n\n## Retrieved memory\n\n${memorySection(profile)}`;
+  return business ? `${business}\n\n${core}` : core;
 }
 
 /**

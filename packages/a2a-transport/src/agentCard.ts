@@ -1,5 +1,12 @@
 import type { AgentCard } from "@a2a-js/sdk";
-import { ATOM_A2A_EXTENSION, ATOM_ACTIONS_SKILL_ID, ATOM_COMMS_SKILL_ID, ATOM_COORDINATION_SKILL_ID } from "./constants.js";
+import { ATOM_A2A_EXTENSION, ATOM_ACTIONS_SKILL_ID, ATOM_COMMS_SKILL_ID, ATOM_COMMERCE_SKILL_ID, ATOM_COORDINATION_SKILL_ID, ATOM_BUSINESS_EXTENSION } from "./constants.js";
+
+/** Build an A2A agent card for Atom comms agents. */
+export interface AtomBusinessProfile {
+  verificationTier: number;
+  businessDomain: string;
+  tierLabel: string;
+}
 
 export interface AtomAgentCardOptions {
   name: string;
@@ -7,6 +14,8 @@ export interface AtomAgentCardOptions {
   baseUrl: string;
   version?: string;
   publisherDid?: string;
+  /** M12 business storefront fields (D039 tier disclosure). */
+  business?: AtomBusinessProfile;
 }
 
 /** Build an A2A agent card for Atom comms agents. */
@@ -37,10 +46,36 @@ export function buildAtomAgentCard(options: AtomAgentCardOptions): AgentCard {
         description: "Transaction-flow action objects (reserve, execute)",
         tags: ["actions", "reserve"],
       },
+      ...(options.business
+        ? [
+            {
+              id: ATOM_COMMERCE_SKILL_ID,
+              name: "Atom commerce",
+              description: "Purchase intent and signed offer exchange",
+              tags: ["commerce", "offer"],
+            },
+          ]
+        : []),
     ],
     capabilities: {
       pushNotifications: false,
-      extensions: [{ uri: ATOM_A2A_EXTENSION, required: false }],
+      extensions: [
+        { uri: ATOM_A2A_EXTENSION, required: false },
+        ...(options.business
+          ? [
+              {
+                uri: ATOM_BUSINESS_EXTENSION,
+                required: false,
+                params: {
+                  verificationTier: options.business.verificationTier,
+                  businessDomain: options.business.businessDomain,
+                  tierLabel: options.business.tierLabel,
+                  ...(options.publisherDid ? { agentDid: options.publisherDid } : {}),
+                },
+              },
+            ]
+          : []),
+      ],
     },
     defaultInputModes: ["application/json"],
     defaultOutputModes: ["application/json"],

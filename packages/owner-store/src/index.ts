@@ -47,6 +47,24 @@ export {
   type CommerceReceiptAmount,
   type CommerceReceiptValue,
 } from "./commerceReceipt.js";
+export {
+  BUSINESS_BRAND_CATEGORY,
+  BUSINESS_CATALOG_CATEGORY,
+  BUSINESS_CATEGORIES,
+  BUSINESS_POLICY_CATEGORY,
+  catalogItemsFromStore,
+  isBusinessCatalogItemValue,
+  parseBusinessCatalogItem,
+  type BusinessCatalogItemValue,
+  type BusinessCategory,
+} from "./businessSchema.js";
+export {
+  buildBusinessAgentContext,
+  formatBusinessAgentContext,
+  mergeBusinessContextIntoProfile,
+  type BusinessAgentContext,
+} from "./businessAgentContext.js";
+export { matchCatalogForIntent, type CatalogIntentMatchInput, type CatalogMatchResult } from "./matchCatalogIntent.js";
 export { activeContextTags } from "./evidenceHelpers.js";
 export { recordUiPreferenceFeedback } from "./uiEvidence.js";
 export { inferTier, normalizeTier, resolveTier, type PreferenceTier } from "./tier.js";

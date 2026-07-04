@@ -26,6 +26,7 @@ import {
   OwnerStore,
   activeContextTags,
   buildPersonalAgentContext,
+  mergeBusinessContextIntoProfile,
   ConversationMemoryIndex,
   type MemoryChunk,
   type OwnerRecord,
@@ -282,9 +283,12 @@ export function App() {
 
   const buildContext = useCallback(
     () =>
-      buildPersonalAgentContext(ownerStore, conversationMemory, lastUserMessageRef.current, {
-        sessionContextTags: sessionContextTagsRef.current,
-      }),
+      mergeBusinessContextIntoProfile(
+        ownerStore,
+        buildPersonalAgentContext(ownerStore, conversationMemory, lastUserMessageRef.current, {
+          sessionContextTags: sessionContextTagsRef.current,
+        }),
+      ),
     [ownerStore, conversationMemory],
   );
 

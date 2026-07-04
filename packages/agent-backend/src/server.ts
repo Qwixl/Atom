@@ -14,6 +14,7 @@ import {
   TRANSACTION_PURPOSES,
   QUALIFY_PURPOSES,
   CHANNEL_PURPOSES,
+  COMMERCE_PURPOSES,
   sendMlsHandshake,
   verifyContactInvite,
 } from "@qwixl/a2a-transport";
@@ -27,6 +28,11 @@ import { registerPaymentAdminRoutes } from "./paymentAdmin.js";
 import { registerTransactionAdminRoutes } from "./transactionAdmin.js";
 import { registerQualifyAdminRoutes } from "./qualifyAdmin.js";
 import { registerChannelAdminRoutes } from "./channelAdmin.js";
+import { registerBusinessAdminRoutes } from "./businessAdmin.js";
+import { formatBusinessAgentContext } from "@qwixl/owner-store";
+import { BusinessCatalogStore } from "./businessCatalogStore.js";
+import { BusinessVerificationStore } from "./businessVerificationStore.js";
+import { BusinessStore } from "./businessStore.js";
 import type { PaymentRail } from "./payment/types.js";
 import { createStripePaymentRail, resolveStripeSecretKey } from "./payment/stripeRail.js";
 import { TransactionCommitStore } from "./transactionCommitStore.js";
@@ -90,11 +96,31 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     },
   });
 
+  const catalogStore = new BusinessCatalogStore();
+  const verificationStore = new BusinessVerificationStore(identity.did, config.businessDomain);
+  const businessStore = new BusinessStore({
+    localDid: identity.did,
+    identity,
+    mlsStore,
+    catalog: catalogStore,
+    businessMode: config.businessMode,
+  });
+
+  const verification = verificationStore.get();
   const agentCard = buildAtomAgentCard({
     name: config.agentName,
-    description: "Atom agent — signed data objects and MLS E2E over A2A.",
+    description: config.businessMode
+      ? "Atom business agent — catalog, signed offers, and commerce flow."
+      : "Atom agent — signed data objects and MLS E2E over A2A.",
     baseUrl: config.publicBaseUrl,
     publisherDid: identity.did,
+    business: verification
+      ? {
+          verificationTier: verification.tier,
+          businessDomain: verification.businessDomain,
+          tierLabel: verification.tierLabel,
+        }
+      : undefined,
   });
 
   const inboxPurposes = [
@@ -105,6 +131,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     ...TRANSACTION_PURPOSES,
     ...QUALIFY_PURPOSES,
     ...CHANNEL_PURPOSES,
+    ...COMMERCE_PURPOSES,
   ];
   const mlsPurposes = [
     COMMS_MESSAGE_PURPOSE,
@@ -113,6 +140,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     ...TRANSACTION_PURPOSES,
     ...QUALIFY_PURPOSES,
     ...CHANNEL_PURPOSES,
+    ...COMMERCE_PURPOSES,
   ];
 
   const executor = new AtomDataObjectExecutor({
@@ -133,6 +161,11 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       void channelStore.handleInboxObject(event.object).catch((error) => {
         console.warn(
           `[channel] inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+      void businessStore.handleInboxObject(event.object).catch((error) => {
+        console.warn(
+          `[business] inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       });
       console.log(
@@ -176,6 +209,11 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       void channelStore.handleInboxObject(verified).catch((error) => {
         console.warn(
           `[channel] mls inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+      void businessStore.handleInboxObject(verified).catch((error) => {
+        console.warn(
+          `[business] mls inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       });
       console.log(
@@ -224,6 +262,11 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   });
   registerQualifyAdminRoutes(adminApp, { store: qualifyStore });
   registerChannelAdminRoutes(adminApp, { store: channelStore });
+  registerBusinessAdminRoutes(adminApp, {
+    catalog: catalogStore,
+    store: businessStore,
+    verification: verificationStore,
+  });
   registerCalendarAdminRoutes(adminApp, {
     googleCalendarAccessToken: config.googleCalendarAccessToken,
   });
@@ -360,11 +403,27 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
 
   adminApp.post("/agent", async (req, res) => {
     const { writeAgUiSse } = await import("./agUi/handler.js");
+    const { loadLlmAgUiConfigFromEnv } = await import("./agUi/llmRunner.js");
     const input = req.body as import("@ag-ui/client").RunAgentInput;
+    const llmConfig = loadLlmAgUiConfigFromEnv();
+    const serverBusinessContext = config.businessMode
+      ? formatBusinessAgentContext({
+          catalog: catalogStore.list(),
+          brandLines: [],
+          policyLines: [],
+        })
+      : undefined;
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
-    await writeAgUiSse((chunk) => res.write(chunk), input);
+    await writeAgUiSse((chunk) => res.write(chunk), input, {
+      llmConfig: llmConfig
+        ? {
+            ...llmConfig,
+            businessContext: serverBusinessContext?.trim() || undefined,
+          }
+        : undefined,
+    });
     res.end();
   });
 

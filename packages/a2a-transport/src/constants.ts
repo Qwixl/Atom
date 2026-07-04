@@ -66,7 +66,36 @@ export const ACTION_RESERVE_SCHEMA = "https://atom.qwixl.dev/schema/ActionReserv
 /** Default A2A skill id for M9 low-stakes actions. */
 export const ATOM_ACTIONS_SKILL_ID = "atom-actions";
 
-/** M11 transaction-flow — authorization hold placed on a payment rail (ring-fence). */
+/** Default A2A skill id for M12 commerce (intent / offer). */
+export const ATOM_COMMERCE_SKILL_ID = "atom-commerce";
+
+/** Atom business profile extension on agent cards (M12.4). */
+export const ATOM_BUSINESS_EXTENSION = "https://atom.qwixl.dev/a2a/business/v1";
+
+/** M12 commerce — purchase intent broadcast (buyer → seller). */
+export const COMMERCE_INTENT_PURPOSE = "commerce:intent";
+export const COMMERCE_INTENT_SCHEMA = "https://atom.qwixl.dev/schema/CommerceIntent";
+
+/** M12 commerce — signed offer with rankable structured terms (seller → buyer). */
+export const COMMERCE_OFFER_PURPOSE = "commerce:offer";
+export const COMMERCE_OFFER_SCHEMA = "https://atom.qwixl.dev/schema/CommerceOffer";
+
+/** M12 commerce — no matching catalog item (seller → buyer). */
+export const COMMERCE_DECLINE_PURPOSE = "commerce:decline";
+export const COMMERCE_DECLINE_SCHEMA = "https://atom.qwixl.dev/schema/CommerceDecline";
+
+/** All M12 commerce purposes (receiver allowlists). */
+export const COMMERCE_PURPOSES = [
+  COMMERCE_INTENT_PURPOSE,
+  COMMERCE_OFFER_PURPOSE,
+  COMMERCE_DECLINE_PURPOSE,
+] as const;
+
+/** Plain-language tier-1 disclosure (D039). */
+export const BUSINESS_VERIFICATION_TIER_1_LABEL =
+  "Domain-linked — domain control only, not legal-entity verification";
+
+/** M9 transaction-flow — authorization hold placed on a payment rail (ring-fence). */
 export const ACTION_HOLD_PURPOSE = "action:hold";
 export const ACTION_HOLD_SCHEMA = "https://atom.qwixl.dev/schema/ActionHold";
 
@@ -126,3 +155,6 @@ export const DEFAULT_ACTION_QUALIFY_TTL_SECONDS = 14 * 24 * 60 * 60;
 
 /** Default channel anchor lifetime: 90 days (dispute evidence retention). */
 export const DEFAULT_CHANNEL_ANCHOR_TTL_SECONDS = 90 * 24 * 60 * 60;
+
+/** Default commerce object lifetime: 14 days. */
+export const DEFAULT_COMMERCE_TTL_SECONDS = 14 * 24 * 60 * 60;

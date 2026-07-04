@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { verifyContactInvite } from "@qwixl/a2a-transport";
 import type { OwnerRecord, OwnerStore } from "@qwixl/owner-store";
-import type { ActionReserveRefKind, RsvpAnswer, SchedulingSlot } from "@qwixl/a2a-transport";
+import type { ActionReserveRefKind, MonetaryAmount, RsvpAnswer, SchedulingSlot } from "@qwixl/a2a-transport";
 import type { AttestationEntry } from "@qwixl/shell-core";
 import { ThreadItemView, useRespondedProposalIds, useRespondedTransactionIds, threadItemNeedsActions } from "./comms/CoordinationCard.js";
 import { CommsAgentClient } from "./comms/client.js";
@@ -53,6 +53,7 @@ export function CommsPanel({
   onRequestConfirmation,
   calendarAccessToken,
   attestationEntries,
+  stripePaymentMethodId,
 }: {
   contacts: AgentContact[];
   ownerRecords: OwnerRecord[];
@@ -63,6 +64,8 @@ export function CommsPanel({
   /** Dev: shell SecretStore token forwarded to agent-backend CalDAV proxy. */
   calendarAccessToken?: string | null;
   attestationEntries: readonly AttestationEntry[];
+  /** Stripe PaymentMethod id for commerce offer → hold flow (test: pm_card_visa). */
+  stripePaymentMethodId?: string;
 }) {
   const [agentUrl, setAgentUrl] = useState(() => loadCommsAgentConfig().adminUrl);
   const [localDid, setLocalDid] = useState<string | null>(null);
@@ -79,6 +82,8 @@ export function CommsPanel({
   const [actionNote, setActionNote] = useState<string | null>(null);
   const [myInviteToken, setMyInviteToken] = useState<string | null>(null);
   const [outbound, setOutbound] = useState<CommsThreadItem[]>([]);
+  const [intentQuery, setIntentQuery] = useState("");
+  const [acceptedOfferIds, setAcceptedOfferIds] = useState<Set<string>>(() => new Set());
   const persistedReceiptIds = useRef(new Set<string>());
 
   const client = useMemo(() => new CommsAgentClient(agentUrl), [agentUrl]);
@@ -644,6 +649,107 @@ export function CommsPanel({
     }
   }
 
+  async function sendPurchaseIntent() {
+    if (!selected || !intentQuery.trim()) return;
+    const intentId = `intent-${crypto.randomUUID()}`;
+    const action: ConsequentialAction = {
+      id: crypto.randomUUID(),
+      kind: "confirmation",
+      title: "Send purchase intent",
+      terms: {
+        contact: selected.name,
+        intentId,
+        query: intentQuery.trim(),
+        action: "Broadcast signed commerce intent to counterpart agent",
+      },
+      confirmLabel: "Send intent",
+      declineLabel: "Cancel",
+    };
+    const confirmation = await onRequestConfirmation(action);
+    if (confirmation.decision !== "approved") return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      await client.sendCommerceIntent({
+        intentId,
+        query: intentQuery.trim(),
+        replyUrl: agentUrl,
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "commerce-intent",
+          id: crypto.randomUUID(),
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          intentId,
+          query: intentQuery.trim(),
+        },
+      ]);
+      setIntentQuery("");
+      setActionNote("Purchase intent sent.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function acceptCommerceOffer(
+    offerId: string,
+    intentId: string,
+    label: string,
+    amount: MonetaryAmount,
+  ) {
+    if (!selected) return;
+    const paymentMethodId = stripePaymentMethodId?.trim() || "pm_card_visa";
+    const transactionId = `txn-${offerId}`;
+    const action: ConsequentialAction = {
+      id: crypto.randomUUID(),
+      kind: "confirmation",
+      title: "Accept signed offer",
+      terms: {
+        contact: selected.name,
+        offerId,
+        label,
+        amount: `${(amount.amountMinor / 100).toFixed(2)} ${amount.currency}`,
+        action: "Place authorization hold from signed offer fields (M11)",
+      },
+      confirmLabel: "Accept & hold",
+      declineLabel: "Cancel",
+    };
+    const confirmation = await onRequestConfirmation(action);
+    if (confirmation.decision !== "approved") return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      await client.offerTransaction({
+        transactionId,
+        attestationRef: confirmation.attestationRef,
+        paymentMethodId,
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        amountMinor: amount.amountMinor,
+        currency: amount.currency,
+        label,
+        subjectId: offerId,
+        encrypt: sessionReady,
+      });
+      setAcceptedOfferIds((current) => new Set([...current, offerId]));
+      setActionNote("Offer accepted — payment hold placed.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function removeContact(id: string) {
     const contact = contacts.find((c) => c.id === id);
     if (contact) {
@@ -855,7 +961,12 @@ export function CommsPanel({
                       key={item.id}
                       item={item}
                       busy={busy}
-                      showActions={threadItemNeedsActions(item, respondedIds, respondedTxnIds)}
+                      showActions={threadItemNeedsActions(
+                        item,
+                        respondedIds,
+                        respondedTxnIds,
+                        acceptedOfferIds,
+                      )}
                       onAcceptSlot={(proposalId, slot) => {
                         const proposal = thread.find(
                           (item): item is Extract<CommsThreadItem, { kind: "scheduling-proposal" }> =>
@@ -876,9 +987,26 @@ export function CommsPanel({
                       onDeclineTransaction={(transactionId, label) =>
                         void respondTransactionDecline(transactionId, label)
                       }
+                      onAcceptOffer={(offerId, intentId, label, amount) =>
+                        void acceptCommerceOffer(offerId, intentId, label, amount)
+                      }
                     />
                   ))
                 )}
+              </div>
+              <div className="shell-comms-compose shell-comms-intent">
+                <input
+                  value={intentQuery}
+                  onChange={(e) => setIntentQuery(e.target.value)}
+                  placeholder="Purchase intent (catalog query)…"
+                />
+                <button
+                  type="button"
+                  disabled={busy || !intentQuery.trim()}
+                  onClick={() => void sendPurchaseIntent()}
+                >
+                  Send intent
+                </button>
               </div>
               <div className="shell-comms-compose">
                 <input
