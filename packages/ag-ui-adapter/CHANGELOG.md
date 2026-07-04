@@ -1,5 +1,12 @@
 # @qwixl/ag-ui-adapter
 
+## 0.5.0
+
+### Patch Changes
+
+- Updated dependencies [6370756]
+  - @qwixl/owner-store@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes

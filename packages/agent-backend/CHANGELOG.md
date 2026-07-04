@@ -1,5 +1,15 @@
 # @qwixl/agent-backend
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [6370756]
+- Updated dependencies [6370756]
+  - @qwixl/agent-llm@0.1.3
+  - @qwixl/owner-store@0.5.0
+  - @qwixl/ag-ui-adapter@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes

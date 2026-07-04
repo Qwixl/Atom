@@ -1,5 +1,11 @@
 # @qwixl/owner-store
 
+## 0.5.0
+
+### Minor Changes
+
+- 6370756: Hybrid embedding retrieval (M10.5): hash embedder, stored chunk embeddings, hybrid lexical+semantic scoring. Conditional record splits (M10.6): `RecordCondition` branches, `resolveRecordValue`, curator split proposals, tag-divergence ingest routing.
+
 ## 0.4.0
 
 ### Minor Changes

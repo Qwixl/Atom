@@ -1,6 +1,6 @@
 {
   "name": "@qwixl/agent-backend",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Owner-controlled Atom agent backend: A2A transport, MLS E2E, signed data objects.",
   "license": "Apache-2.0",
   "type": "module",

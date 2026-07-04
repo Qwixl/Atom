@@ -1,5 +1,11 @@
 # @qwixl/agent-llm
 
+## 0.1.3
+
+### Patch Changes
+
+- 6370756: Curator `splitProposals` for conditional record splits; prompt guidance for resolved conditional profile values.
+
 ## 0.1.2
 
 ### Patch Changes
