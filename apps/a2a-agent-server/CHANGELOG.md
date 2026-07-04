@@ -1,5 +1,12 @@
 # @qwixl/a2a-agent-server
 
+## 0.1.12
+
+### Patch Changes
+
+- Updated dependencies [fcb6daa]
+  - @qwixl/agent-backend@0.7.1
+
 ## 0.1.11
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @qwixl/agent-backend
 
+## 0.7.1
+
+### Patch Changes
+
+- fcb6daa: Interactive port conflict prompt on CLI startup: try next port [p] or kill listener and retry [k] when default PORT is busy.
+
 ## 0.7.0
 
 ### Minor Changes
