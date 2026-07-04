@@ -1,5 +1,14 @@
 # @qwixl/agent-backend
 
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies [d98546c]
+- Updated dependencies [d98546c]
+  - @qwixl/agent-llm@0.1.4
+  - @qwixl/a2a-transport@0.6.0
+
 ## 0.4.1
 
 ### Patch Changes

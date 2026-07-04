@@ -1,6 +1,6 @@
 {
   "name": "@qwixl/a2a-transport",
-  "version": "0.3.0",
+  "version": "0.6.0",
   "description": "A2A transport for Atom signed data objects between agent backends.",
   "license": "Apache-2.0",
   "type": "module",

@@ -1,5 +1,11 @@
 # @qwixl/a2a-transport
 
+## 0.6.0
+
+### Minor Changes
+
+- d98546c: M11.1 transaction-flow objects: `action:hold`, `action:capture`, `action:release`, `action:receipt` signed data objects with `MonetaryAmount` validation and `TRANSACTION_PURPOSES` allowlist.
+
 ## 0.3.0
 
 ### Minor Changes

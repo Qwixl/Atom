@@ -1,5 +1,11 @@
 # @qwixl/agent-llm
 
+## 0.1.4
+
+### Patch Changes
+
+- d98546c: D031 agent reasoning defense: untrusted-content quarantine helpers (`wrapUntrustedContent`, `detectInstructionLikeContent`) and counterpart-content safety rules in the system prompt.
+
 ## 0.1.3
 
 ### Patch Changes
