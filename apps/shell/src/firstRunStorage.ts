@@ -10,3 +10,9 @@ export function loadFirstRunDone(): boolean {
 export function markFirstRunDone(): void {
   saveStringToStorage(FIRST_RUN_DONE_KEY, "1");
 }
+
+export function resetFirstRunDone(): void {
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem(FIRST_RUN_DONE_KEY);
+  }
+}

@@ -11,6 +11,7 @@ import type { BusinessCatalogItemValue } from "@qwixl/owner-store";
 import type { UnsignedDataObject } from "@qwixl/protocol";
 import type { BusinessIndexEntry } from "@qwixl/business-index";
 import type { InboxEntryWire, AgentContact } from "./types.js";
+import { formatAgentError } from "./agentErrors.js";
 
 export interface ResolvedDiscoverTarget {
   adminBase: string;
@@ -40,7 +41,7 @@ async function postJson<T>(
   });
   if (!resp.ok) {
     const err = (await resp.json().catch(() => ({}))) as { error?: string };
-    throw new Error(err.error ?? `Request failed (${resp.status})`);
+    throw new Error(formatAgentError(new Error(err.error ?? `Request failed (${resp.status})`)));
   }
   return resp.json() as Promise<T>;
 }
@@ -53,7 +54,7 @@ async function getJson<T>(adminUrl: string, path: string, adminToken?: string): 
   const resp = await fetch(`${adminUrl.replace(/\/$/, "")}${path}`, { headers });
   if (!resp.ok) {
     const err = (await resp.json().catch(() => ({}))) as { error?: string };
-    throw new Error(err.error ?? `Request failed (${resp.status})`);
+    throw new Error(formatAgentError(new Error(err.error ?? `Request failed (${resp.status})`)));
   }
   return resp.json() as Promise<T>;
 }

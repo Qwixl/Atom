@@ -1,5 +1,9 @@
 import { CommsAgentClient } from "./client.js";
-import { clearCommsAdminToken, loadCommsAgentConfigSecure } from "./storage.js";
+import {
+  clearCommsAdminToken,
+  loadCommsAgentConfigSecure,
+  refreshCommsConfigCache,
+} from "./storage.js";
 import type { CommsAgentConfig } from "./types.js";
 
 export type AgentConnectionStatus = "ok" | "missing-token" | "unauthorized" | "unreachable";
@@ -30,6 +34,9 @@ export async function reconcileAgentConnection(
     clearCommsAdminToken();
     return "missing-token";
   }
+  if (status === "ok") {
+    await refreshCommsConfigCache();
+  }
   return status;
 }
 
@@ -38,15 +45,13 @@ export async function saveValidatedAgentConnection(config: CommsAgentConfig): Pr
     throw new Error("Admin URL is required.");
   }
   if (!config.adminToken?.trim()) {
-    throw new Error("Admin bearer token is required.");
+    throw new Error("Connection token is required.");
   }
   const status = await probeAgentConnection(config);
   if (status === "unauthorized") {
-    throw new Error(
-      "Admin token rejected (401). Copy the bearer token from your agent startup log (~/.atom/agent-admin-token.txt).",
-    );
+    throw new Error("Connection token was rejected. Check the token and try again.");
   }
   if (status === "unreachable") {
-    throw new Error("Could not reach the agent at that URL. Is pnpm dev:a2a running?");
+    throw new Error("Could not reach your agent at that URL. Check that it is running and try again.");
   }
 }

@@ -10,19 +10,52 @@ const AGENT_TOKEN_KEY = "atom-comms-admin-token";
 
 export const DEFAULT_COMMS_AGENT_URL = "http://127.0.0.1:5204";
 
+/** Default agent URL for forms — empty on managed hosting (no localhost). */
+export function defaultCommsAgentUrl(): string {
+  if (typeof import.meta !== "undefined" && import.meta.env.PROD) return "";
+  return DEFAULT_COMMS_AGENT_URL;
+}
+
+export function isLocalAgentUrl(url: string): boolean {
+  return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?/i.test(url.trim());
+}
+
+/** Drop dev-machine agent config that cannot work from a deployed shell origin. */
+export function purgeStaleLocalAgentConfig(): boolean {
+  if (typeof import.meta === "undefined" || !import.meta.env.PROD) return false;
+  const url = loadStringFromStorage(AGENT_URL_KEY)?.trim();
+  if (!url || !isLocalAgentUrl(url)) return false;
+  clearCommsAgentConfig();
+  return true;
+}
+
 const ENC_PREFIX = "atom-enc:";
 
+let cachedSecureConfig: CommsAgentConfig | null = null;
+
+export function invalidateCommsConfigCache(): void {
+  cachedSecureConfig = null;
+}
+
+export async function refreshCommsConfigCache(): Promise<CommsAgentConfig> {
+  cachedSecureConfig = await loadCommsAgentConfigSecure();
+  return cachedSecureConfig;
+}
+
 export function loadCommsAgentConfig(): CommsAgentConfig {
+  if (cachedSecureConfig?.adminToken?.trim()) {
+    return cachedSecureConfig;
+  }
   const url = loadStringFromStorage(AGENT_URL_KEY)?.trim();
   if (typeof localStorage !== "undefined" && localStorage.getItem(`${ENC_PREFIX}${AGENT_TOKEN_KEY}`)) {
     return {
-      adminUrl: url || DEFAULT_COMMS_AGENT_URL,
+      adminUrl: url || defaultCommsAgentUrl(),
       adminToken: undefined,
     };
   }
   const adminToken = loadStringFromStorage(AGENT_TOKEN_KEY)?.trim();
   return {
-    adminUrl: url || DEFAULT_COMMS_AGENT_URL,
+    adminUrl: url || defaultCommsAgentUrl(),
     adminToken: adminToken || undefined,
   };
 }
@@ -31,7 +64,7 @@ export async function loadCommsAgentConfigSecure(): Promise<CommsAgentConfig> {
   const url = loadStringFromStorage(AGENT_URL_KEY)?.trim();
   const adminToken = (await readProtectedStringAsync(AGENT_TOKEN_KEY))?.trim();
   return {
-    adminUrl: url || DEFAULT_COMMS_AGENT_URL,
+    adminUrl: url || defaultCommsAgentUrl(),
     adminToken: adminToken || undefined,
   };
 }
@@ -48,10 +81,22 @@ export async function saveCommsAgentConfigSecure(config: CommsAgentConfig): Prom
   const token = config.adminToken?.trim();
   if (token) await writeProtectedString(AGENT_TOKEN_KEY, token);
   else clearCommsAdminToken();
+  cachedSecureConfig = {
+    adminUrl: config.adminUrl.trim(),
+    adminToken: token || undefined,
+  };
 }
 
 export function clearCommsAdminToken(): void {
   clearProtectedString(AGENT_TOKEN_KEY);
+  invalidateCommsConfigCache();
+}
+
+export function clearCommsAgentConfig(): void {
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem(AGENT_URL_KEY);
+  }
+  clearCommsAdminToken();
 }
 
 const OWNER_AGENT_KIND_KEY = "atom-owner-agent-kind";

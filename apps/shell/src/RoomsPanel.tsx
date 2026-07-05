@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CommsAgentClient } from "./comms/client.js";
 import { quickJoinCoffeeShop } from "./discoverActions.js";
 import { loadCommsAgentConfig, loadContacts, saveContacts } from "./comms/storage.js";
+import { isAgentAuthError } from "./comms/agentErrors.js";
+import { useAgentConfig } from "./comms/useAgentConfig.js";
 import type { AgentContact } from "./comms/types.js";
 import { loadRoomAttendance, saveRoomAttendance, type RoomAttendanceMode } from "./roomAttendance.js";
 import { formatRoomActivity, moduleBundleUrl } from "./roomUtils.js";
@@ -37,6 +39,10 @@ interface RoomsPanelProps {
   onContactsChange?: (contacts: AgentContact[]) => void;
   onOpenDiscover?: () => void;
   onActivity?: (note: string) => void;
+  vaultUnlocked?: boolean;
+  agentConnectionReady?: boolean;
+  onAgentAuthFailure?: () => void;
+  onRequestReconnect?: () => void;
 }
 
 function shortDid(did: string): string {
@@ -53,12 +59,13 @@ export function RoomsPanel({
   onContactsChange,
   onOpenDiscover,
   onActivity,
+  vaultUnlocked = true,
+  agentConnectionReady = true,
+  onAgentAuthFailure,
+  onRequestReconnect,
 }: RoomsPanelProps) {
-  const config = useMemo(() => loadCommsAgentConfig(), []);
-  const client = useMemo(
-    () => new CommsAgentClient(config.adminUrl, config.adminToken),
-    [config.adminUrl, config.adminToken],
-  );
+  const { client } = useAgentConfig(vaultUnlocked);
+  const connectionActive = agentConnectionReady && vaultUnlocked;
   const [localDid, setLocalDid] = useState<string | null>(null);
   const [hosted, setHosted] = useState<RoomDescriptorWire[]>([]);
   const [joined, setJoined] = useState<
@@ -116,15 +123,21 @@ export function RoomsPanel({
   }, [moduleMembers, selected]);
 
   const refreshRooms = useCallback(async () => {
+    if (!connectionActive) {
+      setStatus(null);
+      return;
+    }
     try {
       const body = await client.listRooms();
       setHosted(body.hosted ?? []);
       setJoined(body.joined ?? []);
       setStatus(null);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
+      const message = error instanceof Error ? error.message : String(error);
+      setStatus(message);
+      if (isAgentAuthError(error)) onAgentAuthFailure?.();
     }
-  }, [client]);
+  }, [client, connectionActive, onAgentAuthFailure]);
 
   const refreshMessages = useCallback(async () => {
     if (!selectedId) return;
@@ -157,8 +170,12 @@ export function RoomsPanel({
   }, [client, selectedId]);
 
   useEffect(() => {
+    if (!connectionActive) {
+      setLocalDid(null);
+      return;
+    }
     void client.health().then((body) => setLocalDid(body.did)).catch(() => setLocalDid(null));
-  }, [client]);
+  }, [client, connectionActive]);
 
   useEffect(() => {
     void refreshRooms();
@@ -362,7 +379,16 @@ export function RoomsPanel({
           </button>
         </div>
       </header>
-      {status ? <p className="comms-status-error">{status}</p> : null}
+      {status ? (
+        <div className="comms-status-error">
+          <p>{status}</p>
+          {onRequestReconnect ? (
+            <button type="button" className="panel-btn" onClick={onRequestReconnect}>
+              Reconnect agent
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <div className="panel-body panel-master-detail comms-main">
         <nav className="panel-list comms-sidebar" aria-label="Rooms">
           <div className="panel-list-head">Your rooms</div>
