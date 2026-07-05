@@ -1,7 +1,9 @@
-/**
- * Best-effort JSON persistence for browser hosts. shell-core stays storage-agnostic;
+/** v1 browser persistence backend. IndexedDB planned for large owner profiles and memory indexes. */
+export type JsonPersistenceBackendKind = "localStorage";
+
+/** Best-effort JSON persistence for browser hosts. shell-core stays storage-agnostic;
  * embedders may pass a custom Storage or skip persistence entirely.
- */
+ * v1 uses localStorage only — silent failure on quota (see 20-v1-production-gaps.md). */
 
 export interface JsonPersistence<T> {
   load(): T | undefined;

@@ -29,6 +29,8 @@ import { RoomStore } from "./roomStore.js";
 import { registerRoomsAdminRoutes, handleInboundRoomWire } from "./roomsAdmin.js";
 import { seedCoffeeShopBrand, seedCoffeeShopKnowledge, seedCoffeeShopRoom } from "./communityCoffeeShop.js";
 import { registerDiscoverAdminRoutes, registerDiscoverPublicRoutes } from "./discoverAdmin.js";
+import { registerContactsAdminRoutes } from "./contactsAdmin.js";
+import { TrustedAgentsStore } from "./trustedAgentsStore.js";
 import { HandleCacheStore } from "./handleCache.js";
 import { connectMlsPeer, reconnectStoredMlsPeers } from "./mlsReconnect.js";
 import { registerActionAdminRoutes } from "./actionAdmin.js";
@@ -40,9 +42,9 @@ import { registerQualifyAdminRoutes } from "./qualifyAdmin.js";
 import { registerChannelAdminRoutes } from "./channelAdmin.js";
 import { registerBusinessAdminRoutes, syncContextPoliciesToKnowledge } from "./businessAdmin.js";
 import { formatBusinessAgentPrompt } from "@qwixl/owner-store";
+import { createBusinessKnowledgeBackend } from "./businessKnowledgeBackend.js";
 import { BusinessCatalogStore } from "./businessCatalogStore.js";
 import { BusinessContextStore } from "./businessContextStore.js";
-import { BusinessKnowledgeStore } from "./businessKnowledgeStore.js";
 import { BusinessVerificationStore } from "./businessVerificationStore.js";
 import { BusinessStore } from "./businessStore.js";
 import type { PaymentRail } from "./payment/types.js";
@@ -93,12 +95,17 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   const rooms = new RoomStore();
   const handleCache = new HandleCacheStore();
   await rooms.load();
+  const trustedAgents = new TrustedAgentsStore();
+  await trustedAgents.load();
 
   const catalogStore = new BusinessCatalogStore();
   await catalogStore.load();
   const businessContextStore = new BusinessContextStore();
   await businessContextStore.load();
-  const businessKnowledgeStore = new BusinessKnowledgeStore();
+  const businessKnowledgeStore = createBusinessKnowledgeBackend({
+    kind: config.businessKnowledgeBackend,
+    remoteUrl: config.businessKnowledgeRemoteUrl,
+  });
   await businessKnowledgeStore.load();
   syncContextPoliciesToKnowledge(businessContextStore, businessKnowledgeStore);
 
@@ -188,6 +195,10 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     identity,
     allowedPurposes: inboxPurposes,
     onReceive: (event) => {
+      if (!trustedAgents.shouldAcceptInbound(event.object.issuerDid)) {
+        console.log(`[contacts] dropped inbound from ${event.object.issuerDid} (block/mute policy)`);
+        return;
+      }
       inbox.push(event);
       void transactionStore.handleInboxObject(event.object).catch((error) => {
         console.warn(
@@ -263,6 +274,10 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       const verified = await verifyDataObject(object, {
         allowedPurposes: mlsPurposes,
       });
+      if (!trustedAgents.shouldAcceptInbound(verified.issuerDid)) {
+        console.log(`[contacts] dropped MLS inbound from ${verified.issuerDid} (block/mute policy)`);
+        return;
+      }
       inbox.push({
         object: verified,
         contextId: event.contextId,
@@ -372,6 +387,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     businessDomain: verification?.businessDomain ?? config.businessDomain,
     handleCache,
   });
+  registerContactsAdminRoutes(adminApp, { trustedAgents });
 
   adminApp.get("/health", (_req, res) => {
     res.json({
@@ -475,6 +491,10 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       }
       if (!body.message?.governance?.purpose || !body.message.semantic?.schema) {
         res.status(400).json({ error: "message (unsigned data object body) required" });
+        return;
+      }
+      if (!trustedAgents.shouldAllowOutbound(body.peerDid?.trim())) {
+        res.status(403).json({ error: "Contact is blocked — unblock to send messages" });
         return;
       }
 

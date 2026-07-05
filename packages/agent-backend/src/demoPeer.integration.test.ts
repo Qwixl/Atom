@@ -42,6 +42,8 @@ function testConfig(
     businessDomain: null,
     demoPeerMode,
     communityHostMode: false,
+    businessKnowledgeBackend: "json",
+    businessKnowledgeRemoteUrl: null,
     interactivePortResolve: false,
   };
 }

@@ -38,6 +38,8 @@ function testConfig(port: number, publicBaseUrl: string): AgentBackendConfig {
     businessDomain: null,
     demoPeerMode: false,
     communityHostMode: false,
+    businessKnowledgeBackend: "json",
+    businessKnowledgeRemoteUrl: null,
     interactivePortResolve: false,
   };
 }

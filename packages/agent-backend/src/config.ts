@@ -12,6 +12,9 @@ export interface AgentBackendConfig {
   demoPeerMode: boolean;
   /** Seed the Qwixl Coffee Shop room on startup (community host agents). */
   communityHostMode: boolean;
+  /** Pluggable business reference index (M12.8). v1 default: json. */
+  businessKnowledgeBackend: import("./businessKnowledgeBackend.js").BusinessKnowledgeBackendKind;
+  businessKnowledgeRemoteUrl: string | null;
   /** Prompt on port conflict when using default PORT (dev CLI). */
   interactivePortResolve: boolean;
 }
@@ -23,6 +26,14 @@ const DEFAULT_SHELL_ORIGINS = [
   "http://127.0.0.1:5203",
   "https://shell-atom.vercel.app",
 ];
+
+function parseBusinessKnowledgeBackend(
+  raw: string | undefined,
+): import("./businessKnowledgeBackend.js").BusinessKnowledgeBackendKind {
+  const value = raw?.trim().toLowerCase();
+  if (value === "json" || value === "sqlite" || value === "remote") return value;
+  return "json";
+}
 
 export function loadAgentBackendConfig(env: NodeJS.ProcessEnv = process.env): AgentBackendConfig {
   const host = env.HOST?.trim() || "127.0.0.1";
@@ -52,6 +63,8 @@ export function loadAgentBackendConfig(env: NodeJS.ProcessEnv = process.env): Ag
       env.ATOM_COMMUNITY_HOST === "true" ||
       env.ATOM_COFFEE_SHOP === "1" ||
       env.ATOM_COFFEE_SHOP === "true",
+    businessKnowledgeBackend: parseBusinessKnowledgeBackend(env.ATOM_BUSINESS_KNOWLEDGE_BACKEND),
+    businessKnowledgeRemoteUrl: env.ATOM_BUSINESS_KNOWLEDGE_REMOTE_URL?.trim() || null,
     interactivePortResolve:
       (env.ATOM_PORT_PROMPT === "1" || env.ATOM_PORT_PROMPT === "true") &&
       !portExplicit &&

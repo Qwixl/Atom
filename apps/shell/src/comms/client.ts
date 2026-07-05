@@ -10,7 +10,7 @@ import {
 import type { BusinessCatalogItemValue } from "@qwixl/owner-store";
 import type { UnsignedDataObject } from "@qwixl/protocol";
 import type { BusinessIndexEntry } from "@qwixl/business-index";
-import type { InboxEntryWire } from "./types.js";
+import type { InboxEntryWire, AgentContact } from "./types.js";
 
 export interface ResolvedDiscoverTarget {
   adminBase: string;
@@ -121,6 +121,8 @@ export class CommsAgentClient {
   async discoverSearch(opts: {
     terms: string;
     kind?: import("@qwixl/business-index").IndexEntryKind;
+    indexBaseUrl?: string;
+    indexes?: Array<{ label: string; url: string }>;
   }): Promise<{
     summary: string;
     results: Array<{
@@ -421,7 +423,7 @@ export class CommsAgentClient {
   }
 
   async listRoomMembers(roomId: string): Promise<{
-    members: Array<{ did: string; name?: string; joinedAt: string }>;
+    members: Array<{ did: string; name?: string; endpoint?: string; joinedAt: string }>;
   }> {
     return getJson(this.base(), `/rooms/${encodeURIComponent(roomId)}/members`, this.adminToken);
   }
@@ -453,6 +455,32 @@ export class CommsAgentClient {
     memberName?: string;
   }): Promise<{ joined: string; descriptor: { roomId: string; name: string; moduleId?: string } | null }> {
     return postJson(this.base(), "/rooms/join-remote", opts, this.adminToken);
+  }
+
+  async leaveRoom(roomId: string): Promise<{ left: string }> {
+    return postJson(this.base(), `/rooms/${encodeURIComponent(roomId)}/leave`, {}, this.adminToken);
+  }
+
+  async syncContacts(
+    contacts: Array<{
+      did: string;
+      endpoint: string;
+      name?: string;
+      handle?: string;
+      kind?: AgentContact["kind"];
+      source?: AgentContact["source"];
+      blocked?: boolean;
+      muted?: boolean;
+      standingDisclosure?: string[];
+    }>,
+  ): Promise<{ synced: number }> {
+    const body = await postJson<{ synced: number }>(
+      this.base(),
+      "/contacts/sync",
+      { contacts },
+      this.adminToken,
+    );
+    return body;
   }
 
   async sendRoomMessage(opts: {

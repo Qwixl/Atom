@@ -3,6 +3,7 @@ import {
   hybridRetrievalScore,
   type TextEmbedder,
 } from "./textEmbedding.js";
+import { PERSONAL_MEMORY_V1_MAX_CHUNKS } from "./v1Scope.js";
 
 /** One indexed excerpt from a past turn or owner correction (M10 RAG). */
 export interface MemoryChunk {
@@ -23,7 +24,7 @@ export interface ConversationMemoryOptions {
   embedder?: TextEmbedder;
 }
 
-const DEFAULT_MAX_CHUNKS = 200;
+const DEFAULT_MAX_CHUNKS = PERSONAL_MEMORY_V1_MAX_CHUNKS;
 const MIN_RETRIEVAL_SCORE = 0.08;
 
 /** Lowercase alphanumeric tokens for lexical overlap retrieval. */

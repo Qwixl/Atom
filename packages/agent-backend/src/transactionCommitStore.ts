@@ -14,6 +14,7 @@ import type { AgentKeyPair, DataObject } from "@qwixl/protocol";
 import { deliverSignedObject } from "./deliverObject.js";
 import type { MlsSessionStore } from "./mlsSessions.js";
 import type { PaymentRail } from "./payment/types.js";
+import { AGENT_STORE_REGISTRY } from "./storeContracts.js";
 
 export type TransactionCommitPhase =
   | "awaiting_payee_confirm"
@@ -68,6 +69,7 @@ function nowIso(): string {
 }
 
 export class TransactionCommitStore {
+  static readonly storeMeta = AGENT_STORE_REGISTRY.transactionCommit;
   private readonly records = new Map<string, TransactionCommitRecord>();
 
   constructor(private readonly deps: TransactionCommitStoreDeps) {}

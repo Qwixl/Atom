@@ -1,7 +1,14 @@
-import type { BusinessIndexEntry, IndexEntryKind } from "@qwixl/business-index";
+import {
+  attachHandlesToEntries,
+  fetchBusinessIndex,
+  filterBusinessIndex,
+  type BusinessIndexEntry,
+  type IndexEntryKind,
+} from "@qwixl/business-index";
 import { CommsAgentClient, type ResolvedDiscoverTarget } from "./comms/client.js";
 import { saveContacts } from "./comms/storage.js";
 import type { AgentContact } from "./comms/types.js";
+import { DEFAULT_DISCOVER_INDEXES } from "./discoverIndexStorage.js";
 
 export interface DiscoverActionEntry extends BusinessIndexEntry {
   resolved: ResolvedDiscoverTarget;
@@ -47,6 +54,20 @@ export async function joinDiscoverRoom(opts: {
     memberName: opts.memberName ?? "Guest",
   });
   return roomId;
+}
+
+export async function quickJoinCoffeeShop(client: CommsAgentClient): Promise<string> {
+  const indexUrl = DEFAULT_DISCOVER_INDEXES.find((row) => row.label === "Community")?.url ?? "/community-index/index.json";
+  const body = await fetchBusinessIndex(indexUrl);
+  const matches = filterBusinessIndex(body, { kind: "community" }).filter(
+    (entry) => (entry.roomIds?.length ?? 0) > 0,
+  );
+  const entry = matches.find((row) => row.displayName.toLowerCase().includes("coffee")) ?? matches[0];
+  if (!entry) {
+    throw new Error("Coffee Shop is not listed in the community index.");
+  }
+  const resolved = await client.resolveDiscoverEntry(entry);
+  return joinDiscoverRoom({ client, entry: { ...entry, resolved } });
 }
 
 export type { IndexEntryKind, ResolvedDiscoverTarget };

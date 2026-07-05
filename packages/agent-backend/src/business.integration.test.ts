@@ -38,6 +38,8 @@ function testConfig(port: number, publicBaseUrl: string, businessMode: boolean):
     businessDomain: businessMode ? "example.com" : null,
     demoPeerMode: false,
     communityHostMode: false,
+    businessKnowledgeBackend: "json",
+    businessKnowledgeRemoteUrl: null,
     interactivePortResolve: false,
   };
 }

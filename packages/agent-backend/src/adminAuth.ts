@@ -41,7 +41,7 @@ export function adminTokenPath(): string {
 const PUBLIC_ADMIN_PATHS = new Set(["/mls/key-package"]);
 
 function isPublicRoomRoute(req: Request): boolean {
-  if (req.method === "POST" && /^\/rooms\/[^/]+\/(join|relay)$/.test(req.path)) return true;
+  if (req.method === "POST" && /^\/rooms\/[^/]+\/(join|relay|leave)$/.test(req.path)) return true;
   if (req.method !== "GET") return false;
   if (/^\/rooms\/[^/]+$/.test(req.path)) return true;
   return /^\/rooms\/[^/]+\/(members|messages|stats)$/.test(req.path);

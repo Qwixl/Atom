@@ -87,12 +87,23 @@ export function registerDiscoverAdminRoutes(app: Express, deps: DiscoverAdminDep
 
   app.post("/discover/search", async (req, res) => {
     try {
-      const body = req.body as { terms?: string; kind?: IndexEntryKind };
+      const body = req.body as {
+        terms?: string;
+        kind?: IndexEntryKind;
+        indexBaseUrl?: string;
+        indexes?: Array<{ label?: string; url?: string }>;
+      };
       const terms = body.terms?.trim() ?? "";
       if (!terms) {
         res.status(400).json({ error: "terms required" });
         return;
       }
+      const indexes =
+        Array.isArray(body.indexes) && body.indexes.length > 0
+          ? body.indexes
+              .filter((row) => typeof row?.label === "string" && typeof row?.url === "string")
+              .map((row) => ({ label: row.label!.trim(), url: row.url!.trim() }))
+          : undefined;
       const { results, summary } = await runDiscoverSearch({
         terms,
         kind: body.kind,
@@ -101,6 +112,8 @@ export function registerDiscoverAdminRoutes(app: Express, deps: DiscoverAdminDep
         rooms: deps.rooms,
         businessDomain: deps.businessDomain,
         handleCache: deps.handleCache ?? new HandleCacheStore(),
+        indexBaseUrl: body.indexBaseUrl?.trim(),
+        indexes,
       });
       res.json({ summary, results });
     } catch (error) {

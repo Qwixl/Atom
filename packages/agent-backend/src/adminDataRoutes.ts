@@ -1,7 +1,12 @@
 import type { Express } from "express";
 import { exportEncryptedBundle, importEncryptedBundle } from "./exportBundle.js";
+import { AGENT_STORE_REGISTRY } from "./storeContracts.js";
 
 export function registerAdminDataRoutes(app: Express): void {
+  app.get("/admin/store-contracts", (_req, res) => {
+    res.json({ stores: AGENT_STORE_REGISTRY });
+  });
+
   app.post("/admin/export", async (req, res) => {
     try {
       const body = req.body as { passphrase?: string };

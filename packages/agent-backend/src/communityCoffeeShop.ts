@@ -1,7 +1,7 @@
 import type { AgentKeyPair } from "@qwixl/protocol";
 import { BUSINESS_BRAND_CATEGORY } from "@qwixl/owner-store";
 import type { BusinessContextStore } from "./businessContextStore.js";
-import type { BusinessKnowledgeStore } from "./businessKnowledgeStore.js";
+import type { BusinessKnowledgeBackend } from "./businessKnowledgeBackend.js";
 import type { MlsSessionStore } from "./mlsSessions.js";
 import type { RoomStore } from "./roomStore.js";
 
@@ -62,7 +62,7 @@ export async function seedCoffeeShopBrand(context: BusinessContextStore): Promis
 
 /** Seed Coffee Shop policies and reference docs for RAG (idempotent). */
 export async function seedCoffeeShopKnowledge(
-  knowledge: BusinessKnowledgeStore,
+  knowledge: BusinessKnowledgeBackend,
 ): Promise<{ seeded: boolean }> {
   if (knowledge.list().length > 0) {
     return { seeded: false };

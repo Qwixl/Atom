@@ -358,8 +358,9 @@ export function ProfilePanel({
       <div className="panel-section shell-profile-business">
         <h3>Policies</h3>
         <p className="panel-section-note">
-          House rules, moderation stance, and operational boundaries. Synced to the agent knowledge
-          base and retrieved at chat time when relevant.
+          House rules and operational boundaries. Synced to the agent knowledge index and retrieved at
+          chat time when relevant. v1 suits short policies — not full compliance libraries (see
+          AGENT-BACKEND.md).
         </p>
         {policyRecords.length > 0 ? (
           <ul className="shell-profile-context-list">
@@ -406,8 +407,9 @@ export function ProfilePanel({
       <div className="panel-section shell-profile-business">
         <h3>Knowledge base</h3>
         <p className="panel-section-note">
-          Policies, terms, FAQs, and product docs. The agent retrieves matching excerpts per turn —
-          not all at once — so large reference material stays accurate.
+          Policies, terms, FAQs, and product docs. The agent retrieves matching excerpts per turn.
+          v1 stores a modest corpus on your agent backend; large document sets will use a scalable
+          backend in a future release.
         </p>
         {knowledgeRecords.length > 0 ? (
           <ul className="shell-profile-context-list">

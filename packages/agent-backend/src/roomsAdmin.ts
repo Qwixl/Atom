@@ -85,6 +85,7 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
         members: room.members.map((m) => ({
           did: m.did,
           name: m.name,
+          endpoint: m.endpoint,
           joinedAt: m.joinedAt,
         })),
       });
@@ -290,6 +291,65 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
       res.json({ joined: roomId, descriptor: descriptor ?? null, alreadyMember: Boolean(joined.alreadyMember) });
     } catch (error) {
       res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  /** Member leaves a room, or host ingests a remote member leave. */
+  app.post("/rooms/:roomId/leave", async (req, res) => {
+    try {
+      const roomId = req.params.roomId;
+      const body = req.body as { memberDid?: string };
+      const room = rooms.getRoom(roomId);
+      if (room && body.memberDid?.trim()) {
+        const memberDid = body.memberDid.trim();
+        if (!rooms.isMember(roomId, memberDid)) {
+          res.json({ left: roomId, alreadyLeft: true });
+          return;
+        }
+        rooms.removeMember(roomId, memberDid);
+        rooms.appendMessage(roomId, {
+          senderDid: memberDid,
+          kind: "activity",
+          activityKind: "leave",
+          payload: { memberDid },
+        });
+        res.json({ left: roomId });
+        return;
+      }
+
+      const memberDid = identity.did;
+      const joined = rooms.getJoinedRoom(roomId);
+      if (joined) {
+        try {
+          await fetch(`${joined.hostUrl.replace(/\/$/, "")}/rooms/${encodeURIComponent(roomId)}/leave`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ memberDid }),
+          });
+        } catch (error) {
+          console.warn(
+            `[rooms] host leave notify failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+        rooms.forgetJoinedRoom(roomId);
+        mlsStore.dropRoomSession(roomId);
+        res.json({ left: roomId });
+        return;
+      }
+      if (room && rooms.isMember(roomId, memberDid)) {
+        rooms.removeMember(roomId, memberDid);
+        mlsStore.dropRoomSession(roomId);
+        res.json({ left: roomId });
+        return;
+      }
+      if (rooms.forgetJoinedRoom(roomId)) {
+        mlsStore.dropRoomSession(roomId);
+        res.json({ left: roomId });
+        return;
+      }
+      res.status(404).json({ error: "You are not in this room" });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
