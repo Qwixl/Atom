@@ -36,7 +36,22 @@ Public entry point for building on the Atom platform (M14). Full API reference l
 
 
 
-## M13 admin API auth
+## Production hosting security (M21)
+
+Control plane env for production (`control.qwixl.dev`):
+
+| Variable | Required | Notes |
+|---|---|---|
+| `ATOM_FLEET_MODE=docker` | yes | Fleet provisioning |
+| `ATOM_FLEET_PUBLIC_URL_TEMPLATE` | yes (prod) | HTTPS only, e.g. `https://{port}.agents.qwixl.dev` |
+| `ATOM_SHELL_ORIGINS` | yes | Include `https://shell-atom.vercel.app` |
+| `ATOM_PROVISION_SECRET` | optional | Locks `/provision` to bearer auth; unset = 404 in production |
+| `NODE_ENV=production` | yes | Fleet URL invariants + signup hardening |
+
+Before registry deploy: `pnpm registry:verify --require-integrity --signatures`. Publisher/Sigstore keys are CI secrets only — see [SECURITY.md](./SECURITY.md) § Registry publisher hygiene.
+
+Shell production guard: `scripts/verify-production-shell.mjs` runs on every `pnpm --filter @qwixl/shell-app build`.
+
 
 
 
