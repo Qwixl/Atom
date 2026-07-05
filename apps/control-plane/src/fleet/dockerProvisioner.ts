@@ -13,7 +13,7 @@ const PORT_MAX = Number(process.env.ATOM_FLEET_PORT_MAX ?? 5399);
 function shellOrigins(): string {
   return (
     process.env.ATOM_SHELL_ORIGINS?.trim() ||
-    "http://localhost:5200,http://127.0.0.1:5200,https://shell-atom.vercel.app"
+    "http://localhost:5200,http://127.0.0.1:5200,https://atom.qwixl.com"
   );
 }
 

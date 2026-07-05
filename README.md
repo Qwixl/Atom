@@ -14,9 +14,9 @@ Two ways to use Atom — pick one and stay in it:
 | Mode | Command | You never need… |
 |---|---|---|
 | **Browser** | `pnpm dev` then open http://localhost:5200 | A second terminal, admin URLs, or tokens |
-| **Terminal** | `pnpm atom agent start` then `pnpm atom status` | The browser (use https://shell-atom.vercel.app when you want UI) |
+| **Terminal** | `pnpm atom agent start` then `pnpm atom status` | The browser (use https://atom.qwixl.com when you want UI) |
 
-Self-host with npm: `npx @qwixl/agent-backend` (terminal) or pair with [shell-atom.vercel.app](https://shell-atom.vercel.app) (browser).
+Self-host with npm: `npx @qwixl/agent-backend` (terminal) or pair with [atom.qwixl.com](https://atom.qwixl.com) (browser).
 
 Try the **personal demo** (LLM + WebCal + scheduling): `pnpm dev:demo` — [PERSONAL-DEMO.md](./PERSONAL-DEMO.md). For MLS with a counterpart agent, see [DEMO-PEER.md](./DEMO-PEER.md).
 
@@ -78,7 +78,7 @@ Build your app with any bundler that resolves the package `development` export c
 | [SECURITY.md](./SECURITY.md) | Threat model for shipped surface |
 | [SECRET-STORE.md](./SECRET-STORE.md) | Credential adapter priority for embedders |
 
-Live hosts: [shell-atom.vercel.app](https://shell-atom.vercel.app) · [atom-registry.vercel.app](https://atom-registry.vercel.app)
+Live hosts: [atom.qwixl.com](https://atom.qwixl.com) · [atom.registry.qwixl.com](https://atom.registry.qwixl.com)
 
 ## Quick start (monorepo)
 
@@ -196,8 +196,8 @@ Atom deploys as **separate Vercel projects** from the [`Qwixl/Atom`](https://git
 
 | Project | Root directory | Production URL |
 |---|---|---|
-| `shell-atom` | `apps/shell` | https://shell-atom.vercel.app |
-| `atom-registry` | `apps/registry-host` | https://atom-registry.vercel.app |
+| `shell-atom` | `apps/shell` | https://atom.qwixl.com |
+| `atom-registry` | `apps/registry-host` | https://atom.registry.qwixl.com |
 
 Both projects connect to `Qwixl/Atom` on GitHub. In each Vercel project's **Settings → General → Root Directory**, set the path above so monorepo builds resolve `workspace:*` deps.
 
@@ -207,13 +207,13 @@ Build settings (also in each app's `vercel.json`):
 
 **atom-registry** — install: `cd ../.. && pnpm install` · build: `cd ../.. && pnpm --filter @qwixl/registry-host build` · output: `dist`
 
-Set the shell's registry URL in Settings to `https://atom-registry.vercel.app` when testing cross-host module loads.
+Set the shell's registry URL in Settings to `https://atom.registry.qwixl.com` when testing cross-host module loads.
 
 Optional GitHub Actions deploy (`.github/workflows/deploy.yml`) requires secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID_SHELL_ATOM`, `VERCEL_PROJECT_ID_ATOM_REGISTRY`.
 
 ## Status
 
-Shell platform v0.1.1 — live at [shell-atom.vercel.app](https://shell-atom.vercel.app) and [atom-registry.vercel.app](https://atom-registry.vercel.app). Packages on npm: [@qwixl/shell-core](https://www.npmjs.com/package/@qwixl/shell-core) and siblings. After clone, `pnpm registry:verify` must pass before publish/deploy.
+Shell platform v0.1.1 — live at [atom.qwixl.com](https://atom.qwixl.com) and [atom.registry.qwixl.com](https://atom.registry.qwixl.com). Packages on npm: [@qwixl/shell-core](https://www.npmjs.com/package/@qwixl/shell-core) and siblings. After clone, `pnpm registry:verify` must pass before publish/deploy.
 
 ## License
 

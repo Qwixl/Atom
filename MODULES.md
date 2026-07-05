@@ -1,6 +1,6 @@
 # Publish a shell module
 
-Modules are **pure renderers**: sandboxed iframe bundles registered in a static index. The public registry host is [atom-registry.vercel.app](https://atom-registry.vercel.app).
+Modules are **pure renderers**: sandboxed iframe bundles registered in a static index. The public registry host is [atom.registry.qwixl.com](https://atom.registry.qwixl.com).
 
 ## Quick start
 

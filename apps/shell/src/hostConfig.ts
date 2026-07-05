@@ -1,7 +1,8 @@
 import type { RegistryTrustPolicy } from "@qwixl/shell-core";
+import { PRODUCTION_REGISTRY_INDEX_URL } from "@qwixl/shell-core";
 import { isLocalHostUrl, resolveInjectedUrl } from "./productionGuard.js";
 
-/** Production Vite build (shell-atom.vercel.app and tagged releases). */
+/** Production Vite build (atom.qwixl.com and tagged releases). */
 export const IS_PRODUCTION_HOST = import.meta.env.PROD;
 
 /** Local Vite dev server — not the same as production deploy. */
@@ -23,10 +24,10 @@ export function browserAgentToken(): string | undefined {
 /** Legacy dev plumbing (hosting stack, manual token paste) — not used in browser mode. */
 export const SHOW_DEV_WORKFLOWS = IS_LOCAL_DEV && !IS_PRODUCTION_HOST && !ATOM_BROWSER_MODE;
 
-/** shell-atom.vercel.app — signup via control plane, no local agent required. */
+/** atom.qwixl.com — signup via control plane, no local agent required. */
 export const MANAGED_HOSTING = IS_PRODUCTION_HOST && !ATOM_BROWSER_MODE;
 
-export const PRODUCTION_REGISTRY_URL = "https://atom-registry.vercel.app/registry/index.json";
+export const PRODUCTION_REGISTRY_URL = PRODUCTION_REGISTRY_INDEX_URL;
 
 export const PRODUCTION_REGISTRY_TRUST: RegistryTrustPolicy = {
   requireIntegrity: true,

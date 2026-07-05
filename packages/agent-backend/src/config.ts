@@ -1,3 +1,5 @@
+import { PRODUCTION_SHELL_ORIGIN } from "@qwixl/shell-core";
+
 export interface AgentBackendConfig {
   port: number;
   host: string;
@@ -24,7 +26,7 @@ const DEFAULT_SHELL_ORIGINS = [
   "http://127.0.0.1:5200",
   "http://localhost:5203",
   "http://127.0.0.1:5203",
-  "https://shell-atom.vercel.app",
+  PRODUCTION_SHELL_ORIGIN,
 ];
 
 function parseBusinessKnowledgeBackend(

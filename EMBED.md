@@ -2,7 +2,7 @@
 
 Goal: import `@qwixl/shell-core` and `@qwixl/renderer-web`, render agent compositions, and wire events back — in under an hour.
 
-Reference: [`apps/embed-demo`](./apps/embed-demo) (~150 lines). Live reference shell: [shell-atom.vercel.app](https://shell-atom.vercel.app).
+Reference: [`apps/embed-demo`](./apps/embed-demo) (~150 lines). Live reference shell: [atom.qwixl.com](https://atom.qwixl.com).
 
 ## 1. Install
 
@@ -100,7 +100,7 @@ Load community modules from a static registry index:
 import { ModuleRegistry } from "@qwixl/shell-core";
 
 const registry = new ModuleRegistry({
-  indexUrl: "https://atom-registry.vercel.app/registry/index.json",
+  indexUrl: "https://atom.registry.qwixl.com/registry/index.json",
   trust: { requireIntegrity: true },
 });
 
@@ -108,7 +108,7 @@ await registry.ensureModules(catalog, composition);
 const surface = resolveComposition(composition, catalog);
 ```
 
-Point `indexUrl` at your own fork; default public host: [atom-registry.vercel.app](https://atom-registry.vercel.app).
+Point `indexUrl` at your own fork; default public host: [atom.registry.qwixl.com](https://atom.registry.qwixl.com).
 
 ## 6. What the host must own
 

@@ -54,7 +54,7 @@ pnpm registry:verify
 
 ## 5. Deploy
 
-Deploy the static registry + bundles (reference: Vercel `atom-registry.vercel.app`). Third-party shells point Settings at your index URL.
+Deploy the static registry + bundles (reference: `atom.registry.qwixl.com`). Third-party shells point Settings at your index URL.
 
 ## Connector track (M14.5b)
 

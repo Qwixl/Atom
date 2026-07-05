@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+import {
+  PRODUCTION_REGISTRY_INDEX_URL,
+  PRODUCTION_REGISTRY_ORIGIN,
+  PRODUCTION_SHELL_ORIGIN,
+} from "./platformUrls.js";
 import { AttestationLog } from "./attestation.js";
 import {
   parseAgentProtocolMessage,
@@ -207,9 +212,9 @@ describe("resolveRegistryUrl", () => {
     expect(
       resolveRegistryUrl(
         "travel/seat-map/manifest.json",
-        "https://atom-registry.vercel.app/registry/index.json",
+        PRODUCTION_REGISTRY_INDEX_URL,
       ),
-    ).toBe("https://atom-registry.vercel.app/registry/travel/seat-map/manifest.json");
+    ).toBe(`${PRODUCTION_REGISTRY_ORIGIN}/registry/travel/seat-map/manifest.json`);
   });
 });
 
@@ -247,12 +252,12 @@ describe("isCrossOriginModuleBundle", () => {
   it("detects cross-host registry bundles", () => {
     expect(
       isCrossOriginModuleBundle(
-        "https://atom-registry.vercel.app/modules/travel-seat-map/index.html",
-        "https://shell-atom.vercel.app",
+        `${PRODUCTION_REGISTRY_ORIGIN}/modules/travel-seat-map/index.html`,
+        PRODUCTION_SHELL_ORIGIN,
       ),
     ).toBe(true);
     expect(
-      isCrossOriginModuleBundle("/modules/foo/index.html", "https://shell-atom.vercel.app"),
+      isCrossOriginModuleBundle("/modules/foo/index.html", PRODUCTION_SHELL_ORIGIN),
     ).toBe(false);
   });
 });

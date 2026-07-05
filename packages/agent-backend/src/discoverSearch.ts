@@ -6,6 +6,7 @@ import {
   type BusinessIndexEntry,
   type IndexEntryKind,
 } from "@qwixl/business-index";
+import { PRODUCTION_SHELL_ORIGIN } from "@qwixl/shell-core";
 import type { AgentKeyPair } from "@qwixl/protocol";
 import type { AgentBackendConfig } from "./config.js";
 import { HandleCacheStore } from "./handleCache.js";
@@ -33,7 +34,7 @@ export interface DiscoverIndexRef {
 }
 
 function discoverIndexBaseUrl(): string {
-  return (process.env.ATOM_DISCOVER_INDEX_BASE ?? "https://shell-atom.vercel.app").replace(/\/$/, "");
+  return (process.env.ATOM_DISCOVER_INDEX_BASE ?? PRODUCTION_SHELL_ORIGIN).replace(/\/$/, "");
 }
 
 function resolveIndexUrl(index: DiscoverIndexRef, base: string): string {

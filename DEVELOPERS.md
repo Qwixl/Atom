@@ -44,7 +44,7 @@ Control plane env for production (`control.qwixl.dev`):
 |---|---|---|
 | `ATOM_FLEET_MODE=docker` | yes | Fleet provisioning |
 | `ATOM_FLEET_PUBLIC_URL_TEMPLATE` | yes (prod) | HTTPS only, e.g. `https://{port}.agents.qwixl.dev` |
-| `ATOM_SHELL_ORIGINS` | yes | Include `https://shell-atom.vercel.app` |
+| `ATOM_SHELL_ORIGINS` | yes | Include `https://atom.qwixl.com` |
 | `ATOM_PROVISION_SECRET` | optional | Locks `/provision` to bearer auth; unset = 404 in production |
 | `NODE_ENV=production` | yes | Fleet URL invariants + signup hardening |
 
