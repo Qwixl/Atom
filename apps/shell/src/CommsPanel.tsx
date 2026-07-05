@@ -8,6 +8,8 @@ import { CommsAgentClient } from "./comms/client.js";
 import { defaultStandupSlots, mergeThread } from "./comms/coordinationThread.js";
 import { persistCommerceReceiptsFromInbox } from "./comms/persistReceipts.js";
 import { DEFAULT_COMMS_AGENT_URL, loadCommsAgentConfig, saveCommsAgentConfig, saveContacts } from "./comms/storage.js";
+import { isAgentAuthError } from "./comms/agentErrors.js";
+import { useAgentConfig } from "./comms/useAgentConfig.js";
 import {
   contactToTrustedAgentPayload,
   findTrustedAgentRecord,
@@ -75,6 +77,10 @@ export function CommsPanel({
   stripePaymentMethodId,
   demoMode = IS_DEMO_MODE,
   demoPersona = "alice",
+  vaultUnlocked = true,
+  agentConnectionReady = true,
+  onAgentAuthFailure,
+  onRequestReconnect,
 }: {
   contacts: AgentContact[];
   ownerRecords: OwnerRecord[];
@@ -89,6 +95,10 @@ export function CommsPanel({
   /** When true, hide developer controls and show the guided demo walkthrough. */
   demoMode?: boolean;
   demoPersona?: DemoPersonaId;
+  vaultUnlocked?: boolean;
+  agentConnectionReady?: boolean;
+  onAgentAuthFailure?: () => void;
+  onRequestReconnect?: () => void;
 }) {
   const [agentUrl, setAgentUrl] = useState(() => loadCommsAgentConfig().adminUrl);
   const [adminToken, setAdminToken] = useState(() => loadCommsAgentConfig().adminToken ?? "");
@@ -133,10 +143,19 @@ export function CommsPanel({
     setAdminToken(persona.adminToken);
   }, [demoMode, demoPersona]);
 
-  const client = useMemo(
-    () => new CommsAgentClient(agentUrl, adminToken || undefined),
-    [adminToken, agentUrl],
-  );
+  const { client: syncedClient } = useAgentConfig(vaultUnlocked);
+  const connectionActive = agentConnectionReady && vaultUnlocked;
+
+  const client = useMemo(() => {
+    if (demoMode) {
+      const persona = DEMO_PERSONAS[demoPersona];
+      return new CommsAgentClient(persona.adminUrl, persona.adminToken);
+    }
+    if (showSetup && !IS_PRODUCTION_HOST) {
+      return new CommsAgentClient(agentUrl, adminToken || undefined);
+    }
+    return syncedClient;
+  }, [adminToken, agentUrl, demoMode, demoPersona, showSetup, syncedClient]);
   const selected = contacts.find((c) => c.id === selectedId) ?? null;
   const ownerCategories = useMemo(() => uniqueOwnerCategories(ownerRecords), [ownerRecords]);
   const visibleContacts = useMemo(() => {
@@ -151,6 +170,10 @@ export function CommsPanel({
   }, [contactSearch, contacts]);
 
   const refreshAgentStatus = useCallback(async () => {
+    if (!connectionActive) {
+      setStatusError(null);
+      return;
+    }
     try {
       const health = await client.health();
       setLocalDid(health.did);
@@ -159,11 +182,14 @@ export function CommsPanel({
     } catch (error) {
       setLocalDid(null);
       setMlsPeers([]);
-      setStatusError(error instanceof Error ? error.message : String(error));
+      const message = error instanceof Error ? error.message : String(error);
+      setStatusError(message);
+      if (isAgentAuthError(error)) onAgentAuthFailure?.();
     }
-  }, [client]);
+  }, [client, connectionActive, onAgentAuthFailure]);
 
   const refreshInbox = useCallback(async () => {
+    if (!connectionActive) return;
     try {
       const entries = await client.inbox();
       setInbox(entries);
@@ -181,7 +207,7 @@ export function CommsPanel({
     } catch {
       // inbox errors surface via status poll when agent is down
     }
-  }, [attestationEntries, client, onProfileChanged, ownerStore]);
+  }, [attestationEntries, client, connectionActive, onProfileChanged, ownerStore]);
 
   useEffect(() => {
     void refreshAgentStatus();
@@ -256,7 +282,7 @@ export function CommsPanel({
       setInvitePreview(null);
       setShowSetup(false);
       setShowAddContact(false);
-      setActionNote(`Connected to ${contact.name}. MLS session established.`);
+      setActionNote(`Connected to ${contact.name}.`);
       await refreshAgentStatus();
       await refreshInbox();
     } catch (error) {
@@ -309,7 +335,7 @@ export function CommsPanel({
         },
       ]);
       setCompose("");
-      setActionNote(sessionReady ? "Encrypted message sent." : "Message sent (plain — no MLS session).");
+      setActionNote("Message sent.");
       await refreshInbox();
     } catch (error) {
       setActionNote(error instanceof Error ? error.message : String(error));
@@ -846,7 +872,20 @@ export function CommsPanel({
               Demo · <strong>{demoPeer.label}</strong>
             </>
           ) : statusError ? (
-            statusError
+            <>
+              {statusError}
+              {IS_PRODUCTION_HOST && onRequestReconnect ? (
+                <button
+                  type="button"
+                  className="panel-btn panel-btn--inline"
+                  onClick={onRequestReconnect}
+                >
+                  Reconnect agent
+                </button>
+              ) : null}
+            </>
+          ) : !connectionActive ? (
+            "Unlock your vault to connect…"
           ) : localDid ? (
             "Connected"
           ) : (
@@ -882,10 +921,10 @@ export function CommsPanel({
           <section className="comms-setup-card">
             <h3>Agent connection</h3>
             <p className="comms-hint">
-              Your shell talks to your personal agent backend. MLS keys never leave the server.
+              Connect to your personal agent to send and receive encrypted messages.
             </p>
             <label className="panel-form-field">
-              <span className="panel-form-label">Admin URL</span>
+              <span className="panel-form-label">Agent URL</span>
               <div className="comms-inline-row">
                 <input
                   className="panel-input"
@@ -899,13 +938,13 @@ export function CommsPanel({
               </div>
             </label>
             <label className="panel-form-field">
-              <span className="panel-form-label">Admin bearer token</span>
+              <span className="panel-form-label">Connection token</span>
               <input
                 className="panel-input"
                 type="password"
                 value={adminToken}
                 onChange={(e) => setAdminToken(e.target.value)}
-                placeholder="From agent startup log or ~/.atom/agent-admin-token.txt"
+                placeholder="Paste your connection token"
                 autoComplete="off"
               />
             </label>
@@ -1149,7 +1188,7 @@ export function CommsPanel({
                   <details className="comms-advanced-block" open>
                     <summary>Send coordination objects</summary>
                     <p className="comms-hint">
-                      Scheduling and RSVP payloads require an MLS session for encrypted delivery.
+                      Scheduling and RSVPs need a secure connection with this contact first.
                     </p>
                     <div className="comms-inline-actions">
                       <button type="button" className="panel-btn" disabled={busy} onClick={() => void sendStandupProposal()}>

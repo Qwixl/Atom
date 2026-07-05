@@ -22,6 +22,9 @@ export function browserAgentToken(): string | undefined {
 /** Legacy dev plumbing (hosting stack, manual token paste) — not used in browser mode. */
 export const SHOW_DEV_WORKFLOWS = IS_LOCAL_DEV && !IS_PRODUCTION_HOST && !ATOM_BROWSER_MODE;
 
+/** shell-atom.vercel.app — signup via control plane, no local agent required. */
+export const MANAGED_HOSTING = IS_PRODUCTION_HOST && !ATOM_BROWSER_MODE;
+
 export const PRODUCTION_REGISTRY_URL = "https://atom-registry.vercel.app/registry/index.json";
 
 export const PRODUCTION_REGISTRY_TRUST: RegistryTrustPolicy = {

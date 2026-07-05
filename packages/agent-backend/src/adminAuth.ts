@@ -62,6 +62,6 @@ export function requireAdminAuth(expectedToken: string) {
       next();
       return;
     }
-    res.status(401).json({ error: "Unauthorized — set Authorization: Bearer <admin token>" });
+    res.status(401).json({ error: "Unauthorized" });
   };
 }

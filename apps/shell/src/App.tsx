@@ -63,7 +63,7 @@ import { extractDiscoverTerms, isDiscoverQuery } from "./discoverQuery.js";
 import { loadDiscoverIndexes } from "./discoverIndexStorage.js";
 import { RoomsPanel } from "./RoomsPanel.js";
 import { FirstRunWizard } from "./FirstRunWizard.js";
-import { loadFirstRunDone, markFirstRunDone } from "./firstRunStorage.js";
+import { loadFirstRunDone, markFirstRunDone, resetFirstRunDone } from "./firstRunStorage.js";
 import { DemoBootstrap } from "./DemoBootstrap.js";
 import { PersonalDemoWalkthrough } from "./PersonalDemoWalkthrough.js";
 import { buildGoogleCalendarAddUrl } from "./calendarAddLink.js";
@@ -86,7 +86,7 @@ import {
   saveOwnerProposals,
   saveOwnerRecords,
 } from "./custody/client.js";
-import { loadCommsAgentConfig, loadCommsAgentConfigSecure, saveCommsAgentConfigSecure, clearCommsAdminToken, loadOwnerAgentKind } from "./comms/storage.js";
+import { loadCommsAgentConfig, loadCommsAgentConfigSecure, saveCommsAgentConfigSecure, clearCommsAdminToken, clearCommsAgentConfig, loadOwnerAgentKind, refreshCommsConfigCache, purgeStaleLocalAgentConfig, isLocalAgentUrl } from "./comms/storage.js";
 import { probeAgentConnection, reconcileAgentConnection } from "./comms/agentConnection.js";
 import { loadBrowserAgentConfig } from "./browserAgentConfig.js";
 import { isVaultInitialized, isVaultUnlocked } from "./custody/dataVault.js";
@@ -98,6 +98,7 @@ import {
   ALLOW_BROWSER_LLM,
   ATOM_BROWSER_MODE,
   IS_PRODUCTION_HOST,
+  MANAGED_HOSTING,
   PRODUCTION_REGISTRY_TRUST,
   PRODUCTION_REGISTRY_URL,
   SHOW_DEV_WORKFLOWS,
@@ -133,6 +134,7 @@ const REVOCATION_REFRESH_MS = 5 * 60 * 1000;
 function loadAgUiConfig(): AgUiAgentConfig {
   const parsed = loadJsonFromStorage<{ url?: string }>(AGUI_CONFIG_KEY);
   if (parsed?.url?.trim()) return { url: parsed.url.trim() };
+  if (IS_PRODUCTION_HOST) return { url: "" };
   return { url: DEFAULT_AGUI_URL };
 }
 
@@ -255,6 +257,9 @@ export function App() {
 
   useEffect(() => {
     if (IS_PRODUCTION_HOST) purgeInsecureLocalCredentials(LLM_CONNECTION_STORAGE_KEY);
+    if (MANAGED_HOSTING && purgeStaleLocalAgentConfig()) {
+      resetFirstRunDone();
+    }
   }, []);
 
   useEffect(() => {
@@ -273,6 +278,7 @@ export function App() {
       };
 
       if ((await reconcileAgentConnection()) === "ok") {
+        await refreshCommsConfigCache();
         finishConnected();
         setAgentBootstrapPending(false);
         return;
@@ -283,6 +289,7 @@ export function App() {
         if (browserConfig) {
           await saveCommsAgentConfigSecure(browserConfig);
           if ((await probeAgentConnection(browserConfig)) === "ok") {
+            await refreshCommsConfigCache();
             finishConnected();
             setAgentBootstrapPending(false);
             return;
@@ -295,9 +302,19 @@ export function App() {
 
       const stored = await loadCommsAgentConfigSecure();
 
+      if (MANAGED_HOSTING && stored.adminUrl && isLocalAgentUrl(stored.adminUrl)) {
+        clearCommsAgentConfig();
+        resetFirstRunDone();
+        setAgentConnectionReady(false);
+        setFirstRunOpen(true);
+        setAgentBootstrapPending(false);
+        return;
+      }
+
       if (stored.adminToken?.trim()) {
         const status = await probeAgentConnection(stored);
         if (status === "ok") {
+          await refreshCommsConfigCache();
           finishConnected();
           setAgentBootstrapPending(false);
           return;
@@ -313,11 +330,26 @@ export function App() {
         return;
       }
 
-      // Production: first-time hosted signup only when nothing is connected yet.
+      // Production: hosted signup when nothing is connected yet.
       setAgentConnectionReady(false);
-      setFirstRunOpen(!loadFirstRunDone());
+      setFirstRunOpen(true);
       setAgentBootstrapPending(false);
     })();
+  }, []);
+
+  useEffect(() => {
+    if (!vaultUnlocked) return;
+    void refreshCommsConfigCache();
+  }, [vaultUnlocked]);
+
+  const handleAgentAuthFailure = useCallback(() => {
+    clearCommsAdminToken();
+    if (MANAGED_HOSTING) {
+      clearCommsAgentConfig();
+      resetFirstRunDone();
+    }
+    setAgentConnectionReady(false);
+    setFirstRunOpen(true);
   }, []);
 
   useEffect(() => {
@@ -398,12 +430,13 @@ export function App() {
     if (!agentConnectionReady) {
       if (ATOM_BROWSER_MODE) return "Starting your agent…";
       return SHOW_DEV_WORKFLOWS
-        ? "Agent not connected — open Messages → Setup"
-        : "Connecting to your agent…";
+        ? "Connect your agent in Messages → Setup"
+        : "Create your account to get started";
     }
+    if (!vaultUnlocked) return "Unlock your vault to finish connecting";
     const kind = loadOwnerAgentKind(loadCommsAgentConfig());
     return kind === "hosted" ? "Hosted agent connected" : "Your agent is connected";
-  }, [agentBootstrapPending, agentConnectionReady, ATOM_BROWSER_MODE, SHOW_DEV_WORKFLOWS]);
+  }, [agentBootstrapPending, agentConnectionReady, vaultUnlocked, ATOM_BROWSER_MODE, SHOW_DEV_WORKFLOWS]);
 
   const chatProviderSummary = useMemo(() => {
     if (provider === "mock") return "mock chat";
@@ -1199,6 +1232,14 @@ export function App() {
             ownerRecords={profileRecords}
             ownerStore={ownerStore}
             focusContactId={commsFocusId}
+            vaultUnlocked={vaultUnlocked}
+            agentConnectionReady={agentConnectionReady}
+            onAgentAuthFailure={handleAgentAuthFailure}
+            onRequestReconnect={() => {
+              resetFirstRunDone();
+              clearCommsAgentConfig();
+              setFirstRunOpen(true);
+            }}
             onContactsChanged={() => {
               setCommsFocusId(null);
               setCommsContacts(loadContacts(ownerStore.list()));
@@ -1217,6 +1258,14 @@ export function App() {
           <div className="shell-panel-view shell-panel-view--inset">
           <DiscoverPanel
             contacts={commsContacts}
+            vaultUnlocked={vaultUnlocked}
+            agentConnectionReady={agentConnectionReady}
+            onAgentAuthFailure={handleAgentAuthFailure}
+            onRequestReconnect={() => {
+              resetFirstRunDone();
+              clearCommsAgentConfig();
+              setFirstRunOpen(true);
+            }}
             onContactsChange={setCommsContacts}
             onJoinedRoom={(roomId) => {
               setRoomsFocusId(roomId);
@@ -1235,6 +1284,14 @@ export function App() {
           <RoomsPanel
             initialRoomId={roomsFocusId}
             contacts={commsContacts}
+            vaultUnlocked={vaultUnlocked}
+            agentConnectionReady={agentConnectionReady}
+            onAgentAuthFailure={handleAgentAuthFailure}
+            onRequestReconnect={() => {
+              resetFirstRunDone();
+              clearCommsAgentConfig();
+              setFirstRunOpen(true);
+            }}
             onContactsChange={setCommsContacts}
             onOpenDiscover={() => setPanel("discover")}
             onActivity={() => {
@@ -1342,15 +1399,21 @@ export function App() {
       ) : null}
 
       {!IS_DEMO_MODE && !firstRunOpen && agentConnectionReady && !vaultUnlocked ? (
-        <VaultUnlockGate onUnlocked={() => setVaultUnlocked(true)} />
+        <VaultUnlockGate
+          onUnlocked={() => {
+            void refreshCommsConfigCache().then(() => setVaultUnlocked(true));
+          }}
+        />
       ) : null}
 
       {!IS_DEMO_MODE && firstRunOpen && !ATOM_BROWSER_MODE && !SHOW_DEV_WORKFLOWS ? (
         <FirstRunWizard
           onDone={() => {
-            setFirstRunOpen(false);
-            setAgentConnectionReady(true);
-            if (!isVaultInitialized()) setVaultUnlocked(true);
+            void refreshCommsConfigCache().then(() => {
+              setFirstRunOpen(false);
+              setAgentConnectionReady(true);
+              if (!isVaultInitialized()) setVaultUnlocked(true);
+            });
           }}
           onOpenComms={() => {
             setPanel("comms");
@@ -1372,6 +1435,7 @@ export function App() {
           curatorInitial={curatorEnabled}
           curatorAutoAcceptInitial={curatorAutoAcceptOpen}
           productionLocked={IS_PRODUCTION_HOST}
+          vaultUnlocked={vaultUnlocked}
           intent={settingsIntent}
           onClose={closeSettings}
           onSaveLlm={(connection, apiKey) => {
@@ -1449,6 +1513,7 @@ function SettingsDialog({
   curatorInitial,
   curatorAutoAcceptInitial,
   productionLocked,
+  vaultUnlocked,
   intent,
   onClose,
   onSaveLlm,
@@ -1468,6 +1533,7 @@ function SettingsDialog({
   curatorInitial: boolean;
   curatorAutoAcceptInitial: boolean;
   productionLocked: boolean;
+  vaultUnlocked: boolean;
   intent: Provider | null;
   onClose: () => void;
   onSaveLlm: (connection: LlmConnectionConfig, apiKey?: string) => void;
@@ -1555,14 +1621,15 @@ function SettingsDialog({
           </p>
         ) : null}
         <section className="settings-section settings-section-first">
-          <h3>Live LLM</h3>
+          <h3>Chat agent</h3>
           {productionLocked ? (
             <p className="settings-note">
-              Browser-direct API keys are disabled on this deployment. Use <strong>AG-UI</strong> with
-              a server-side agent so credentials never enter the browser.
+              On this site, chat runs through a server-side agent — your API keys never enter the
+              browser. Set the agent URL below, or use the Composer tab for scripted demos.
             </p>
           ) : (
             <>
+          <h3>Live LLM</h3>
           <p className="settings-note">
             OpenAI-compatible chat endpoint. Keys are stored in memory for this session only (local
             dev). For production embedders, use AG-UI or inject a host SecretStore.
@@ -1619,9 +1686,11 @@ function SettingsDialog({
           ) : null}
             </>
           )}
+          {!productionLocked ? (
+            <>
           <label className="atom-field atom-field-checkbox">
             <input type="checkbox" checked={curatorOn} onChange={(e) => setCuratorOn(e.target.checked)} />
-            <span>Curator pass after each turn (extracts profile records from conversation)</span>
+            <span>Remember preferences from chat (curator)</span>
           </label>
           <label className="atom-field atom-field-checkbox">
             <input
@@ -1630,19 +1699,40 @@ function SettingsDialog({
               disabled={!curatorOn}
               onChange={(e) => setCuratorAutoAcceptOn(e.target.checked)}
             />
-            <span>
-              Auto-save open (non-guarded) curator records so preferences apply on your next turn
-            </span>
+            <span>Apply remembered preferences automatically on your next turn</span>
           </label>
+            </>
+          ) : null}
+          {productionLocked ? (
+            <>
+              <label className="atom-field">
+                <span className="atom-field-label">Chat agent URL</span>
+                <input
+                  value={agUiUrl}
+                  onChange={(e) => setAgUiUrl(e.target.value)}
+                  placeholder="https://your-agent.example.com/agent"
+                />
+              </label>
+              <div className="chrome-actions settings-section-actions">
+                <button
+                  className="chrome-approve"
+                  disabled={!agUiValid}
+                  onClick={() => onSaveAgUi({ url: agUiUrl.trim() })}
+                >
+                  Save chat agent
+                </button>
+              </div>
+            </>
+          ) : null}
         </section>
         <CustodySecurityPanel />
-        <WebCalSettingsPanel />
+        <WebCalSettingsPanel vaultUnlocked={vaultUnlocked} />
+        {!productionLocked ? (
         <section className="settings-section">
-          <h3>Stripe wallet (M11)</h3>
+          <h3>Payments</h3>
           <p className="settings-note">
-            Payment rail credentials for commerce holds. Secret key stays in SecretStore (D017
-            phase 4); publishable key is safe for Stripe.js in the browser. Set the same secret
-            key and product id on your agent-backend deployment.
+            Optional Stripe keys for paid modules and commerce holds. Keys stay on your agent, not
+            in the browser.
           </p>
           {hasSavedStripeSecret ? (
             <div className="settings-saved-key">
@@ -1697,11 +1787,12 @@ function SettingsDialog({
             </button>
           </div>
         </section>
+        ) : null}
+        {!productionLocked ? (
         <section className="settings-section">
           <h3>AG-UI backend</h3>
           <p className="settings-note">
-            POST endpoint that accepts RunAgentInput and streams AG-UI events (SSE). Reference
-            server: <code>pnpm dev:ag-ui</code>
+            URL of a server-side chat agent (local dev default: {DEFAULT_AGUI_URL}).
           </p>
           <label className="atom-field">
             <span className="atom-field-label">Agent URL</span>
@@ -1717,31 +1808,21 @@ function SettingsDialog({
             </button>
           </div>
         </section>
+        ) : null}
         <section className="settings-section">
           <h3>Appearance</h3>
+          {!productionLocked ? (
           <p className="settings-note">
-            Shell skins swap design tokens on the <code>atom-*</code> class contract. Action chrome
-            is unchanged (D041).
+            Choose a color theme for the shell.
           </p>
+          ) : null}
           <SkinPicker />
         </section>
+        {!productionLocked ? (
         <section className="settings-section">
           <h3>Module registry</h3>
-          {productionLocked ? (
-            <>
-              <p className="settings-note">
-                Registry URL and trust policy are pinned on this deployment.
-              </p>
-              <p className="settings-note">
-                <code>{PRODUCTION_REGISTRY_URL}</code> — integrity required.
-              </p>
-            </>
-          ) : (
-            <>
           <p className="settings-note">
-            Static index URL (Homebrew-tap style). Modules lazy-load on first composition
-            reference. Manifest and bundle sha256 verified at install; optional Sigstore bundle
-            digest match when signatureUrl is present.
+            URL of the module catalog your shell loads modules from.
           </p>
           <label className="atom-field">
             <span className="atom-field-label">Index URL</span>
@@ -1761,9 +1842,8 @@ function SettingsDialog({
               checked={requireSignature}
               onChange={(e) => setRequireSignature(e.target.checked)}
             />
-            <span>Require Sigstore signatureUrl on manifests (digest match at install)</span>
+            <span>Require signed manifests</span>
           </label>
-          {!productionLocked ? (
           <div className="chrome-actions settings-section-actions">
             <button
               className="chrome-approve"
@@ -1775,9 +1855,6 @@ function SettingsDialog({
               Save registry settings
             </button>
           </div>
-          ) : null}
-            </>
-          )}
           {revokedModules.length > 0 ? (
             <div className="settings-revocations">
               <span className="atom-field-label">Revoked modules ({revokedModules.length})</span>
@@ -1790,18 +1867,21 @@ function SettingsDialog({
                 ))}
               </ul>
             </div>
-          ) : !productionLocked ? (
+          ) : (
             <p className="settings-note">No revoked modules in the current index revocations list.</p>
-          ) : null}
+          )}
           <div className="settings-registry-store">
             <span className="atom-field-label">Module store catalog</span>
-            <p className="settings-note">
-              Paid listings show price and external purchase URL. During beta, paid modules still
-              install free (D028).
-            </p>
             <RegistryCatalogList indexUrl={registryIndexUrl.trim() || registryInitial} />
           </div>
         </section>
+        ) : (
+        <section className="settings-section">
+          <h3>Modules</h3>
+          <p className="settings-note">Browse modules from the trusted catalog for this site.</p>
+          <RegistryCatalogList indexUrl={PRODUCTION_REGISTRY_URL} />
+        </section>
+        )}
         </div>
         <div className="settings-dialog-footer">
           {intent === "llm" && !productionLocked ? (

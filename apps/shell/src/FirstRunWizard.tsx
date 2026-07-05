@@ -6,6 +6,8 @@ import {
 
   DEFAULT_COMMS_AGENT_URL,
 
+  defaultCommsAgentUrl,
+
   loadCommsAgentConfig,
 
   loadContacts,
@@ -30,7 +32,7 @@ import { IS_DEMO_MODE } from "./demoPersonas.js";
 
 
 import { markFirstRunDone } from "./firstRunStorage.js";
-import { CONTROL_PLANE_URL, SHOW_DEV_WORKFLOWS } from "./hostConfig.js";
+import { CONTROL_PLANE_URL, MANAGED_HOSTING, SHOW_DEV_WORKFLOWS } from "./hostConfig.js";
 import { probeLocalDevAgentBase } from "./devAgentProbe.js";
 import {
   bareOwnerHandle,
@@ -122,7 +124,7 @@ function validateAdminToken(token: string): string | null {
 
   if (trimmed.startsWith("did:key:")) {
 
-    return "That is an agent DID, not the admin bearer token.";
+    return "That looks like an ID, not a connection token.";
 
   }
 
@@ -214,17 +216,21 @@ async function checkPersonalAgent(url: string, token: string): Promise<boolean> 
 
 
 
-async function checkControlPlane(): Promise<boolean> {
+async function checkControlPlane(): Promise<{ ok: boolean; fleetMode?: string }> {
 
   try {
 
     const resp = await fetch(`${CONTROL_PLANE_URL.replace(/\/$/, "")}/health`);
 
-    return resp.ok;
+    if (!resp.ok) return { ok: false };
+
+    const body = (await resp.json()) as { fleetMode?: string };
+
+    return { ok: true, fleetMode: body.fleetMode };
 
   } catch {
 
-    return false;
+    return { ok: false };
 
   }
 
@@ -248,7 +254,9 @@ export function FirstRunWizard({
 
   const existing = loadCommsAgentConfig();
 
-  const [mode, setMode] = useState<SetupMode>(IS_DEMO_MODE ? "demo-peer" : "choose");
+  const [mode, setMode] = useState<SetupMode>(
+    IS_DEMO_MODE ? "demo-peer" : MANAGED_HOSTING ? "hosted" : "choose",
+  );
 
   const [email, setEmail] = useState("");
 
@@ -256,7 +264,7 @@ export function FirstRunWizard({
 
   const [handleStatus, setHandleStatus] = useState<string | null>(null);
 
-  const [adminUrl, setAdminUrl] = useState(existing.adminUrl || DEFAULT_COMMS_AGENT_URL);
+  const [adminUrl, setAdminUrl] = useState(existing.adminUrl || defaultCommsAgentUrl());
 
   const [adminToken, setAdminToken] = useState(existing.adminToken ?? "");
 
@@ -273,6 +281,8 @@ export function FirstRunWizard({
   const [controlPlaneStatus, setControlPlaneStatus] = useState<ServiceStatus>("checking");
 
   const [hostedAgentStatus, setHostedAgentStatus] = useState<ServiceStatus>("checking");
+
+  const [controlPlaneFleetMode, setControlPlaneFleetMode] = useState<string | null>(null);
 
   const [localDevAgentUrl, setLocalDevAgentUrl] = useState<string | null>(null);
 
@@ -351,6 +361,7 @@ export function FirstRunWizard({
 
 
   useEffect(() => {
+    if (MANAGED_HOSTING) return;
     void probeLocalDevAgentBase().then((url) => {
       if (url) {
         setLocalDevAgentUrl(url);
@@ -371,11 +382,17 @@ export function FirstRunWizard({
 
     async function poll() {
 
-      const planeOk = await checkControlPlane();
+      const plane = await checkControlPlane();
 
-      if (!cancelled) setControlPlaneStatus(planeOk ? "ready" : "missing");
+      if (!cancelled) {
+        setControlPlaneStatus(plane.ok ? "ready" : "missing");
+        setControlPlaneFleetMode(plane.fleetMode ?? null);
+      }
 
-
+      if (MANAGED_HOSTING) {
+        if (!cancelled) setHostedAgentStatus("ready");
+        return;
+      }
 
       const agentOk = await checkPersonalAgent(HOSTED_STUB_AGENT_URL, HOSTED_STUB_AGENT_TOKEN);
 
@@ -536,7 +553,7 @@ export function FirstRunWizard({
 
       if (!personalAdmin || !token) {
 
-        throw new Error("Personal agent URL and admin token are required.");
+        throw new Error("Agent URL and connection token are required.");
 
       }
 
@@ -691,7 +708,7 @@ export function FirstRunWizard({
         setStatus(
           SHOW_DEV_WORKFLOWS
             ? `Cannot reach the control plane at ${CONTROL_PLANE_URL}. Run pnpm dev:hosting in the repo and leave that terminal open.`
-            : `Cannot reach the control plane at ${CONTROL_PLANE_URL}. Try again later or connect a self-hosted agent instead.`,
+            : `Cannot reach signup right now. Try again in a few minutes.`,
         );
       } else {
 
@@ -731,7 +748,9 @@ export function FirstRunWizard({
 
 
 
-  const hostedStackReady = controlPlaneStatus === "ready" && hostedAgentStatus === "ready";
+  const hostedStackReady = MANAGED_HOSTING
+    ? controlPlaneStatus === "ready"
+    : controlPlaneStatus === "ready" && hostedAgentStatus === "ready";
   const hostedHandleReady =
     !ownerHandle.trim() || Boolean(handleStatus?.includes("is available"));
 
@@ -751,7 +770,9 @@ export function FirstRunWizard({
               : mode === "self-host"
                 ? "Connect your agent"
                 : mode === "hosted"
-                  ? "Hosted signup (dev)"
+                  ? MANAGED_HOSTING
+                    ? "Create your account"
+                    : "Hosted signup (dev)"
                   : "Connect your agent"}
           </h2>
 
@@ -763,24 +784,35 @@ export function FirstRunWizard({
 
             <>
 
+              {MANAGED_HOSTING ? (
+                <>
+                  <p className="settings-note">
+                    Atom runs in your browser. Enter your email and we provision a personal agent on
+                    Qwixl infrastructure — nothing to install on your computer.
+                  </p>
+                  <div className="first-run-actions">
+                    <button type="button" className="chrome-approve" onClick={() => setMode("hosted")}>
+                      Create account
+                    </button>
+                    <button type="button" className="chrome-decline" onClick={() => setMode("demo-peer")}>
+                      Try demo first
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
               <p className="settings-note">
-
-                You have <strong>one owner agent</strong> — the backend that holds your keys, contacts,
-
-                and rooms. Coffee Shop and businesses are places you visit through that agent, not
-
-                separate agents you create here.
-
+                Link Atom to your personal agent so you can message people, join rooms, and keep your
+                profile in sync.
               </p>
 
               {localDevAgentUrl ? (
                 <p className="settings-note first-run-status-ready">
-                  Detected your agent running at <code>{localDevAgentUrl}</code>. Connect with your admin
-                  token from <code>~/.atom/agent-admin-token.txt</code>.
+                  We found an agent on this device. Connect below and enter your connection token.
                 </p>
               ) : (
                 <p className="settings-note">
-                  Start your agent with <code>pnpm dev:a2a</code>, then connect below.
+                  Try the demo to explore, or connect with the URL and token from your agent setup.
                 </p>
               )}
 
@@ -794,7 +826,7 @@ export function FirstRunWizard({
                     setMode("self-host");
                   }}
                 >
-                  {localDevAgentUrl ? "Connect to running agent" : "Connect self-hosted agent"}
+                  {localDevAgentUrl ? "Connect" : "Connect my agent"}
                 </button>
 
                 <button type="button" className="chrome-approve" onClick={() => setMode("demo-peer")}>
@@ -818,6 +850,8 @@ export function FirstRunWizard({
                 </button>
 
               </div>
+                </>
+              )}
 
             </>
 
@@ -1062,8 +1096,7 @@ export function FirstRunWizard({
                   </ul>
                   {localDevAgentUrl && hostedAgentStatus !== "ready" ? (
                     <p className="settings-note">
-                      You already have a local agent at <code>{localDevAgentUrl}</code> from{" "}
-                      <code>pnpm dev:a2a</code>. For that setup, choose{" "}
+                      You already have a local agent.{" "}
                       <button
                         type="button"
                         className="panel-btn-ghost"
@@ -1072,19 +1105,23 @@ export function FirstRunWizard({
                           setMode("self-host");
                         }}
                       >
-                        Connect self-hosted agent
+                        Connect it here
                       </button>{" "}
-                      and paste your admin token from{" "}
-                      <code>~/.atom/agent-admin-token.txt</code>.
+                      with your connection token.
                     </p>
                   ) : null}
                 </>
               ) : (
                 <p className="settings-note">
-                  Enter your email to provision a hosted agent. You will receive connection details
-                  immediately after signup.
+                  Enter your email to create your hosted agent. Connection is set up automatically —
+                  no URLs or tokens to copy.
                 </p>
               )}
+              {MANAGED_HOSTING && controlPlaneFleetMode === "unconfigured" ? (
+                <p className="settings-note comms-status-error">
+                  Hosted signup is not available on the control plane yet. Please try again later.
+                </p>
+              ) : null}
 
               <label className="atom-field">
 
@@ -1118,13 +1155,19 @@ export function FirstRunWizard({
 
                   className="chrome-approve"
 
-                  disabled={busy || !email.includes("@") || !hostedStackReady || !hostedHandleReady}
+                  disabled={
+                    busy ||
+                    !email.includes("@") ||
+                    !hostedStackReady ||
+                    !hostedHandleReady ||
+                    (MANAGED_HOSTING && controlPlaneFleetMode === "unconfigured")
+                  }
 
                   onClick={() => void submitHosted()}
 
                 >
 
-                  {busy ? "Provisioning…" : "Sign up (beta)"}
+                  {busy ? "Creating account…" : MANAGED_HOSTING ? "Create account" : "Sign up (beta)"}
 
                 </button>
 
@@ -1142,16 +1185,12 @@ export function FirstRunWizard({
 
 
 
-          {mode === "self-host" ? (
+          {mode === "self-host" && !MANAGED_HOSTING ? (
 
             <>
 
               <p className="settings-note">
-
-                Run <code>npx @qwixl/agent-backend</code> locally or on your server. Paste the admin
-
-                URL and bearer token from startup.
-
+                Enter the URL and connection token from your agent setup.
               </p>
 
               <label className="atom-field">
@@ -1170,7 +1209,7 @@ export function FirstRunWizard({
 
               <label className="atom-field">
 
-                <span className="atom-field-label">Admin URL</span>
+                <span className="atom-field-label">Agent URL</span>
 
                 <input value={adminUrl} onChange={(e) => setAdminUrl(e.target.value)} />
 
@@ -1178,7 +1217,7 @@ export function FirstRunWizard({
 
               <label className="atom-field">
 
-                <span className="atom-field-label">Admin bearer token</span>
+                <span className="atom-field-label">Connection token</span>
 
                 <input
 

@@ -106,6 +106,6 @@ describe("runDiscoverSearch", () => {
     });
 
     expect(results).toHaveLength(0);
-    expect(summary).toContain("Nothing online matched");
+    expect(summary).toContain("couldn't find anything");
   });
 });

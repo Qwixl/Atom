@@ -11,7 +11,8 @@ import {
 
 import { CommsAgentClient, type ResolvedDiscoverTarget } from "./comms/client.js";
 import { connectDiscoverEntry, joinDiscoverRoom, entryTitle } from "./discoverActions.js";
-import { loadCommsAgentConfig } from "./comms/storage.js";
+import { isAgentAuthError } from "./comms/agentErrors.js";
+import { useAgentConfig } from "./comms/useAgentConfig.js";
 import type { AgentContact } from "./comms/types.js";
 import {
   DEFAULT_DISCOVER_INDEXES,
@@ -25,6 +26,10 @@ interface DiscoverPanelProps {
   onJoinedRoom?: (roomId: string) => void;
   onDmStarted?: (contactId: string) => void;
   onActivity?: (note: string) => void;
+  vaultUnlocked?: boolean;
+  agentConnectionReady?: boolean;
+  onAgentAuthFailure?: () => void;
+  onRequestReconnect?: () => void;
 }
 
 interface DiscoverResult extends BusinessIndexEntry {
@@ -54,12 +59,13 @@ export function DiscoverPanel({
   onJoinedRoom,
   onDmStarted,
   onActivity,
+  vaultUnlocked = true,
+  agentConnectionReady = true,
+  onAgentAuthFailure,
+  onRequestReconnect,
 }: DiscoverPanelProps) {
-  const config = useMemo(() => loadCommsAgentConfig(), []);
-  const client = useMemo(
-    () => new CommsAgentClient(config.adminUrl, config.adminToken),
-    [config.adminUrl, config.adminToken],
-  );
+  const { client } = useAgentConfig(vaultUnlocked);
+  const connectionActive = agentConnectionReady && vaultUnlocked;
   const indexConfigs = useMemo(() => loadDiscoverIndexes(), []);
 
   const [terms, setTerms] = useState("");
@@ -69,6 +75,11 @@ export function DiscoverPanel({
   const [status, setStatus] = useState<string | null>(null);
 
   const loadResults = useCallback(async () => {
+    if (!connectionActive) {
+      setStatus(null);
+      setResults([]);
+      return;
+    }
     setLoading(true);
     setStatus(null);
     try {
@@ -110,12 +121,13 @@ export function DiscoverPanel({
         }),
       );
     } catch (error) {
+      if (isAgentAuthError(error)) onAgentAuthFailure?.();
       setStatus(error instanceof Error ? error.message : String(error));
       setResults([]);
     } finally {
       setLoading(false);
     }
-  }, [client, indexConfigs, kind, terms]);
+  }, [client, connectionActive, indexConfigs, kind, onAgentAuthFailure, terms]);
 
   useEffect(() => {
     void loadResults();
@@ -181,13 +193,22 @@ export function DiscoverPanel({
         </button>
       </div>
 
-      {status ? <p className="comms-status-error">{status}</p> : null}
+      {status ? (
+        <div className="comms-status-error">
+          <p>{status}</p>
+          {onRequestReconnect ? (
+            <button type="button" className="panel-btn" onClick={onRequestReconnect}>
+              Reconnect agent
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="panel-body panel-body-scroll" style={{ padding: 0 }}>
         <ul className="discover-results">
           {results.length === 0 && !loading ? (
             <li className="panel-empty">
-              Nothing online right now. Start a community host locally, or try again later.
+              Nothing matched your search. Try different terms or check again later.
             </li>
           ) : (
             results.map((entry) => {

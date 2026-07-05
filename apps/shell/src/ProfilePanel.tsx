@@ -147,7 +147,7 @@ export function ProfilePanel({
     try {
       const client = new CommsAgentClient(url, config.adminToken);
       await client.syncBusinessCatalog(items);
-      setSyncStatus(`Synced ${items.length} item${items.length === 1 ? "" : "s"} to agent backend.`);
+      setSyncStatus(`Synced ${items.length} item${items.length === 1 ? "" : "s"} to your agent.`);
     } catch (error) {
       setSyncStatus(error instanceof Error ? error.message : String(error));
     }
@@ -192,7 +192,7 @@ export function ProfilePanel({
       const client = new CommsAgentClient(url, config.adminToken);
       await client.syncBusinessContext(payload);
       setContextSyncStatus(
-        `Synced ${payload.length} record${payload.length === 1 ? "" : "s"} to agent backend (policies indexed for retrieval).`,
+        `Synced ${payload.length} record${payload.length === 1 ? "" : "s"} to your agent.`,
       );
     } catch (error) {
       setContextSyncStatus(error instanceof Error ? error.message : String(error));
@@ -318,8 +318,7 @@ export function ProfilePanel({
       <div className="panel-section shell-profile-business">
         <h3>Brand voice</h3>
         <p className="panel-section-note">
-          How your business agent speaks — tone, role, and values. Synced to the agent backend for
-          chat and greeter behavior.
+          Tone and personality for your business agent's replies. Sync when you change these.
         </p>
         {brandRecords.length > 0 ? (
           <ul className="shell-profile-context-list">
@@ -358,9 +357,7 @@ export function ProfilePanel({
       <div className="panel-section shell-profile-business">
         <h3>Policies</h3>
         <p className="panel-section-note">
-          House rules and operational boundaries. Synced to the agent knowledge index and retrieved at
-          chat time when relevant. v1 suits short policies — not full compliance libraries (see
-          AGENT-BACKEND.md).
+          House rules and guidelines your agent can reference in conversation.
         </p>
         {policyRecords.length > 0 ? (
           <ul className="shell-profile-context-list">
@@ -407,9 +404,7 @@ export function ProfilePanel({
       <div className="panel-section shell-profile-business">
         <h3>Knowledge base</h3>
         <p className="panel-section-note">
-          Policies, terms, FAQs, and product docs. The agent retrieves matching excerpts per turn.
-          v1 stores a modest corpus on your agent backend; large document sets will use a scalable
-          backend in a future release.
+          Policies, FAQs, and reference docs your agent can look up during chat.
         </p>
         {knowledgeRecords.length > 0 ? (
           <ul className="shell-profile-context-list">
@@ -449,7 +444,7 @@ export function ProfilePanel({
           <textarea
             className="panel-input shell-profile-textarea"
             value={knowledgeBody}
-            placeholder="Full document text — can be long; chunked and retrieved when relevant…"
+            placeholder="Document text your agent can search when answering questions…"
             rows={5}
             onChange={(e) => setKnowledgeBody(e.target.value)}
           />

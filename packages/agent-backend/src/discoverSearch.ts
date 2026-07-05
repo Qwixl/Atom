@@ -127,8 +127,8 @@ export async function runDiscoverSearch(opts: {
   if (results.length === 0) {
     summary =
       terms.length > 0
-        ? `Nothing online matched “${terms}”. Try Discover or start a community host locally.`
-        : "Nothing is online in the default indexes right now.";
+        ? `I couldn't find anything matching “${terms}”. Try Discover or different search words.`
+        : "Nothing is available in Discover right now.";
   } else if (results.length === 1) {
     const name = results[0]!.entry.handle ?? results[0]!.entry.displayName;
     summary = `I found one place online: ${name}.`;

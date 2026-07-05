@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { CommsAgentClient } from "../comms/client.js";
-import { loadCommsAgentConfig } from "../comms/storage.js";
+import { useCallback, useEffect, useState } from "react";
+import { useAgentConfig } from "../comms/useAgentConfig.js";
 
 interface WebcalFeedSummary {
   id: string;
@@ -31,12 +30,8 @@ function formatRange(start: string, end: string): string {
   }
 }
 
-export function WebCalSettingsPanel() {
-  const config = loadCommsAgentConfig();
-  const client = useMemo(
-    () => new CommsAgentClient(config.adminUrl, config.adminToken),
-    [config.adminToken, config.adminUrl],
-  );
+export function WebCalSettingsPanel({ vaultUnlocked = true }: { vaultUnlocked?: boolean }) {
+  const { config, client } = useAgentConfig(vaultUnlocked);
   const [feedUrl, setFeedUrl] = useState("");
   const [feedLabel, setFeedLabel] = useState("");
   const [busy, setBusy] = useState(false);
@@ -112,12 +107,11 @@ export function WebCalSettingsPanel() {
       <h3>WebCal</h3>
       <p className="settings-note">
         Paste your private calendar subscription link (from Google, Apple, or Outlook). It is stored
-        encrypted on your agent at <code>{config.adminUrl}</code> — not in the browser.
+        encrypted on your agent — not in this browser.
       </p>
       {!config.adminToken ? (
         <p className="settings-note webcal-settings-warn">
-          No admin token configured yet. In demo mode, wait for setup to finish. Otherwise set your
-          agent token in the first-run wizard.
+          Connect your agent first to save calendar feeds.
         </p>
       ) : null}
       <label className="atom-field">
