@@ -27,7 +27,7 @@ import { MlsPeerRecordStore } from "./mlsPeerRecords.js";
 import { MlsSessionRecordStore } from "./mlsSessionRecords.js";
 import { RoomStore } from "./roomStore.js";
 import { registerRoomsAdminRoutes, handleInboundRoomWire } from "./roomsAdmin.js";
-import { seedCoffeeShopRoom } from "./communityCoffeeShop.js";
+import { seedCoffeeShopBrand, seedCoffeeShopRoom } from "./communityCoffeeShop.js";
 import { registerDiscoverAdminRoutes, registerDiscoverPublicRoutes } from "./discoverAdmin.js";
 import { HandleCacheStore } from "./handleCache.js";
 import { connectMlsPeer, reconnectStoredMlsPeers } from "./mlsReconnect.js";
@@ -41,6 +41,7 @@ import { registerChannelAdminRoutes } from "./channelAdmin.js";
 import { registerBusinessAdminRoutes } from "./businessAdmin.js";
 import { formatBusinessAgentContext } from "@qwixl/owner-store";
 import { BusinessCatalogStore } from "./businessCatalogStore.js";
+import { BusinessContextStore } from "./businessContextStore.js";
 import { BusinessVerificationStore } from "./businessVerificationStore.js";
 import { BusinessStore } from "./businessStore.js";
 import type { PaymentRail } from "./payment/types.js";
@@ -94,6 +95,8 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
 
   const catalogStore = new BusinessCatalogStore();
   await catalogStore.load();
+  const businessContextStore = new BusinessContextStore();
+  await businessContextStore.load();
 
   const resolvePaymentRail = (): PaymentRail => {
     if (options.paymentRail) return options.paymentRail;
@@ -339,6 +342,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   registerChannelAdminRoutes(adminApp, { store: channelStore });
   registerBusinessAdminRoutes(adminApp, {
     catalog: catalogStore,
+    context: businessContextStore,
     store: businessStore,
     verification: verificationStore,
   });
@@ -494,11 +498,13 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     const { loadLlmAgUiConfigFromEnv } = await import("./agUi/llmRunner.js");
     const input = req.body as import("@ag-ui/client").RunAgentInput;
     const llmConfig = loadLlmAgUiConfigFromEnv();
-    const serverBusinessContext = config.businessMode
+    const usesBusinessContext = config.businessMode || config.communityHostMode;
+    const { brandLines, policyLines } = businessContextStore.brandPolicyLines();
+    const serverBusinessContext = usesBusinessContext
       ? formatBusinessAgentContext({
-          catalog: catalogStore.list(),
-          brandLines: [],
-          policyLines: [],
+          catalog: config.businessMode ? catalogStore.list() : [],
+          brandLines,
+          policyLines,
         })
       : undefined;
     res.setHeader("Content-Type", "text/event-stream");
@@ -573,6 +579,17 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
           );
         });
       if (config.communityHostMode) {
+        void seedCoffeeShopBrand(businessContextStore)
+          .then((brand) => {
+            if (brand.seeded) {
+              console.log("[rooms] Coffee Shop greeter brand voice seeded");
+            }
+          })
+          .catch((error) => {
+            console.warn(
+              `[rooms] Coffee Shop brand seed failed: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          });
         void seedCoffeeShopRoom({ identity, mlsStore, rooms })
           .then((seed) => {
             console.log(

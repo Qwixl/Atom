@@ -16,6 +16,7 @@ export interface ExportBundlePayload {
   exportedAt: number;
   identity: unknown;
   businessCatalog: unknown | null;
+  businessContext: unknown | null;
   mlsPeers: StoredMlsPeer[];
   adminTokenPath: string;
 }
@@ -32,12 +33,14 @@ function deriveKey(passphrase: string, salt: Uint8Array): Buffer {
 export async function buildExportPayload(): Promise<ExportBundlePayload> {
   const identityRaw = await readFile(identityPath(), "utf8");
   const catalog = await readJsonFile<{ items?: unknown[] }>(resolveDataPath("business-catalog.json"));
+  const context = await readJsonFile<{ records?: unknown[] }>(resolveDataPath("business-context.json"));
   const peers = await readJsonFile<{ peers?: StoredMlsPeer[] }>(resolveDataPath("mls-peers.json"));
   return {
     magic: EXPORT_MAGIC,
     exportedAt: Date.now(),
     identity: JSON.parse(identityRaw),
     businessCatalog: catalog ?? null,
+    businessContext: context ?? null,
     mlsPeers: peers?.peers ?? [],
     adminTokenPath: path.basename(resolveDataPath("agent-admin-token.txt")),
   };
@@ -92,6 +95,12 @@ export async function importEncryptedBundle(
     const catalogPath = resolveDataPath("business-catalog.json");
     await atomicWriteJson(catalogPath, payload.businessCatalog);
     restoredFiles.push(catalogPath);
+  }
+
+  if (payload.businessContext && typeof payload.businessContext === "object") {
+    const contextPath = resolveDataPath("business-context.json");
+    await atomicWriteJson(contextPath, payload.businessContext);
+    restoredFiles.push(contextPath);
   }
 
   if (payload.mlsPeers?.length) {

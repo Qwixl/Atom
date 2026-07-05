@@ -60,6 +60,7 @@ export {
 } from "./businessSchema.js";
 export {
   buildBusinessAgentContext,
+  brandPolicyLinesFromRecords,
   formatBusinessAgentContext,
   mergeBusinessContextIntoProfile,
   type BusinessAgentContext,

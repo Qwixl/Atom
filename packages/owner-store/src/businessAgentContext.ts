@@ -1,3 +1,4 @@
+import type { JsonValue } from "@qwixl/shell-core";
 import type { OwnerStore } from "./OwnerStore.js";
 import type { PersonalAgentContext } from "./personalAgentContext.js";
 import { formatRecordValue } from "./formatRecordValue.js";
@@ -18,20 +19,28 @@ export interface BusinessAgentContext {
 export function buildBusinessAgentContext(store: OwnerStore): BusinessAgentContext {
   const records = store.list();
   const catalog = catalogItemsFromStore(records);
+  const { brandLines, policyLines } = brandPolicyLinesFromRecords(records);
+  return { catalog, brandLines, policyLines };
+}
+
+/** Build brand/policy prompt lines from persisted business context records (M12.1). */
+export function brandPolicyLinesFromRecords(
+  records: ReadonlyArray<{ category: string; label: string; value: unknown; guarded?: boolean }>,
+): Pick<BusinessAgentContext, "brandLines" | "policyLines"> {
   const brandLines: string[] = [];
   const policyLines: string[] = [];
 
   for (const record of records) {
     if (record.guarded) continue;
     if (record.category === BUSINESS_BRAND_CATEGORY) {
-      brandLines.push(`${record.label}: ${formatRecordValue(record.value)}`);
+      brandLines.push(`${record.label}: ${formatRecordValue(record.value as JsonValue)}`);
     }
     if (record.category === BUSINESS_POLICY_CATEGORY) {
-      policyLines.push(`${record.label}: ${formatRecordValue(record.value)}`);
+      policyLines.push(`${record.label}: ${formatRecordValue(record.value as JsonValue)}`);
     }
   }
 
-  return { catalog, brandLines, policyLines };
+  return { brandLines, policyLines };
 }
 
 /** Prompt-oriented summary for AG-UI / LLM (M12.1). */
