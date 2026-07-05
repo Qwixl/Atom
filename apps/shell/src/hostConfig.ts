@@ -39,10 +39,18 @@ function resolveControlPlaneUrl(): string {
   return resolveInjectedUrl(
     import.meta.env.VITE_CONTROL_PLANE_URL as string | undefined,
     "http://127.0.0.1:5300",
-  ) || (IS_PRODUCTION_HOST ? "https://control.qwixl.dev" : "http://127.0.0.1:5300");
+  ) || (IS_PRODUCTION_HOST ? "https://control.atom.qwixl.com" : "http://127.0.0.1:5300");
 }
 
 export const CONTROL_PLANE_URL = resolveControlPlaneUrl();
+
+export const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() ?? "";
+export const SUPABASE_ANON_KEY =
+  (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim() ?? "";
+
+export function isSupabaseConfigured(): boolean {
+  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+}
 
 export { isLocalHostUrl, productionFetchUrl, resolveInjectedUrl, assertProductionAgentUrl } from "./productionGuard.js";
 

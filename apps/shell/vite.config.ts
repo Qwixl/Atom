@@ -10,7 +10,7 @@ const DEMO_ALICE_URL = "http://127.0.0.1:5204";
 const DEMO_ALICE_TOKEN = "atom-demo-alice-token";
 const DEMO_BOB_URL = "http://127.0.0.1:5206";
 const DEMO_BOB_TOKEN = "atom-demo-bob-token";
-const PRODUCTION_CONTROL_PLANE_URL = "https://control.qwixl.dev";
+const PRODUCTION_CONTROL_PLANE_URL = "https://control.atom.qwixl.com";
 
 function buildEnv(name: string, devDefault: string, productionBuild: boolean): string {
   if (process.env[name]) return process.env[name]!;
@@ -61,6 +61,8 @@ export default defineConfig(({ mode }) => {
       "import.meta.env.VITE_ATOM_BROWSER_MODE": JSON.stringify(process.env.VITE_ATOM_BROWSER_MODE ?? ""),
       "import.meta.env.VITE_ATOM_AGENT_API": JSON.stringify(process.env.VITE_ATOM_AGENT_API ?? "/agent-api"),
       "import.meta.env.VITE_ATOM_AGENT_TOKEN": JSON.stringify(process.env.VITE_ATOM_AGENT_TOKEN ?? ""),
+      "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(process.env.VITE_SUPABASE_URL ?? ""),
+      "import.meta.env.VITE_SUPABASE_ANON_KEY": JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY ?? ""),
     },
     resolve: {
       conditions: ["development", "import", "module", "browser", "default"],

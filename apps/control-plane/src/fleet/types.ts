@@ -21,7 +21,12 @@ export interface ProvisionOutcome {
 
 export interface FleetProvisioner {
   readonly mode: "docker" | "dev-stub" | "unconfigured";
-  provision(input: { id: string; handle: string; email: string }): Promise<ProvisionOutcome>;
+  provision(input: {
+    id: string;
+    handle: string;
+    email: string;
+    llmApiKey?: string;
+  }): Promise<ProvisionOutcome>;
   suspend(agent: HostedAgentRecord, reason: string): Promise<void>;
   resume(agent: HostedAgentRecord): Promise<void>;
   destroy(agent: HostedAgentRecord): Promise<void>;
