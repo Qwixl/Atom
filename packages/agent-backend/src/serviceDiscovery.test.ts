@@ -45,8 +45,10 @@ describe("serviceDiscovery", () => {
       businessMode: false,
       businessDomain: null,
       demoPeerMode: false,
-      communityHostMode: true,
-      interactivePortResolve: false,
+    communityHostMode: true,
+    businessKnowledgeBackend: "json",
+    businessKnowledgeRemoteUrl: null,
+    interactivePortResolve: false,
     };
     const localCapabilities = buildAgentCapabilities({
       config,

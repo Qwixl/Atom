@@ -67,6 +67,13 @@ export {
   mergeBusinessContextIntoProfile,
   type BusinessAgentContext,
 } from "./businessAgentContext.js";
+export {
+  PERSONAL_MEMORY_V1_MAX_CHUNKS,
+  PERSONAL_MEMORY_V1_SOFT_CHAR_LIMIT,
+  parseEmbedderBackendKind,
+  type EmbedderBackendKind,
+} from "./v1Scope.js";
+export { createTextEmbedder } from "./createTextEmbedder.js";
 export { matchCatalogForIntent, type CatalogIntentMatchInput, type CatalogMatchResult } from "./matchCatalogIntent.js";
 export { activeContextTags } from "./evidenceHelpers.js";
 export { recordUiPreferenceFeedback } from "./uiEvidence.js";

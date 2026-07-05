@@ -189,10 +189,50 @@ Each transaction builds an append-only bilateral channel of signed object finger
 
 ## M12 business agent (commerce)
 
-Business agents use the same backend with `ATOM_BUSINESS_MODE=true`. Catalog lives in-memory on the server; sync from the shell profile panel or manage via admin routes.
+Business agents use the same backend with `ATOM_BUSINESS_MODE=true`. Catalog, brand voice, and knowledge base persist on the agent data volume (`ATOM_DATA_DIR`, default `~/.atom/`); sync from the shell profile panel or manage via admin routes.
+
+### Business knowledge (M12.8) — what it is and is not
+
+Business agents need **two layers** of non-catalog context:
+
+| Layer | Content | Injection |
+|---|---|---|
+| **Brand voice** | Tone, role, values (small) | Always in system prompt (`business-context.json`) |
+| **Reference knowledge** | Policies, terms, FAQs, product docs (can be large) | **Retrieved per chat turn** (RAG), not dumped wholesale |
+
+**What v1 ships today**
+
+- Retrieval pattern wired end-to-end: shell sync → admin API → per-turn excerpt injection on `POST /agent`.
+- Default backend: **`json`** — single file `business-knowledge.json` on the agent volume with in-process hybrid lexical + hash embedding search.
+- Intended corpus size: **short reference material** (house rules, returns policy, FAQ entries) — on the order of **kilobytes to low megabytes**, not enterprise compliance libraries.
+- Logs a startup warning if the JSON corpus exceeds soft limits (~200 docs / ~2M chars).
+
+**What v1 is not**
+
+- Not a hosted Qwixl knowledge SaaS (no central policy warehouse).
+- Not suitable for **large corpora** (e.g. dozens of full-length policy manuals) — JSON loads entirely into memory and rewrites on each update.
+- Not a separate vector database product; v1 is a local index on the agent disk.
+
+**Planned backends** (same admin/sync API and `BusinessKnowledgeBackend` interface; switch via env):
+
+| `ATOM_BUSINESS_KNOWLEDGE_BACKEND` | Status | Use when |
+|---|---|---|
+| `json` (default) | **Shipped** | Small corpora, self-hosted dev, Coffee Shop seed |
+| `sqlite` | Planned | Large corpora on agent volume — chunked SQLite + vector index |
+| `remote` | Planned | Customer-operated or Qwixl-operated knowledge service (`ATOM_BUSINESS_KNOWLEDGE_REMOTE_URL`) |
+
+Hosted vs self-hosted agents both use the same backend package; only **where the index file lives** changes (your disk vs your container volume). A future hosted knowledge **service** would plug in as `remote` without changing shell sync or admin routes.
 
 | Route | Purpose |
 |---|---|
+| `GET /business/context` | List brand + policy records (brand always-on; policies also indexed into knowledge on sync) |
+| `POST /business/context` | Upsert one brand/policy record |
+| `POST /business/context/sync` | Replace brand/policy from shell; **policies indexed into knowledge store** |
+| `DELETE /business/context/:category/:label` | Remove brand/policy record |
+| `GET /business/knowledge` | List knowledge documents |
+| `POST /business/knowledge` | Upsert one knowledge document |
+| `POST /business/knowledge/sync` | Replace knowledge base from `{ documents: [...] }` |
+| `DELETE /business/knowledge/:documentId` | Remove knowledge document |
 | `GET /business/catalog` | List catalog items |
 | `POST /business/catalog` | Upsert one catalog item (`catalogItemId`, `label`, `currency`, `amountMinor`, …) |
 | `POST /business/catalog/sync` | Replace catalog from `{ items: [...] }` |
@@ -211,6 +251,8 @@ Domain verification (tier 1, D039): publish DNS TXT at `_atom.<domain>` with `at
 |---|---|---|
 | `ATOM_BUSINESS_MODE` | off | `true` or `1` — enable catalog, intent ingestion, business agent card fields |
 | `ATOM_BUSINESS_DOMAIN` | — | Dev shortcut: grant tier-1 domain verification without DNS |
+| `ATOM_BUSINESS_KNOWLEDGE_BACKEND` | `json` | `json` (v1), `sqlite` and `remote` reserved — fail at startup if set before implemented |
+| `ATOM_BUSINESS_KNOWLEDGE_REMOTE_URL` | — | Required when backend=`remote` (future) |
 
 Agent card includes optional `business` extension when verified: `verificationTier`, `businessDomain`, `tierLabel`.
 
@@ -239,8 +281,32 @@ In the shell **Comms** panel on each side: copy invite from A, connect from B, s
 ## Security notes
 
 - Identity file contains the Ed25519 private key — restrict permissions (`0600`) and back up safely.
-- MLS session state is in-memory; process restart requires re-handshake (D025).
-- Admin API has no auth in v1 — bind to localhost or protect with network policy / reverse-proxy auth before exposing publicly.
+- MLS live session state is in-memory; snapshots persist pair/group state — process restart may require re-handshake (D025).
+- Admin API requires bearer token (M13.1): auto-generated on first start or set `ATOM_ADMIN_TOKEN`. Protect with TLS before exposing beyond localhost.
+
+## V1 scope and production extensions
+
+Many subsystems ship **v1 engines** to prove product loops before production scale. They are not hidden shortcuts.
+
+| Pattern | Example | Upgrade lever |
+|---|---|---|
+| Pluggable backend + env | Business knowledge RAG | `ATOM_BUSINESS_KNOWLEDGE_BACKEND=json\|sqlite\|remote` |
+| Interface + inject | Payments | `PaymentRail` (Stripe, mock in tests) |
+| Interface + inject | Hosted fleet | `FleetProvisioner` (`dev-stub`, Docker, future cloud) |
+| Interface + inject | Connectors | `ConnectorBackend` registry (WebCal v1) |
+| Interface + inject | Embeddings | `createTextEmbedder()` / `ATOM_EMBEDDER=hash\|api` |
+| Documented ephemeral store | Transaction commit, inbox, qualify | `GET /admin/store-contracts` — durability metadata |
+
+**Known v1 limits (not exhaustive):**
+
+- Business knowledge JSON backend: short reference corpora only — not enterprise policy libraries.
+- Transaction/dispute/qualify/inbox stores: **in-memory** — lost on restart.
+- Export bundle: identity + business data + MLS peers — not vault, transactions, or session snapshots.
+- Shell owner store + memory: **localStorage** — quota-sensitive; IndexedDB planned.
+- Module store: beta-free flag; no in-app billing yet.
+- Hosted signup: dev stub or local Docker fleet — not production cloud fleet until M15 substrate (Q17).
+
+Full inventory (private working doc): `docs/02-architecture/20-v1-production-gaps.md`. Decision: D048.
 
 ## Related
 

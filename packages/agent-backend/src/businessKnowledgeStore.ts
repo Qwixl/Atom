@@ -1,26 +1,24 @@
 import {
-  hashEmbedText,
+  createTextEmbedder,
   hybridRetrievalScore,
   scoreTokenOverlap,
   type TextEmbedder,
 } from "@qwixl/owner-store";
 import { atomicWriteJson, readJsonFile } from "@qwixl/owner-store/file-persistence";
-import { resolveDataPath } from "./dataDir.js";
+import type {
+  BusinessKnowledgeBackend,
+  BusinessKnowledgeCategory,
+  BusinessKnowledgeDocument,
+} from "./businessKnowledgeBackend.js";
+import { AGENT_STORE_REGISTRY } from "./storeContracts.js";
 
-const KNOWLEDGE_FILE = "business-knowledge.json";
 const SCHEMA_VERSION = 1;
 const MIN_RETRIEVAL_SCORE = 0.08;
 const DEFAULT_CHUNK_CHARS = 900;
 
-export type BusinessKnowledgeCategory = "policy" | "terms" | "faq" | "product" | "general";
-
-export interface BusinessKnowledgeDocument {
-  id: string;
-  title: string;
-  category: BusinessKnowledgeCategory;
-  body: string;
-  updatedAt: string;
-}
+/** v1 JSON backend — suitable for small reference corpora only (see AGENT-BACKEND.md). */
+export const JSON_KNOWLEDGE_SOFT_LIMIT_DOCS = 200;
+export const JSON_KNOWLEDGE_SOFT_LIMIT_CHARS = 2_000_000;
 
 interface KnowledgeChunk {
   id: string;
@@ -98,16 +96,34 @@ function parseCategory(value: unknown): BusinessKnowledgeCategory {
   return "general";
 }
 
-export class BusinessKnowledgeStore {
+function warnIfCorpusLarge(documents: Iterable<BusinessKnowledgeDocument>): void {
+  let count = 0;
+  let chars = 0;
+  for (const doc of documents) {
+    count += 1;
+    chars += doc.body.length;
+  }
+  if (count > JSON_KNOWLEDGE_SOFT_LIMIT_DOCS || chars > JSON_KNOWLEDGE_SOFT_LIMIT_CHARS) {
+    console.warn(
+      `[business-knowledge] JSON backend corpus is large (${count} docs, ~${Math.round(chars / 1000)}k chars). ` +
+        "This v1 store is for short reference material only. " +
+        "Plan migration to ATOM_BUSINESS_KNOWLEDGE_BACKEND=sqlite or remote when available.",
+    );
+  }
+}
+
+/**
+ * v1 on-disk JSON implementation of {@link BusinessKnowledgeBackend}.
+ * Not intended for enterprise policy libraries — see AGENT-BACKEND.md § Business knowledge.
+ */
+export class BusinessKnowledgeStore implements BusinessKnowledgeBackend {
+  static readonly storeMeta = AGENT_STORE_REGISTRY.businessKnowledge;
   private readonly documents = new Map<string, BusinessKnowledgeDocument>();
   private chunks: KnowledgeChunk[] = [];
   private readonly filePath: string;
   private readonly embedder: TextEmbedder;
 
-  constructor(
-    filePath = resolveDataPath(KNOWLEDGE_FILE),
-    embedder: TextEmbedder = hashEmbedText,
-  ) {
+  constructor(filePath: string, embedder: TextEmbedder = createTextEmbedder()) {
     this.filePath = filePath;
     this.embedder = embedder;
   }
@@ -130,6 +146,7 @@ export class BusinessKnowledgeStore {
     if (this.chunks.length === 0 && this.documents.size > 0) {
       this.reindex();
     }
+    warnIfCorpusLarge(this.documents.values());
   }
 
   list(): BusinessKnowledgeDocument[] {
@@ -160,6 +177,7 @@ export class BusinessKnowledgeStore {
     this.documents.set(id, doc);
     this.chunks = this.chunks.filter((chunk) => chunk.documentId !== id);
     this.chunks.push(...indexDocument(doc, this.embedder));
+    warnIfCorpusLarge(this.documents.values());
     void this.persist();
     return doc;
   }
@@ -195,6 +213,7 @@ export class BusinessKnowledgeStore {
       });
     }
     this.reindex();
+    warnIfCorpusLarge(this.documents.values());
     void this.persist();
   }
 

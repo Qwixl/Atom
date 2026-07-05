@@ -38,6 +38,8 @@ function testConfig(port: number, publicBaseUrl: string, communityHostMode = fal
     businessDomain: null,
     demoPeerMode: false,
     communityHostMode,
+    businessKnowledgeBackend: "json",
+    businessKnowledgeRemoteUrl: null,
     interactivePortResolve: false,
   };
 }
@@ -77,6 +79,9 @@ describe("MLS group rooms", () => {
         config: testConfig(memberPort, memberBase, false),
       });
 
+      const memberHealth = await adminGetJson<{ did: string }>(memberBase, "/health");
+      const memberDid = memberHealth.did;
+
       await adminPostJson(memberBase, "/rooms/join-remote", {
         hostUrl: hostBase,
         roomId: COFFEE_SHOP_ROOM_ID,
@@ -106,6 +111,17 @@ describe("MLS group rooms", () => {
       }>(hostBase, `/rooms/${encodeURIComponent(COFFEE_SHOP_ROOM_ID)}/messages`);
 
       expect(messages.messages.some((msg) => msg.text === "hello coffee shop")).toBe(true);
+
+      await adminPostJson(memberBase, `/rooms/${encodeURIComponent(COFFEE_SHOP_ROOM_ID)}/leave`, {});
+
+      const hostMembers = await adminGetJson<{ members: Array<{ did: string }> }>(
+        hostBase,
+        `/rooms/${encodeURIComponent(COFFEE_SHOP_ROOM_ID)}/members`,
+      );
+      expect(hostMembers.members.some((member) => member.did === memberDid)).toBe(false);
+
+      const memberRooms = await adminGetJson<{ joined: Array<{ roomId: string }> }>(memberBase, "/rooms");
+      expect(memberRooms.joined.some((row) => row.roomId === COFFEE_SHOP_ROOM_ID)).toBe(false);
     } finally {
       await new Promise<void>((resolve, reject) => {
         hostServer?.close((error) => (error ? reject(error) : resolve()));

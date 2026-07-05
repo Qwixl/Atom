@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CommsAgentClient } from "./comms/client.js";
-import { loadCommsAgentConfig } from "./comms/storage.js";
+import { quickJoinCoffeeShop } from "./discoverActions.js";
+import { loadCommsAgentConfig, loadContacts, saveContacts } from "./comms/storage.js";
+import type { AgentContact } from "./comms/types.js";
+import { loadRoomAttendance, saveRoomAttendance, type RoomAttendanceMode } from "./roomAttendance.js";
+import { formatRoomActivity, moduleBundleUrl } from "./roomUtils.js";
 
 interface RoomDescriptorWire {
   roomId: string;
@@ -9,6 +13,7 @@ interface RoomDescriptorWire {
   topic?: string;
   moduleId?: string;
   admission?: string;
+  hostUrl?: string;
 }
 
 interface RoomMessageWire {
@@ -20,8 +25,17 @@ interface RoomMessageWire {
   at: string;
 }
 
+interface RoomMemberWire {
+  did: string;
+  name?: string;
+  endpoint?: string;
+}
+
 interface RoomsPanelProps {
   initialRoomId?: string | null;
+  contacts?: AgentContact[];
+  onContactsChange?: (contacts: AgentContact[]) => void;
+  onOpenDiscover?: () => void;
   onActivity?: (note: string) => void;
 }
 
@@ -29,33 +43,77 @@ function shortDid(did: string): string {
   return did.length > 16 ? `${did.slice(0, 10)}…` : did;
 }
 
-export function RoomsPanel({ initialRoomId, onActivity }: RoomsPanelProps) {
+function memberLabel(member: RoomMemberWire): string {
+  return member.name?.trim() || shortDid(member.did);
+}
+
+export function RoomsPanel({
+  initialRoomId,
+  contacts: contactsProp,
+  onContactsChange,
+  onOpenDiscover,
+  onActivity,
+}: RoomsPanelProps) {
   const config = useMemo(() => loadCommsAgentConfig(), []);
   const client = useMemo(
     () => new CommsAgentClient(config.adminUrl, config.adminToken),
     [config.adminUrl, config.adminToken],
   );
+  const [localDid, setLocalDid] = useState<string | null>(null);
   const [hosted, setHosted] = useState<RoomDescriptorWire[]>([]);
   const [joined, setJoined] = useState<
     Array<{ roomId: string; hostUrl: string; descriptor: RoomDescriptorWire }>
   >([]);
   const [selectedId, setSelectedId] = useState<string | null>(initialRoomId ?? null);
   const [messages, setMessages] = useState<RoomMessageWire[]>([]);
-  const [members, setMembers] = useState<Array<{ did: string; name?: string }>>([]);
+  const [members, setMembers] = useState<RoomMemberWire[]>([]);
+  const [attendance, setAttendance] = useState<RoomAttendanceMode>("present");
+  const [memberMenuDid, setMemberMenuDid] = useState<string | null>(null);
   const [compose, setCompose] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const pollRef = useRef<number | null>(null);
+  const memberPollRef = useRef<number | null>(null);
   const lastSeqRef = useRef(0);
+  const moduleFrameRef = useRef<HTMLIFrameElement | null>(null);
+
+  const contacts = contactsProp ?? loadContacts();
+
+  const joinedIds = useMemo(() => new Set(joined.map((entry) => entry.roomId)), [joined]);
 
   const allRooms = useMemo(() => {
-    const map = new Map<string, RoomDescriptorWire & { hostUrl?: string }>();
+    const map = new Map<string, RoomDescriptorWire>();
     for (const room of hosted) map.set(room.roomId, room);
     for (const entry of joined) map.set(entry.roomId, { ...entry.descriptor, hostUrl: entry.hostUrl });
     return [...map.values()];
   }, [hosted, joined]);
 
   const selected = allRooms.find((room) => room.roomId === selectedId) ?? null;
+  const canLeave = selectedId ? joinedIds.has(selectedId) : false;
+
+  const moduleMembers = useMemo(() => {
+    return members.map((member) => ({
+      ...member,
+      away: member.did === localDid && attendance === "away",
+    }));
+  }, [members, localDid, attendance]);
+
+  const pushModuleInit = useCallback(() => {
+    const frame = moduleFrameRef.current;
+    if (!frame?.contentWindow || !selected) return;
+    frame.contentWindow.postMessage(
+      {
+        type: "init",
+        props: {
+          roomName: selected.name,
+          topic: selected.topic,
+          members: moduleMembers,
+          nowPlaying: "lo-fi beats (host)",
+        },
+      },
+      "*",
+    );
+  }, [moduleMembers, selected]);
 
   const refreshRooms = useCallback(async () => {
     try {
@@ -99,20 +157,29 @@ export function RoomsPanel({ initialRoomId, onActivity }: RoomsPanelProps) {
   }, [client, selectedId]);
 
   useEffect(() => {
+    void client.health().then((body) => setLocalDid(body.did)).catch(() => setLocalDid(null));
+  }, [client]);
+
+  useEffect(() => {
     void refreshRooms();
   }, [refreshRooms]);
 
   useEffect(() => {
-    if (initialRoomId) setSelectedId(initialRoomId);
-  }, [initialRoomId]);
+    if (initialRoomId) {
+      setSelectedId(initialRoomId);
+      void refreshRooms();
+    }
+  }, [initialRoomId, refreshRooms]);
 
   useEffect(() => {
     if (!selectedId) {
       setMessages([]);
       setMembers([]);
+      setMemberMenuDid(null);
       lastSeqRef.current = 0;
       return;
     }
+    setAttendance(loadRoomAttendance(selectedId));
     lastSeqRef.current = 0;
     setMessages([]);
     void refreshMembers();
@@ -120,10 +187,56 @@ export function RoomsPanel({ initialRoomId, onActivity }: RoomsPanelProps) {
     pollRef.current = window.setInterval(() => {
       void refreshMessages();
     }, 3000);
+    memberPollRef.current = window.setInterval(() => {
+      void refreshMembers();
+    }, 8000);
     return () => {
       if (pollRef.current) window.clearInterval(pollRef.current);
+      if (memberPollRef.current) window.clearInterval(memberPollRef.current);
     };
   }, [selectedId, refreshMessages, refreshMembers]);
+
+  useEffect(() => {
+    pushModuleInit();
+  }, [pushModuleInit]);
+
+  const sendActivity = useCallback(
+    async (activityKind: string): Promise<void> => {
+      if (!selectedId) return;
+      setLoading(true);
+      try {
+        await client.sendRoomMessage({
+          roomId: selectedId,
+          kind: "activity",
+          activityKind,
+          payload: { activityKind },
+        });
+        await refreshMessages();
+        onActivity?.(`Activity: ${activityKind}`);
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : String(error));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [client, onActivity, refreshMessages, selectedId],
+  );
+
+  useEffect(() => {
+    function onMessage(event: MessageEvent): void {
+      const data = event.data as {
+        type?: string;
+        event?: { name?: string; payload?: { activityKind?: string } };
+      };
+      if (!selectedId || data?.type !== "event") return;
+      if (data.event?.name !== "community/coffee-shop/activity") return;
+      const activityKind = data.event.payload?.activityKind?.trim();
+      if (!activityKind) return;
+      void sendActivity(activityKind);
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [selectedId, sendActivity]);
 
   async function sendMessage(text: string): Promise<void> {
     if (!selectedId || !text.trim()) return;
@@ -140,18 +253,98 @@ export function RoomsPanel({ initialRoomId, onActivity }: RoomsPanelProps) {
     }
   }
 
-  async function sendActivity(activityKind: string): Promise<void> {
-    if (!selectedId) return;
+  async function joinCoffeeShop(): Promise<void> {
     setLoading(true);
+    setStatus(null);
     try {
-      await client.sendRoomMessage({
-        roomId: selectedId,
-        kind: "activity",
-        activityKind,
-        payload: { activityKind },
-      });
-      await refreshMessages();
-      onActivity?.(`Activity: ${activityKind}`);
+      const roomId = await quickJoinCoffeeShop(client);
+      await refreshRooms();
+      setSelectedId(roomId);
+      onActivity?.("Joined Qwixl Coffee Shop");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function leaveSelectedRoom(): Promise<void> {
+    if (!selectedId || !canLeave) return;
+    setLoading(true);
+    setStatus(null);
+    try {
+      await client.leaveRoom(selectedId);
+      await refreshRooms();
+      setSelectedId(null);
+      onActivity?.("Left room");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function setAttendanceMode(mode: RoomAttendanceMode): void {
+    if (!selectedId) return;
+    setAttendance(mode);
+    saveRoomAttendance(selectedId, mode);
+    if (mode === "away") {
+      void sendActivity("presence-away");
+    } else {
+      void sendActivity("presence");
+    }
+  }
+
+  function contactForMember(member: RoomMemberWire): AgentContact | undefined {
+    return contacts.find((contact) => contact.did === member.did);
+  }
+
+  function updateMemberPolicy(
+    member: RoomMemberWire,
+    patch: Partial<Pick<AgentContact, "blocked" | "muted">>,
+  ): void {
+    const existing = contactForMember(member);
+    const next: AgentContact = existing ?? {
+      id: member.did,
+      did: member.did,
+      name: memberLabel(member),
+      endpoint: member.endpoint ?? "",
+      connectedAt: new Date().toISOString(),
+      kind: "community",
+      source: "room",
+    };
+    const updated = { ...next, ...patch, endpoint: member.endpoint ?? next.endpoint };
+    const list = [...contacts.filter((contact) => contact.did !== member.did), updated];
+    saveContacts(list);
+    onContactsChange?.(list);
+    setMemberMenuDid(null);
+    onActivity?.(patch.blocked ? "Member blocked" : patch.muted ? "Member muted" : "Member policy updated");
+  }
+
+  async function connectPrivately(member: RoomMemberWire): Promise<void> {
+    if (!member.endpoint?.trim()) {
+      setStatus("This member has not shared an agent address.");
+      return;
+    }
+    setLoading(true);
+    setStatus(null);
+    try {
+      await client.connectPeer(member.endpoint.trim(), member.did);
+      const existing = contactForMember(member);
+      const contact: AgentContact = existing ?? {
+        id: member.did,
+        did: member.did,
+        name: memberLabel(member),
+        endpoint: member.endpoint.trim(),
+        connectedAt: new Date().toISOString(),
+        kind: "community",
+        source: "room",
+      };
+      const list = [...contacts.filter((row) => row.did !== member.did), contact];
+      saveContacts(list);
+      onContactsChange?.(list);
+      setMemberMenuDid(null);
+      onActivity?.(`Connected with ${memberLabel(member)}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
@@ -162,7 +355,7 @@ export function RoomsPanel({ initialRoomId, onActivity }: RoomsPanelProps) {
   return (
     <aside className="panel-view rooms-view">
       <header className="panel-toolbar">
-        <p className="panel-toolbar-meta">Community spaces — join from Discover or open a hosted room</p>
+        <p className="panel-toolbar-meta">Community spaces — chat, activities, and presence</p>
         <div className="panel-toolbar-actions">
           <button type="button" className="panel-btn" onClick={() => void refreshRooms()}>
             Refresh
@@ -175,7 +368,25 @@ export function RoomsPanel({ initialRoomId, onActivity }: RoomsPanelProps) {
           <div className="panel-list-head">Your rooms</div>
           <ul className="panel-list-scroll comms-contact-list">
             {allRooms.length === 0 ? (
-              <li className="panel-empty">No rooms yet. Use Discover to join the Coffee Shop.</li>
+              <li className="panel-empty rooms-empty-list">
+                <strong>No rooms yet</strong>
+                <p>Join the Qwixl Coffee Shop or browse Discover for more spaces.</p>
+                <div className="rooms-empty-actions">
+                  <button
+                    type="button"
+                    className="panel-btn panel-btn-primary"
+                    disabled={loading}
+                    onClick={() => void joinCoffeeShop()}
+                  >
+                    Join Coffee Shop
+                  </button>
+                  {onOpenDiscover ? (
+                    <button type="button" className="panel-btn" onClick={onOpenDiscover}>
+                      Open Discover
+                    </button>
+                  ) : null}
+                </div>
+              </li>
             ) : (
               allRooms.map((room) => (
                 <li key={room.roomId}>
@@ -197,7 +408,7 @@ export function RoomsPanel({ initialRoomId, onActivity }: RoomsPanelProps) {
             )}
           </ul>
         </nav>
-        <section className="panel-detail rooms-chat-layout">
+        <section className="panel-detail rooms-detail">
           {selected ? (
             <>
               <header className="panel-detail-head rooms-chat-head">
@@ -208,104 +419,178 @@ export function RoomsPanel({ initialRoomId, onActivity }: RoomsPanelProps) {
                     {selected.topic ?? selected.roomId}
                   </span>
                 </div>
-              </header>
-              <div className="comms-messages rooms-messages">
-                {messages.length === 0 ? (
-                  <div className="comms-empty-thread">
-                    <strong>No messages yet</strong>
-                    <p>Say hello — everyone in the room can see chat.</p>
-                  </div>
-                ) : (
-                  messages.map((msg) => (
-                    <div key={msg.seq} className="shell-comms-msg shell-comms-msg-in rooms-msg">
-                      <div className="shell-comms-msg-text">
-                        <strong>{shortDid(msg.senderDid)}</strong>
-                        {msg.kind === "activity" ? (
-                          <span> · {msg.activityKind ?? "activity"}</span>
-                        ) : (
-                          <p>{msg.text}</p>
-                        )}
-                      </div>
-                      <time dateTime={msg.at}>{new Date(msg.at).toLocaleTimeString()}</time>
-                    </div>
-                  ))
-                )}
-              </div>
-              <footer className="comms-compose rooms-compose">
-                <textarea
-                  className="panel-textarea rooms-compose-input"
-                  value={compose}
-                  onChange={(event) => setCompose(event.target.value)}
-                  placeholder="Message the room…"
-                  rows={1}
-                  aria-label="Room message"
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      void sendMessage(compose);
-                    }
-                  }}
-                />
-                <div className="comms-compose-row">
-                  <button
-                    type="button"
-                    className="panel-btn"
-                    disabled={loading || !compose.trim()}
-                    onClick={() => void sendMessage(compose)}
-                  >
-                    Send
-                  </button>
+                <div className="rooms-head-actions">
+                  <label className="rooms-attendance">
+                    <span className="rooms-attendance-label">Show as</span>
+                    <select
+                      className="panel-select"
+                      value={attendance}
+                      onChange={(event) => setAttendanceMode(event.target.value as RoomAttendanceMode)}
+                      aria-label="Room attendance"
+                    >
+                      <option value="present">Present</option>
+                      <option value="away">Away</option>
+                    </select>
+                  </label>
+                  {canLeave ? (
+                    <button
+                      type="button"
+                      className="panel-btn"
+                      disabled={loading}
+                      onClick={() => void leaveSelectedRoom()}
+                    >
+                      Leave
+                    </button>
+                  ) : null}
                 </div>
-              </footer>
+              </header>
+
               {selected.moduleId ? (
-                <details className="rooms-venue">
-                  <summary>Scene &amp; activities</summary>
+                <div className="rooms-scene">
                   <iframe
+                    ref={moduleFrameRef}
                     className="rooms-module-frame"
                     title={selected.name}
-                    src={`/modules/community-coffee-shop/index.html`}
+                    src={moduleBundleUrl(selected.moduleId)}
                     sandbox="allow-scripts allow-same-origin"
-                    onLoad={(event) => {
-                      const frame = event.currentTarget;
-                      frame.contentWindow?.postMessage(
-                        {
-                          type: "init",
-                          props: {
-                            roomName: selected.name,
-                            topic: selected.topic,
-                            members,
-                            nowPlaying: "lo-fi beats (host)",
-                          },
-                        },
-                        "*",
-                      );
-                    }}
+                    onLoad={() => pushModuleInit()}
                   />
-                  <div className="rooms-activity-bar">
-                    <button
-                      type="button"
-                      className="panel-btn"
-                      disabled={loading}
-                      onClick={() => void sendActivity("order")}
-                    >
-                      Order coffee
-                    </button>
-                    <button
-                      type="button"
-                      className="panel-btn"
-                      disabled={loading}
-                      onClick={() => void sendActivity("listen")}
-                    >
-                      Listen along
-                    </button>
-                  </div>
-                </details>
+                </div>
               ) : null}
+
+              <div className="rooms-thread-grid">
+                <aside className="rooms-members" aria-label="Room members">
+                  <div className="rooms-members-head">Members</div>
+                  <ul className="rooms-members-list">
+                    {members.length === 0 ? (
+                      <li className="panel-empty">No members loaded</li>
+                    ) : (
+                      members.map((member) => {
+                        const contact = contactForMember(member);
+                        const isSelf = member.did === localDid;
+                        return (
+                          <li key={member.did} className="rooms-member-row">
+                            <button
+                              type="button"
+                              className="rooms-member-trigger"
+                              onClick={() =>
+                                setMemberMenuDid((current) => (current === member.did ? null : member.did))
+                              }
+                            >
+                              <span className="rooms-member-name">
+                                {memberLabel(member)}
+                                {isSelf ? " (you)" : ""}
+                              </span>
+                              {contact?.blocked ? (
+                                <span className="rooms-member-badge">Blocked</span>
+                              ) : contact?.muted ? (
+                                <span className="rooms-member-badge">Muted</span>
+                              ) : null}
+                            </button>
+                            {memberMenuDid === member.did && !isSelf ? (
+                              <div className="rooms-member-menu">
+                                <button
+                                  type="button"
+                                  className="panel-btn"
+                                  disabled={loading || !member.endpoint}
+                                  onClick={() => void connectPrivately(member)}
+                                >
+                                  Connect privately
+                                </button>
+                                <button
+                                  type="button"
+                                  className="panel-btn"
+                                  onClick={() => updateMemberPolicy(member, { muted: !contact?.muted })}
+                                >
+                                  {contact?.muted ? "Unmute" : "Mute"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="panel-btn"
+                                  onClick={() => updateMemberPolicy(member, { blocked: !contact?.blocked })}
+                                >
+                                  {contact?.blocked ? "Unblock" : "Block"}
+                                </button>
+                              </div>
+                            ) : null}
+                          </li>
+                        );
+                      })
+                    )}
+                  </ul>
+                </aside>
+
+                <div className="rooms-chat-layout">
+                  <div className="comms-messages rooms-messages">
+                    {messages.length === 0 ? (
+                      <div className="comms-empty-thread">
+                        <strong>No messages yet</strong>
+                        <p>Say hello — everyone in the room can see chat.</p>
+                      </div>
+                    ) : (
+                      messages.map((msg) => (
+                        <div key={msg.seq} className="shell-comms-msg shell-comms-msg-in rooms-msg">
+                          <div className="shell-comms-msg-text">
+                            <strong>{shortDid(msg.senderDid)}</strong>
+                            {msg.kind === "activity" ? (
+                              <span> · {formatRoomActivity(msg.activityKind)}</span>
+                            ) : (
+                              <p>{msg.text}</p>
+                            )}
+                          </div>
+                          <time dateTime={msg.at}>{new Date(msg.at).toLocaleTimeString()}</time>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <footer className="comms-compose rooms-compose">
+                    <textarea
+                      className="panel-textarea rooms-compose-input"
+                      value={compose}
+                      onChange={(event) => setCompose(event.target.value)}
+                      placeholder="Message the room…"
+                      rows={1}
+                      aria-label="Room message"
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          void sendMessage(compose);
+                        }
+                      }}
+                    />
+                    <div className="comms-compose-row">
+                      <button
+                        type="button"
+                        className="panel-btn panel-btn-primary"
+                        disabled={loading || !compose.trim()}
+                        onClick={() => void sendMessage(compose)}
+                      >
+                        Send
+                      </button>
+                    </div>
+                  </footer>
+                </div>
+              </div>
             </>
           ) : (
-            <div className="panel-empty comms-no-selection">
+            <div className="panel-empty comms-no-selection rooms-empty-detail">
               <strong>Select a room</strong>
-              <p>Join the Coffee Shop from Discover, or open a room you host.</p>
+              <p>Join the Coffee Shop from the list, Discover, or the button below.</p>
+              <div className="rooms-empty-actions">
+                <button
+                  type="button"
+                  className="panel-btn panel-btn-primary"
+                  disabled={loading}
+                  onClick={() => void joinCoffeeShop()}
+                >
+                  Join Coffee Shop
+                </button>
+                {onOpenDiscover ? (
+                  <button type="button" className="panel-btn" onClick={onOpenDiscover}>
+                    Open Discover
+                  </button>
+                ) : null}
+              </div>
             </div>
           )}
         </section>

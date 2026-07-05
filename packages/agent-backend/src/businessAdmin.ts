@@ -6,22 +6,22 @@ import { parseBusinessContextRecord } from "./businessContextStore.js";
 import type {
   BusinessKnowledgeCategory,
   BusinessKnowledgeDocument,
-  BusinessKnowledgeStore,
-} from "./businessKnowledgeStore.js";
+  BusinessKnowledgeBackend,
+} from "./businessKnowledgeBackend.js";
 import type { BusinessStore } from "./businessStore.js";
 import type { BusinessVerificationStore } from "./businessVerificationStore.js";
 
 export interface BusinessAdminDeps {
   catalog: BusinessCatalogStore;
   context: BusinessContextStore;
-  knowledge: BusinessKnowledgeStore;
+  knowledge: BusinessKnowledgeBackend;
   store: BusinessStore;
   verification: BusinessVerificationStore;
 }
 
 export function syncContextPoliciesToKnowledge(
   context: BusinessContextStore,
-  knowledge: BusinessKnowledgeStore,
+  knowledge: BusinessKnowledgeBackend,
 ): void {
   for (const record of context.list(BUSINESS_POLICY_CATEGORY)) {
     knowledge.upsertPolicyReference(record.label, record.value);

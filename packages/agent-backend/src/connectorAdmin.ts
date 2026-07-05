@@ -1,12 +1,7 @@
 import type { Express, Request } from "express";
 import type { ConnectorVault } from "./connectorVault.js";
-import {
-  WEBCAL_CONNECTOR_ID,
-  WEBCAL_CONNECTOR_OPERATIONS,
-  addWebcalFeedToVault,
-  invokeWebcalConnector,
-  removeWebcalFeedFromVault,
-} from "./webcalConnector.js";
+import { addWebcalFeedToVault, removeWebcalFeedFromVault, WEBCAL_CONNECTOR_ID } from "./webcalConnector.js";
+import { getConnectorBackend } from "./connectorRegistry.js";
 
 export interface ConnectorAdminConfig {
   vault: ConnectorVault;
@@ -22,32 +17,15 @@ function connectorIdParam(req: Request): string {
   return id?.trim() ?? "";
 }
 
-function isWebcal(id: string): boolean {
-  return id === WEBCAL_CONNECTOR_ID;
-}
-
-async function connectorStatus(config: ConnectorAdminConfig, connectorId: string) {
-  if (isWebcal(connectorId)) {
-    const feeds = config.vault.getWebcalFeeds();
-    return {
-      connectorId: WEBCAL_CONNECTOR_ID,
-      moduleId: "connectors/webcal",
-      provider: "webcal",
-      label: "WebCal",
-      configured: feeds.length > 0,
-      feedCount: feeds.length,
-      feeds: feeds.map((feed) => ({ id: feed.id, label: feed.label })),
-      vaultOnly: true,
-      operations: WEBCAL_CONNECTOR_OPERATIONS,
-    };
-  }
-  throw new Error(`Unknown connector "${connectorId}"`);
-}
-
 export function registerConnectorAdminRoutes(adminApp: Express, config: ConnectorAdminConfig): void {
   adminApp.get("/connectors/:connectorId", async (req, res) => {
     try {
-      res.json(await connectorStatus(config, connectorIdParam(req)));
+      const backend = getConnectorBackend(connectorIdParam(req));
+      if (!backend) {
+        res.status(404).json({ error: `Unknown connector "${connectorIdParam(req)}"` });
+        return;
+      }
+      res.json(await backend.status(config.vault));
     } catch (error) {
       res.status(404).json({ error: error instanceof Error ? error.message : String(error) });
     }
@@ -55,7 +33,12 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
   adminApp.get("/connectors/:connectorId/status", async (req, res) => {
     try {
-      res.json(await connectorStatus(config, connectorIdParam(req)));
+      const backend = getConnectorBackend(connectorIdParam(req));
+      if (!backend) {
+        res.status(404).json({ error: `Unknown connector "${connectorIdParam(req)}"` });
+        return;
+      }
+      res.json(await backend.status(config.vault));
     } catch (error) {
       res.status(404).json({ error: error instanceof Error ? error.message : String(error) });
     }
@@ -78,12 +61,13 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
       return;
     }
     try {
-      if (isWebcal(connectorId)) {
-        const result = await invokeWebcalConnector({ vault: config.vault }, operation, body.input ?? {});
-        res.json(result);
+      const backend = getConnectorBackend(connectorId);
+      if (!backend) {
+        res.status(404).json({ error: `Unknown connector "${connectorId}"` });
         return;
       }
-      res.status(404).json({ error: `Unknown connector "${connectorId}"` });
+      const result = await backend.invoke(config.vault, operation, body.input ?? {});
+      res.json(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const status = /not configured|Unknown connector|required/i.test(message) ? 400 : 502;

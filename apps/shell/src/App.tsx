@@ -60,6 +60,7 @@ import { DiscoverPanel } from "./DiscoverPanel.js";
 import { DiscoverChatResults, type DiscoverChatResult } from "./DiscoverChatResults.js";
 import { connectDiscoverEntry, joinDiscoverRoom } from "./discoverActions.js";
 import { extractDiscoverTerms, isDiscoverQuery } from "./discoverQuery.js";
+import { loadDiscoverIndexes } from "./discoverIndexStorage.js";
 import { RoomsPanel } from "./RoomsPanel.js";
 import { FirstRunWizard } from "./FirstRunWizard.js";
 import { loadFirstRunDone, markFirstRunDone } from "./firstRunStorage.js";
@@ -68,6 +69,7 @@ import { PersonalDemoWalkthrough } from "./PersonalDemoWalkthrough.js";
 import { buildGoogleCalendarAddUrl } from "./calendarAddLink.js";
 import { type DemoCalendarEvent } from "./demoScheduling.js";
 import { CommsAgentClient } from "./comms/client.js";
+import { syncContactsToAgent } from "./comms/contactSync.js";
 import {
   applyDemoPersona,
   loadDemoPersona,
@@ -440,6 +442,17 @@ export function App() {
   const [commsContacts, setCommsContacts] = useState<AgentContact[]>(() =>
     loadContacts(ownerRecordsPersistence.load()),
   );
+
+  useEffect(() => {
+    if (IS_DEMO_MODE || !agentConnectionReady) return;
+    const config = loadCommsAgentConfig();
+    if (!config.adminToken?.trim()) return;
+    const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+    void syncContactsToAgent(client, commsContacts).catch(() => {
+      /* policy sync is best-effort until agent is reachable */
+    });
+  }, [commsContacts, agentConnectionReady]);
+
   const [profileRecords, setProfileRecords] = useState<OwnerRecord[]>(ownerStore.list());
   const [profileProposals, setProfileProposals] = useState<RecordProposal[]>(
     ownerStore.listProposals(),
@@ -782,6 +795,8 @@ export function App() {
           const client = new CommsAgentClient(config.adminUrl, config.adminToken);
           const { summary, results } = await client.discoverSearch({
             terms: extractDiscoverTerms(trimmed),
+            indexBaseUrl: window.location.origin,
+            indexes: loadDiscoverIndexes(),
           });
           conversationRef.current.appendLocalAgentText(summary);
           setChatDiscoverResults(results);
@@ -1219,6 +1234,9 @@ export function App() {
           <div className="shell-panel-view shell-panel-view--inset">
           <RoomsPanel
             initialRoomId={roomsFocusId}
+            contacts={commsContacts}
+            onContactsChange={setCommsContacts}
+            onOpenDiscover={() => setPanel("discover")}
             onActivity={() => {
               if (roomsFocusId) setRoomsFocusId(null);
             }}

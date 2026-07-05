@@ -6,6 +6,12 @@ import { resolveDataPath } from "./dataDir.js";
 import { identityPath } from "./identity.js";
 import type { StoredMlsPeer } from "./mlsPeerRecords.js";
 
+/**
+ * M13.4 export bundle — v1 scope (see docs/02-architecture/20-v1-production-gaps.md).
+ * Includes: identity, business catalog/context/knowledge, MLS peers.
+ * Not yet included: transaction commit state, dispute channels, qualify history,
+ * connector vault, MLS session snapshots, inbox log.
+ */
 const EXPORT_MAGIC = "atom-export-v1";
 const SALT_BYTES = 16;
 const IV_BYTES = 12;

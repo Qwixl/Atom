@@ -1,11 +1,13 @@
 import type { DataObject } from "@qwixl/protocol";
 import type { ReceivedDataObjectEvent } from "@qwixl/a2a-transport";
+import { AGENT_STORE_REGISTRY } from "./storeContracts.js";
 
 export interface InboxEntry extends ReceivedDataObjectEvent {
   receivedAt: string;
 }
 
 export class DataObjectInbox {
+  static readonly storeMeta = AGENT_STORE_REGISTRY.inbox;
   private readonly entries: InboxEntry[] = [];
 
   push(event: ReceivedDataObjectEvent): void {

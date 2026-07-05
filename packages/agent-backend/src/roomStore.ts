@@ -256,6 +256,12 @@ export class RoomStore {
     return this.joinedRooms.get(roomId);
   }
 
+  forgetJoinedRoom(roomId: string): boolean {
+    const removed = this.joinedRooms.delete(roomId);
+    if (removed) void this.persist();
+    return removed;
+  }
+
   private persist(): void {
     this.persistQueue = this.persistQueue
       .then(async () => {
