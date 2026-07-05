@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-05T00:30:00.000Z",
+  "updatedAt": "2026-07-05T11:49:44.909Z",
   "revocationsUrl": "revocations.json",
   "modules": [
     {
@@ -74,19 +74,19 @@
       "publisher": "did:key:z6Mkdemotravel0001"
     },
     {
-      "id": "connectors/webcal",
-      "version": "1.0.0",
-      "manifestUrl": "connectors/webcal/manifest.json",
-      "integrity": "sha256:e2ac9e2da2fc2ccc24bca81563dedb5e0b117bae32211bb73f9f84ea9dadd69e",
-      "bundleIntegrity": "sha256:e3187130fd5ad319a44bdf25093bfb72898059c7a7a0b4dd06dad1c450e34b39",
-      "publisher": "did:key:z6Mkatomexamples01"
-    },
-    {
       "id": "community/coffee-shop",
       "version": "1.0.0",
       "manifestUrl": "community/coffee-shop/manifest.json",
       "integrity": "sha256:97cdd5c84c7dfdbb580f72652ce75468e2ccfd8663af846c514935a1a0ab39f6",
       "bundleIntegrity": "sha256:43109c800cc5ffc68b2e95914de0d99dcc0651598587f616daf032ec496e2ffa",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "connectors/webcal",
+      "version": "1.0.0",
+      "manifestUrl": "connectors/webcal/manifest.json",
+      "integrity": "sha256:5dcfc6f65a0cfc7b354871e34b15fa9eb95eef296473cb5d3445c0759887d2c8",
+      "bundleIntegrity": "sha256:00f24e50256a69aa4f56f0dd70217037a05d65f332012dfc65842d154d9b7d46",
       "publisher": "did:key:z6Mkatomexamples01"
     }
   ]
