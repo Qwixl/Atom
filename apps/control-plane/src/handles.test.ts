@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { isHandleTaken, parseSignupHandle, publicHandle } from "./handles.ts";
+import { isHandleTaken, parseSignupHandle, publicHandle } from "./handles.js";
 
 describe("handles", () => {
   it("validates and normalizes signup handle", () => {

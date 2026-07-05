@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { filterBusinessIndex, attachHandlesToEntries, type BusinessIndex } from "./index.ts";
+import { filterBusinessIndex, attachHandlesToEntries, type BusinessIndex } from "./index.js";
 
 const sample: BusinessIndex = {
   indexVersion: 1,
