@@ -9,6 +9,17 @@ import {
 import type { AgentKeyPair, DataObject } from "@qwixl/protocol";
 import { deliverSignedObject } from "./deliverObject.js";
 import type { MlsSessionStore } from "./mlsSessions.js";
+import { AGENT_STORE_REGISTRY } from "./storeContracts.js";
+import { resolveDataPath } from "./dataDir.js";
+import { createJsonStoreWriter, loadJsonStore } from "./persistedJsonStore.js";
+
+const DISPUTE_CHANNELS_FILE = "dispute-channels.json";
+const SCHEMA_VERSION = 1;
+
+interface DisputeChannelsFile {
+  schemaVersion: number;
+  channels: DisputeChannelSnapshot[];
+}
 
 export interface DisputeChannelSnapshot {
   channelId: string;
@@ -43,9 +54,39 @@ function nowIso(): string {
 }
 
 export class DisputeChannelStore {
+  static readonly storeMeta = AGENT_STORE_REGISTRY.disputeChannel;
   private readonly channels = new Map<string, DisputeChannelSnapshot>();
+  private readonly filePath: string;
+  private readonly writer: ReturnType<typeof createJsonStoreWriter<DisputeChannelsFile>>;
 
-  constructor(private readonly deps: DisputeChannelStoreDeps) {}
+  constructor(
+    private readonly deps: DisputeChannelStoreDeps,
+    filePath = resolveDataPath(DISPUTE_CHANNELS_FILE),
+  ) {
+    this.filePath = filePath;
+    this.writer = createJsonStoreWriter<DisputeChannelsFile>(
+      this.filePath,
+      SCHEMA_VERSION,
+      "dispute-channels",
+      () => ({ channels: this.list() }),
+    );
+  }
+
+  async load(): Promise<void> {
+    await loadJsonStore<DisputeChannelsFile>(this.filePath, (file) => {
+      this.channels.clear();
+      for (const channel of file?.channels ?? []) {
+        if (channel.channelId) {
+          this.channels.set(channel.channelId, channel);
+        }
+      }
+    });
+  }
+
+  private saveChannel(snapshot: DisputeChannelSnapshot): void {
+    this.channels.set(snapshot.channelId, snapshot);
+    this.writer.persist();
+  }
 
   get(channelId: string): DisputeChannelSnapshot | undefined {
     return this.channels.get(channelId);
@@ -75,7 +116,7 @@ export class DisputeChannelStore {
     snapshot.headSequence = entry.sequence;
     snapshot.headHash = computeChannelHeadHash(snapshot.entries);
     snapshot.updatedAt = nowIso();
-    this.channels.set(channelId, snapshot);
+    this.saveChannel(snapshot);
     return snapshot;
   }
 
@@ -123,7 +164,7 @@ export class DisputeChannelStore {
     });
     this.appendFromObject(params.transactionId, anchorObject);
     snapshot.updatedAt = nowIso();
-    this.channels.set(channelId, snapshot);
+    this.saveChannel(snapshot);
     return { snapshot, anchorObject };
   }
 

@@ -87,6 +87,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   const connectorVault = new ConnectorVault();
   await connectorVault.load();
   const inbox = new DataObjectInbox();
+  await inbox.load();
   const mlsStore = new MlsSessionStore();
   const sessionRecords = new MlsSessionRecordStore();
   await mlsStore.loadFromRecords(sessionRecords);
@@ -122,6 +123,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     identity,
     mlsStore,
   });
+  await channelStore.load();
 
   const qualifyStore = new QualifyStore({
     localDid: identity.did,
@@ -134,6 +136,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       }
     },
   });
+  await qualifyStore.load();
 
   const transactionStore = new TransactionCommitStore({
     localDid: identity.did,
@@ -144,6 +147,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       channelStore.appendFromObject(transactionId, object);
     },
   });
+  await transactionStore.load();
 
   const verificationStore = new BusinessVerificationStore(identity.did, config.businessDomain);
   const businessStore = new BusinessStore({
@@ -153,6 +157,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     catalog: catalogStore,
     businessMode: config.businessMode,
   });
+  await businessStore.load();
 
   const verification = verificationStore.get();
   const agentCard = buildAtomAgentCard({

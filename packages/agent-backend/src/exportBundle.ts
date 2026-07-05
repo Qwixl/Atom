@@ -8,9 +8,8 @@ import type { StoredMlsPeer } from "./mlsPeerRecords.js";
 
 /**
  * M13.4 export bundle — v1 scope (see docs/02-architecture/20-v1-production-gaps.md).
- * Includes: identity, business catalog/context/knowledge, MLS peers.
- * Not yet included: transaction commit state, dispute channels, qualify history,
- * connector vault, MLS session snapshots, inbox log.
+ * Includes: identity, business catalog/context/knowledge, MLS peers, commerce state (M13.6).
+ * Not yet included: connector vault, MLS session snapshots.
  */
 const EXPORT_MAGIC = "atom-export-v1";
 const SALT_BYTES = 16;
@@ -25,6 +24,11 @@ export interface ExportBundlePayload {
   businessContext: unknown | null;
   businessKnowledge: unknown | null;
   mlsPeers: StoredMlsPeer[];
+  transactionCommit: unknown | null;
+  disputeChannels: unknown | null;
+  qualifyHistory: unknown | null;
+  inbox: unknown | null;
+  commerceIntents: unknown | null;
   adminTokenPath: string;
 }
 
@@ -43,6 +47,11 @@ export async function buildExportPayload(): Promise<ExportBundlePayload> {
   const context = await readJsonFile<{ records?: unknown[] }>(resolveDataPath("business-context.json"));
   const knowledge = await readJsonFile<{ documents?: unknown[] }>(resolveDataPath("business-knowledge.json"));
   const peers = await readJsonFile<{ peers?: StoredMlsPeer[] }>(resolveDataPath("mls-peers.json"));
+  const transactionCommit = await readJsonFile(resolveDataPath("transaction-commit.json"));
+  const disputeChannels = await readJsonFile(resolveDataPath("dispute-channels.json"));
+  const qualifyHistory = await readJsonFile(resolveDataPath("qualify-history.json"));
+  const inbox = await readJsonFile(resolveDataPath("inbox.json"));
+  const commerceIntents = await readJsonFile(resolveDataPath("commerce-intents.json"));
   return {
     magic: EXPORT_MAGIC,
     exportedAt: Date.now(),
@@ -51,6 +60,11 @@ export async function buildExportPayload(): Promise<ExportBundlePayload> {
     businessContext: context ?? null,
     businessKnowledge: knowledge ?? null,
     mlsPeers: peers?.peers ?? [],
+    transactionCommit: transactionCommit ?? null,
+    disputeChannels: disputeChannels ?? null,
+    qualifyHistory: qualifyHistory ?? null,
+    inbox: inbox ?? null,
+    commerceIntents: commerceIntents ?? null,
     adminTokenPath: path.basename(resolveDataPath("agent-admin-token.txt")),
   };
 }
@@ -125,6 +139,22 @@ export async function importEncryptedBundle(
       peers: payload.mlsPeers,
     });
     restoredFiles.push(peersPath);
+  }
+
+  const commerceFiles: Array<[keyof ExportBundlePayload, string]> = [
+    ["transactionCommit", "transaction-commit.json"],
+    ["disputeChannels", "dispute-channels.json"],
+    ["qualifyHistory", "qualify-history.json"],
+    ["inbox", "inbox.json"],
+    ["commerceIntents", "commerce-intents.json"],
+  ];
+  for (const [key, fileName] of commerceFiles) {
+    const data = payload[key];
+    if (data && typeof data === "object") {
+      const filePath = resolveDataPath(fileName);
+      await atomicWriteJson(filePath, data);
+      restoredFiles.push(filePath);
+    }
   }
 
   return { restoredFiles };
