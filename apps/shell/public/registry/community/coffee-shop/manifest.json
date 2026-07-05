@@ -2,22 +2,34 @@
   "id": "community/coffee-shop",
   "version": "1.0.0",
   "publisher": "did:key:z6Mkatomexamples01",
-  "targets": ["web"],
+  "targets": [
+    "web"
+  ],
   "bundleUrl": "/modules/community-coffee-shop/index.html",
   "components": [
     {
       "name": "community/coffee-shop",
       "semanticRole": "community/room-surface",
-      "events": ["community/coffee-shop/activity"],
+      "events": [
+        "community/coffee-shop/activity"
+      ],
       "agentHint": "Community room surface: presence, activities (order, listen, reading, introduce)."
     }
   ],
   "room": {
-    "activityKinds": ["order", "listen", "reading", "introduce", "now-playing"],
+    "activityKinds": [
+      "order",
+      "listen",
+      "reading",
+      "introduce",
+      "now-playing"
+    ],
     "presenceRendering": "avatars",
     "memberListRendering": "initials"
   },
   "capabilities": [],
-  "categories": ["community"],
+  "categories": [
+    "community"
+  ],
   "bundleIntegrity": "sha256:43109c800cc5ffc68b2e95914de0d99dcc0651598587f616daf032ec496e2ffa"
 }

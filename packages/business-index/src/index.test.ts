@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, expect, it } from "vitest";
 import { filterBusinessIndex, attachHandlesToEntries, type BusinessIndex } from "./index.js";
 
 const sample: BusinessIndex = {
@@ -31,8 +30,8 @@ const sample: BusinessIndex = {
 describe("filterBusinessIndex", () => {
   it("filters by category and terms", () => {
     const results = filterBusinessIndex(sample, { categories: ["plumbing"], terms: "acme" });
-    assert.equal(results.length, 1);
-    assert.equal(results[0]?.displayName, "Acme Plumbing");
+    expect(results).toHaveLength(1);
+    expect(results[0]?.displayName).toBe("Acme Plumbing");
   });
 
   it("filters by kind", () => {
@@ -53,8 +52,8 @@ describe("filterBusinessIndex", () => {
       ],
     };
     const results = filterBusinessIndex(index, { kind: "community" });
-    assert.equal(results.length, 1);
-    assert.equal(results[0]?.displayName, "Coffee Shop");
+    expect(results).toHaveLength(1);
+    expect(results[0]?.displayName).toBe("Coffee Shop");
   });
 
   it("attaches handles from handle index", () => {
@@ -75,6 +74,6 @@ describe("filterBusinessIndex", () => {
         moduleIds: ["community/coffee-shop"],
       },
     ]);
-    assert.equal(withHandles[0]?.handle, "@coffee-shop");
+    expect(withHandles[0]?.handle).toBe("@coffee-shop");
   });
 });

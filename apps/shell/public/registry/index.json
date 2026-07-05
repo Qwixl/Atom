@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-05T11:49:44.909Z",
+  "updatedAt": "2026-07-05T12:24:29.297Z",
   "revocationsUrl": "revocations.json",
   "modules": [
     {
@@ -31,6 +31,22 @@
       "manifestUrl": "commerce/product-gallery/manifest.json",
       "integrity": "sha256:0889d513116a92cab18a0cb6bc176757006497d3fe65169ccdc48f54fb031a4a",
       "bundleIntegrity": "sha256:337234c0aa07468407db9de695c691765777ee17e5d8674d84c4437f5247bea2",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "community/coffee-shop",
+      "version": "1.0.0",
+      "manifestUrl": "community/coffee-shop/manifest.json",
+      "integrity": "sha256:04749603d28c2c2da29febaf5a109cfd14da5944fbd400613f9d1d9748ab0d7c",
+      "bundleIntegrity": "sha256:43109c800cc5ffc68b2e95914de0d99dcc0651598587f616daf032ec496e2ffa",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "connectors/webcal",
+      "version": "1.0.0",
+      "manifestUrl": "connectors/webcal/manifest.json",
+      "integrity": "sha256:5dcfc6f65a0cfc7b354871e34b15fa9eb95eef296473cb5d3445c0759887d2c8",
+      "bundleIntegrity": "sha256:00f24e50256a69aa4f56f0dd70217037a05d65f332012dfc65842d154d9b7d46",
       "publisher": "did:key:z6Mkatomexamples01"
     },
     {
@@ -72,22 +88,6 @@
       "integrity": "sha256:2ec97da48f0a2be013c48110e5815936e40b98514754f926169f9b3e90d856ca",
       "bundleIntegrity": "sha256:2143262eb8e3abacf7688735991f32defa348f2e1a262400684ee68be9efb968",
       "publisher": "did:key:z6Mkdemotravel0001"
-    },
-    {
-      "id": "community/coffee-shop",
-      "version": "1.0.0",
-      "manifestUrl": "community/coffee-shop/manifest.json",
-      "integrity": "sha256:97cdd5c84c7dfdbb580f72652ce75468e2ccfd8663af846c514935a1a0ab39f6",
-      "bundleIntegrity": "sha256:43109c800cc5ffc68b2e95914de0d99dcc0651598587f616daf032ec496e2ffa",
-      "publisher": "did:key:z6Mkatomexamples01"
-    },
-    {
-      "id": "connectors/webcal",
-      "version": "1.0.0",
-      "manifestUrl": "connectors/webcal/manifest.json",
-      "integrity": "sha256:5dcfc6f65a0cfc7b354871e34b15fa9eb95eef296473cb5d3445c0759887d2c8",
-      "bundleIntegrity": "sha256:00f24e50256a69aa4f56f0dd70217037a05d65f332012dfc65842d154d9b7d46",
-      "publisher": "did:key:z6Mkatomexamples01"
     }
   ]
 }
