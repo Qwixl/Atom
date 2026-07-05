@@ -17,14 +17,15 @@ export type DemoPersona = {
   peerLabel: string;
 };
 
-const ALICE_URL =
-  (import.meta.env.VITE_DEMO_ALICE_URL as string | undefined)?.replace(/\/$/, "") ??
-  (import.meta.env.VITE_DEMO_PERSONAL_AGENT_URL as string | undefined)?.replace(/\/$/, "") ??
-  "http://127.0.0.1:5204";
+import { resolveInjectedUrl } from "./productionGuard.js";
 
-const BOB_URL =
-  (import.meta.env.VITE_DEMO_BOB_URL as string | undefined)?.replace(/\/$/, "") ??
-  "http://127.0.0.1:5206";
+const ALICE_URL = resolveInjectedUrl(
+  (import.meta.env.VITE_DEMO_ALICE_URL as string | undefined) ||
+    (import.meta.env.VITE_DEMO_PERSONAL_AGENT_URL as string | undefined),
+  "http://127.0.0.1:5204",
+);
+
+const BOB_URL = resolveInjectedUrl(import.meta.env.VITE_DEMO_BOB_URL as string, "http://127.0.0.1:5206");
 
 const ALICE_TOKEN =
   (import.meta.env.VITE_DEMO_ALICE_TOKEN as string | undefined)?.trim() ||

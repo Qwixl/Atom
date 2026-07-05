@@ -25,6 +25,8 @@ jobs:
       - run: pnpm build:packages
       - run: pnpm registry:verify
       - run: pnpm --filter @qwixl/shell-app build
+        env:
+          VITE_CONTROL_PLANE_URL: https://control.qwixl.dev
 
       - uses: amondnet/vercel-action@16e87c0a08142b0d0d33b76aeaf20823c381b9b9 # v25
         with:

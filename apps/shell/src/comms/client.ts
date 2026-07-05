@@ -12,6 +12,7 @@ import type { UnsignedDataObject } from "@qwixl/protocol";
 import type { BusinessIndexEntry } from "@qwixl/business-index";
 import type { InboxEntryWire, AgentContact } from "./types.js";
 import { formatAgentError } from "./agentErrors.js";
+import { assertProductionAgentUrl } from "../productionGuard.js";
 
 export interface ResolvedDiscoverTarget {
   adminBase: string;
@@ -34,6 +35,7 @@ async function postJson<T>(
   body: Record<string, unknown>,
   adminToken?: string,
 ): Promise<T> {
+  assertProductionAgentUrl(adminUrl);
   const resp = await fetch(`${adminUrl.replace(/\/$/, "")}${path}`, {
     method: "POST",
     headers: adminHeaders(adminToken),
@@ -47,6 +49,7 @@ async function postJson<T>(
 }
 
 async function getJson<T>(adminUrl: string, path: string, adminToken?: string): Promise<T> {
+  assertProductionAgentUrl(adminUrl);
   const headers: Record<string, string> = {};
   if (adminToken?.trim()) {
     headers.Authorization = `Bearer ${adminToken.trim()}`;
