@@ -1,4 +1,4 @@
-export const DEFAULT_PLATFORM_URL = "https://shell-atom.vercel.app";
+export const DEFAULT_PLATFORM_URL = "https://atom.qwixl.com";
 export const DEFAULT_CONTROL_PLANE_URL = "https://control.qwixl.dev";
 
 /** Always-on Atom platform (shell, registry, discovery indexes). Production by default. */

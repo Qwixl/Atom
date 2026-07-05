@@ -29,7 +29,7 @@ const dataDir = resolveDataDir();
 const allowedOrigins = new Set(
   (
     process.env.ATOM_SHELL_ORIGINS?.trim() ||
-    "http://localhost:5200,http://127.0.0.1:5200,http://localhost:5203,http://127.0.0.1:5203,https://shell-atom.vercel.app"
+    "http://localhost:5200,http://127.0.0.1:5200,http://localhost:5203,http://127.0.0.1:5203,https://atom.qwixl.com"
   )
     .split(",")
     .map((origin) => origin.trim())

@@ -1,6 +1,6 @@
 # Security model (shipped surface)
 
-Production deployments (`shell-atom.vercel.app`, npm `@qwixl/*`) are treated as production environments. This document describes controls and residual risks.
+Production deployments (`atom.qwixl.com`, npm `@qwixl/*`) are treated as production environments. This document describes controls and residual risks.
 
 ## Trust boundaries
 
@@ -25,7 +25,7 @@ Production deployments (`shell-atom.vercel.app`, npm `@qwixl/*`) are treated as 
 | Control | Implementation |
 |---|---|
 | Module isolation | `sandbox="allow-scripts"` only — **no** `allow-same-origin` |
-| Cross-origin modules | Registry pinned to `https://atom-registry.vercel.app` |
+| Cross-origin modules | Registry pinned to `https://atom.registry.qwixl.com` |
 | Init bridge | Props via `postMessage` with origin validation — not URL hash |
 | CSP + HSTS | `apps/shell/vercel.json` security headers |
 | Browser LLM keys | **Disabled** on `import.meta.env.PROD` builds |

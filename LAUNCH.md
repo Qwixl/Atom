@@ -8,7 +8,7 @@ Open-source, privacy-first, owner-controlled agent-to-agent communications. Posi
 |---|---|---|
 | **Protocol** | Signed data objects, `did:key`, MLS E2E, invitation tokens | `@qwixl/protocol`, `@qwixl/a2a-transport`, `@qwixl/mls-session` on npm |
 | **Agent backend** | A2A transport, MLS, admin API, optional AG-UI LLM | `npx @qwixl/agent-backend` or [AGENT-BACKEND.md](./AGENT-BACKEND.md) |
-| **Reference shell** | Comms panel, profile/owner store, AG-UI + mock providers | `pnpm dev` (monorepo) or [shell-atom.vercel.app](https://shell-atom.vercel.app) |
+| **Reference shell** | Comms panel, profile/owner store, AG-UI + mock providers | `pnpm dev` (monorepo) or [atom.qwixl.com](https://atom.qwixl.com) |
 
 No commerce, no payments, no centralized identity operator.
 

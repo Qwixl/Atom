@@ -22,8 +22,8 @@ features:
 
 ## Live hosts
 
-- Reference shell — [shell-atom.vercel.app](https://shell-atom.vercel.app)
-- Module registry — [atom-registry.vercel.app](https://atom-registry.vercel.app)
+- Reference shell — [atom.qwixl.com](https://atom.qwixl.com)
+- Module registry — [atom.registry.qwixl.com](https://atom.registry.qwixl.com)
 
 ## Monorepo quick start
 

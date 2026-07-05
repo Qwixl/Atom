@@ -157,3 +157,9 @@ export {
   isCrossOriginModuleBundle,
 } from "./security/url.js";
 
+export {
+  PRODUCTION_SHELL_ORIGIN,
+  PRODUCTION_REGISTRY_ORIGIN,
+  PRODUCTION_REGISTRY_INDEX_URL,
+} from "./platformUrls.js";
+
