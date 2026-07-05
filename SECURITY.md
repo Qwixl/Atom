@@ -82,6 +82,37 @@ LLM connection metadata on production uses `sessionStorage` (tab-scoped); keys s
 | Public open rooms | Intentional exposure; M21.5 defaults new rooms to `invite` |
 | Untrusted AG-UI backends | M21.6 production warn/block for non-HTTPS endpoints |
 
+## Admin bearer token (hosted agents)
+
+Each hosted agent receives a bearer token at signup. It is equivalent to **root access on that owner's agent** (inbox, MLS, connectors, export, business data).
+
+| Threat | Control today | Planned (M21.4) |
+|---|---|---|
+| XSS on shell origin | CSP, no `dangerouslySetInnerHTML`, dependency review | Periodic audit (M21.9) |
+| Phishing ("paste your token") | User-facing copy avoids exposing token after setup | — |
+| Token in browser storage | Encrypted vault after passkey setup; session-scoped LLM metadata only | Optional control-plane proxy with httpOnly session |
+| Leaked signup JSON | Same-origin only; XSS is the main path | Rate limits on signup (M21.2) |
+
+**Operator rule:** treat `ATOM_ADMIN_TOKEN` and signup responses like production root credentials. Rotate on compromise via re-provision or export→self-host.
+
+## Hosted control plane (production)
+
+| Env | Purpose |
+|---|---|
+| `ATOM_FLEET_MODE=docker` | Per-owner agent containers |
+| `ATOM_FLEET_PUBLIC_URL_TEMPLATE` | **Required** in production — HTTPS template, e.g. `https://{port}.agents.example.com` |
+| `ATOM_PROVISION_SECRET` | When set, `/provision` requires `Authorization: Bearer` (disabled in production when unset) |
+| `ATOM_SHELL_ORIGINS` | CORS allowlist for shell origins |
+| `NODE_ENV=production` | Enables fleet HTTPS invariants and provision lockdown |
+
+Rate limits (M21.2): `/signup` 5 per 15 min per IP; `/handles/check` 30 per min per IP.
+
+## Registry publisher hygiene (M21.7)
+
+- Sigstore signing keys and npm publish tokens live in CI secrets only — never in the repo.
+- Run `pnpm registry:verify --require-integrity --signatures` before registry deploy.
+- Compromise of publisher keys is the supply-chain threat integrity hashes cannot fix alone.
+
 ## Hardening queue (M21)
 
 Hosted production hardening is tracked in the private roadmap (`docs/09-roadmap.md` § Production security hardening queue). Public operational priority: deploy production shell guards → control plane rate limits → fleet HTTPS → room admission defaults.
