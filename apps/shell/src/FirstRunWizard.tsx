@@ -4,8 +4,6 @@ import { CommsAgentClient } from "./comms/client.js";
 
 import {
 
-  DEFAULT_COMMS_AGENT_URL,
-
   defaultCommsAgentUrl,
 
   loadCommsAgentConfig,
@@ -33,6 +31,7 @@ import { IS_DEMO_MODE } from "./demoPersonas.js";
 
 import { markFirstRunDone } from "./firstRunStorage.js";
 import { CONTROL_PLANE_URL, MANAGED_HOSTING, SHOW_DEV_WORKFLOWS } from "./hostConfig.js";
+import { productionFetchUrl, resolveInjectedUrl } from "./productionGuard.js";
 import { probeLocalDevAgentBase } from "./devAgentProbe.js";
 import {
   bareOwnerHandle,
@@ -41,57 +40,31 @@ import {
   validateOwnerHandle,
 } from "./ownerHandle.js";
 
-const HOSTED_STUB_AGENT_URL =
+function hostedStubAgentUrl(): string {
+  return resolveInjectedUrl(import.meta.env.VITE_hostedStubAgentUrl() as string, "http://127.0.0.1:5301");
+}
 
-  (import.meta.env.VITE_HOSTED_STUB_AGENT_URL as string | undefined)?.replace(/\/$/, "") ??
+function hostedStubAgentToken(): string {
+  return resolveInjectedUrl(import.meta.env.VITE_hostedStubAgentToken() as string, "atom-hosted-dev-token");
+}
 
-  "http://127.0.0.1:5301";
+function demoPeerAdminUrl(): string {
+  return resolveInjectedUrl(import.meta.env.VITE_DEMO_PEER_URL as string, "http://127.0.0.1:5205");
+}
 
+function demoPersonalAgentUrl(): string {
+  return resolveInjectedUrl(import.meta.env.VITE_DEMO_PERSONAL_AGENT_URL as string, "http://127.0.0.1:5204");
+}
 
+function demoPersonalAgentToken(): string {
+  return (import.meta.env.VITE_DEMO_PERSONAL_AGENT_TOKEN as string | undefined)?.trim() ?? "";
+}
 
-const HOSTED_STUB_AGENT_TOKEN =
-
-  (import.meta.env.VITE_HOSTED_STUB_AGENT_TOKEN as string | undefined)?.trim() ??
-
-  "atom-hosted-dev-token";
-
-
-
-const DEMO_PEER_ADMIN_URL =
-
-  (import.meta.env.VITE_DEMO_PEER_URL as string | undefined)?.replace(/\/$/, "") ??
-
-  "http://127.0.0.1:5205";
-
-
-
-const DEMO_PERSONAL_AGENT_URL =
-
-  (import.meta.env.VITE_DEMO_PERSONAL_AGENT_URL as string | undefined)?.replace(/\/$/, "") ??
-
-  "http://127.0.0.1:5204";
-
-
-
-const DEMO_PERSONAL_AGENT_TOKEN =
-
-  (import.meta.env.VITE_DEMO_PERSONAL_AGENT_TOKEN as string | undefined)?.trim() ?? "";
-
-
-
-const DEMO_MODE =
-
-  import.meta.env.VITE_DEMO_MODE === "1" || import.meta.env.VITE_DEMO_MODE === "true";
-
-
+const SHOW_DEMO_PEER = SHOW_DEV_WORKFLOWS || (IS_DEMO_MODE && !MANAGED_HOSTING);
 
 const SHELL_URL =
-
-  (import.meta.env.VITE_SHELL_URL as string | undefined)?.replace(/\/$/, "") ??
-
-  (typeof window !== "undefined" ? window.location.origin : "http://localhost:5200");
-
-
+  (import.meta.env.VITE_SHELL_URL as string | undefined)?.replace(/\/$/, "") ||
+  (typeof window !== "undefined" ? window.location.origin : "");
 
 const DEMO_PEER_ADMIN_TOKEN =
   (import.meta.env.VITE_DEMO_PEER_TOKEN as string | undefined)?.trim() ?? "atom-demo-peer-token";
@@ -102,7 +75,7 @@ async function requestDemoSchedulingProposal(
 ): Promise<void> {
   const client = new CommsAgentClient(personalAdmin, personalToken);
   const health = await client.health();
-  const resp = await fetch(`${DEMO_PEER_ADMIN_URL}/demo/resend-proposal`, {
+  const resp = await fetch(`${productionFetchUrl(demoPeerAdminUrl()) ?? ""}/demo/resend-proposal`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${DEMO_PEER_ADMIN_TOKEN}`,
@@ -152,7 +125,7 @@ function explainConnectError(error: unknown, personalAdmin: string): string {
 
   if (/failed to fetch|connection refused|networkerror/i.test(message)) {
 
-    if (DEMO_MODE) {
+    if (IS_DEMO_MODE) {
 
       return `Cannot reach your agent at ${personalAdmin}. Wait for the green check below, or restart with pnpm dev:demo.`;
 
@@ -164,7 +137,7 @@ function explainConnectError(error: unknown, personalAdmin: string): string {
 
   if (/unauthorized|401/i.test(message)) {
 
-    return `Admin token rejected. ${DEMO_MODE ? "Restart with pnpm dev:demo." : "Run pnpm dev:demo instead of separate terminals."}`;
+    return `Admin token rejected. ${IS_DEMO_MODE ? "Restart with pnpm dev:demo." : "Run pnpm dev:demo instead of separate terminals."}`;
 
   }
 
@@ -268,7 +241,7 @@ export function FirstRunWizard({
 
   const [adminToken, setAdminToken] = useState(existing.adminToken ?? "");
 
-  const [personalUrl, setPersonalUrl] = useState(DEMO_PERSONAL_AGENT_URL);
+  const [personalUrl, setPersonalUrl] = useState(demoPersonalAgentUrl());
 
   const [personalToken, setPersonalToken] = useState("");
 
@@ -294,7 +267,7 @@ export function FirstRunWizard({
 
   useEffect(() => {
 
-    if (mode !== "demo-peer") return;
+    if (!SHOW_DEMO_PEER || mode !== "demo-peer") return;
 
 
 
@@ -304,17 +277,17 @@ export function FirstRunWizard({
 
     async function poll() {
 
-      const personalTokenForCheck = DEMO_MODE
+      const personalTokenForCheck = IS_DEMO_MODE
 
-        ? DEMO_PERSONAL_AGENT_TOKEN
+        ? demoPersonalAgentToken()
 
         : personalToken.trim();
 
-      const personalUrlForCheck = DEMO_MODE ? DEMO_PERSONAL_AGENT_URL : personalUrl.trim();
+      const personalUrlForCheck = IS_DEMO_MODE ? demoPersonalAgentUrl() : personalUrl.trim();
 
 
 
-      if (DEMO_MODE || (personalUrlForCheck && personalTokenForCheck)) {
+      if (IS_DEMO_MODE || (personalUrlForCheck && personalTokenForCheck)) {
 
         const personalOk = await checkPersonalAgent(personalUrlForCheck, personalTokenForCheck);
 
@@ -330,7 +303,7 @@ export function FirstRunWizard({
 
       try {
 
-        await fetchDemoPeerDid(DEMO_PEER_ADMIN_URL);
+        await fetchDemoPeerDid(demoPeerAdminUrl());
 
         if (!cancelled) setPeerStatus("ready");
 
@@ -394,7 +367,7 @@ export function FirstRunWizard({
         return;
       }
 
-      const agentOk = await checkPersonalAgent(HOSTED_STUB_AGENT_URL, HOSTED_STUB_AGENT_TOKEN);
+      const agentOk = await checkPersonalAgent(hostedStubAgentUrl(), hostedStubAgentToken());
 
       if (!cancelled) setHostedAgentStatus(agentOk ? "ready" : "missing");
 
@@ -539,7 +512,7 @@ export function FirstRunWizard({
 
     try {
 
-      const personalAdmin = (DEMO_MODE ? DEMO_PERSONAL_AGENT_URL : personalUrl.trim()).replace(
+      const personalAdmin = (IS_DEMO_MODE ? demoPersonalAgentUrl() : personalUrl.trim()).replace(
 
         /\/$/,
 
@@ -547,7 +520,7 @@ export function FirstRunWizard({
 
       );
 
-      const token = (DEMO_MODE ? DEMO_PERSONAL_AGENT_TOKEN : personalToken.trim()).trim();
+      const token = (IS_DEMO_MODE ? demoPersonalAgentToken() : personalToken.trim()).trim();
 
 
 
@@ -557,7 +530,7 @@ export function FirstRunWizard({
 
       }
 
-      if (!DEMO_MODE) {
+      if (!IS_DEMO_MODE) {
 
         const tokenError = validateAdminToken(token);
 
@@ -565,7 +538,7 @@ export function FirstRunWizard({
 
       }
 
-      if (personalAdmin === DEMO_PEER_ADMIN_URL) {
+      if (personalAdmin === demoPeerAdminUrl()) {
 
         throw new Error("Use your personal agent URL, not the demo peer URL.");
 
@@ -573,9 +546,9 @@ export function FirstRunWizard({
 
 
 
-      const demoEndpoint = `${DEMO_PEER_ADMIN_URL}/a2a/jsonrpc`;
+      const demoEndpoint = `${demoPeerAdminUrl()}/a2a/jsonrpc`;
 
-      const demoDid = await fetchDemoPeerDid(DEMO_PEER_ADMIN_URL);
+      const demoDid = await fetchDemoPeerDid(demoPeerAdminUrl());
 
 
 
@@ -617,7 +590,7 @@ export function FirstRunWizard({
 
       }
 
-      if (DEMO_MODE) {
+      if (IS_DEMO_MODE) {
 
         await requestDemoSchedulingProposal(personalAdmin, token);
 
@@ -740,7 +713,7 @@ export function FirstRunWizard({
 
   const demoReady = personalStatus === "ready" && peerStatus === "ready";
 
-  const canConnectDemo = DEMO_MODE
+  const canConnectDemo = IS_DEMO_MODE
 
     ? demoReady
 
@@ -765,7 +738,7 @@ export function FirstRunWizard({
         <div className="settings-dialog-header">
 
           <h2>
-            {mode === "demo-peer" && DEMO_MODE
+            {mode === "demo-peer" && IS_DEMO_MODE
               ? "Atom demo"
               : mode === "self-host"
                 ? "Connect your agent"
@@ -793,9 +766,6 @@ export function FirstRunWizard({
                   <div className="first-run-actions">
                     <button type="button" className="chrome-approve" onClick={() => setMode("hosted")}>
                       Create account
-                    </button>
-                    <button type="button" className="chrome-decline" onClick={() => setMode("demo-peer")}>
-                      Try demo first
                     </button>
                   </div>
                 </>
@@ -829,11 +799,13 @@ export function FirstRunWizard({
                   {localDevAgentUrl ? "Connect" : "Connect my agent"}
                 </button>
 
+                {SHOW_DEMO_PEER ? (
                 <button type="button" className="chrome-approve" onClick={() => setMode("demo-peer")}>
 
                   Try demo peer (2 min)
 
                 </button>
+                ) : null}
 
                 {SHOW_DEV_WORKFLOWS ? (
                   <button type="button" className="chrome-decline" onClick={() => setMode("hosted")}>
@@ -859,11 +831,11 @@ export function FirstRunWizard({
 
 
 
-          {mode === "demo-peer" ? (
+          {mode === "demo-peer" && SHOW_DEMO_PEER ? (
 
             <>
 
-              {DEMO_MODE ? (
+              {IS_DEMO_MODE ? (
 
                 <>
 
@@ -934,7 +906,7 @@ export function FirstRunWizard({
 
                 <li className={personalStatus === "ready" ? "first-run-status-ready" : ""}>
 
-                  Your agent ({DEMO_PERSONAL_AGENT_URL}):{" "}
+                  Your agent ({demoPersonalAgentUrl()}):{" "}
 
                   {statusLabel(
 
@@ -942,7 +914,7 @@ export function FirstRunWizard({
 
                     "Ready",
 
-                    DEMO_MODE ? "Not running — restart pnpm dev:demo" : "Not running — run pnpm dev:demo",
+                    IS_DEMO_MODE ? "Not running — restart pnpm dev:demo" : "Not running — run pnpm dev:demo",
 
                   )}
 
@@ -950,7 +922,7 @@ export function FirstRunWizard({
 
                 <li className={peerStatus === "ready" ? "first-run-status-ready" : ""}>
 
-                  Demo peer ({DEMO_PEER_ADMIN_URL}):{" "}
+                  Demo peer ({demoPeerAdminUrl()}):{" "}
 
                   {statusLabel(
 
@@ -958,7 +930,7 @@ export function FirstRunWizard({
 
                     "Ready",
 
-                    DEMO_MODE ? "Not running — restart pnpm dev:demo" : "Not running — run pnpm dev:demo",
+                    IS_DEMO_MODE ? "Not running — restart pnpm dev:demo" : "Not running — run pnpm dev:demo",
 
                   )}
 
@@ -968,7 +940,7 @@ export function FirstRunWizard({
 
 
 
-              {!DEMO_MODE ? (
+              {!IS_DEMO_MODE ? (
 
                 <button
 
@@ -988,7 +960,7 @@ export function FirstRunWizard({
 
 
 
-              {!DEMO_MODE && showAdvanced ? (
+              {!IS_DEMO_MODE && showAdvanced ? (
 
                 <>
 
@@ -1063,8 +1035,9 @@ export function FirstRunWizard({
             <>
 
               <p className="settings-note">
-                A hosted agent means the operator holds your keys and store. Export to self-host
-                remains one click (M13.4).
+                {MANAGED_HOSTING
+                  ? "Your agent runs on Qwixl infrastructure. You can export your data and move to self-hosting any time from Settings."
+                  : "A hosted agent means the operator holds your keys and store. You can export and self-host when you want."}
               </p>
               {SHOW_DEV_WORKFLOWS ? (
                 <>
@@ -1086,7 +1059,7 @@ export function FirstRunWizard({
                       )}
                     </li>
                     <li className={hostedAgentStatus === "ready" ? "first-run-status-ready" : ""}>
-                      Hosted agent ({HOSTED_STUB_AGENT_URL}):{" "}
+                      Hosted agent ({hostedStubAgentUrl()}):{" "}
                       {statusLabel(
                         hostedAgentStatus,
                         "Ready",

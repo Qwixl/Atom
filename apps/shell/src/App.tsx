@@ -103,6 +103,7 @@ import {
   PRODUCTION_REGISTRY_URL,
   SHOW_DEV_WORKFLOWS,
 } from "./hostConfig.js";
+import { validateProductionAgUiUrl } from "./productionGuard.js";
 import { applyAtomSkin, ATOM_SKINS, type AtomSkinId } from "@qwixl/skin-default/tokens";
 import { ShellComposer } from "./shell/ShellComposer.js";
 import { ConfirmationChrome } from "./shell/ConfirmationChrome.js";
@@ -1176,8 +1177,9 @@ export function App() {
               ) : null}
               {provider === "ag-ui" ? (
                 <p className="shell-empty-note">
-                  AG-UI transport: connects to an agent backend over SSE. Start the reference server
-                  with <code>pnpm dev:ag-ui</code> (default {DEFAULT_AGUI_URL}).
+                  {IS_PRODUCTION_HOST
+                    ? "Set your chat agent URL in Settings to start a conversation."
+                    : "Connect to a server-side chat agent using the URL in Settings."}
                 </p>
               ) : null}
             </div>
@@ -1455,6 +1457,8 @@ export function App() {
             conversationRef.current.reset();
           }}
           onSaveAgUi={(config) => {
+            const err = validateProductionAgUiUrl(config.url);
+            if (err) return;
             saveJsonToStorage(AGUI_CONFIG_KEY, config);
             setAgUiConfig(config);
             setSettingsIntent(null);
@@ -1568,7 +1572,8 @@ function SettingsDialog({
   const stripePaymentValid =
     (hasSavedStripeSecret || Boolean(stripeSecretKey.trim())) &&
     Boolean(stripePublishableKey.trim());
-  const agUiValid = agUiUrl.trim().length > 0;
+  const agUiError = validateProductionAgUiUrl(agUiUrl);
+  const agUiValid = !agUiError;
 
   function saveLlmAndEnable() {
     onSaveCurator(curatorOn, curatorAutoAcceptOn);
@@ -1713,6 +1718,7 @@ function SettingsDialog({
                   placeholder="https://your-agent.example.com/agent"
                 />
               </label>
+              {agUiError ? <p className="settings-note settings-error">{agUiError}</p> : null}
               <div className="chrome-actions settings-section-actions">
                 <button
                   className="chrome-approve"

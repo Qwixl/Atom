@@ -76,6 +76,15 @@ LLM connection metadata on production uses `sessionStorage` (tab-scoped); keys s
 | Public registry CORS `*` | Client trust policy; optional origin allowlist for private registries |
 | Agent prompt injection | Composition validation + catalog-only resolution; user confirms consequential actions |
 | XSS in shell bundle | CSP, dependency audit, no `dangerouslySetInnerHTML` |
+| Hosted signup / fleet abuse | M21.2 rate limits + `/provision` lockdown on control plane |
+| Plain HTTP or localhost agent URLs in production | M21.3 fleet HTTPS invariants; shell `productionGuard.ts` blocks localhost fetches |
+| Admin bearer token in browser | High blast radius if XSS/phishing; M21.4 documents rotation/proxy path |
+| Public open rooms | Intentional exposure; M21.5 defaults new rooms to `invite` |
+| Untrusted AG-UI backends | M21.6 production warn/block for non-HTTPS endpoints |
+
+## Hardening queue (M21)
+
+Hosted production hardening is tracked in the private roadmap (`docs/09-roadmap.md` § Production security hardening queue). Public operational priority: deploy production shell guards → control plane rate limits → fleet HTTPS → room admission defaults.
 
 ## Reporting
 

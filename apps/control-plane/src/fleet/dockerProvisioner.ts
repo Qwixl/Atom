@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
 import type { FleetProvisioner, HostedAgentRecord, ProvisionOutcome } from "./types.js";
+import { assertProductionAgentPublicUrl } from "./publicUrl.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -22,9 +23,11 @@ function agentImage(): string {
 
 function publicBaseUrl(port: number): string {
   const template = process.env.ATOM_FLEET_PUBLIC_URL_TEMPLATE?.trim();
-  if (template) return template.replace("{port}", String(port));
-  const host = process.env.ATOM_FLEET_PUBLIC_HOST?.trim() || "127.0.0.1";
-  return `http://${host}:${port}`;
+  const url = template
+    ? template.replace("{port}", String(port))
+    : `http://${process.env.ATOM_FLEET_PUBLIC_HOST?.trim() || "127.0.0.1"}:${port}`;
+  assertProductionAgentPublicUrl(url);
+  return url;
 }
 
 function allocatePort(agents: Iterable<HostedAgentRecord>): number {

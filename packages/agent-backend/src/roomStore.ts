@@ -104,7 +104,7 @@ export class RoomStore {
       hostDid: opts.hostDid,
       name: opts.name.trim(),
       topic: opts.topic?.trim(),
-      admission: opts.admission ?? "open",
+      admission: opts.admission ?? "invite",
       moduleId: opts.moduleId?.trim(),
       policyUrl: opts.policyUrl?.trim(),
       maxMembers: opts.maxMembers ?? 64,

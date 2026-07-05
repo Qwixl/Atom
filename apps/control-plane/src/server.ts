@@ -3,7 +3,7 @@
  * Production: ATOM_FLEET_MODE=docker + atom-agent:latest image.
  * Local dev: HOSTED_STUB_AGENT_URL + HOSTED_STUB_AGENT_TOKEN (via pnpm dev:hosting).
  */
-import express from "express";
+import express, { type Request, type Response } from "express";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,9 +13,11 @@ import {
   handleFromEmail,
   newAgentId,
 } from "./fleet/index.js";
+import { requireProductionFleetTemplate } from "./fleet/publicUrl.js";
 import { isHandleTaken, parseSignupHandle, publicHandle } from "./handles.js";
 import { loadAgentStore, resolveDataDir, saveAgentStore } from "./fleet/store.js";
 import type { FleetProvisioner, HostedAgentRecord } from "./fleet/types.js";
+import { createRateLimiter } from "./rateLimit.js";
 
 const app = express();
 app.use(express.json());
@@ -52,9 +54,26 @@ app.use((req, res, next) => {
 let agents = new Map<string, HostedAgentRecord>();
 let fleet: FleetProvisioner | null = null;
 
+const signupRateLimit = createRateLimiter(15 * 60 * 1000, 5);
+const handleCheckRateLimit = createRateLimiter(60 * 1000, 30);
+const provisionSecret = process.env.ATOM_PROVISION_SECRET?.trim();
+const isProduction = process.env.NODE_ENV === "production";
+
+function requireProvisionAuth(req: Request, res: Response): boolean {
+  if (isProduction && !provisionSecret) return false;
+  if (!provisionSecret) return true;
+  const header = req.headers.authorization;
+  if (header === `Bearer ${provisionSecret}`) return true;
+  res.status(401).json({ error: "Unauthorized" });
+  return false;
+}
+
 async function init(): Promise<void> {
   agents = await loadAgentStore(dataDir);
   fleet = await createFleetProvisioner(agents);
+  if (fleet.mode === "docker") {
+    requireProductionFleetTemplate();
+  }
 }
 
 async function persistAgents(): Promise<void> {
@@ -76,7 +95,7 @@ app.get("/policy/acceptable-use", (_req, res) => {
   res.type("text/markdown").send(aupText);
 });
 
-app.get("/handles/check", (req, res) => {
+app.get("/handles/check", handleCheckRateLimit, (req, res) => {
   const parsed = parseSignupHandle({ handle: String(req.query.handle ?? "") });
   if (parsed.error) {
     res.json({ available: false, handle: publicHandle(parsed.handle), error: parsed.error });
@@ -90,7 +109,7 @@ app.get("/handles/check", (req, res) => {
   });
 });
 
-app.post("/signup", async (req, res) => {
+app.post("/signup", signupRateLimit, async (req, res) => {
   if (!fleet) {
     res.status(503).json({ error: "Control plane starting" });
     return;
@@ -125,7 +144,7 @@ app.post("/signup", async (req, res) => {
       agentUrl: outcome.agent.agentUrl,
       adminToken: outcome.agent.adminToken,
       custodyNotice:
-        "A hosted agent means Qwixl infrastructure holds your keys and store. Export (M13.4) and self-host remain available.",
+        "A hosted agent means Qwixl infrastructure holds your keys and store. You can export and self-host at any time.",
       policyUrl: "/policy/acceptable-use",
       status: outcome.status,
       message: outcome.message,
@@ -140,7 +159,12 @@ app.post("/signup", async (req, res) => {
   }
 });
 
-app.post("/provision", async (req, res) => {
+app.post("/provision", signupRateLimit, async (req, res) => {
+  if (isProduction && !provisionSecret) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (!requireProvisionAuth(req, res)) return;
   if (!fleet) {
     res.status(503).json({ error: "Control plane starting" });
     return;

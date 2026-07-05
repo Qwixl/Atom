@@ -27,7 +27,7 @@
     "docker:agent": "docker compose up atom-agent --build",
     "docker:demo-peer": "docker compose up demo-peer-agent --build",
     "docker:hosting": "docker compose up demo-peer-agent control-plane --build",
-    "registry:verify": "pnpm --filter @qwixl/registry-tools verify",
+    "registry:verify": "pnpm --filter @qwixl/registry-tools verify && node scripts/verify-production-shell.mjs",
     "registry:publish": "pnpm --filter @qwixl/registry-tools publish-module",
     "registry:publish-all": "pnpm --filter @qwixl/registry-tools publish-all",
     "registry:scaffold": "pnpm --filter @qwixl/registry-tools scaffold",

@@ -1,4 +1,5 @@
 import type { RegistryTrustPolicy } from "@qwixl/shell-core";
+import { isLocalHostUrl, resolveInjectedUrl } from "./productionGuard.js";
 
 /** Production Vite build (shell-atom.vercel.app and tagged releases). */
 export const IS_PRODUCTION_HOST = import.meta.env.PROD;
@@ -32,10 +33,17 @@ export const PRODUCTION_REGISTRY_TRUST: RegistryTrustPolicy = {
   requireSignature: false,
 };
 
-/** Managed hosting control plane — set at build time for production deploys. */
-export const CONTROL_PLANE_URL =
-  (import.meta.env.VITE_CONTROL_PLANE_URL as string | undefined)?.replace(/\/$/, "") ??
-  (IS_PRODUCTION_HOST ? "https://control.qwixl.dev" : "http://127.0.0.1:5300");
+/** Managed hosting control plane — never localhost on production deploys. */
+function resolveControlPlaneUrl(): string {
+  return resolveInjectedUrl(
+    import.meta.env.VITE_CONTROL_PLANE_URL as string | undefined,
+    "http://127.0.0.1:5300",
+  ) || (IS_PRODUCTION_HOST ? "https://control.qwixl.dev" : "http://127.0.0.1:5300");
+}
+
+export const CONTROL_PLANE_URL = resolveControlPlaneUrl();
+
+export { isLocalHostUrl, productionFetchUrl, resolveInjectedUrl, assertProductionAgentUrl } from "./productionGuard.js";
 
 /** Browser-direct LLM keys are not permitted on deployed hosts. */
 export const ALLOW_BROWSER_LLM = !IS_PRODUCTION_HOST;

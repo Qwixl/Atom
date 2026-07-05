@@ -1,6 +1,7 @@
 import { loadJsonFromStorage, loadStringFromStorage, saveJsonToStorage, saveStringToStorage } from "@qwixl/shell-core";
 import type { OwnerRecord } from "@qwixl/owner-store";
 import { clearProtectedString, readProtectedStringAsync, writeProtectedString } from "../custody/dataVault.js";
+import { isLocalHostUrl } from "../productionGuard.js";
 import { mergeContactFromTrustedAgent } from "./trustedAgent.js";
 import type { AgentContact, CommsAgentConfig } from "./types.js";
 
@@ -17,7 +18,7 @@ export function defaultCommsAgentUrl(): string {
 }
 
 export function isLocalAgentUrl(url: string): boolean {
-  return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?/i.test(url.trim());
+  return isLocalHostUrl(url);
 }
 
 /** Drop dev-machine agent config that cannot work from a deployed shell origin. */
