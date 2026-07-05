@@ -17,6 +17,7 @@ export interface ExportBundlePayload {
   identity: unknown;
   businessCatalog: unknown | null;
   businessContext: unknown | null;
+  businessKnowledge: unknown | null;
   mlsPeers: StoredMlsPeer[];
   adminTokenPath: string;
 }
@@ -34,6 +35,7 @@ export async function buildExportPayload(): Promise<ExportBundlePayload> {
   const identityRaw = await readFile(identityPath(), "utf8");
   const catalog = await readJsonFile<{ items?: unknown[] }>(resolveDataPath("business-catalog.json"));
   const context = await readJsonFile<{ records?: unknown[] }>(resolveDataPath("business-context.json"));
+  const knowledge = await readJsonFile<{ documents?: unknown[] }>(resolveDataPath("business-knowledge.json"));
   const peers = await readJsonFile<{ peers?: StoredMlsPeer[] }>(resolveDataPath("mls-peers.json"));
   return {
     magic: EXPORT_MAGIC,
@@ -41,6 +43,7 @@ export async function buildExportPayload(): Promise<ExportBundlePayload> {
     identity: JSON.parse(identityRaw),
     businessCatalog: catalog ?? null,
     businessContext: context ?? null,
+    businessKnowledge: knowledge ?? null,
     mlsPeers: peers?.peers ?? [],
     adminTokenPath: path.basename(resolveDataPath("agent-admin-token.txt")),
   };
@@ -101,6 +104,12 @@ export async function importEncryptedBundle(
     const contextPath = resolveDataPath("business-context.json");
     await atomicWriteJson(contextPath, payload.businessContext);
     restoredFiles.push(contextPath);
+  }
+
+  if (payload.businessKnowledge && typeof payload.businessKnowledge === "object") {
+    const knowledgePath = resolveDataPath("business-knowledge.json");
+    await atomicWriteJson(knowledgePath, payload.businessKnowledge);
+    restoredFiles.push(knowledgePath);
   }
 
   if (payload.mlsPeers?.length) {

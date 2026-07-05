@@ -85,7 +85,7 @@ ${snippets.map((snippet, index) => `${index + 1}. ${snippet}`).join("\n")}`;
 function businessSection(profile: PromptProfile | undefined): string {
   const ctx = profile?.businessContext?.trim();
   if (!ctx) return "";
-  return `## Business agent context\n\n${ctx}\n\nWhen answering on behalf of the business, honor catalog availability and signed offer terms. Brand voice may style replies; prices and availability must match catalog fields.`;
+  return `## Business agent context\n\n${ctx}\n\nWhen answering on behalf of the business, honor catalog availability and signed offer terms. Brand voice always applies; retrieved reference excerpts are query-matched — cite them accurately and do not invent policy or terms beyond those excerpts.`;
 }
 
 function profileAndMemorySection(profile: PromptProfile | undefined): string {

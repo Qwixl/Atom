@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   BUSINESS_BRAND_CATEGORY,
   BUSINESS_CATALOG_CATEGORY,
+  BUSINESS_KNOWLEDGE_CATEGORY,
   BUSINESS_POLICY_CATEGORY,
   catalogItemsFromStore,
   derivePreferenceWeights,
@@ -46,6 +47,70 @@ export function ProfilePanel({
   const [catalogCurrency, setCatalogCurrency] = useState("EUR");
   const [catalogAmount, setCatalogAmount] = useState("");
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [brandLabel, setBrandLabel] = useState("");
+  const [brandValue, setBrandValue] = useState("");
+  const [policyLabel, setPolicyLabel] = useState("");
+  const [policyValue, setPolicyValue] = useState("");
+  const [contextSyncStatus, setContextSyncStatus] = useState<string | null>(null);
+  const [knowledgeTitle, setKnowledgeTitle] = useState("");
+  const [knowledgeCategory, setKnowledgeCategory] = useState<
+    "policy" | "terms" | "faq" | "product" | "general"
+  >("general");
+  const [knowledgeBody, setKnowledgeBody] = useState("");
+  const [knowledgeSyncStatus, setKnowledgeSyncStatus] = useState<string | null>(null);
+
+  function businessContextFromRecords(source: OwnerRecord[]) {
+    return source
+      .filter(
+        (record) =>
+          !record.guarded &&
+          (record.category === BUSINESS_BRAND_CATEGORY ||
+            record.category === BUSINESS_POLICY_CATEGORY),
+      )
+      .map((record) => ({
+        category: record.category as "business-brand" | "business-policy",
+        label: record.label,
+        value: formatRecordValue(record.value),
+      }));
+  }
+
+  const brandRecords = records.filter((record) => record.category === BUSINESS_BRAND_CATEGORY);
+  const policyRecords = records.filter((record) => record.category === BUSINESS_POLICY_CATEGORY);
+  const knowledgeRecords = records.filter((record) => record.category === BUSINESS_KNOWLEDGE_CATEGORY);
+  const contextRecords = businessContextFromRecords(records);
+
+  function knowledgeBodyFromRecord(record: OwnerRecord): string {
+    if (typeof record.value === "string") return record.value;
+    if (typeof record.value === "object" && record.value !== null && "body" in record.value) {
+      return String((record.value as { body?: unknown }).body ?? "");
+    }
+    return formatRecordValue(record.value);
+  }
+
+  function knowledgeCategoryFromRecord(record: OwnerRecord): string {
+    if (typeof record.value === "object" && record.value !== null && "category" in record.value) {
+      const category = (record.value as { category?: unknown }).category;
+      return typeof category === "string" ? category : "general";
+    }
+    return "general";
+  }
+
+  function knowledgeDocumentsFromRecords(source: OwnerRecord[]) {
+    return source
+      .filter((record) => record.category === BUSINESS_KNOWLEDGE_CATEGORY && !record.guarded)
+      .map((record) => ({
+        id: record.id,
+        title: record.label,
+        category: knowledgeCategoryFromRecord(record) as
+          | "policy"
+          | "terms"
+          | "faq"
+          | "product"
+          | "general",
+        body: knowledgeBodyFromRecord(record),
+      }))
+      .filter((doc) => doc.title.trim() && doc.body.trim());
+  }
 
   function addCatalogItem() {
     const amountMajor = Number(catalogAmount);
@@ -85,6 +150,85 @@ export function ProfilePanel({
       setSyncStatus(`Synced ${items.length} item${items.length === 1 ? "" : "s"} to agent backend.`);
     } catch (error) {
       setSyncStatus(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  function addBrandRecord() {
+    if (!brandLabel.trim() || !brandValue.trim()) return;
+    store.upsert({
+      category: BUSINESS_BRAND_CATEGORY,
+      label: brandLabel.trim(),
+      value: brandValue.trim(),
+      guarded: false,
+    });
+    setBrandLabel("");
+    setBrandValue("");
+    onChanged();
+  }
+
+  function addPolicyRecord() {
+    if (!policyLabel.trim() || !policyValue.trim()) return;
+    store.upsert({
+      category: BUSINESS_POLICY_CATEGORY,
+      label: policyLabel.trim(),
+      value: policyValue.trim(),
+      guarded: false,
+    });
+    setPolicyLabel("");
+    setPolicyValue("");
+    onChanged();
+  }
+
+  async function syncContextToAgent() {
+    const config = loadCommsAgentConfig();
+    const url = config.adminUrl;
+    const payload = businessContextFromRecords(records);
+    if (payload.length === 0) {
+      setContextSyncStatus("Add brand voice or policy records before syncing.");
+      return;
+    }
+    setContextSyncStatus("Syncing…");
+    try {
+      const client = new CommsAgentClient(url, config.adminToken);
+      await client.syncBusinessContext(payload);
+      setContextSyncStatus(
+        `Synced ${payload.length} record${payload.length === 1 ? "" : "s"} to agent backend (policies indexed for retrieval).`,
+      );
+    } catch (error) {
+      setContextSyncStatus(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  function addKnowledgeDocument() {
+    if (!knowledgeTitle.trim() || !knowledgeBody.trim()) return;
+    store.upsert({
+      category: BUSINESS_KNOWLEDGE_CATEGORY,
+      label: knowledgeTitle.trim(),
+      value: { category: knowledgeCategory, body: knowledgeBody.trim() },
+      guarded: false,
+    });
+    setKnowledgeTitle("");
+    setKnowledgeBody("");
+    onChanged();
+  }
+
+  async function syncKnowledgeToAgent() {
+    const config = loadCommsAgentConfig();
+    const url = config.adminUrl;
+    const documents = knowledgeDocumentsFromRecords(records);
+    if (documents.length === 0) {
+      setKnowledgeSyncStatus("Add knowledge documents before syncing.");
+      return;
+    }
+    setKnowledgeSyncStatus("Syncing…");
+    try {
+      const client = new CommsAgentClient(url, config.adminToken);
+      await client.syncBusinessKnowledge(documents);
+      setKnowledgeSyncStatus(
+        `Synced ${documents.length} document${documents.length === 1 ? "" : "s"} to agent knowledge base.`,
+      );
+    } catch (error) {
+      setKnowledgeSyncStatus(error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -172,10 +316,164 @@ export function ProfilePanel({
       ) : null}
 
       <div className="panel-section shell-profile-business">
+        <h3>Brand voice</h3>
+        <p className="panel-section-note">
+          How your business agent speaks — tone, role, and values. Synced to the agent backend for
+          chat and greeter behavior.
+        </p>
+        {brandRecords.length > 0 ? (
+          <ul className="shell-profile-context-list">
+            {brandRecords.map((record) => (
+              <li key={record.id}>
+                <strong>{record.label}</strong>
+                <span>{formatRecordValue(record.value)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <div className="panel-form-grid shell-profile-add">
+          <input
+            className="panel-input"
+            value={brandLabel}
+            placeholder="Label (e.g. Tone, Greeter role, Values)"
+            onChange={(e) => setBrandLabel(e.target.value)}
+          />
+          <textarea
+            className="panel-input shell-profile-textarea"
+            value={brandValue}
+            placeholder="Voice guidance for the agent model…"
+            rows={3}
+            onChange={(e) => setBrandValue(e.target.value)}
+          />
+          <button
+            className="panel-btn panel-btn-primary"
+            onClick={() => addBrandRecord()}
+            disabled={!brandLabel.trim() || !brandValue.trim()}
+          >
+            Add brand record
+          </button>
+        </div>
+      </div>
+
+      <div className="panel-section shell-profile-business">
+        <h3>Policies</h3>
+        <p className="panel-section-note">
+          House rules, moderation stance, and operational boundaries. Synced to the agent knowledge
+          base and retrieved at chat time when relevant.
+        </p>
+        {policyRecords.length > 0 ? (
+          <ul className="shell-profile-context-list">
+            {policyRecords.map((record) => (
+              <li key={record.id}>
+                <strong>{record.label}</strong>
+                <span>{formatRecordValue(record.value)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <div className="panel-form-grid shell-profile-add">
+          <input
+            className="panel-input"
+            value={policyLabel}
+            placeholder="Label (e.g. House rules, Returns)"
+            onChange={(e) => setPolicyLabel(e.target.value)}
+          />
+          <textarea
+            className="panel-input shell-profile-textarea"
+            value={policyValue}
+            placeholder="Policy text the agent should honor…"
+            rows={3}
+            onChange={(e) => setPolicyValue(e.target.value)}
+          />
+          <button
+            className="panel-btn panel-btn-primary"
+            onClick={() => addPolicyRecord()}
+            disabled={!policyLabel.trim() || !policyValue.trim()}
+          >
+            Add policy record
+          </button>
+          <button
+            className="panel-btn"
+            onClick={() => void syncContextToAgent()}
+            disabled={contextRecords.length === 0}
+          >
+            Sync {contextRecords.length} brand/policy record{contextRecords.length === 1 ? "" : "s"} to agent
+          </button>
+          {contextSyncStatus ? <p className="panel-section-note">{contextSyncStatus}</p> : null}
+        </div>
+      </div>
+
+      <div className="panel-section shell-profile-business">
+        <h3>Knowledge base</h3>
+        <p className="panel-section-note">
+          Policies, terms, FAQs, and product docs. The agent retrieves matching excerpts per turn —
+          not all at once — so large reference material stays accurate.
+        </p>
+        {knowledgeRecords.length > 0 ? (
+          <ul className="shell-profile-context-list">
+            {knowledgeRecords.map((record) => (
+              <li key={record.id}>
+                <strong>
+                  {record.label}
+                  <span className="shell-profile-badge">{knowledgeCategoryFromRecord(record)}</span>
+                </strong>
+                <span>{knowledgeBodyFromRecord(record)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <div className="panel-form-grid shell-profile-add">
+          <input
+            className="panel-input"
+            value={knowledgeTitle}
+            placeholder="Document title (e.g. Returns policy, Terms of service)"
+            onChange={(e) => setKnowledgeTitle(e.target.value)}
+          />
+          <select
+            className="panel-input"
+            value={knowledgeCategory}
+            onChange={(e) =>
+              setKnowledgeCategory(
+                e.target.value as "policy" | "terms" | "faq" | "product" | "general",
+              )
+            }
+          >
+            <option value="policy">Policy</option>
+            <option value="terms">Terms</option>
+            <option value="faq">FAQ</option>
+            <option value="product">Product</option>
+            <option value="general">General</option>
+          </select>
+          <textarea
+            className="panel-input shell-profile-textarea"
+            value={knowledgeBody}
+            placeholder="Full document text — can be long; chunked and retrieved when relevant…"
+            rows={5}
+            onChange={(e) => setKnowledgeBody(e.target.value)}
+          />
+          <button
+            className="panel-btn panel-btn-primary"
+            onClick={() => addKnowledgeDocument()}
+            disabled={!knowledgeTitle.trim() || !knowledgeBody.trim()}
+          >
+            Add knowledge document
+          </button>
+          <button
+            className="panel-btn"
+            onClick={() => void syncKnowledgeToAgent()}
+            disabled={knowledgeDocumentsFromRecords(records).length === 0}
+          >
+            Sync {knowledgeDocumentsFromRecords(records).length} document
+            {knowledgeDocumentsFromRecords(records).length === 1 ? "" : "s"} to agent
+          </button>
+          {knowledgeSyncStatus ? <p className="panel-section-note">{knowledgeSyncStatus}</p> : null}
+        </div>
+      </div>
+
+      <div className="panel-section shell-profile-business">
         <h3>Business catalog</h3>
         <p className="panel-section-note">
-          Add sellable items, then sync to a business-mode agent backend. Brand voice uses{" "}
-          <code>{BUSINESS_BRAND_CATEGORY}</code>; policies use <code>{BUSINESS_POLICY_CATEGORY}</code>.
+          Sellable items for commerce flows. Sync after editing; catalog is separate from brand voice.
         </p>
         <div className="panel-form-grid shell-profile-add">
           <input

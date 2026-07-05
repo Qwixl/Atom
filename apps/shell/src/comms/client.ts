@@ -364,6 +364,23 @@ export class CommsAgentClient {
     return postJson(this.base(), "/business/catalog/sync", { items }, this.adminToken);
   }
 
+  async syncBusinessContext(
+    records: Array<{ category: "business-brand" | "business-policy"; label: string; value: string }>,
+  ): Promise<{ brand: unknown[]; policy: unknown[] }> {
+    return postJson(this.base(), "/business/context/sync", { records }, this.adminToken);
+  }
+
+  async syncBusinessKnowledge(
+    documents: Array<{
+      id?: string;
+      title: string;
+      category?: "policy" | "terms" | "faq" | "product" | "general";
+      body: string;
+    }>,
+  ): Promise<{ documents: unknown[] }> {
+    return postJson(this.base(), "/business/knowledge/sync", { documents }, this.adminToken);
+  }
+
   async listRooms(): Promise<{
     hosted: Array<{
       roomId: string;

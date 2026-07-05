@@ -1,16 +1,46 @@
 import type { Express } from "express";
-import type { BusinessCatalogItemValue } from "@qwixl/owner-store";
+import { BUSINESS_POLICY_CATEGORY, type BusinessCatalogItemValue } from "@qwixl/owner-store";
 import type { BusinessCatalogStore } from "./businessCatalogStore.js";
 import type { BusinessContextStore, BusinessContextRecord } from "./businessContextStore.js";
 import { parseBusinessContextRecord } from "./businessContextStore.js";
+import type {
+  BusinessKnowledgeCategory,
+  BusinessKnowledgeDocument,
+  BusinessKnowledgeStore,
+} from "./businessKnowledgeStore.js";
 import type { BusinessStore } from "./businessStore.js";
 import type { BusinessVerificationStore } from "./businessVerificationStore.js";
 
 export interface BusinessAdminDeps {
   catalog: BusinessCatalogStore;
   context: BusinessContextStore;
+  knowledge: BusinessKnowledgeStore;
   store: BusinessStore;
   verification: BusinessVerificationStore;
+}
+
+export function syncContextPoliciesToKnowledge(
+  context: BusinessContextStore,
+  knowledge: BusinessKnowledgeStore,
+): void {
+  for (const record of context.list(BUSINESS_POLICY_CATEGORY)) {
+    knowledge.upsertPolicyReference(record.label, record.value);
+  }
+}
+
+function parseKnowledgeDocument(body: Record<string, unknown>): {
+  id?: string;
+  title: string;
+  category?: BusinessKnowledgeCategory;
+  body: string;
+} {
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  const docBody = typeof body.body === "string" ? body.body.trim() : "";
+  if (!title || !docBody) throw new Error("title and body required");
+  const id = typeof body.id === "string" ? body.id.trim() : undefined;
+  const category =
+    typeof body.category === "string" ? (body.category as BusinessKnowledgeCategory) : undefined;
+  return { id, title, category, body: docBody };
 }
 
 function parseCatalogItem(body: Record<string, unknown>): BusinessCatalogItemValue {
@@ -105,6 +135,7 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
     }
     try {
       deps.context.replaceAll(body.records);
+      syncContextPoliciesToKnowledge(deps.context, deps.knowledge);
       res.json({
         brand: deps.context.list("business-brand"),
         policy: deps.context.list("business-policy"),
@@ -112,6 +143,42 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
     }
+  });
+
+  adminApp.get("/business/knowledge", (_req, res) => {
+    res.json({ documents: deps.knowledge.list() });
+  });
+
+  adminApp.post("/business/knowledge", (req, res) => {
+    try {
+      const document = deps.knowledge.upsert(parseKnowledgeDocument(req.body as Record<string, unknown>));
+      res.json({ document });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/business/knowledge/sync", (req, res) => {
+    const body = req.body as { documents?: BusinessKnowledgeDocument[] };
+    if (!Array.isArray(body.documents)) {
+      res.status(400).json({ error: "documents array required" });
+      return;
+    }
+    try {
+      deps.knowledge.replaceAll(body.documents);
+      res.json({ documents: deps.knowledge.list() });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.delete("/business/knowledge/:documentId", (req, res) => {
+    const removed = deps.knowledge.remove(req.params.documentId);
+    if (!removed) {
+      res.status(404).json({ error: "Knowledge document not found" });
+      return;
+    }
+    res.json({ ok: true });
   });
 
   adminApp.delete("/business/context/:category/:label", (req, res) => {

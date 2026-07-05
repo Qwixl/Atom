@@ -1,13 +1,14 @@
 import type { AgentKeyPair } from "@qwixl/protocol";
-import { BUSINESS_BRAND_CATEGORY, BUSINESS_POLICY_CATEGORY } from "@qwixl/owner-store";
+import { BUSINESS_BRAND_CATEGORY } from "@qwixl/owner-store";
 import type { BusinessContextStore } from "./businessContextStore.js";
+import type { BusinessKnowledgeStore } from "./businessKnowledgeStore.js";
 import type { MlsSessionStore } from "./mlsSessions.js";
 import type { RoomStore } from "./roomStore.js";
 
 export const COFFEE_SHOP_ROOM_ID = "room:coffeeshop";
 
 const COFFEE_SHOP_BRAND: Array<{
-  category: typeof BUSINESS_BRAND_CATEGORY | typeof BUSINESS_POLICY_CATEGORY;
+  category: typeof BUSINESS_BRAND_CATEGORY;
   label: string;
   value: string;
 }> = [
@@ -27,25 +28,48 @@ const COFFEE_SHOP_BRAND: Array<{
     label: "Values",
     value: "Privacy-respecting, agent-mediated, community-first. Help people connect without oversharing.",
   },
+];
+
+const COFFEE_SHOP_KNOWLEDGE: Array<{
+  id: string;
+  title: string;
+  category: "policy" | "faq";
+  body: string;
+}> = [
   {
-    category: BUSINESS_POLICY_CATEGORY,
-    label: "House rules",
-    value: "Be kind. No spam, harassment, or unsolicited pitches. Respect that messages are agent-mediated.",
+    id: "house-rules",
+    title: "House rules",
+    category: "policy",
+    body: "Be kind. No spam, harassment, or unsolicited pitches. Respect that messages are agent-mediated.",
   },
   {
-    category: BUSINESS_POLICY_CATEGORY,
-    label: "Moderation",
-    value: "The host may evict or ban for rule breaks with a disclosed reason code. Play-money orders only in v1.",
+    id: "moderation",
+    title: "Moderation",
+    category: "policy",
+    body: "The host may evict or ban for rule breaks with a disclosed reason code. Play-money orders only in v1.",
   },
 ];
 
-/** Seed Coffee Shop greeter brand/policy records (idempotent). */
+/** Seed Coffee Shop greeter brand voice (idempotent). */
 export async function seedCoffeeShopBrand(context: BusinessContextStore): Promise<{ seeded: boolean }> {
-  const existing = context.list();
+  const existing = context.list(BUSINESS_BRAND_CATEGORY);
   if (existing.length > 0) {
     return { seeded: false };
   }
   context.replaceAll(COFFEE_SHOP_BRAND);
+  return { seeded: true };
+}
+
+/** Seed Coffee Shop policies and reference docs for RAG (idempotent). */
+export async function seedCoffeeShopKnowledge(
+  knowledge: BusinessKnowledgeStore,
+): Promise<{ seeded: boolean }> {
+  if (knowledge.list().length > 0) {
+    return { seeded: false };
+  }
+  for (const doc of COFFEE_SHOP_KNOWLEDGE) {
+    knowledge.upsert(doc);
+  }
   return { seeded: true };
 }
 

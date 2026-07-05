@@ -2,11 +2,13 @@
 export const BUSINESS_CATALOG_CATEGORY = "business-catalog";
 export const BUSINESS_POLICY_CATEGORY = "business-policy";
 export const BUSINESS_BRAND_CATEGORY = "business-brand";
+export const BUSINESS_KNOWLEDGE_CATEGORY = "business-knowledge";
 
 export const BUSINESS_CATEGORIES = [
   BUSINESS_CATALOG_CATEGORY,
   BUSINESS_POLICY_CATEGORY,
   BUSINESS_BRAND_CATEGORY,
+  BUSINESS_KNOWLEDGE_CATEGORY,
 ] as const;
 
 export type BusinessCategory = (typeof BUSINESS_CATEGORIES)[number];
