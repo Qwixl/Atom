@@ -1,248 +1,495 @@
 <!DOCTYPE html>
+
 <html lang="en">
+
 <head>
+
   <meta charset="UTF-8" />
+
   <title>WebCal connector</title>
+
   <style>
+
     * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+
     body { margin: 0; padding: 0; background: transparent; color: var(--atom-color-text, #eee); }
+
     .wrap { display: flex; flex-direction: column; gap: 14px; }
+
     h3 { margin: 0; font-size: 1rem; font-weight: 650; }
+
     .hint, .note { margin: 0; font-size: 0.85rem; color: var(--atom-color-text-dim, #aaa); line-height: 1.45; }
+
     .feed-form { display: flex; flex-direction: column; gap: 8px; }
+
     label { font-size: 0.8rem; color: var(--atom-color-text-dim, #aaa); }
+
     input {
+
       width: 100%;
+
       border: 1px solid var(--atom-color-border, #333);
+
       border-radius: var(--atom-radius-md, 8px);
+
       padding: 8px 10px;
+
       font: inherit;
+
       font-size: 0.85rem;
+
       background: var(--atom-color-bg-raised, #1a1a1a);
+
       color: inherit;
+
     }
+
     .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
     button {
+
       border: 1px solid var(--atom-color-border, #333);
+
       border-radius: var(--atom-radius-md, 8px);
+
       padding: 8px 14px;
+
       font: inherit;
+
       font-size: 0.9rem;
+
       cursor: pointer;
+
     }
+
     button.primary {
+
       background: var(--atom-color-accent, #5aa9ff);
+
       border-color: var(--atom-color-accent, #5aa9ff);
+
       color: #fff;
+
     }
+
     button.primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
     button.secondary {
+
       background: var(--atom-color-bg-raised, #1a1a1a);
+
       color: inherit;
+
     }
+
     button.secondary:disabled { opacity: 0.55; cursor: not-allowed; }
+
     button.danger {
+
       background: transparent;
+
       border-color: #a44;
+
       color: #f88;
+
       font-size: 0.8rem;
+
       padding: 4px 8px;
+
     }
+
     .feeds, .events { border: 1px solid var(--atom-color-border, #333); border-radius: var(--atom-radius-md, 8px); overflow: hidden; }
+
     .panel-head {
+
       padding: 8px 12px;
+
       background: var(--atom-color-bg-raised, #1a1a1a);
+
       font-size: 0.8rem;
+
       color: var(--atom-color-text-dim, #aaa);
+
       border-bottom: 1px solid var(--atom-color-border, #333);
+
     }
+
     .feeds-list, .events-list { list-style: none; margin: 0; padding: 0; max-height: 160px; overflow-y: auto; }
+
     .feeds-list li, .events-list li {
+
       padding: 10px 12px;
+
       border-bottom: 1px solid var(--atom-color-border, #333);
+
       font-size: 0.85rem;
+
       display: flex;
+
       align-items: center;
+
       justify-content: space-between;
+
       gap: 8px;
+
     }
+
     .feeds-list li:last-child, .events-list li:last-child { border-bottom: none; }
+
     .event-title { font-weight: 600; margin-bottom: 2px; }
+
     .event-time { color: var(--atom-color-text-dim, #aaa); font-size: 0.8rem; }
+
     .empty { padding: 16px 12px; color: var(--atom-color-text-dim, #aaa); font-size: 0.85rem; }
+
     .ops {
+
       font-size: 0.75rem;
+
       color: var(--atom-color-text-dim, #aaa);
+
       line-height: 1.4;
+
     }
+
     .ops code { font-size: 0.75rem; }
+
   </style>
+
 </head>
+
 <body>
+
   <div class="wrap">
+
     <div>
+
       <h3 id="title">WebCal</h3>
+
       <p class="hint">Paste a private ICS/WebCal feed URL from Google Calendar, Apple Calendar, or Outlook. The URL is stored encrypted in your agent vault — this module never sees it after save.</p>
+
     </div>
+
     <div class="feed-form">
+
       <label for="feedUrl">Feed URL (https:// or webcal://)</label>
+
       <input type="url" id="feedUrl" placeholder="webcal://… or https://…/basic.ics" autocomplete="off" />
+
       <label for="feedLabel">Label (optional)</label>
+
       <input type="text" id="feedLabel" placeholder="Work calendar" autocomplete="off" />
+
       <div class="actions">
+
         <button type="button" class="primary" id="saveFeed">Save feed to agent</button>
+
         <button type="button" class="secondary" id="refresh">Refresh</button>
+
       </div>
+
     </div>
+
     <div class="feeds" id="feedsPanel" hidden>
+
       <div class="panel-head">Connected feeds</div>
+
       <ul class="feeds-list" id="feedsList"></ul>
+
       <div class="empty" id="feedsEmpty" hidden>No feeds yet.</div>
+
     </div>
+
     <div class="events" id="eventsPanel" hidden>
+
       <div class="panel-head" id="eventsHead">Upcoming events (next 7 days)</div>
+
       <ul class="events-list" id="eventsList"></ul>
+
       <div class="empty" id="eventsEmpty" hidden>No events in the next 7 days.</div>
+
     </div>
+
     <p class="ops" id="opsPanel" hidden>
+
       Read-only agent operations: <code>getStatus</code>, <code>listEvents</code>.
+
     </p>
+
     <p class="note" id="note" hidden></p>
+
   </div>
+
   <script>
+
     let shellOrigin = null;
+
     let state = {
+
       label: "WebCal",
+
       connected: false,
+
       busy: false,
+
       note: "",
+
       feeds: [],
+
       events: [],
+
     };
+
+
 
     const themeKeys = ["colorBg","colorBgRaised","colorText","colorTextDim","colorAccent","radiusMd","fontSans"];
+
     const cssMap = {
+
       colorBg: "--atom-color-bg",
+
       colorBgRaised: "--atom-color-bg-raised",
+
       colorText: "--atom-color-text",
+
       colorTextDim: "--atom-color-text-dim",
+
       colorAccent: "--atom-color-accent",
+
       radiusMd: "--atom-radius-md",
+
       fontSans: "--atom-font-sans",
+
     };
 
+
+
     function applyTheme(theme) {
+
       if (!theme) return;
+
       const root = document.documentElement.style;
+
       for (const k of themeKeys) if (theme[k]) root.setProperty(cssMap[k], theme[k]);
+
     }
+
+
 
     function emit(name, payload) {
+
       if (!shellOrigin) return;
+
       window.parent.postMessage({ type: "event", name, payload: payload || {} }, shellOrigin);
+
     }
+
+
 
     function formatRange(start, end) {
+
       try {
+
         const s = new Date(start);
+
         const e = new Date(end);
+
         const opts = { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" };
+
         return s.toLocaleString(undefined, opts) + " – " + e.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+
       } catch {
+
         return start + " – " + end;
+
       }
+
     }
+
+
 
     function render() {
+
       document.getElementById("title").textContent = state.label || "WebCal";
+
       document.getElementById("saveFeed").disabled = state.busy;
+
       document.getElementById("refresh").disabled = state.busy;
 
+
+
       const feeds = Array.isArray(state.feeds) ? state.feeds : [];
+
       const feedsPanel = document.getElementById("feedsPanel");
+
       feedsPanel.hidden = feeds.length === 0;
+
       const feedsList = document.getElementById("feedsList");
+
       const feedsEmpty = document.getElementById("feedsEmpty");
+
       feedsList.innerHTML = "";
+
       if (feeds.length === 0) {
+
         feedsEmpty.hidden = true;
+
       } else {
+
         feedsEmpty.hidden = true;
+
         for (const feed of feeds) {
+
           const li = document.createElement("li");
+
           const label = document.createElement("span");
+
           label.textContent = feed.label || feed.id || "Feed";
+
           const removeBtn = document.createElement("button");
+
           removeBtn.type = "button";
+
           removeBtn.className = "danger";
+
           removeBtn.textContent = "Remove";
+
           removeBtn.disabled = state.busy;
+
           removeBtn.addEventListener("click", () => emit("removeFeedRequested", { feedId: feed.id }));
+
           li.appendChild(label);
+
           li.appendChild(removeBtn);
+
           feedsList.appendChild(li);
+
         }
+
       }
+
+
 
       const eventsPanel = document.getElementById("eventsPanel");
+
       const opsPanel = document.getElementById("opsPanel");
+
       if (state.connected) {
+
         eventsPanel.hidden = false;
+
         opsPanel.hidden = false;
+
         const list = document.getElementById("eventsList");
+
         const empty = document.getElementById("eventsEmpty");
+
         list.innerHTML = "";
+
         const events = Array.isArray(state.events) ? state.events : [];
+
         if (events.length === 0) {
+
           empty.hidden = false;
+
         } else {
+
           empty.hidden = true;
+
           for (const ev of events) {
+
             const li = document.createElement("li");
+
             li.innerHTML =
+
               '<div class="event-title">' + (ev.summary || "Event") + "</div>" +
+
               '<div class="event-time">' + formatRange(ev.start, ev.end) + "</div>";
+
             list.appendChild(li);
+
           }
+
         }
+
       } else {
+
         eventsPanel.hidden = true;
+
         opsPanel.hidden = true;
+
       }
+
+
 
       const noteEl = document.getElementById("note");
+
       if (state.note) {
+
         noteEl.hidden = false;
+
         noteEl.textContent = state.note;
+
       } else {
+
         noteEl.hidden = true;
+
         noteEl.textContent = "";
+
       }
+
     }
 
+
+
     document.getElementById("saveFeed").addEventListener("click", () => {
+
       const url = document.getElementById("feedUrl").value.trim();
+
       const label = document.getElementById("feedLabel").value.trim();
+
       if (!url) return;
+
       emit("setFeedRequested", { url, label: label || undefined });
+
     });
+
     document.getElementById("refresh").addEventListener("click", () => emit("refreshRequested"));
 
+
+
     window.addEventListener("message", (event) => {
+
       const data = event.data;
+
       if (!data || data.type !== "init") return;
+
       shellOrigin = event.origin;
+
       applyTheme(data.theme);
+
       state = { ...state, ...(data.props || {}) };
+
       if (state.connected && !state.busy && !state.note) {
+
         document.getElementById("feedUrl").value = "";
+
         document.getElementById("feedLabel").value = "";
+
       }
+
       render();
+
     });
 
+
+
     window.parent.postMessage({ type: "ready" }, "*");
+
   </script>
+
 </body>
+
 </html>
-
+
+
