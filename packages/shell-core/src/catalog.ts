@@ -37,6 +37,25 @@ export interface ModuleManifest {
   categories?: string[];
   /** Optional store listing price (M8). Omitted = free. */
   pricing?: ModulePricing;
+  /** When present, this module is a connector settings surface (OAuth via agent vault). */
+  connector?: ModuleConnectorSpec;
+}
+
+/** Connector modules link external providers; credentials stay on the agent backend (D044). */
+export interface ModuleConnectorSpec {
+  /** Route id on the agent backend, e.g. `webcal`. */
+  agentId: string;
+  provider: string;
+  label: string;
+  /** OAuth scopes when the connector uses OAuth; omitted for feed-based connectors. */
+  scopes?: string[];
+  /** Declared operations the agent may invoke via vault custody. */
+  operations?: Array<{
+    id: string;
+    permission: "read" | "write";
+    description: string;
+    requiresApproval?: boolean;
+  }>;
 }
 
 export interface CatalogEntry {
@@ -103,6 +122,10 @@ export class Catalog {
 
   getModuleBundle(moduleId: string): string | undefined {
     return this.modules.get(moduleId)?.bundleUrl;
+  }
+
+  getModuleManifest(moduleId: string): ModuleManifest | undefined {
+    return this.modules.get(moduleId);
   }
 
   /** Resolve a composition reference like "finance/portfolio-chart@2". */

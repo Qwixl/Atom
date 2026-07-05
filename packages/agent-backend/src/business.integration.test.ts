@@ -8,6 +8,7 @@ import { COMMERCE_OFFER_PURPOSE } from "@qwixl/a2a-transport";
 import { createMockPaymentRail } from "./payment/mockRail.js";
 import { startAgentServer } from "./server.js";
 import type { AgentBackendConfig } from "./config.js";
+import { adminGetJson, adminPostJson, installTestAdminToken } from "./testHelpers.js";
 
 async function writeIdentityFile(filePath: string): Promise<string> {
   const keyPair = await generateAgentKeyPair();
@@ -30,31 +31,24 @@ function testConfig(port: number, publicBaseUrl: string, businessMode: boolean):
     publicBaseUrl,
     agentName: businessMode ? "Business agent" : "Buyer agent",
     allowedOrigins: new Set(["http://127.0.0.1:5200"]),
-    googleCalendarAccessToken: null,
     stripeSecretKey: "sk_test_mock",
     stripePublishableKey: null,
     stripeProductId: null,
     businessMode,
     businessDomain: businessMode ? "example.com" : null,
+    demoPeerMode: false,
+    communityHostMode: false,
     interactivePortResolve: false,
   };
 }
 
 async function postJson<T>(baseUrl: string, route: string, body: Record<string, unknown>): Promise<T> {
-  const resp = await fetch(`${baseUrl.replace(/\/$/, "")}${route}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!resp.ok) {
-    const err = (await resp.json().catch(() => ({}))) as { error?: string };
-    throw new Error(err.error ?? `HTTP ${resp.status}`);
-  }
-  return resp.json() as Promise<T>;
+  return adminPostJson(baseUrl, route, body);
 }
 
 describe("M12 commerce intent → offer", () => {
   it("business agent matches catalog and replies with signed offer", async () => {
+    const restoreToken = installTestAdminToken();
     const root = await mkdtemp(path.join(tmpdir(), "atom-m12-"));
     const buyerIdentityPath = path.join(root, "buyer.json");
     const businessIdentityPath = path.join(root, "business.json");
@@ -94,8 +88,8 @@ describe("M12 commerce intent → offer", () => {
         terms: ["Breakfast included"],
       });
 
-      const buyerHealth = (await (await fetch(`${buyerBase}/health`)).json()) as { did: string };
-      const businessHealth = (await (await fetch(`${businessBase}/health`)).json()) as { did: string };
+      const buyerHealth = await adminGetJson<{ did: string }>(buyerBase, "/health");
+      const businessHealth = await adminGetJson<{ did: string }>(businessBase, "/health");
 
       await postJson(buyerBase, "/business/intent", {
         intentId: "intent-m12-test",
@@ -108,9 +102,9 @@ describe("M12 commerce intent → offer", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      const inbox = (await (await fetch(`${buyerBase}/inbox`)).json()) as {
+      const inbox = await adminGetJson<{
         entries: Array<{ object: { governance: { purpose: string }; payload: Record<string, unknown> } }>;
-      };
+      }>(buyerBase, "/inbox");
       const offer = inbox.entries.find((e) => e.object.governance.purpose === COMMERCE_OFFER_PURPOSE);
       expect(offer).toBeDefined();
       expect(offer?.object.payload.label).toBe("Standard room · 2 nights");
@@ -120,6 +114,7 @@ describe("M12 commerce intent → offer", () => {
       buyerServer?.close();
       businessServer?.close();
       process.env.ATOM_AGENT_IDENTITY_PATH = prevIdentityPath;
+      restoreToken();
     }
   });
 });

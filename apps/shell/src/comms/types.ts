@@ -10,16 +10,25 @@ export interface AgentContact {
   id: string;
   did: string;
   name: string;
+  /** Human-facing @handle when known (M20). */
+  handle?: string;
   /** A2A JSON-RPC endpoint of the peer agent. */
   endpoint: string;
   connectedAt?: string;
   /** Categories pre-approved for disclosure to this contact's agent (owner-store policy). */
   standingDisclosure?: string[];
+  /** M19.4 address book metadata. */
+  kind?: "person" | "business" | "community";
+  source?: "invite" | "discover" | "room";
+  blocked?: boolean;
+  muted?: boolean;
 }
 
 export interface CommsAgentConfig {
   /** Admin API base URL, e.g. http://127.0.0.1:5204 */
   adminUrl: string;
+  /** Bearer token for admin API (M13.1). */
+  adminToken?: string;
 }
 
 export interface InboxEntryWire {

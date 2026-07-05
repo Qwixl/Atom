@@ -1,0 +1,21 @@
+{
+  "indexVersion": 1,
+  "updatedAt": "2026-07-05T07:00:00.000Z",
+  "revocationsUrl": "revocations.json",
+  "businesses": [
+    {
+      "kind": "community",
+      "businessDomain": "coffee-shop.agents.qwixl.dev",
+      "verificationTier": 1,
+      "tierLabel": "Qwixl-operated community host",
+      "categories": ["community", "social"],
+      "serviceArea": "Global",
+      "displayName": "Qwixl Coffee Shop",
+      "moduleIds": ["community/coffee-shop"],
+      "roomIds": ["room:coffeeshop"],
+      "publisherDid": "did:key:z6Mkatomexamples01",
+      "sponsored": true,
+      "sponsoredRank": 10
+    }
+  ]
+}

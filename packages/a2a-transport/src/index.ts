@@ -125,18 +125,6 @@ export {
   type QualifyVerificationMethod,
 } from "./qualify.js";
 export {
-  buildChannelEntry,
-  channelIdForTransaction,
-  computeChannelHeadHash,
-  createActionAnchor,
-  hashDataObjectFingerprint,
-  purposeToChannelKind,
-  verifyActionAnchor,
-  type ActionAnchorPayload,
-  type ChannelEntryKind,
-  type DisputeChannelEntry,
-} from "./disputeChannel.js";
-export {
   createCommerceIntent,
   verifyCommerceIntent,
   createCommerceOffer,

@@ -1,0 +1,16 @@
+{
+  "name": "@qwixl/docs-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev --port 5206",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitepress": "^1.6.3"
+  }
+}

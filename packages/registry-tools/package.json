@@ -27,7 +27,8 @@
     "build": "tsc -p tsconfig.build.json",
     "scaffold": "node dist/cli.js scaffold",
     "verify": "node dist/cli.js verify --require-integrity",
-    "publish-module": "node dist/cli.js publish"
+    "publish-module": "node dist/cli.js publish",
+    "publish-all": "node dist/cli.js publish-all"
   },
   "dependencies": {
     "@qwixl/shell-core": "workspace:*",

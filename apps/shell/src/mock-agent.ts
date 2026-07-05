@@ -6,14 +6,26 @@ import {
   type UiEvent,
 } from "@qwixl/shell-core";
 import type { PromptProfile } from "@qwixl/agent-llm";
+import {
+  buildDefaultDemoSlots,
+  buildSchedulingSlotsFromCalendar,
+  type DemoCalendarEvent,
+  type DemoSlotOption,
+} from "./demoScheduling.js";
 
 interface MockAgentOptions {
   profileProvider?: () => PromptProfile;
+  webcalEventsProvider?: () => Promise<DemoCalendarEvent[]>;
 }
 
 type PendingStep =
-  | { kind: "slot"; eventTitle: string; slotId: string; slotLabel: string }
+  | { kind: "slot"; eventTitle: string; slotId: string; slotLabel: string; start: string; end: string }
   | { kind: "rsvp"; response: string };
+
+function slotLabelWithEnd(slot: DemoSlotOption): string {
+  const end = new Date(slot.end);
+  return `${slot.label} – ${end.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+}
 
 /**
  * Scripted stand-in for a real agent backend. Primary vertical (M3): scheduling /
@@ -23,11 +35,14 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
   private queue: ReturnType<typeof setTimeout>[] = [];
   private surfaceCounter = 0;
   private profileProvider?: () => PromptProfile;
+  private webcalEventsProvider?: () => Promise<DemoCalendarEvent[]>;
+  private scheduleSlotOptions: DemoSlotOption[] = buildDefaultDemoSlots();
   private pending: PendingStep | null = null;
 
   constructor(options?: MockAgentOptions) {
     super();
     this.profileProvider = options?.profileProvider;
+    this.webcalEventsProvider = options?.webcalEventsProvider;
   }
 
   private later(ms: number, fn: () => void): void {
@@ -106,17 +121,16 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
         return;
       }
 
-      const slots: Record<string, string> = {
-        "tue-10": "Tue 8 Jul · 10:00–10:30",
-        "wed-14": "Wed 9 Jul · 14:00–14:30",
-        "thu-09": "Thu 10 Jul · 09:00–09:30",
-      };
-      const slotLabel = label ?? slots[optionId] ?? optionId;
+      const slot = this.scheduleSlotOptions.find((item) => item.id === optionId);
+      const resolved = slot ?? buildDefaultDemoSlots()[0]!;
+      const slotLabel = label ?? slotLabelWithEnd(resolved);
       this.pending = {
         kind: "slot",
         eventTitle: "Team standup",
         slotId: optionId,
         slotLabel,
+        start: resolved.start,
+        end: resolved.end,
       };
       this.later(400, () =>
         this.emit({ type: "text", text: `${slotLabel} works. Confirm the calendar hold in shell chrome…` }),
@@ -138,7 +152,7 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
       this.later(600, () =>
         this.emit({
           type: "text",
-          text: "Done. Calendar updated — details above and in your attestation log.",
+          text: "Done. Google Calendar should have opened — click Save there to add the event. Details are in your attestation log.",
         }),
       );
     } else {
@@ -164,7 +178,10 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
         }),
       );
       this.later(900, () =>
-        this.emit({ type: "composition", composition: this.scheduleSlots(this.nextSurfaceId()) }),
+        this.emit({
+          type: "composition",
+          composition: this.scheduleSlots(this.nextSurfaceId(), buildDefaultDemoSlots(), false),
+        }),
       );
     } else {
       this.later(400, () =>
@@ -174,7 +191,10 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
         }),
       );
       this.later(900, () =>
-        this.emit({ type: "composition", composition: this.scheduleSlots(this.nextSurfaceId()) }),
+        this.emit({
+          type: "composition",
+          composition: this.scheduleSlots(this.nextSurfaceId(), buildDefaultDemoSlots(), false),
+        }),
       );
     }
     this.later(950, () => this.finishTurn());
@@ -230,21 +250,50 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
   private runScheduleScenario(): void {
     const surfaceId = this.nextSurfaceId();
     this.later(300, () =>
-      this.emit({ type: "text", text: "Checking shared calendars for next week…" }),
-    );
-    this.later(1200, () =>
-      this.emit({ type: "composition", composition: this.scheduleSlots(surfaceId) }),
-    );
-    this.later(1300, () =>
       this.emit({
         type: "text",
-        text: "Three slots work for everyone. Pick one — the shell will confirm before anything hits your calendar.",
+        text: this.webcalEventsProvider
+          ? "Reading your WebCal feed from your agent vault…"
+          : "Checking calendars for next week…",
       }),
     );
-    this.later(1350, () => this.finishTurn());
+
+    void (async () => {
+      let events: DemoCalendarEvent[] = [];
+      let slots = buildDefaultDemoSlots();
+      if (this.webcalEventsProvider) {
+        try {
+          events = await this.webcalEventsProvider();
+          slots = buildSchedulingSlotsFromCalendar(events);
+        } catch {
+          slots = buildDefaultDemoSlots();
+        }
+      }
+      this.scheduleSlotOptions = slots;
+
+      const statusText =
+        events.length > 0
+          ? `Loaded ${events.length} event(s) from your calendar. Slots marked “Free” do not overlap your schedule.`
+          : this.webcalEventsProvider
+            ? "Calendar connected — no events conflict with these times. Pick a slot:"
+            : "Three slots for next week. Pick one — the shell confirms before anything hits your calendar.";
+
+      this.later(500, () => this.emit({ type: "text", text: statusText }));
+      this.later(1000, () =>
+        this.emit({
+          type: "composition",
+          composition: this.scheduleSlots(surfaceId, slots, Boolean(this.webcalEventsProvider)),
+        }),
+      );
+      this.later(1050, () => this.finishTurn());
+    })();
   }
 
-  private scheduleSlots(surfaceId: string): Composition {
+  private scheduleSlots(
+    surfaceId: string,
+    slots: DemoSlotOption[],
+    calendarConnected: boolean,
+  ): Composition {
     return {
       version: 1,
       surfaceId,
@@ -260,30 +309,23 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
             semanticRole: "input/choice",
             events: ["selected"],
             props: {
-              options: [
-                {
-                  id: "tue-10",
-                  label: "Tue 8 Jul · 10:00",
-                  description: "Works for 4/5 attendees",
-                  recommended: true,
-                },
-                {
-                  id: "wed-14",
-                  label: "Wed 9 Jul · 14:00",
-                  description: "Works for 5/5 attendees",
-                },
-                {
-                  id: "thu-09",
-                  label: "Thu 10 Jul · 09:00",
-                  description: "Early slot — conflicts with your morning focus block",
-                },
-              ],
+              options: slots.map((slot) => ({
+                id: slot.id,
+                label: slot.label,
+                description: slot.description,
+                ...(slot.recommended ? { recommended: true } : {}),
+              })),
             },
           },
           {
             id: "note",
             component: "core/status",
-            props: { text: "Illustrative slots — no live calendar connected in mock mode.", tone: "info" },
+            props: {
+              text: calendarConnected
+                ? "Availability from your WebCal feed (agent vault)."
+                : "Connect your calendar in step 3 to see real busy/free times.",
+              tone: calendarConnected ? "success" : "info",
+            },
           },
         ],
       },
@@ -345,9 +387,9 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
       terms: {
         event: step.eventTitle,
         when: step.slotLabel,
-        recurrence: "Weekly until 5 Sep 2026",
-        attendees: "You, Alex, Sam, Jordan (4)",
-        action: "Create calendar event and send invites",
+        start: step.start,
+        end: step.end,
+        action: "Open Google Calendar to add this event to your calendar",
       },
       confirmLabel: "Add to calendar",
       declineLabel: "Cancel",

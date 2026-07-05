@@ -1,0 +1,41 @@
+{
+  "name": "@qwixl/atom-cli",
+  "version": "0.1.0",
+  "description": "Terminal interface to your Atom owner agent — no browser required.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/cli.js",
+  "types": "./dist/cli.d.ts",
+  "bin": {
+    "atom": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Qwixl/Atom.git",
+    "directory": "packages/atom-cli"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@qwixl/a2a-transport": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

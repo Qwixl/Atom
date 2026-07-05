@@ -5,6 +5,11 @@ export interface TrustedAgentPayload {
   did: string;
   endpoint: string;
   name?: string;
+  handle?: string;
+  kind?: AgentContact["kind"];
+  source?: AgentContact["source"];
+  blocked?: boolean;
+  muted?: boolean;
   /** Owner-store categories this contact may receive without per-message disclosure chrome. */
   standingDisclosure?: string[];
 }
@@ -28,6 +33,11 @@ export function parseTrustedAgentValue(value: unknown): TrustedAgentPayload | nu
     did: parsed.did,
     endpoint: parsed.endpoint,
     name: typeof parsed.name === "string" ? parsed.name : undefined,
+    handle: typeof parsed.handle === "string" ? parsed.handle : undefined,
+    kind: parsed.kind,
+    source: parsed.source,
+    blocked: parsed.blocked === true,
+    muted: parsed.muted === true,
     standingDisclosure,
   };
 }
@@ -37,6 +47,11 @@ export function contactToTrustedAgentPayload(contact: AgentContact): TrustedAgen
     did: contact.did,
     endpoint: contact.endpoint,
     name: contact.name,
+    handle: contact.handle,
+    kind: contact.kind,
+    source: contact.source,
+    blocked: contact.blocked,
+    muted: contact.muted,
     standingDisclosure:
       contact.standingDisclosure && contact.standingDisclosure.length > 0
         ? [...contact.standingDisclosure]
@@ -65,6 +80,11 @@ export function mergeContactFromTrustedAgent(
   if (!payload) return contact;
   return {
     ...contact,
+    handle: payload.handle ?? contact.handle,
+    kind: payload.kind ?? contact.kind,
+    source: payload.source ?? contact.source,
+    blocked: payload.blocked ?? contact.blocked,
+    muted: payload.muted ?? contact.muted,
     standingDisclosure: payload.standingDisclosure ?? contact.standingDisclosure,
   };
 }

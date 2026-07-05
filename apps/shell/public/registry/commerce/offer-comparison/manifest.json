@@ -1,0 +1,26 @@
+{
+  "id": "commerce/offer-comparison",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/commerce-offer-comparison/index.html",
+  "components": [
+    {
+      "name": "commerce/offer-comparison",
+      "semanticRole": "display/offer-comparison",
+      "events": [
+        {
+          "name": "offerSelected"
+        }
+      ],
+      "agentHint": "Compare signed commerce offers with verification tier badges; user picks one row."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "commerce"
+  ],
+  "bundleIntegrity": "sha256:fd80be0b74b1c053e1c566dbaf747662c86e138df0122597e41e8fcad90d901c"
+}

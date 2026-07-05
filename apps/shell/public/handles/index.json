@@ -1,0 +1,13 @@
+{
+  "indexVersion": 1,
+  "updatedAt": "2026-07-05T08:15:00.000Z",
+  "handles": [
+    {
+      "handle": "@coffee-shop",
+      "businessDomain": "coffee-shop.agents.qwixl.dev",
+      "moduleIds": ["community/coffee-shop"],
+      "roomIds": ["room:coffeeshop"],
+      "displayName": "Qwixl Coffee Shop"
+    }
+  ]
+}

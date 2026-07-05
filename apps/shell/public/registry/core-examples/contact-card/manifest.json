@@ -1,0 +1,22 @@
+{
+  "id": "core-examples/contact-card",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/core-examples-contact-card/index.html",
+  "components": [
+    {
+      "name": "core-examples/contact-card",
+      "semanticRole": "display/contact-card",
+      "events": [],
+      "agentHint": "Renders a contact or agent card from name, role, and optional fields."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "core-examples"
+  ],
+  "bundleIntegrity": "sha256:63645d3737a09d7b9a250c4d8e7f94bb55844bd91cd075b04cc037c100884377"
+}

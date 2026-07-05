@@ -1,0 +1,239 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import {
+  attachHandlesToEntries,
+  filterBusinessIndex,
+  fetchBusinessIndex,
+  fetchHandleIndex,
+  type BusinessIndexEntry,
+  type IndexEntryKind,
+} from "@qwixl/business-index";
+
+import { CommsAgentClient, type ResolvedDiscoverTarget } from "./comms/client.js";
+import { connectDiscoverEntry, joinDiscoverRoom, entryTitle } from "./discoverActions.js";
+import { loadCommsAgentConfig } from "./comms/storage.js";
+import type { AgentContact } from "./comms/types.js";
+import {
+  DEFAULT_DISCOVER_INDEXES,
+  DEFAULT_HANDLE_INDEX_URL,
+  loadDiscoverIndexes,
+} from "./discoverIndexStorage.js";
+
+interface DiscoverPanelProps {
+  contacts: AgentContact[];
+  onContactsChange: (contacts: AgentContact[]) => void;
+  onJoinedRoom?: (roomId: string) => void;
+  onDmStarted?: (contactId: string) => void;
+  onActivity?: (note: string) => void;
+}
+
+interface DiscoverResult extends BusinessIndexEntry {
+  indexLabel: string;
+  resolved: ResolvedDiscoverTarget;
+}
+
+function kindLabel(kind: IndexEntryKind | undefined): string {
+  if (kind === "community") return "Community";
+  if (kind === "developer") return "Developer";
+  return "Business";
+}
+
+function entrySubtitle(entry: BusinessIndexEntry): string | null {
+  if (entry.handle?.trim() && entry.displayName.trim()) {
+    return entry.displayName;
+  }
+  if (entry.categories.length > 0) {
+    return entry.categories.join(" · ");
+  }
+  return null;
+}
+
+export function DiscoverPanel({
+  contacts,
+  onContactsChange,
+  onJoinedRoom,
+  onDmStarted,
+  onActivity,
+}: DiscoverPanelProps) {
+  const config = useMemo(() => loadCommsAgentConfig(), []);
+  const client = useMemo(
+    () => new CommsAgentClient(config.adminUrl, config.adminToken),
+    [config.adminUrl, config.adminToken],
+  );
+  const indexConfigs = useMemo(() => loadDiscoverIndexes(), []);
+
+  const [terms, setTerms] = useState("");
+  const [kind, setKind] = useState<IndexEntryKind | "all">("all");
+  const [results, setResults] = useState<DiscoverResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const loadResults = useCallback(async () => {
+    setLoading(true);
+    setStatus(null);
+    try {
+      const merged: Array<BusinessIndexEntry & { indexLabel: string }> = [];
+      for (const index of indexConfigs.length > 0 ? indexConfigs : DEFAULT_DISCOVER_INDEXES) {
+        const body = await fetchBusinessIndex(index.url);
+        const filtered = filterBusinessIndex(body, {
+          terms: terms.trim() || undefined,
+          kind: kind === "all" ? undefined : kind,
+        });
+        for (const entry of filtered) {
+          merged.push({ ...entry, indexLabel: index.label });
+        }
+      }
+
+      let withHandles = merged;
+      try {
+        const handleIndex = await fetchHandleIndex(DEFAULT_HANDLE_INDEX_URL);
+        const attached = attachHandlesToEntries(merged, handleIndex.handles);
+        withHandles = attached.map((entry, index) => ({
+          ...entry,
+          indexLabel: merged[index]!.indexLabel,
+        }));
+      } catch {
+        // Handle index is optional until M20 is fully deployed.
+      }
+
+      const available = await client.filterAvailableDiscoverEntries(withHandles);
+      setResults(
+        available.map(({ entry, resolved }) => {
+          const orig = withHandles.find(
+            (row) => row.displayName === entry.displayName && row.businessDomain === entry.businessDomain,
+          );
+          return {
+            ...entry,
+            indexLabel: orig?.indexLabel ?? "Index",
+            resolved,
+          };
+        }),
+      );
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [client, indexConfigs, kind, terms]);
+
+  useEffect(() => {
+    void loadResults();
+  }, [loadResults]);
+
+  async function connectEntry(entry: DiscoverResult): Promise<void> {
+    setLoading(true);
+    setStatus(null);
+    try {
+      const { contact, contacts: next } = await connectDiscoverEntry({
+        client,
+        entry,
+        contacts,
+      });
+      onContactsChange(next);
+      onActivity?.(`DM with ${entryTitle(entry)}`);
+      onDmStarted?.(contact.id);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function joinRoom(entry: DiscoverResult): Promise<void> {
+    setLoading(true);
+    setStatus(null);
+    try {
+      const roomId = await joinDiscoverRoom({ client, entry });
+      onJoinedRoom?.(roomId);
+      onActivity?.(`Joined ${entryTitle(entry)}`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <aside className="panel-view discover-view">
+      <div className="panel-search-bar">
+        <input
+          className="panel-input"
+          type="search"
+          value={terms}
+          onChange={(event) => setTerms(event.target.value)}
+          placeholder="Search by name, @handle, or topic…"
+          aria-label="Search discover index"
+        />
+        <select
+          className="panel-select"
+          value={kind}
+          onChange={(event) => setKind(event.target.value as IndexEntryKind | "all")}
+          aria-label="Filter by kind"
+        >
+          <option value="all">All kinds</option>
+          <option value="community">Community</option>
+          <option value="business">Business</option>
+          <option value="developer">Developer</option>
+        </select>
+        <button type="button" className="panel-btn" onClick={() => void loadResults()} disabled={loading}>
+          {loading ? "Checking…" : "Search"}
+        </button>
+      </div>
+
+      {status ? <p className="comms-status-error">{status}</p> : null}
+
+      <div className="panel-body panel-body-scroll" style={{ padding: 0 }}>
+        <ul className="discover-results">
+          {results.length === 0 && !loading ? (
+            <li className="panel-empty">
+              Nothing online right now. Start a community host locally, or try again later.
+            </li>
+          ) : (
+            results.map((entry) => {
+              const subtitle = entrySubtitle(entry);
+              return (
+                <li
+                  key={`${entry.indexLabel}:${entry.businessDomain}:${entry.displayName}`}
+                  className="discover-row"
+                >
+                  <div className="discover-row-main">
+                    <div className="discover-row-title">
+                      <span>{entryTitle(entry)}</span>
+                      <span className="discover-kind">{kindLabel(entry.kind)}</span>
+                    </div>
+                    {subtitle ? <p className="discover-row-meta">{subtitle}</p> : null}
+                  </div>
+                  <div className="discover-row-actions">
+                    {(entry.kind === "community" || (entry.roomIds?.length ?? 0) > 0) && (
+                      <button
+                        type="button"
+                        className="panel-btn"
+                        disabled={loading}
+                        onClick={() => void joinRoom(entry)}
+                      >
+                        Join room
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="panel-btn discover-dm-btn"
+                      disabled={loading}
+                      onClick={() => void connectEntry(entry)}
+                      aria-label={`Send DM to ${entryTitle(entry)}`}
+                    >
+                      <span className="discover-dm-icon" aria-hidden="true">
+                        ✉
+                      </span>
+                      DM
+                    </button>
+                  </div>
+                </li>
+              );
+            })
+          )}
+        </ul>
+      </div>
+    </aside>
+  );
+}

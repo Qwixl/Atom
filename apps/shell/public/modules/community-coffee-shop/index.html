@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Qwixl Coffee Shop</title>
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, sans-serif; }
+    body {
+      margin: 0;
+      padding: 12px;
+      background: var(--atom-color-bg, #1a1410);
+      color: var(--atom-color-text, #f5ebe0);
+    }
+    .room-header { margin-bottom: 12px; }
+    .room-header h1 { font-size: 1.1rem; margin: 0 0 4px; }
+    .room-header p { margin: 0; color: var(--atom-color-text-dim, #c4b5a5); font-size: 0.85rem; }
+    .presence {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 12px 0;
+    }
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--atom-color-border, #4a3f35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .activities {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0;
+    }
+    .activities button {
+      border: 1px solid var(--atom-color-border, #4a3f35);
+      background: transparent;
+      color: inherit;
+      border-radius: var(--atom-radius-md, 8px);
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .activities button:hover { background: rgba(255,255,255,0.06); }
+    .now-playing {
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px dashed var(--atom-color-border, #4a3f35);
+      border-radius: var(--atom-radius-md, 8px);
+      font-size: 0.85rem;
+      color: var(--atom-color-text-dim, #c4b5a5);
+    }
+    .rules {
+      margin-top: 12px;
+      font-size: 0.8rem;
+      color: var(--atom-color-text-dim, #c4b5a5);
+    }
+  </style>
+</head>
+<body>
+  <div class="room-header">
+    <h1 id="room-name">Coffee Shop</h1>
+    <p id="room-topic">Community hangout</p>
+  </div>
+  <div>
+    <strong>Who&apos;s here</strong>
+    <div class="presence" id="presence"></div>
+  </div>
+  <div>
+    <strong>Activities</strong>
+    <div class="activities">
+      <button type="button" data-activity="order">Order coffee (play money)</button>
+      <button type="button" data-activity="listen">Listen along</button>
+      <button type="button" data-activity="reading">Reading corner</button>
+      <button type="button" data-activity="introduce">Introduce yourself</button>
+    </div>
+    <div class="now-playing" id="now-playing">Now playing: lo-fi beats (host)</div>
+  </div>
+  <p class="rules">Be kind. No spam. Play-money orders only in v1.</p>
+  <script>
+    function initials(name) {
+      return String(name || "?")
+        .split(/\s+/)
+        .map((part) => part[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase();
+    }
+    function renderPresence(members) {
+      const el = document.getElementById("presence");
+      el.innerHTML = "";
+      (members || []).slice(0, 24).forEach((member) => {
+        const span = document.createElement("span");
+        span.className = "avatar";
+        span.title = member.name || member.did || "Member";
+        span.textContent = initials(member.name || member.did);
+        el.appendChild(span);
+      });
+      if (!members || members.length === 0) {
+        el.textContent = "Just you for now — invite a friend!";
+      }
+    }
+    document.querySelectorAll("[data-activity]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        window.parent.postMessage(
+          {
+            type: "event",
+            event: {
+              name: "community/coffee-shop/activity",
+              payload: { activityKind: btn.getAttribute("data-activity") },
+            },
+          },
+          "*",
+        );
+      });
+    });
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "init") return;
+      if (data.theme) {
+        const root = document.documentElement.style;
+        if (data.theme.colorBg) root.setProperty("--atom-color-bg", data.theme.colorBg);
+        if (data.theme.colorText) root.setProperty("--atom-color-text", data.theme.colorText);
+        if (data.theme.colorTextDim) root.setProperty("--atom-color-text-dim", data.theme.colorTextDim);
+        if (data.theme.colorBorder) root.setProperty("--atom-color-border", data.theme.colorBorder);
+        if (data.theme.radiusMd) root.setProperty("--atom-radius-md", data.theme.radiusMd);
+      }
+      const props = data.props || {};
+      if (props.roomName) document.getElementById("room-name").textContent = props.roomName;
+      if (props.topic) document.getElementById("room-topic").textContent = props.topic;
+      if (props.nowPlaying) document.getElementById("now-playing").textContent = "Now playing: " + props.nowPlaying;
+      renderPresence(props.members);
+    });
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>

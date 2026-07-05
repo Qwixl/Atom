@@ -8,6 +8,7 @@ import { ACTION_CAPTURE_PURPOSE, ACTION_RECEIPT_PURPOSE } from "@qwixl/a2a-trans
 import { createMockPaymentRail } from "./payment/mockRail.js";
 import { startAgentServer } from "./server.js";
 import type { AgentBackendConfig } from "./config.js";
+import { adminGetJson, adminPostJson, installTestAdminToken } from "./testHelpers.js";
 
 async function writeIdentityFile(filePath: string): Promise<string> {
   const keyPair = await generateAgentKeyPair();
@@ -30,41 +31,28 @@ function testConfig(port: number, publicBaseUrl: string): AgentBackendConfig {
     publicBaseUrl,
     agentName: "Test agent",
     allowedOrigins: new Set(["http://127.0.0.1:5200"]),
-    googleCalendarAccessToken: null,
     stripeSecretKey: "sk_test_mock",
     stripePublishableKey: null,
     stripeProductId: null,
     businessMode: false,
     businessDomain: null,
+    demoPeerMode: false,
+    communityHostMode: false,
     interactivePortResolve: false,
   };
 }
 
 async function postJson<T>(baseUrl: string, route: string, body: Record<string, unknown>): Promise<T> {
-  const resp = await fetch(`${baseUrl}${route}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!resp.ok) {
-    const err = (await resp.json().catch(() => ({}))) as { error?: string };
-    throw new Error(err.error ?? `HTTP ${resp.status}`);
-  }
-  return resp.json() as Promise<T>;
+  return adminPostJson(baseUrl, route, body);
 }
 
 async function getJson<T>(baseUrl: string, route: string): Promise<T> {
-  const url = `${baseUrl.replace(/\/$/, "")}${route}`;
-  const resp = await fetch(url);
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`${resp.status} ${url}: ${text.slice(0, 200)}`);
-  }
-  return resp.json() as Promise<T>;
+  return adminGetJson(baseUrl, route);
 }
 
 describe("M11.3 transaction commit choreography", () => {
   it("hold → payee confirm → payer capture over A2A", async () => {
+    const restoreToken = installTestAdminToken();
     const root = await mkdtemp(path.join(tmpdir(), "atom-txn-"));
     const aliceIdentityPath = path.join(root, "alice.json");
     const bobIdentityPath = path.join(root, "bob.json");
@@ -138,12 +126,17 @@ describe("M11.3 transaction commit choreography", () => {
       );
       expect(confirm.transaction.phase).toBe("awaiting_capture");
 
-      await new Promise((resolve) => setTimeout(resolve, 150));
-
-      const aliceFinal = await getJson<{ transaction: { phase: string } }>(
+      let aliceFinal = await getJson<{ transaction: { phase: string } }>(
         aliceBase,
         `/transactions/${transactionId}`,
       );
+      for (let attempt = 0; attempt < 20 && aliceFinal.transaction.phase !== "captured"; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        aliceFinal = await getJson<{ transaction: { phase: string } }>(
+          aliceBase,
+          `/transactions/${transactionId}`,
+        );
+      }
       expect(aliceFinal.transaction.phase).toBe("captured");
       expect(aliceRail.getHold(`mock_pi_${transactionId}`)?.status).toBe("succeeded");
 
@@ -169,6 +162,7 @@ describe("M11.3 transaction commit choreography", () => {
       } else {
         process.env.ATOM_AGENT_IDENTITY_PATH = prevIdentityPath;
       }
+      restoreToken();
     }
   });
 });

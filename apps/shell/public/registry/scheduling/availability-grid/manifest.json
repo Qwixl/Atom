@@ -1,0 +1,26 @@
+{
+  "id": "scheduling/availability-grid",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/scheduling-availability-grid/index.html",
+  "components": [
+    {
+      "name": "scheduling/availability-grid",
+      "semanticRole": "input/availability-grid",
+      "events": [
+        {
+          "name": "slotSelected"
+        }
+      ],
+      "agentHint": "Interactive week grid for picking a meeting slot; emits slotSelected with slotId."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "scheduling"
+  ],
+  "bundleIntegrity": "sha256:fd7c3e7ae49ec73ca60712287aed1966cbc93d6656ea11f6f6d840d6223390b7"
+}

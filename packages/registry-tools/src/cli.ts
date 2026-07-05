@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
+import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { hashFile, publishModule, verifyRegistry } from "./verify.js";
@@ -26,6 +27,7 @@ Usage:
   atom-registry hash <file>
   atom-registry verify [--registry-dir <dir>] [--bundle-base <dir>] [--require-integrity] [--signatures]
   atom-registry publish [--registry-dir <dir>] [--module-dir <dir>] [--bundle-base <dir>]
+  atom-registry publish-all [--registry-dir <dir>] [--bundle-base <dir>]
 
   --signatures  Full Sigstore verification (Rekor + x509 chain) via sigstore-js, in addition to digest match.
 
@@ -94,7 +96,35 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "publish-all") {
+    const registryDir = path.resolve(readFlag(args, "--registry-dir") ?? defaultRegistryDir);
+    const bundleBase = path.resolve(readFlag(args, "--bundle-base") ?? defaultBundleBase);
+    const moduleDirs = await findManifestDirs(registryDir);
+    for (const moduleDir of moduleDirs.sort()) {
+      await publishModule({ registryDir, moduleDir, bundleBase });
+    }
+    console.log(`Published ${moduleDirs.length} module(s).`);
+    return;
+  }
+
   usage();
+}
+
+async function findManifestDirs(dir: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const dirs: string[] = [];
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (!entry.isDirectory()) continue;
+    const manifest = path.join(full, "manifest.json");
+    try {
+      await stat(manifest);
+      dirs.push(full);
+    } catch {
+      dirs.push(...(await findManifestDirs(full)));
+    }
+  }
+  return dirs;
 }
 
 main().catch((error) => {

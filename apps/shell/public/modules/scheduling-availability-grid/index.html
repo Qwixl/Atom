@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Availability grid</title>
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body { margin: 0; padding: 12px; background: var(--atom-color-bg, #111); color: var(--atom-color-text, #eee); }
+    h2 { margin: 0 0 4px; font-size: 1rem; }
+    .sub { color: var(--atom-color-text-dim, #aaa); font-size: 0.85rem; margin-bottom: 10px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 6px; }
+    button.slot {
+      border: 1px solid var(--atom-color-border, #333);
+      border-radius: var(--atom-radius-md, 6px);
+      background: var(--atom-color-bg-raised, #1a1a1a);
+      color: inherit;
+      padding: 8px 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    button.slot:hover:not(:disabled) { border-color: var(--atom-color-accent, #5aa9ff); }
+    button.slot.selected { outline: 2px solid var(--atom-color-accent, #5aa9ff); }
+    button.slot.taken { opacity: 0.45; cursor: not-allowed; }
+    .hint { margin-top: 10px; font-size: 0.8rem; color: var(--atom-color-text-dim, #aaa); }
+  </style>
+</head>
+<body>
+  <h2 id="title">Availability</h2>
+  <p class="sub" id="subtitle"></p>
+  <div class="grid" id="grid"></div>
+  <p class="hint" id="hint">Select a slot.</p>
+  <script>
+    let shellOrigin = null;
+    let selected = null;
+    const themeKeys = ["colorBg","colorBgRaised","colorText","colorTextDim","colorAccent","radiusMd","fontSans"];
+    const cssMap = { colorBg:"--atom-color-bg", colorBgRaised:"--atom-color-bg-raised", colorText:"--atom-color-text", colorTextDim:"--atom-color-text-dim", colorAccent:"--atom-color-accent", radiusMd:"--atom-radius-md", fontSans:"--atom-font-sans" };
+    function applyTheme(theme) {
+      if (!theme) return;
+      const root = document.documentElement.style;
+      for (const k of themeKeys) if (theme[k]) root.setProperty(cssMap[k], theme[k]);
+    }
+    function render(props) {
+      document.getElementById("title").textContent = props.title || "Pick a time";
+      document.getElementById("subtitle").textContent = props.timezone ? `Times in ${props.timezone}` : "";
+      const taken = new Set(Array.isArray(props.taken) ? props.taken : []);
+      const slots = Array.isArray(props.slots) ? props.slots : [
+        { id: "mon-10", label: "Mon 10:00" }, { id: "mon-14", label: "Mon 14:00" },
+        { id: "tue-11", label: "Tue 11:00" }, { id: "wed-15", label: "Wed 15:00" },
+      ];
+      const grid = document.getElementById("grid");
+      grid.innerHTML = "";
+      for (const slot of slots) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "slot" + (taken.has(slot.id) ? " taken" : "");
+        btn.textContent = slot.label || slot.id;
+        btn.disabled = taken.has(slot.id);
+        if (!btn.disabled) btn.addEventListener("click", () => pick(slot.id, btn));
+        grid.appendChild(btn);
+      }
+    }
+    function pick(slotId, btn) {
+      selected = slotId;
+      document.querySelectorAll("button.slot.selected").forEach((el) => el.classList.remove("selected"));
+      btn.classList.add("selected");
+      document.getElementById("hint").textContent = `Selected ${slotId}`;
+      if (shellOrigin) window.parent.postMessage({ type: "event", name: "slotSelected", payload: { slotId } }, shellOrigin);
+    }
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "init") return;
+      shellOrigin = event.origin;
+      applyTheme(data.theme);
+      render(data.props || {});
+    });
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>

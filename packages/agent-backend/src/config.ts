@@ -4,12 +4,14 @@ export interface AgentBackendConfig {
   publicBaseUrl: string;
   agentName: string;
   allowedOrigins: ReadonlySet<string>;
-  googleCalendarAccessToken: string | null;
   stripeSecretKey: string | null;
   stripePublishableKey: string | null;
   stripeProductId: string | null;
   businessMode: boolean;
   businessDomain: string | null;
+  demoPeerMode: boolean;
+  /** Seed the Qwixl Coffee Shop room on startup (community host agents). */
+  communityHostMode: boolean;
   /** Prompt on port conflict when using default PORT (dev CLI). */
   interactivePortResolve: boolean;
 }
@@ -39,15 +41,20 @@ export function loadAgentBackendConfig(env: NodeJS.ProcessEnv = process.env): Ag
     publicBaseUrl,
     agentName,
     allowedOrigins: new Set([...DEFAULT_SHELL_ORIGINS, ...extra]),
-    googleCalendarAccessToken:
-      env.GOOGLE_CALENDAR_ACCESS_TOKEN?.trim() ||
-      env.GOOGLE_OAUTH_ACCESS_TOKEN?.trim() ||
-      null,
     stripeSecretKey: env.STRIPE_SECRET_KEY?.trim() || null,
     stripePublishableKey: env.STRIPE_PUBLISHABLE_KEY?.trim() || null,
     stripeProductId: env.ATOM_STRIPE_PRODUCT_ID?.trim() || null,
     businessMode: env.ATOM_BUSINESS_MODE === "1" || env.ATOM_BUSINESS_MODE === "true",
     businessDomain: env.ATOM_BUSINESS_DOMAIN?.trim() || null,
-    interactivePortResolve: !portExplicit && !publicBaseUrlExplicit,
+    demoPeerMode: env.ATOM_DEMO_PEER === "1" || env.ATOM_DEMO_PEER === "true",
+    communityHostMode:
+      env.ATOM_COMMUNITY_HOST === "1" ||
+      env.ATOM_COMMUNITY_HOST === "true" ||
+      env.ATOM_COFFEE_SHOP === "1" ||
+      env.ATOM_COFFEE_SHOP === "true",
+    interactivePortResolve:
+      (env.ATOM_PORT_PROMPT === "1" || env.ATOM_PORT_PROMPT === "true") &&
+      !portExplicit &&
+      !publicBaseUrlExplicit,
   };
 }

@@ -1,8 +1,26 @@
 # Atom
 
+[![npm agent-backend](https://img.shields.io/npm/v/@qwixl/agent-backend?label=agent-backend)](https://www.npmjs.com/package/@qwixl/agent-backend)
+[![License](https://img.shields.io/github/license/Qwixl/Atom)](LICENSE)
+
 **A browser for the agent web.**
 
 An open, user-owned shell for agent-driven interfaces. Your agent composes a declarative description of the UI; your shell renders it from a trusted catalog of components. Counterpart agents send data, never pixels — and actions of consequence only ever happen in shell-owned chrome.
+
+## Start here
+
+Two ways to use Atom — pick one and stay in it:
+
+| Mode | Command | You never need… |
+|---|---|---|
+| **Browser** | `pnpm dev` then open http://localhost:5200 | A second terminal, admin URLs, or tokens |
+| **Terminal** | `pnpm atom agent start` then `pnpm atom status` | The browser (use https://shell-atom.vercel.app when you want UI) |
+
+Self-host with npm: `npx @qwixl/agent-backend` (terminal) or pair with [shell-atom.vercel.app](https://shell-atom.vercel.app) (browser).
+
+Try the **personal demo** (LLM + WebCal + scheduling): `pnpm dev:demo` — [PERSONAL-DEMO.md](./PERSONAL-DEMO.md). For MLS with a counterpart agent, see [DEMO-PEER.md](./DEMO-PEER.md).
+
+Developer docs (tutorial, playground, modules): run `pnpm dev:docs` or read [DEVELOPERS.md](./DEVELOPERS.md).
 
 ## Principles
 
@@ -27,10 +45,12 @@ An open, user-owned shell for agent-driven interfaces. Your agent composes a dec
 | `@qwixl/a2a-transport` | yes | A2A wire format for signed data objects + MLS handshake. |
 | `@qwixl/mls-session` | yes | RFC 9420 MLS pair sessions for agent backends. |
 | `@qwixl/agent-backend` | yes | Self-hostable owner agent (`atom-agent` CLI): A2A + MLS + admin API. |
+| `@qwixl/business-index` | yes | Client-side filter/query for federated business-agent indexes (M15.7). |
+| `@qwixl/skin-default` | yes | Default shell design tokens and alternate skins (M14.2). |
 | `@qwixl/agent-llm` | yes | LLM-backed `AgentSession` for the reference shell. |
 | `@qwixl/secret-store` | monorepo only | Pluggable secret storage for connection credentials. |
 
-Reference apps (not published): `apps/shell`, `apps/embed-demo`, `apps/ag-ui-server`, `apps/registry-host`.
+Reference apps (not published): `apps/shell`, `apps/embed-demo`, `apps/docs-site`, `apps/control-plane`, `apps/ag-ui-server`, `apps/registry-host`.
 
 ## Install (consumers)
 
@@ -50,7 +70,10 @@ Build your app with any bundler that resolves the package `development` export c
 | [MODULES.md](./MODULES.md) | Module authors publishing to a registry |
 | [API-v1.md](./API-v1.md) | Frozen v1 contracts (composition, session, manifest, sandbox) |
 | [AGENT-BACKEND.md](./AGENT-BACKEND.md) | Self-hosting the owner agent backend |
-| [LAUNCH.md](./LAUNCH.md) | Phase 1 launch guide (private agent comms) |
+| [DEVELOPERS.md](./DEVELOPERS.md) | M14 developer platform entry |
+| [PERSONAL-DEMO.md](./PERSONAL-DEMO.md) | Guided personal demo (`pnpm dev:demo`) |
+| [DEMO-PEER.md](./DEMO-PEER.md) | Live demo counterpart agent (M14.6) |
+| [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md) | M16 public push gates |
 | [PROTOCOL-v1.md](./PROTOCOL-v1.md) | Frozen v1 data-object + did:key contracts |
 | [SECURITY.md](./SECURITY.md) | Threat model for shipped surface |
 | [SECRET-STORE.md](./SECRET-STORE.md) | Credential adapter priority for embedders |
@@ -62,14 +85,28 @@ Live hosts: [shell-atom.vercel.app](https://shell-atom.vercel.app) · [atom-regi
 ```bash
 pnpm install
 pnpm build:packages   # compile publishable packages to dist/
-pnpm dev              # reference shell on http://localhost:5200
-pnpm dev:embed        # embed demo on http://localhost:5203
-pnpm dev:a2a          # agent backend dev (watch) on http://localhost:5204
+pnpm dev              # browser mode: agent + shell on http://localhost:5200
+pnpm atom agent start   # terminal mode: your agent only (Atom is hosted)
+pnpm atom platform      # show hosted Atom URL
+pnpm atom status        # your agent identity
+pnpm atom discover search "coffee"
+pnpm atom rooms join room:coffeeshop --host http://127.0.0.1:5205
+pnpm atom rooms send room:coffeeshop --message "Hello"
+pnpm atom chat "what's on today?"
+pnpm dev:shell-only   # shell only (advanced; needs separate agent)
+pnpm dev:demo         # personal demo: shell + your agent (see PERSONAL-DEMO.md)
+pnpm dev:embed        # embed demo on http://localhost:5203 (?playground=1 for JSON editor)
+pnpm dev:docs         # docs site on http://localhost:5206
+pnpm dev:hosting      # control plane :5300 + stub hosted agent :5301
+pnpm dev:control-plane # control plane only :5300
+pnpm dev:agent-only   # agent backend only (terminal / advanced)
+pnpm dev:a2a          # alias for dev:agent-only
 pnpm start:agent      # run built atom-agent CLI (after build:packages)
 pnpm docker:agent     # Docker Compose self-host (see AGENT-BACKEND.md)
+pnpm docker:demo-peer # demo peer agent on http://localhost:5205
 pnpm dev:registry     # module registry host on http://localhost:5202
 pnpm registry:verify  # verify index + manifest + bundle hashes
-pnpm registry:publish # recompute hashes and update index.json
+pnpm registry:publish-all # recompute all module hashes in default registry
 pnpm registry:scaffold -- --id acme/widget --out ./tmp/widget  # module template
 pnpm test             # shell-core contract tests
 pnpm typecheck        # all packages
@@ -78,7 +115,7 @@ pnpm build            # packages + deployable apps
 
 Try the mock-agent demos (no API keys needed):
 
-- **"Schedule a team standup next week"** — time slot choice → shell-chrome **confirmation** (no payment) → attested calendar receipt.
+- **"Schedule a team standup next week"** (mock agent) — time slot choice → shell-chrome **confirmation** → opens Google Calendar prefilled (save there).
 - **"RSVP to the design review"** — accept/decline → confirmation in shell chrome.
 - **"What time works for our standup?"** — guarded preference disclosure: add a guarded record in **Profile**, then ask; shell permission chrome → attestation → agent proposes filtered slots.
 - **AG-UI + A2UI:** switch to **AG-UI** provider, ask **"a2ui schedule standup"** — surfaces arrive as A2UI v0.9.1 envelopes.

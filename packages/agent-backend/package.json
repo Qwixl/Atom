@@ -1,6 +1,6 @@
 {
   "name": "@qwixl/agent-backend",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Owner-controlled Atom agent backend: A2A transport, MLS E2E, signed data objects.",
   "license": "Apache-2.0",
   "type": "module",
@@ -31,6 +31,8 @@
   },
   "scripts": {
     "dev": "tsx watch src/cli.ts",
+    "dev:demo-peer": "node scripts/dev-demo-peer.mjs",
+    "dev:coffee-shop": "node scripts/dev-coffee-shop.mjs",
     "start": "node dist/cli.js",
     "setup:stripe": "tsx src/payment/setupStripeProducts.ts",
     "typecheck": "tsc --noEmit",
@@ -41,6 +43,9 @@
     "@a2a-js/sdk": "^0.3.13",
     "@ag-ui/client": "0.0.57",
     "@qwixl/a2a-transport": "workspace:*",
+    "@qwixl/business-index": "workspace:*",
+    "@qwixl/connector-custody": "workspace:*",
+    "@simplewebauthn/server": "^13.1.1",
     "@qwixl/ag-ui-adapter": "workspace:*",
     "@qwixl/agent-llm": "workspace:*",
     "@qwixl/mls-session": "workspace:*",
@@ -48,6 +53,7 @@
     "@qwixl/protocol": "workspace:*",
     "@qwixl/shell-core": "workspace:*",
     "express": "^5.1.0",
+    "ts-mls": "^1.6.2",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

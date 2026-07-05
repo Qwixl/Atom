@@ -2,10 +2,12 @@ import {
   createApplicationMessage,
   createCommit,
   createGroup,
+  decodeGroupState,
   decodeMlsMessage,
   defaultCapabilities,
   defaultLifetime,
   emptyPskIndex,
+  encodeGroupState,
   encodeMlsMessage,
   generateKeyPackage,
   joinGroup,
@@ -19,6 +21,8 @@ import {
   zeroOutUint8Array,
 } from "ts-mls";
 import { defaultCiphersuite } from "./ciphersuite.js";
+import { hydrateClientState } from "./clientStateRestore.js";
+import type { MlsPairSnapshot } from "./snapshot.js";
 import type { MlsWireMessage } from "./types.js";
 
 function didCredential(did: string): Credential {
@@ -193,6 +197,36 @@ export class MlsPairSession {
       throw new Error(`Unexpected MLS message kind: ${String(result.kind)}`);
     }
     return result.message;
+  }
+
+  exportSnapshot(): MlsPairSnapshot {
+    return {
+      version: 1,
+      localDid: this.localDid,
+      peerDid: this.peerDid,
+      groupStateB64: bytesToBase64(encodeGroupState(this.groupState)),
+    };
+  }
+
+  /** Restore an established pair session from persisted group state. */
+  static restoreFromSnapshot(
+    snap: MlsPairSnapshot,
+    packages: { publicPackage: KeyPackage; privatePackage: PrivateKeyPackage },
+  ): MlsPairSession {
+    if (snap.version !== 1) {
+      throw new Error(`Unsupported MLS pair snapshot version ${snap.version}`);
+    }
+    const decoded = decodeGroupState(base64ToBytes(snap.groupStateB64), 0);
+    if (!decoded) {
+      throw new Error("Invalid MLS pair snapshot group state");
+    }
+    return new MlsPairSession({
+      groupState: hydrateClientState(decoded[0] as ClientState),
+      publicPackage: packages.publicPackage,
+      privatePackage: packages.privatePackage,
+      localDid: snap.localDid,
+      peerDid: snap.peerDid,
+    });
   }
 }
 

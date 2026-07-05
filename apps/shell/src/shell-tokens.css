@@ -1,0 +1,127 @@
+/* Atom shell design tokens — per-skin surface hierarchy */
+
+:root,
+[data-atom-skin="default"] {
+  --shell-sidebar-bg: #ffffff;
+  --shell-main-bg: #f5f6f8;
+  --shell-raised-bg: #ffffff;
+  --shell-inset-bg: #eef0f3;
+
+  --shell-border: #e2e5ea;
+  --shell-border-strong: #c9cedb;
+
+  --shell-text: #1a202c;
+  --shell-text-muted: #5f6b7c;
+  --shell-text-subtle: #8b95a5;
+
+  --shell-accent: #e87722;
+  --shell-accent-hover: #f0923a;
+  --shell-accent-soft: rgb(232 119 34 / 0.1);
+  --shell-accent-border: rgb(232 119 34 / 0.35);
+  --shell-accent-text: #ffffff;
+
+  --shell-success: #16a34a;
+  --shell-success-soft: rgb(22 163 74 / 0.1);
+  --shell-warn: #d97706;
+  --shell-warn-soft: rgb(217 119 6 / 0.1);
+  --shell-danger: #dc2626;
+
+  --shell-hover-bg: rgb(0 0 0 / 0.04);
+  --shell-hover-bg-strong: rgb(0 0 0 / 0.06);
+  --shell-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+[data-atom-skin="dark"] {
+  --shell-sidebar-bg: #0e1014;
+  --shell-main-bg: #13161b;
+  --shell-raised-bg: #181c23;
+  --shell-inset-bg: #0c0e12;
+
+  --shell-border: #252a33;
+  --shell-border-strong: #343b47;
+
+  --shell-text: #eef0f3;
+  --shell-text-muted: #9aa3af;
+  --shell-text-subtle: #6b7280;
+
+  --shell-accent: #e8a838;
+  --shell-accent-hover: #f0ba52;
+  --shell-accent-soft: rgb(232 168 56 / 0.12);
+  --shell-accent-border: rgb(232 168 56 / 0.35);
+  --shell-accent-text: #1a1206;
+
+  --shell-success: #34d399;
+  --shell-success-soft: rgb(52 211 153 / 0.12);
+  --shell-warn: #fbbf24;
+  --shell-warn-soft: rgb(251 191 36 / 0.12);
+  --shell-danger: #f87171;
+
+  --shell-hover-bg: rgb(255 255 255 / 0.04);
+  --shell-hover-bg-strong: rgb(255 255 255 / 0.06);
+  --shell-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.24);
+}
+
+[data-atom-skin="high-contrast"] {
+  --shell-sidebar-bg: #000000;
+  --shell-main-bg: #000000;
+  --shell-raised-bg: #0a0a0a;
+  --shell-inset-bg: #000000;
+
+  --shell-border: #ffffff;
+  --shell-border-strong: #ffff00;
+
+  --shell-text: #ffffff;
+  --shell-text-muted: #e0e0e0;
+  --shell-text-subtle: #cccccc;
+
+  --shell-accent: #00ffff;
+  --shell-accent-hover: #66ffff;
+  --shell-accent-soft: rgb(0 255 255 / 0.2);
+  --shell-accent-border: #00ffff;
+  --shell-accent-text: #000000;
+
+  --shell-success: #00ff66;
+  --shell-success-soft: rgb(0 255 102 / 0.15);
+  --shell-warn: #ffcc00;
+  --shell-warn-soft: rgb(255 204 0 / 0.15);
+  --shell-danger: #ff4444;
+
+  --shell-hover-bg: rgb(255 255 255 / 0.08);
+  --shell-hover-bg-strong: rgb(255 255 255 / 0.12);
+  --shell-shadow-sm: none;
+}
+
+:root {
+  --shell-radius: 8px;
+  --shell-radius-sm: 6px;
+  --shell-radius-full: 9999px;
+  --shell-sidebar-width: 248px;
+  --shell-font: "Open Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+.shell {
+  --bg: var(--shell-main-bg);
+  --bg-raised: var(--shell-raised-bg);
+  --bg-inset: var(--shell-inset-bg);
+  --border: var(--shell-border);
+  --border-strong: var(--shell-border-strong);
+  --text: var(--shell-text);
+  --text-dim: var(--shell-text-muted);
+  --accent: var(--shell-accent);
+  --accent-soft: var(--shell-accent-soft);
+  --good: var(--shell-success);
+  --warn: var(--shell-warn);
+  --bad: var(--shell-danger);
+  --radius: var(--shell-radius);
+  --radius-sm: var(--shell-radius-sm);
+  font-family: var(--shell-font);
+  color: var(--shell-text);
+  background: var(--shell-main-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

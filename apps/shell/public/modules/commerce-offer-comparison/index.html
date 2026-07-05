@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Offer comparison</title>
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body { margin: 0; padding: 12px; background: var(--atom-color-bg, #111); color: var(--atom-color-text, #eee); font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid var(--atom-color-border, #333); padding: 8px; text-align: left; }
+    th { background: var(--atom-color-bg-raised, #1a1a1a); }
+    .badge { display: inline-block; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
+    .tier1 { background: rgba(90,169,255,0.2); color: var(--atom-color-accent, #5aa9ff); }
+    .sponsored { background: rgba(230,179,77,0.2); color: var(--atom-color-warn, #e6b34d); }
+    .signed { color: var(--atom-color-good, #3fca7c); font-size: 0.75rem; }
+    tr.selected { outline: 2px solid var(--atom-color-accent, #5aa9ff); }
+    tr { cursor: pointer; }
+  </style>
+</head>
+<body>
+  <table>
+    <thead><tr><th>Offer</th><th>Price</th><th>Terms</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <p class="signed" id="note">Only signed catalog fields are shown (D031).</p>
+  <script>
+    let shellOrigin = null;
+    function applyTheme(theme) {
+      if (!theme) return;
+      const map = { colorBg:"--atom-color-bg", colorBgRaised:"--atom-color-bg-raised", colorText:"--atom-color-text", colorAccent:"--atom-color-accent", colorGood:"--atom-color-good", colorWarn:"--atom-color-warn", radiusMd:"--atom-radius-md", fontSans:"--atom-font-sans" };
+      const root = document.documentElement.style;
+      for (const [k,v] of Object.entries(map)) if (theme[k]) root.setProperty(v, theme[k]);
+    }
+    function render(props) {
+      const offers = Array.isArray(props.offers) ? props.offers : [
+        { id: "a", label: "Standard plan", amount: "$29/mo", terms: "Monthly", verificationTier: 1 },
+        { id: "b", label: "Pro plan", amount: "$59/mo", terms: "Annual save 10%", verificationTier: 1, sponsored: true },
+      ];
+      const tbody = document.getElementById("rows");
+      tbody.innerHTML = "";
+      for (const offer of offers) {
+        const tr = document.createElement("tr");
+        const name = document.createElement("td");
+        name.textContent = offer.label || offer.id;
+        if (offer.verificationTier === 1) {
+          const b = document.createElement("span"); b.className = "badge tier1"; b.textContent = "Domain-linked"; name.appendChild(b);
+        }
+        if (offer.sponsored) {
+          const s = document.createElement("span"); s.className = "badge sponsored"; s.textContent = "Sponsored"; name.appendChild(s);
+        }
+        tr.appendChild(name);
+        tr.appendChild(document.createElement("td")).textContent = offer.amount || "—";
+        tr.appendChild(document.createElement("td")).textContent = (offer.terms || []).join?.(", ") || offer.terms || "—";
+        tr.addEventListener("click", () => {
+          tbody.querySelectorAll("tr.selected").forEach((r) => r.classList.remove("selected"));
+          tr.classList.add("selected");
+          if (shellOrigin) window.parent.postMessage({ type: "event", name: "offerSelected", payload: { offerId: offer.id } }, shellOrigin);
+        });
+        tbody.appendChild(tr);
+      }
+    }
+    window.addEventListener("message", (e) => {
+      if (!e.data || e.data.type !== "init") return;
+      shellOrigin = e.origin;
+      applyTheme(e.data.theme);
+      render(e.data.props || {});
+    });
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>

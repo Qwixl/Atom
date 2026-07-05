@@ -29,6 +29,7 @@ export interface ReceivedMlsWireEvent {
   wire: MlsWireMessage;
   contextId?: string;
   messageId: string;
+  senderDid?: string;
 }
 
 export interface ReceivedMlsHandshakeEvent {
@@ -89,10 +90,11 @@ export class AtomDataObjectExecutor implements AgentExecutor {
         handled = true;
         continue;
       }
-      const wire = parseMlsWireFromPart(part);
-      if (wire && this.onMlsWire) {
+      const parsed = parseMlsWireFromPart(part);
+      if (parsed && this.onMlsWire) {
         await this.onMlsWire({
-          wire,
+          wire: parsed.wire,
+          senderDid: parsed.senderDid,
           contextId: userMessage.contextId,
           messageId: userMessage.messageId,
         });

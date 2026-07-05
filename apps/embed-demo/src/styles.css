@@ -67,3 +67,54 @@ body {
   color: #93a1b5;
   overflow-x: auto;
 }
+
+.playground {
+  max-width: 1100px;
+}
+
+.playground-main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .playground-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+.playground-label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+  color: #93a1b5;
+}
+
+.playground-textarea {
+  width: 100%;
+  min-height: 320px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  background: #161c26;
+  color: #e6ebf2;
+  border: 1px solid #2a3342;
+  border-radius: 8px;
+  padding: 10px;
+  resize: vertical;
+}
+
+.playground-render {
+  margin-top: 8px;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.playground-error {
+  color: #f87171;
+  font-size: 0.85rem;
+}

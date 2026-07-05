@@ -18,7 +18,7 @@ export type {
 
 export { Catalog } from "./catalog.js";
 
-export type { ComponentSpec, ModuleManifest, CatalogEntry } from "./catalog.js";
+export type { ComponentSpec, ModuleManifest, ModuleConnectorSpec, CatalogEntry } from "./catalog.js";
 
 
 

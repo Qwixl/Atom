@@ -1,0 +1,41 @@
+/**
+ * Atom shell default skin — light: white, light grey, orange accent.
+ * Dark and high-contrast skins override --atom-* in sibling stylesheets.
+ */
+:root,
+[data-atom-skin="default"] {
+  --atom-color-bg: #f5f6f8;
+  --atom-color-bg-raised: #ffffff;
+  --atom-color-bg-inset: #eef0f3;
+  --atom-color-border: #e2e5ea;
+  --atom-color-border-strong: #c9cedb;
+  --atom-color-text: #1a202c;
+  --atom-color-text-dim: #5f6b7c;
+  --atom-color-accent: #e87722;
+  --atom-color-accent-soft: rgb(232 119 34 / 0.1);
+  --atom-color-good: #16a34a;
+  --atom-color-warn: #d97706;
+  --atom-color-bad: #dc2626;
+  --atom-radius-md: 10px;
+  --atom-radius-sm: 8px;
+  --atom-font-sans: "Open Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  --bg: var(--atom-color-bg);
+  --bg-raised: var(--atom-color-bg-raised);
+  --bg-inset: var(--atom-color-bg-inset);
+  --border: var(--atom-color-border);
+  --border-strong: var(--atom-color-border-strong);
+  --text: var(--atom-color-text);
+  --text-dim: var(--atom-color-text-dim);
+  --accent: var(--atom-color-accent);
+  --accent-soft: var(--atom-color-accent-soft);
+  --good: var(--atom-color-good);
+  --warn: var(--atom-color-warn);
+  --bad: var(--atom-color-bad);
+  --radius: var(--atom-radius-md);
+}
+
+.atom-surface {
+  font-family: var(--atom-font-sans);
+  color: var(--atom-color-text);
+}

@@ -11,6 +11,7 @@ import {
   isSigstoreBundleShape,
 } from "./registry/signature.js";
 import { isRevoked } from "./registry/trust.js";
+import { resolveRegistryUrl } from "./registry/resolveUrl.js";
 import { validateHttpsUrl, isCrossOriginModuleBundle } from "./security/url.js";
 import { validateComposition, validateConsequentialAction } from "./validate.js";
 
@@ -192,6 +193,23 @@ describe("Sigstore bundle validation", () => {
         dsseEnvelope: { payload: btoa("{}") },
       }),
     ).toBe(false);
+  });
+});
+
+describe("resolveRegistryUrl", () => {
+  it("joins path-relative revocations against a local index URL", () => {
+    expect(resolveRegistryUrl("revocations.json", "/registry/index.json")).toBe(
+      "/registry/revocations.json",
+    );
+  });
+
+  it("resolves against absolute registry hosts", () => {
+    expect(
+      resolveRegistryUrl(
+        "travel/seat-map/manifest.json",
+        "https://atom-registry.vercel.app/registry/index.json",
+      ),
+    ).toBe("https://atom-registry.vercel.app/registry/travel/seat-map/manifest.json");
   });
 });
 

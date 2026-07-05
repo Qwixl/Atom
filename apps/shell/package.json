@@ -12,6 +12,8 @@
   "dependencies": {
     "@qwixl/a2ui-adapter": "workspace:*",
     "@qwixl/a2a-transport": "workspace:*",
+    "@qwixl/business-index": "workspace:*",
+    "@simplewebauthn/browser": "^13.1.1",
     "@qwixl/ag-ui-adapter": "workspace:*",
     "@qwixl/agent-llm": "workspace:*",
     "@qwixl/owner-store": "workspace:*",
@@ -19,6 +21,7 @@
     "@qwixl/renderer-web": "workspace:*",
     "@qwixl/secret-store": "workspace:*",
     "@qwixl/shell-core": "workspace:*",
+    "@qwixl/skin-default": "workspace:*",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
   },

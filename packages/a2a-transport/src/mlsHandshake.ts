@@ -8,6 +8,8 @@ export interface AtomMlsHandshakeEnvelope {
   initiatorDid: string;
   welcome: string;
   ratchetTree: string;
+  /** Optional A2A endpoint of the initiator so the responder can reply (demo peer, coordination). */
+  initiatorEndpoint?: string;
 }
 
 export function isAtomMlsHandshakeEnvelope(value: unknown): value is AtomMlsHandshakeEnvelope {
@@ -17,7 +19,8 @@ export function isAtomMlsHandshakeEnvelope(value: unknown): value is AtomMlsHand
     record.mediaType === ATOM_MLS_HANDSHAKE_MEDIA_TYPE &&
     typeof record.initiatorDid === "string" &&
     typeof record.welcome === "string" &&
-    typeof record.ratchetTree === "string"
+    typeof record.ratchetTree === "string" &&
+    (record.initiatorEndpoint === undefined || typeof record.initiatorEndpoint === "string")
   );
 }
 

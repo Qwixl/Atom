@@ -46,7 +46,8 @@ export async function deliverSignedObject(params: DeliverObjectParams): Promise<
     );
     await sendMlsWire(client, {
       wire,
-      contextId: params.contextId ?? mlsContextId(peerDid),
+      // Receiver looks up its MLS session by sender DID (see mls.integration.test.ts).
+      contextId: params.contextId ?? mlsContextId(params.object.issuerDid),
       role: "user",
     });
     return { objectId: params.object.id, encrypted: true };

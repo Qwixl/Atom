@@ -1,6 +1,5 @@
 import { createServer, type Server } from "node:http";
 import express from "express";
-import { ClientFactory } from "@a2a-js/sdk/client";
 import {
   AtomDataObjectExecutor,
   buildAtomAgentCard,
@@ -9,21 +8,31 @@ import {
   COORDINATION_PURPOSES,
   createContactInvite,
   decodeEncryptedObjectPayload,
-  encodeEncryptedObjectPayload,
   ACTION_PURPOSES,
   TRANSACTION_PURPOSES,
   QUALIFY_PURPOSES,
   CHANNEL_PURPOSES,
   COMMERCE_PURPOSES,
-  sendMlsHandshake,
-  verifyContactInvite,
 } from "@qwixl/a2a-transport";
 import { createAtomA2aExpressApp } from "@qwixl/a2a-transport/server";
 import { base64ToBytes, signDataObject, verifyDataObject, type UnsignedDataObject } from "@qwixl/protocol";
 import { loadAgentBackendConfig, type AgentBackendConfig } from "./config.js";
 import { publicBaseUrlForPort, resolvePortWithPrompt } from "./portConflict.js";
+import { loadOrCreateAdminToken, requireAdminAuth, adminTokenPath } from "./adminAuth.js";
+import { agentConnectionPath, writeAgentConnectionFile } from "./agentConnectionFile.js";
+import { registerAdminDataRoutes } from "./adminDataRoutes.js";
+import { registerCustodyAdminRoutes } from "./custodyAdmin.js";
+import { ConnectorVault } from "./connectorVault.js";
+import { MlsPeerRecordStore } from "./mlsPeerRecords.js";
+import { MlsSessionRecordStore } from "./mlsSessionRecords.js";
+import { RoomStore } from "./roomStore.js";
+import { registerRoomsAdminRoutes, handleInboundRoomWire } from "./roomsAdmin.js";
+import { seedCoffeeShopRoom } from "./communityCoffeeShop.js";
+import { registerDiscoverAdminRoutes, registerDiscoverPublicRoutes } from "./discoverAdmin.js";
+import { HandleCacheStore } from "./handleCache.js";
+import { connectMlsPeer, reconnectStoredMlsPeers } from "./mlsReconnect.js";
 import { registerActionAdminRoutes } from "./actionAdmin.js";
-import { registerCalendarAdminRoutes } from "./calendarAdmin.js";
+import { registerConnectorAdminRoutes } from "./connectorAdmin.js";
 import { registerCoordinationAdminRoutes } from "./coordinationAdmin.js";
 import { registerPaymentAdminRoutes } from "./paymentAdmin.js";
 import { registerTransactionAdminRoutes } from "./transactionAdmin.js";
@@ -40,13 +49,13 @@ import { TransactionCommitStore } from "./transactionCommitStore.js";
 import { QualifyStore } from "./qualifyStore.js";
 import { DisputeChannelStore } from "./disputeChannelStore.js";
 import { deliverSignedObject } from "./deliverObject.js";
+import { maybeSendDemoSchedulingProposal } from "./demoPeer.js";
 import { DataObjectInbox } from "./inbox.js";
 import { identityPath, loadOrCreateIdentity } from "./identity.js";
 import {
-  adminBaseFromPeerUrl,
-  mlsContextId,
   MlsSessionStore,
   peerDidFromContext,
+  roomIdFromContext,
 } from "./mlsSessions.js";
 
 export interface StartAgentServerOptions {
@@ -70,8 +79,21 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     };
   }
   const identity = await loadOrCreateIdentity();
+  const adminAuth = await loadOrCreateAdminToken();
+  const connectorVault = new ConnectorVault();
+  await connectorVault.load();
   const inbox = new DataObjectInbox();
   const mlsStore = new MlsSessionStore();
+  const sessionRecords = new MlsSessionRecordStore();
+  await mlsStore.loadFromRecords(sessionRecords);
+  const peerRecords = new MlsPeerRecordStore();
+  await peerRecords.load();
+  const rooms = new RoomStore();
+  const handleCache = new HandleCacheStore();
+  await rooms.load();
+
+  const catalogStore = new BusinessCatalogStore();
+  await catalogStore.load();
 
   const resolvePaymentRail = (): PaymentRail => {
     if (options.paymentRail) return options.paymentRail;
@@ -109,7 +131,6 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     },
   });
 
-  const catalogStore = new BusinessCatalogStore();
   const verificationStore = new BusinessVerificationStore(identity.did, config.businessDomain);
   const businessStore = new BusinessStore({
     localDid: identity.did,
@@ -190,11 +211,42 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
         localDid: identity.did,
         handshake: event.handshake,
       });
+      peerRecords.remember(event.handshake.initiatorDid, event.handshake.initiatorEndpoint);
       console.log(`[mls] session established with ${event.handshake.initiatorDid}`);
+      void maybeSendDemoSchedulingProposal({
+        enabled: config.demoPeerMode,
+        identity,
+        mlsStore,
+        peerRecords,
+        peerDid: event.handshake.initiatorDid,
+        peerEndpoint: event.handshake.initiatorEndpoint,
+      }).catch((error) => {
+        console.warn(
+          `[demo-peer] proposal failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
     },
     onMlsWire: async (event) => {
+      const roomId = roomIdFromContext(event.contextId);
+      if (roomId) {
+        const senderDid = event.senderDid ?? peerDidFromContext(event.contextId);
+        if (!senderDid) {
+          throw new Error("Cannot resolve sender DID for room MLS message");
+        }
+        await handleInboundRoomWire({
+          roomId,
+          senderDid,
+          wire: event.wire,
+          mlsStore,
+          rooms,
+          localDid: identity.did,
+        });
+        console.log(`[rooms/mls] message in ${roomId} from ${senderDid}`);
+        return;
+      }
       const peerDid =
         peerDidFromContext(event.contextId) ??
+        event.senderDid ??
         (mlsStore.listPeers().length === 1 ? mlsStore.listPeers()[0] : undefined);
       if (!peerDid) {
         throw new Error("Cannot resolve peer DID for MLS message (set contextId to mls:<did>)");
@@ -236,9 +288,9 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   });
 
   const a2aApp = createAtomA2aExpressApp({ agentCard, executor });
-  const adminApp = express();
+  const app = express();
 
-  adminApp.use((req, res, next) => {
+  app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (typeof origin === "string" && config.allowedOrigins.has(origin)) {
       res.setHeader("Access-Control-Allow-Origin", origin);
@@ -247,7 +299,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     if (req.method === "OPTIONS") {
       if (typeof origin === "string" && config.allowedOrigins.has(origin)) {
         res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
       }
       res.status(204).end();
       return;
@@ -255,7 +307,17 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     next();
   });
 
+  app.use(a2aApp);
+  registerDiscoverPublicRoutes(app, {
+    identity,
+    config,
+    rooms,
+    businessDomain: verification?.businessDomain ?? config.businessDomain,
+  });
+
+  const adminApp = express();
   adminApp.use(express.json({ limit: "512kb" }));
+  adminApp.use(requireAdminAuth(adminAuth.token));
 
   registerCoordinationAdminRoutes(adminApp, { identity, mlsStore });
   registerActionAdminRoutes(adminApp, { identity, mlsStore });
@@ -280,8 +342,26 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     store: businessStore,
     verification: verificationStore,
   });
-  registerCalendarAdminRoutes(adminApp, {
-    googleCalendarAccessToken: config.googleCalendarAccessToken,
+  registerConnectorAdminRoutes(adminApp, {
+    vault: connectorVault,
+    publicBaseUrl: config.publicBaseUrl,
+    allowedOrigins: config.allowedOrigins,
+  });
+  registerCustodyAdminRoutes(adminApp, connectorVault);
+  registerAdminDataRoutes(adminApp);
+  registerRoomsAdminRoutes(adminApp, {
+    identity,
+    mlsStore,
+    rooms,
+    peerRecords,
+    publicBaseUrl: config.publicBaseUrl,
+  });
+  registerDiscoverAdminRoutes(adminApp, {
+    identity,
+    config,
+    rooms,
+    businessDomain: verification?.businessDomain ?? config.businessDomain,
+    handleCache,
   });
 
   adminApp.get("/health", (_req, res) => {
@@ -290,7 +370,8 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       did: identity.did,
       inbox: inbox.count(),
       mlsPeers: mlsStore.listPeers(),
-      calendarConfigured: Boolean(config.googleCalendarAccessToken?.trim()),
+      mlsRooms: mlsStore.listRooms(),
+      rooms: rooms.listRooms().length,
       stripeConfigured: Boolean(config.stripeSecretKey?.trim()),
     });
   });
@@ -309,7 +390,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   });
 
   adminApp.get("/mls/sessions", (_req, res) => {
-    res.json({ peers: mlsStore.listPeers() });
+    res.json({ peers: mlsStore.listPeers(), rooms: mlsStore.listRooms() });
   });
 
   adminApp.post("/invite", async (req, res) => {
@@ -329,52 +410,46 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
 
   adminApp.post("/mls/connect", async (req, res) => {
     try {
-      const body = req.body as { peerUrl?: string; invite?: string };
-      let peerUrl = body.peerUrl?.trim();
-      let expectedDid: string | undefined;
-      if (body.invite?.trim()) {
-        const invite = await verifyContactInvite(body.invite.trim());
-        peerUrl = invite.endpoint;
-        expectedDid = invite.inviterDid;
-      }
-      if (!peerUrl) {
-        res.status(400).json({ error: "peerUrl or invite token required" });
-        return;
-      }
-      const adminBase = adminBaseFromPeerUrl(peerUrl);
-      const kpResp = await fetch(`${adminBase}/mls/key-package`);
-      if (!kpResp.ok) {
-        res.status(502).json({ error: `Peer key package fetch failed: ${kpResp.status}` });
-        return;
-      }
-      const kp = (await kpResp.json()) as { did?: string; wire?: string };
-      if (!kp.did || !kp.wire) {
-        res.status(502).json({ error: "Peer returned invalid key package" });
-        return;
-      }
-      if (expectedDid && kp.did !== expectedDid) {
-        res.status(502).json({
-          error: `Peer DID mismatch: invite was signed by ${expectedDid} but endpoint reports ${kp.did}`,
-        });
-        return;
-      }
-      const handshake = await mlsStore.connectAsInitiator({
+      const body = req.body as { peerUrl?: string; invite?: string; peerDid?: string };
+      const result = await connectMlsPeer({
+        mlsStore,
+        peerRecords,
         localDid: identity.did,
-        peerDid: kp.did,
-        peerKeyPackageWire: base64ToBytes(kp.wire),
+        peerUrl: body.peerUrl ?? "",
+        invite: body.invite,
+        peerDid: body.peerDid,
+        initiatorEndpoint: `${config.publicBaseUrl.replace(/\/$/, "")}/a2a/jsonrpc`,
       });
-      const factory = new ClientFactory();
-      const client = await factory.createFromUrl(peerUrl.replace(/\/$/, ""));
-      await sendMlsHandshake(client, {
-        handshake,
-        contextId: mlsContextId(kp.did),
-        role: "user",
-      });
-      res.json({ connected: kp.did, handshake: { initiatorDid: handshake.initiatorDid } });
+      res.json({ connected: result.connected, handshake: { initiatorDid: identity.did } });
     } catch (error) {
       res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
+
+  if (config.demoPeerMode) {
+    adminApp.post("/demo/resend-proposal", async (req, res) => {
+      try {
+        const body = req.body as { peerDid?: string };
+        const peerDid = body.peerDid?.trim();
+        if (!peerDid) {
+          res.status(400).json({ error: "peerDid required" });
+          return;
+        }
+        const stored = peerRecords.list().find((peer) => peer.peerDid === peerDid);
+        await maybeSendDemoSchedulingProposal({
+          enabled: true,
+          identity,
+          mlsStore,
+          peerRecords,
+          peerDid,
+          peerEndpoint: stored?.peerUrl,
+        });
+        res.json({ ok: true });
+      } catch (error) {
+        res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
+      }
+    });
+  }
 
   adminApp.post("/send", async (req, res) => {
     try {
@@ -440,9 +515,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     res.end();
   });
 
-  const app = express();
   app.use(adminApp);
-  app.use(a2aApp);
 
   return new Promise((resolve, reject) => {
     const server = createServer(app);
@@ -450,6 +523,24 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     server.listen(config.port, config.host, () => {
       console.log(`Atom agent ${identity.did}`);
       console.log(`  identity file: ${identityPath()}`);
+      console.log(`  admin token:   ${adminAuth.isNew ? adminAuth.token : `(see ${adminTokenPath()})`}`);
+      if (adminAuth.isNew) {
+        console.log("  Save the admin token above — required as Authorization: Bearer <token> for shell admin API calls.");
+      }
+      void writeAgentConnectionFile({
+        url: config.publicBaseUrl,
+        token: adminAuth.token,
+        did: identity.did,
+        agentName: config.agentName,
+      })
+        .then(() => {
+          console.log(`  connection:    ${agentConnectionPath()}`);
+        })
+        .catch((error) => {
+          console.warn(
+            `[atom] failed to write agent connection file: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
       console.log(`  agent card:    ${config.publicBaseUrl}/.well-known/agent-card.json`);
       console.log(`  A2A JSON-RPC:  ${config.publicBaseUrl}/a2a/jsonrpc`);
       console.log(`  AG-UI:         POST ${config.publicBaseUrl}/agent (SSE; set LLM_API_KEY)`);
@@ -459,7 +550,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       console.log(`  admin send:    POST ${config.publicBaseUrl}/send { peerUrl, message, encrypt?, peerDid? }`);
       console.log(`  coordination:  POST ${config.publicBaseUrl}/coordination/* (scheduling, rsvp)`);
       console.log(
-        `  calendar:      POST ${config.publicBaseUrl}/calendar/events (CalDAV; set GOOGLE_CALENDAR_ACCESS_TOKEN)`,
+        `  webcal:        POST ${config.publicBaseUrl}/connectors/webcal/feeds (ICS feed URLs in vault)`,
       );
       console.log(`  actions:       POST ${config.publicBaseUrl}/actions/reserve`);
       console.log(
@@ -468,6 +559,32 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       console.log(
         `  transactions:  POST ${config.publicBaseUrl}/transactions/{offer,confirm,decline}`,
       );
+      void reconnectStoredMlsPeers({ mlsStore, peerRecords, localDid: identity.did })
+        .then((result) => {
+          if (result.attempted > 0) {
+            console.log(
+              `[mls] reconnect peers attempted=${result.attempted} connected=${result.connected.length} failed=${result.failed.length}`,
+            );
+          }
+        })
+        .catch((error) => {
+          console.warn(
+            `[mls] reconnect on startup failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
+      if (config.communityHostMode) {
+        void seedCoffeeShopRoom({ identity, mlsStore, rooms })
+          .then((seed) => {
+            console.log(
+              `[rooms] Coffee Shop ${seed.created ? "created" : "ready"} at ${config.publicBaseUrl}/rooms/${encodeURIComponent(seed.roomId)}`,
+            );
+          })
+          .catch((error) => {
+            console.warn(
+              `[rooms] Coffee Shop seed failed: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          });
+      }
       resolve(server);
     });
   });

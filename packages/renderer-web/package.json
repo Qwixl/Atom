@@ -34,7 +34,8 @@
     "react": "^18.3.0"
   },
   "dependencies": {
-    "@qwixl/shell-core": "workspace:*"
+    "@qwixl/shell-core": "workspace:*",
+    "@qwixl/skin-default": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",

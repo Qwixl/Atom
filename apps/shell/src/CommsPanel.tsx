@@ -14,16 +14,35 @@ import {
 } from "./comms/trustedAgent.js";
 import type { AgentContact, CommsThreadItem, InboxEntryWire } from "./comms/types.js";
 import type { ConsequentialAction } from "@qwixl/shell-core";
+import { DemoWalkthrough } from "./DemoWalkthrough.js";
+import { DemoProposalComposer } from "./DemoProposalComposer.js";
+import {
+  deriveDemoWalkthroughStep,
+  DEMO_PERSONAS,
+  type DemoPersonaId,
+  IS_DEMO_MODE,
+} from "./demoPersonas.js";
+import { ATOM_BROWSER_MODE, IS_PRODUCTION_HOST } from "./hostConfig.js";
 
 export type CommsConfirmationResult =
   | { decision: "declined" }
-  | { decision: "approved"; attestationRef: string };
+  | { decision: "approved"; attestationRef: string; approvalRef: string };
 
 const INBOX_POLL_MS = 4000;
 
 function shortDid(did: string): string {
   if (did.length <= 24) return did;
   return `${did.slice(0, 14)}…${did.slice(-6)}`;
+}
+
+function contactDisplayName(contact: AgentContact): string {
+  return contact.handle?.trim() || contact.name;
+}
+
+function contactInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
+  return (parts[0]?.slice(0, 2) ?? "?").toUpperCase();
 }
 
 function syncContactToOwnerStore(store: OwnerStore, contact: AgentContact): void {
@@ -48,26 +67,31 @@ export function CommsPanel({
   contacts,
   ownerRecords,
   ownerStore,
+  focusContactId,
   onContactsChanged,
   onProfileChanged,
   onRequestConfirmation,
-  calendarAccessToken,
   attestationEntries,
   stripePaymentMethodId,
+  demoMode = IS_DEMO_MODE,
+  demoPersona = "alice",
 }: {
   contacts: AgentContact[];
   ownerRecords: OwnerRecord[];
   ownerStore: OwnerStore;
+  focusContactId?: string | null;
   onContactsChanged: () => void;
   onProfileChanged: () => void;
   onRequestConfirmation: (action: ConsequentialAction) => Promise<CommsConfirmationResult>;
-  /** Dev: shell SecretStore token forwarded to agent-backend CalDAV proxy. */
-  calendarAccessToken?: string | null;
   attestationEntries: readonly AttestationEntry[];
   /** Stripe PaymentMethod id for commerce offer → hold flow (test: pm_card_visa). */
   stripePaymentMethodId?: string;
+  /** When true, hide developer controls and show the guided demo walkthrough. */
+  demoMode?: boolean;
+  demoPersona?: DemoPersonaId;
 }) {
   const [agentUrl, setAgentUrl] = useState(() => loadCommsAgentConfig().adminUrl);
+  const [adminToken, setAdminToken] = useState(() => loadCommsAgentConfig().adminToken ?? "");
   const [localDid, setLocalDid] = useState<string | null>(null);
   const [mlsPeers, setMlsPeers] = useState<string[]>([]);
   const [statusError, setStatusError] = useState<string | null>(null);
@@ -85,10 +109,46 @@ export function CommsPanel({
   const [intentQuery, setIntentQuery] = useState("");
   const [acceptedOfferIds, setAcceptedOfferIds] = useState<Set<string>>(() => new Set());
   const persistedReceiptIds = useRef(new Set<string>());
+  const [showSetup, setShowSetup] = useState(
+    () => !demoMode && !ATOM_BROWSER_MODE && !IS_PRODUCTION_HOST && contacts.length === 0,
+  );
+  const [showAddContact, setShowAddContact] = useState(
+    () => !demoMode && !ATOM_BROWSER_MODE && !IS_PRODUCTION_HOST && contacts.length === 0,
+  );
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
 
-  const client = useMemo(() => new CommsAgentClient(agentUrl), [agentUrl]);
+  useEffect(() => {
+    if (focusContactId && contacts.some((c) => c.id === focusContactId)) {
+      setSelectedId(focusContactId);
+      return;
+    }
+    if (contacts[0]) setSelectedId(contacts[0].id);
+  }, [contacts, demoPersona, focusContactId]);
+
+  useEffect(() => {
+    if (!demoMode) return;
+    const persona = DEMO_PERSONAS[demoPersona];
+    setAgentUrl(persona.adminUrl);
+    setAdminToken(persona.adminToken);
+  }, [demoMode, demoPersona]);
+
+  const client = useMemo(
+    () => new CommsAgentClient(agentUrl, adminToken || undefined),
+    [adminToken, agentUrl],
+  );
   const selected = contacts.find((c) => c.id === selectedId) ?? null;
   const ownerCategories = useMemo(() => uniqueOwnerCategories(ownerRecords), [ownerRecords]);
+  const visibleContacts = useMemo(() => {
+    const query = contactSearch.trim().toLowerCase();
+    if (!query) return contacts;
+    return contacts.filter((contact) => {
+      const haystack = [contactDisplayName(contact), contact.name, contact.handle ?? ""]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [contactSearch, contacts]);
 
   const refreshAgentStatus = useCallback(async () => {
     try {
@@ -129,24 +189,30 @@ export function CommsPanel({
 
   useEffect(() => {
     void refreshInbox();
-    const timer = window.setInterval(() => void refreshInbox(), INBOX_POLL_MS);
+    const pollMs = demoMode ? 2000 : INBOX_POLL_MS;
+    const timer = window.setInterval(() => void refreshInbox(), pollMs);
     return () => window.clearInterval(timer);
-  }, [refreshInbox]);
+  }, [demoMode, refreshInbox]);
 
   const thread = useMemo(() => {
     if (!selected) return [];
     return mergeThread(inbox, outbound, selected.did);
   }, [inbox, outbound, selected]);
 
+  const demoStep = deriveDemoWalkthroughStep(demoPersona, thread);
+  const demoPeer = DEMO_PERSONAS[demoPersona];
+
   const respondedIds = useRespondedProposalIds(thread);
   const respondedTxnIds = useRespondedTransactionIds(thread);
 
   const sessionReady = selected ? mlsPeers.includes(selected.did) : false;
+  const showDemoSplit =
+    demoMode && demoPersona === "alice" && demoStep === "send" && selected != null;
 
   async function saveAgentUrl() {
     const trimmed = agentUrl.trim() || DEFAULT_COMMS_AGENT_URL;
     setAgentUrl(trimmed);
-    saveCommsAgentConfig({ adminUrl: trimmed });
+    saveCommsAgentConfig({ adminUrl: trimmed, adminToken: adminToken.trim() || undefined });
     setActionNote("Agent URL saved.");
     await refreshAgentStatus();
   }
@@ -188,6 +254,8 @@ export function CommsPanel({
       setSelectedId(contact.id);
       setInviteInput("");
       setInvitePreview(null);
+      setShowSetup(false);
+      setShowAddContact(false);
       setActionNote(`Connected to ${contact.name}. MLS session established.`);
       await refreshAgentStatus();
       await refreshInbox();
@@ -215,6 +283,10 @@ export function CommsPanel({
 
   async function sendMessage() {
     if (!selected || !compose.trim()) return;
+    if (selected.blocked) {
+      setActionNote("Unblock this contact to send messages.");
+      return;
+    }
     setBusy(true);
     setActionNote(null);
     try {
@@ -238,6 +310,39 @@ export function CommsPanel({
       ]);
       setCompose("");
       setActionNote(sessionReady ? "Encrypted message sent." : "Message sent (plain — no MLS session).");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendDemoProposal(title: string, slots: SchedulingSlot[]) {
+    if (!selected || demoPersona !== "alice") return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      const { objectId } = await client.sendSchedulingProposal({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        title,
+        slots,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "scheduling-proposal",
+          id: objectId,
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          title,
+          slots,
+        },
+      ]);
+      setActionNote("Proposal sent to Bob's agent (MLS). Switch to Bob to respond.");
       await refreshInbox();
     } catch (error) {
       setActionNote(error instanceof Error ? error.message : String(error));
@@ -358,15 +463,8 @@ export function CommsPanel({
     proposalId: string,
     response: "accept" | "decline",
     slot?: SchedulingSlot,
-    proposalTitle?: string,
   ) {
     if (!selected) return;
-    const calendarWrite =
-      response === "accept" && slot && calendarAccessToken
-        ? "Create Google Calendar event and send acceptance"
-        : response === "accept"
-          ? "Send acceptance to contact agent"
-          : "Send decline to contact agent";
     const action: ConsequentialAction = {
       id: crypto.randomUUID(),
       kind: "confirmation",
@@ -376,7 +474,7 @@ export function CommsPanel({
         proposalId,
         response,
         slot: slot?.label ?? "",
-        action: calendarWrite,
+        action: response === "accept" ? "Send acceptance to contact agent" : "Send decline to contact agent",
       },
       confirmLabel: response === "accept" ? "Confirm & send" : "Send decline",
       declineLabel: "Cancel",
@@ -405,24 +503,6 @@ export function CommsPanel({
         slotId: slot?.id,
         encrypt: sessionReady,
       });
-      if (response === "accept" && slot && calendarAccessToken) {
-        try {
-          await client.createCalendarEvent({
-            title: proposalTitle?.trim() || `Meeting with ${selected.name}`,
-            start: slot.start,
-            end: slot.end,
-            accessToken: calendarAccessToken,
-          });
-        } catch (calendarError) {
-          setActionNote(
-            `Scheduling response sent; calendar write failed: ${
-              calendarError instanceof Error ? calendarError.message : String(calendarError)
-            }`,
-          );
-          await refreshInbox();
-          return;
-        }
-      }
       setOutbound((current) => [
         ...current,
         {
@@ -436,11 +516,7 @@ export function CommsPanel({
           slotId: slot?.id,
         },
       ]);
-      setActionNote(
-        response === "accept" && slot && calendarAccessToken
-          ? "Scheduling response sent; calendar event created."
-          : "Scheduling response sent.",
-      );
+      setActionNote("Scheduling response sent.");
       await refreshInbox();
     } catch (error) {
       setActionNote(error instanceof Error ? error.message : String(error));
@@ -455,10 +531,6 @@ export function CommsPanel({
       (item): item is Extract<CommsThreadItem, { kind: "rsvp-request" }> =>
         item.kind === "rsvp-request" && item.id === rsvpId,
     );
-    const calendarWrite =
-      response === "yes" && calendarAccessToken && rsvpItem
-        ? "Create Google Calendar event and send RSVP"
-        : `Send RSVP (${response}) to contact agent`;
     const action: ConsequentialAction = {
       id: crypto.randomUUID(),
       kind: "confirmation",
@@ -467,7 +539,7 @@ export function CommsPanel({
         contact: selected.name,
         rsvpId,
         response,
-        action: calendarWrite,
+        action: `Send RSVP (${response}) to contact agent`,
       },
       confirmLabel: "Confirm & send",
       declineLabel: "Cancel",
@@ -497,27 +569,6 @@ export function CommsPanel({
         response,
         encrypt: sessionReady,
       });
-      if (response === "yes" && calendarAccessToken && rsvpItem) {
-        const start = rsvpItem.eventAt;
-        const end = new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString();
-        try {
-          await client.createCalendarEvent({
-            title: rsvpItem.eventTitle,
-            start,
-            end,
-            location: rsvpItem.location,
-            accessToken: calendarAccessToken,
-          });
-        } catch (calendarError) {
-          setActionNote(
-            `RSVP response sent; calendar write failed: ${
-              calendarError instanceof Error ? calendarError.message : String(calendarError)
-            }`,
-          );
-          await refreshInbox();
-          return;
-        }
-      }
       setOutbound((current) => [
         ...current,
         {
@@ -530,11 +581,7 @@ export function CommsPanel({
           response,
         },
       ]);
-      setActionNote(
-        response === "yes" && calendarAccessToken && rsvpItem
-          ? "RSVP response sent; calendar event created."
-          : "RSVP response sent.",
-      );
+      setActionNote("RSVP response sent.");
       await refreshInbox();
     } catch (error) {
       setActionNote(error instanceof Error ? error.message : String(error));
@@ -750,6 +797,16 @@ export function CommsPanel({
     }
   }
 
+  function updateContactPolicy(patch: Partial<Pick<AgentContact, "blocked" | "muted">>) {
+    if (!selected) return;
+    const updated: AgentContact = { ...selected, ...patch };
+    const next = contacts.map((contact) => (contact.id === selected.id ? updated : contact));
+    saveContacts(next);
+    syncContactToOwnerStore(ownerStore, updated);
+    onContactsChanged();
+    onProfileChanged();
+  }
+
   function removeContact(id: string) {
     const contact = contacts.find((c) => c.id === id);
     if (contact) {
@@ -781,180 +838,448 @@ export function CommsPanel({
   }
 
   return (
-    <aside className="shell-comms">
-      <h2>Agent comms</h2>
-      <p className="shell-comms-note">
-        Private messages between your agent backend and contacts. MLS keys stay on the server; the shell
-        only talks to your agent admin API. Contacts are mirrored to guarded <code>trusted-agents</code>{" "}
-        records in your owner store.
-      </p>
-
-      <section className="shell-comms-config">
-        <label className="atom-field">
-          <span className="atom-field-label">My agent (admin URL)</span>
-          <div className="shell-comms-config-row">
-            <input
-              value={agentUrl}
-              onChange={(e) => setAgentUrl(e.target.value)}
-              placeholder={DEFAULT_COMMS_AGENT_URL}
-            />
-            <button type="button" className="chrome-approve" onClick={() => void saveAgentUrl()}>
-              Save
+    <aside className={`panel-view comms-view${demoMode ? " comms-view--demo" : ""}`}>
+      <header className="panel-toolbar">
+        <p className="panel-toolbar-meta">
+          {demoMode ? (
+            <>
+              Demo · <strong>{demoPeer.label}</strong>
+            </>
+          ) : statusError ? (
+            statusError
+          ) : localDid ? (
+            "Connected"
+          ) : (
+            "Connecting to your agent…"
+          )}
+        </p>
+        {!demoMode && !ATOM_BROWSER_MODE && !IS_PRODUCTION_HOST ? (
+          <div className="panel-toolbar-actions">
+            <button type="button" className="panel-btn" disabled={busy} onClick={() => void refreshInbox()}>
+              Refresh inbox
+            </button>
+            <button
+              type="button"
+              className={`panel-btn${showSetup ? " is-active" : ""}`}
+              onClick={() => setShowSetup((open) => !open)}
+            >
+              {showSetup ? "Hide setup" : "Setup"}
             </button>
           </div>
-        </label>
-        {localDid ? (
-          <p className="shell-comms-meta">
-            Agent DID: <code>{shortDid(localDid)}</code>
-            {mlsPeers.length > 0 ? ` · ${mlsPeers.length} MLS peer(s)` : null}
-          </p>
-        ) : null}
-        {statusError ? <p className="shell-comms-error">{statusError}</p> : null}
-        <div className="shell-comms-actions">
-          <button type="button" disabled={busy} onClick={() => void copyMyInvite()}>
-            Copy my invite
-          </button>
-          <button type="button" disabled={busy} onClick={() => void refreshInbox()}>
-            Refresh inbox
-          </button>
-        </div>
-        {myInviteToken ? (
-          <textarea
-            className="shell-comms-token"
-            readOnly
-            value={myInviteToken}
-            rows={3}
-            aria-label="Your invitation token"
-          />
-        ) : null}
-      </section>
-
-      <section className="shell-comms-add">
-        <h3>Add contact</h3>
-        <p className="shell-comms-hint">Paste an invitation token from another owner&apos;s agent.</p>
-        <textarea
-          value={inviteInput}
-          onChange={(e) => {
-            setInviteInput(e.target.value);
-            setInvitePreview(null);
-          }}
-          placeholder="base64url invitation token…"
-          rows={3}
-        />
-        <div className="shell-comms-actions">
-          <button type="button" disabled={!inviteInput.trim()} onClick={() => void previewInvite()}>
-            Preview
-          </button>
-          <button
-            type="button"
-            className="chrome-approve"
-            disabled={busy || !inviteInput.trim()}
-            onClick={() => void addContactFromInvite()}
-          >
-            Connect
-          </button>
-        </div>
-        {invitePreview ? (
-          <div className="shell-comms-preview">
-            <strong>{invitePreview.name ?? shortDid(invitePreview.did)}</strong>
-            <span>{shortDid(invitePreview.did)}</span>
-            <code>{invitePreview.endpoint}</code>
+        ) : !demoMode ? (
+          <div className="panel-toolbar-actions">
+            <button type="button" className="panel-btn" disabled={busy} onClick={() => void refreshInbox()}>
+              Refresh inbox
+            </button>
           </div>
         ) : null}
-      </section>
+      </header>
 
-      <div className="shell-comms-layout">
-        <ul className="shell-comms-contacts">
-          {contacts.length === 0 ? (
-            <li className="shell-comms-empty">No contacts yet.</li>
-          ) : (
-            contacts.map((contact) => (
-              <li key={contact.id}>
-                <button
-                  type="button"
-                  className={contact.id === selectedId ? "active" : ""}
-                  onClick={() => setSelectedId(contact.id)}
-                >
-                  <span className="shell-comms-contact-name">{contact.name}</span>
-                  <span className="shell-comms-contact-did">{shortDid(contact.did)}</span>
-                  {mlsPeers.includes(contact.did) ? (
-                    <span className="shell-comms-badge">MLS</span>
-                  ) : null}
-                </button>
-                <button
-                  type="button"
-                  className="shell-comms-remove"
-                  aria-label={`Remove ${contact.name}`}
-                  onClick={() => removeContact(contact.id)}
-                >
-                  ×
-                </button>
-              </li>
-            ))
-          )}
-        </ul>
+      {demoMode ? <DemoWalkthrough step={demoStep} /> : null}
 
-        <div className="shell-comms-thread">
-          {selected ? (
-            <>
-              <div className="shell-comms-thread-head">
-                <strong>{selected.name}</strong>
-                <span>{sessionReady ? "Encrypted (MLS)" : "Plaintext (connect MLS first)"}</span>
+      {!demoMode && !ATOM_BROWSER_MODE && !IS_PRODUCTION_HOST && showSetup ? (
+        <div className="comms-setup">
+          <section className="comms-setup-card">
+            <h3>Agent connection</h3>
+            <p className="comms-hint">
+              Your shell talks to your personal agent backend. MLS keys never leave the server.
+            </p>
+            <label className="panel-form-field">
+              <span className="panel-form-label">Admin URL</span>
+              <div className="comms-inline-row">
+                <input
+                  className="panel-input"
+                  value={agentUrl}
+                  onChange={(e) => setAgentUrl(e.target.value)}
+                  placeholder={DEFAULT_COMMS_AGENT_URL}
+                />
+                <button type="button" className="panel-btn panel-btn-primary" onClick={() => void saveAgentUrl()}>
+                  Save
+                </button>
               </div>
-              <section className="shell-comms-disclosure">
-                <h4>Disclosure policy</h4>
-                <p className="shell-comms-hint">
-                  Categories pre-approved for this contact&apos;s agent. Guarded records outside this
-                  list still require shell chrome every time.
-                </p>
-                {ownerCategories.length === 0 ? (
-                  <p className="shell-comms-empty">Add owner profile records to configure categories.</p>
-                ) : (
-                  <ul className="shell-comms-disclosure-list">
-                    {ownerCategories.map((category) => {
-                      const checked = selected.standingDisclosure?.includes(category) ?? false;
-                      const hasGuarded = ownerRecords.some(
-                        (r) => r.category === category && r.guarded,
-                      );
-                      return (
-                        <li key={category}>
-                          <label className="atom-field atom-field-checkbox">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleStandingDisclosure(category)}
-                            />
-                            <span>
-                              {category}
-                              {hasGuarded ? (
-                                <span className="shell-comms-disclosure-guarded"> guarded records</span>
-                              ) : null}
-                            </span>
-                          </label>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </section>
-              <section className="shell-comms-coordination-organizer">
-                <h4>Coordination (M8)</h4>
-                <p className="shell-comms-hint">
-                  Send scheduling or RSVP data objects to this contact&apos;s agent. Requires MLS for
-                  encrypted delivery.
-                </p>
-                <div className="shell-comms-actions">
-                  <button type="button" disabled={busy} onClick={() => void sendStandupProposal()}>
-                    Propose standup slots
+            </label>
+            <label className="panel-form-field">
+              <span className="panel-form-label">Admin bearer token</span>
+              <input
+                className="panel-input"
+                type="password"
+                value={adminToken}
+                onChange={(e) => setAdminToken(e.target.value)}
+                placeholder="From agent startup log or ~/.atom/agent-admin-token.txt"
+                autoComplete="off"
+              />
+            </label>
+            <div className="comms-inline-actions">
+              <button type="button" className="panel-btn" disabled={busy} onClick={() => void copyMyInvite()}>
+                Copy my invite
+              </button>
+            </div>
+            {myInviteToken ? (
+              <textarea
+                className="panel-textarea comms-token-field"
+                readOnly
+                value={myInviteToken}
+                rows={3}
+                aria-label="Your invitation token"
+              />
+            ) : null}
+          </section>
+
+          <section className="comms-setup-card">
+            <div className="comms-setup-card-head">
+              <h3>Add contact</h3>
+              {contacts.length > 0 ? (
+                <button type="button" className="panel-btn-ghost" onClick={() => setShowAddContact((open) => !open)}>
+                  {showAddContact ? "Cancel" : "New contact"}
+                </button>
+              ) : null}
+            </div>
+            {contacts.length === 0 || showAddContact ? (
+              <>
+                <p className="comms-hint">Paste an invitation token from another owner&apos;s agent.</p>
+                <textarea
+                  className="panel-textarea"
+                  value={inviteInput}
+                  onChange={(e) => {
+                    setInviteInput(e.target.value);
+                    setInvitePreview(null);
+                  }}
+                  placeholder="base64url invitation token…"
+                  rows={3}
+                />
+                <div className="comms-inline-actions">
+                  <button type="button" className="panel-btn" disabled={!inviteInput.trim()} onClick={() => void previewInvite()}>
+                    Preview
                   </button>
-                  <button type="button" disabled={busy} onClick={() => void sendDesignReviewRsvp()}>
-                    Send design review RSVP
+                  <button
+                    type="button"
+                    className="panel-btn panel-btn-primary"
+                    disabled={busy || !inviteInput.trim()}
+                    onClick={() => void addContactFromInvite()}
+                  >
+                    Connect
                   </button>
                 </div>
-              </section>
-              <div className="shell-comms-messages">
+                {invitePreview ? (
+                  <div className="comms-preview">
+                    <strong>{invitePreview.name ?? shortDid(invitePreview.did)}</strong>
+                    <span>{shortDid(invitePreview.did)}</span>
+                    <code>{invitePreview.endpoint}</code>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="comms-hint">Use an invitation token to connect to another agent.</p>
+            )}
+          </section>
+        </div>
+      ) : null}
+
+      <div className={`panel-body panel-master-detail comms-main${demoMode ? " comms-main--demo" : ""}`}>
+        {!demoMode ? (
+        <nav className="panel-list comms-sidebar" aria-label="Contacts">
+          <div className="panel-list-head">
+            <span>Contacts</span>
+            {!showSetup && contacts.length > 0 ? (
+              <button
+                type="button"
+                className="panel-btn-ghost"
+                onClick={() => {
+                  if (ATOM_BROWSER_MODE) {
+                    setShowAddContact(true);
+                    return;
+                  }
+                  setShowSetup(true);
+                  setShowAddContact(true);
+                }}
+              >
+                + Add
+              </button>
+            ) : null}
+          </div>
+          {contacts.length > 0 ? (
+            <label className="comms-contact-search">
+              <span className="visually-hidden">Search contacts</span>
+              <input
+                className="panel-input"
+                type="search"
+                value={contactSearch}
+                onChange={(event) => setContactSearch(event.target.value)}
+                placeholder="Search contacts…"
+              />
+            </label>
+          ) : null}
+          {ATOM_BROWSER_MODE && showAddContact ? (
+            <div className="comms-setup-card comms-browser-add">
+              <div className="comms-setup-card-head">
+                <h3>Add contact</h3>
+                <button type="button" className="panel-btn-ghost" onClick={() => setShowAddContact(false)}>
+                  Cancel
+                </button>
+              </div>
+              <p className="comms-hint">Paste an invitation token from another owner&apos;s agent.</p>
+              <textarea
+                className="panel-textarea"
+                value={inviteInput}
+                onChange={(e) => {
+                  setInviteInput(e.target.value);
+                  setInvitePreview(null);
+                }}
+                placeholder="base64url invitation token…"
+                rows={3}
+              />
+              <div className="comms-inline-actions">
+                <button type="button" className="panel-btn" disabled={!inviteInput.trim()} onClick={() => void previewInvite()}>
+                  Preview
+                </button>
+                <button
+                  type="button"
+                  className="panel-btn panel-btn-primary"
+                  disabled={busy || !inviteInput.trim()}
+                  onClick={() => void addContactFromInvite()}
+                >
+                  Add contact
+                </button>
+              </div>
+              {invitePreview ? (
+                <p className="comms-hint">
+                  {invitePreview.name ?? shortDid(invitePreview.did)} · {invitePreview.endpoint.replace(/^https?:\/\//, "")}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          <ul className="panel-list-scroll comms-contact-list">
+            {contacts.length === 0 ? (
+              <li className="panel-empty">
+                {ATOM_BROWSER_MODE ? "No contacts yet. Use Discover to message someone." : "No contacts yet. Open Setup to connect."}
+              </li>
+            ) : visibleContacts.length === 0 ? (
+              <li className="panel-empty">No contacts match your search.</li>
+            ) : (
+              visibleContacts.map((contact) => {
+                const encrypted = mlsPeers.includes(contact.did);
+                const isSelected = contact.id === selectedId;
+                return (
+                  <li key={contact.id}>
+                    <button
+                      type="button"
+                      className={`panel-row comms-contact${isSelected ? " is-selected" : ""}`}
+                      onClick={() => setSelectedId(contact.id)}
+                    >
+                      <span className="panel-avatar comms-contact-avatar" aria-hidden="true">
+                        {contactInitials(contactDisplayName(contact))}
+                      </span>
+                      <span className="panel-row-body comms-contact-body">
+                        <span className="panel-row-title comms-contact-name">{contactDisplayName(contact)}</span>
+                        <span className="panel-row-meta comms-contact-meta">
+                          {contact.blocked ? "Blocked" : contact.muted ? "Muted · " : ""}
+                          {encrypted ? "Encrypted" : "Connecting…"}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })
+            )}
+          </ul>
+        </nav>
+        ) : null}
+
+        <section className="panel-detail comms-conversation">
+          {selected ? (
+            <>
+              <header className="panel-detail-head comms-peer-bar">
+                <div className="panel-detail-identity comms-peer-identity">
+                  <span className="panel-avatar panel-avatar-lg comms-contact-avatar" aria-hidden="true">
+                    {contactInitials(selected.name)}
+                  </span>
+                  <div>
+                    <strong className="panel-detail-title comms-peer-name">{contactDisplayName(selected)}</strong>
+                    {selected.handle && selected.name.trim() && selected.handle !== selected.name ? (
+                      <span className="comms-peer-subname">{selected.name}</span>
+                    ) : null}
+                    <span className={`panel-detail-subtitle comms-peer-status${sessionReady ? " is-secure" : " is-warn"}`}>
+                      {selected.blocked
+                        ? "Blocked"
+                        : sessionReady
+                          ? "Encrypted"
+                          : "Connecting…"}
+                    </span>
+                  </div>
+                </div>
+                <div className="panel-detail-actions comms-peer-actions">
+                  {!demoMode ? (
+                    <>
+                      <button
+                        type="button"
+                        className={`panel-btn${showAdvanced ? " is-active" : ""}`}
+                        onClick={() => setShowAdvanced((open) => !open)}
+                      >
+                        {showAdvanced ? "Hide tools" : "Tools"}
+                      </button>
+                      <button
+                        type="button"
+                        className="panel-btn"
+                        onClick={() => updateContactPolicy({ muted: !selected.muted })}
+                      >
+                        {selected.muted ? "Unmute" : "Mute"}
+                      </button>
+                      <button
+                        type="button"
+                        className="panel-btn"
+                        onClick={() => updateContactPolicy({ blocked: !selected.blocked })}
+                      >
+                        {selected.blocked ? "Unblock" : "Block"}
+                      </button>
+                      <button
+                        type="button"
+                        className="panel-btn panel-btn-danger comms-peer-remove"
+                        aria-label={`Remove ${selected.name}`}
+                        onClick={() => removeContact(selected.id)}
+                      >
+                        Remove
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              </header>
+
+              {!demoMode && showAdvanced ? (
+                <div className="comms-advanced">
+                  <details className="comms-advanced-block" open>
+                    <summary>Send coordination objects</summary>
+                    <p className="comms-hint">
+                      Scheduling and RSVP payloads require an MLS session for encrypted delivery.
+                    </p>
+                    <div className="comms-inline-actions">
+                      <button type="button" className="panel-btn" disabled={busy} onClick={() => void sendStandupProposal()}>
+                        Propose standup slots
+                      </button>
+                      <button type="button" className="panel-btn" disabled={busy} onClick={() => void sendDesignReviewRsvp()}>
+                        Send design review RSVP
+                      </button>
+                    </div>
+                  </details>
+                  <details className="comms-advanced-block">
+                    <summary>Disclosure policy</summary>
+                    <p className="comms-hint">
+                      Categories pre-approved for this contact. Guarded records outside this list still
+                      require shell chrome every time.
+                    </p>
+                    {ownerCategories.length === 0 ? (
+                      <p className="comms-empty-inline">Add owner profile records to configure categories.</p>
+                    ) : (
+                      <ul className="comms-disclosure-list">
+                        {ownerCategories.map((category) => {
+                          const checked = selected.standingDisclosure?.includes(category) ?? false;
+                          const hasGuarded = ownerRecords.some(
+                            (r) => r.category === category && r.guarded,
+                          );
+                          return (
+                            <li key={category}>
+                              <label className="atom-field atom-field-checkbox">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleStandingDisclosure(category)}
+                                />
+                                <span>
+                                  {category}
+                                  {hasGuarded ? (
+                                    <span className="comms-disclosure-guarded"> guarded records</span>
+                                  ) : null}
+                                </span>
+                              </label>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </details>
+                </div>
+              ) : null}
+
+              {showDemoSplit ? (
+                <div className="comms-thread-area comms-thread-area--split">
+                  <DemoProposalComposer
+                    peerName={selected.name}
+                    busy={busy}
+                    onSend={(title, slots) => void sendDemoProposal(title, slots)}
+                  />
+                  <div className="comms-messages comms-messages--pane">
+                    {thread.length === 0 ? (
+                      <div className="comms-empty-thread comms-empty-thread--pane">
+                        <strong>Thread with {selected.name}</strong>
+                        <p>Proposals and responses appear here after you send.</p>
+                      </div>
+                    ) : (
+                      thread.map((item) => (
+                        <ThreadItemView
+                          key={item.id}
+                          item={item}
+                          busy={busy}
+                          showActions={threadItemNeedsActions(
+                            item,
+                            respondedIds,
+                            respondedTxnIds,
+                            acceptedOfferIds,
+                          )}
+                          onAcceptSlot={(proposalId, slot) => {
+                            const proposal = thread.find(
+                              (item): item is Extract<CommsThreadItem, { kind: "scheduling-proposal" }> =>
+                                item.kind === "scheduling-proposal" && item.id === proposalId,
+                            );
+                            void respondScheduling(proposalId, "accept", slot);
+                          }}
+                          onDeclineProposal={(proposalId) => void respondScheduling(proposalId, "decline")}
+                          onRsvp={(rsvpId, response) => void respondRsvp(rsvpId, response)}
+                          onConfirmTransaction={(transactionId, label) =>
+                            void respondTransactionConfirm(transactionId, label)
+                          }
+                          onDeclineTransaction={(transactionId, label) =>
+                            void respondTransactionDecline(transactionId, label)
+                          }
+                          onAcceptOffer={(offerId, intentId, label, amount) =>
+                            void acceptCommerceOffer(offerId, intentId, label, amount)
+                          }
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
+              ) : (
+              <div className="comms-thread-area">
+              <div className="comms-messages">
                 {thread.length === 0 ? (
-                  <p className="shell-comms-empty">No messages yet.</p>
+                  <div className="comms-empty-thread">
+                    {demoMode ? (
+                      <>
+                        <strong>
+                          {demoPersona === "alice"
+                            ? "No messages yet"
+                            : "Waiting for Alice's proposal"}
+                        </strong>
+                        <p>
+                          {demoPersona === "alice"
+                            ? "Your sent proposals and replies appear in the thread."
+                            : "Switch to Alice, send a proposal, then come back here as Bob to accept or decline."}
+                        </p>
+                      </>
+                    ) : selected?.name.toLowerCase().includes("demo peer") ? (
+                      <>
+                        <strong>Waiting for the demo proposal</strong>
+                        <p>
+                          Click <em>Refresh inbox</em> above. You should see &ldquo;Demo intro call&rdquo;
+                          with time slots — pick one and click Accept.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <strong>No messages yet</strong>
+                        <p>Send a message below, or use Tools to send scheduling objects.</p>
+                      </>
+                    )}
+                  </div>
                 ) : (
                   thread.map((item) => (
                     <ThreadItemView
@@ -972,12 +1297,7 @@ export function CommsPanel({
                           (item): item is Extract<CommsThreadItem, { kind: "scheduling-proposal" }> =>
                             item.kind === "scheduling-proposal" && item.id === proposalId,
                         );
-                        void respondScheduling(
-                          proposalId,
-                          "accept",
-                          slot,
-                          proposal?.title,
-                        );
+                        void respondScheduling(proposalId, "accept", slot);
                       }}
                       onDeclineProposal={(proposalId) => void respondScheduling(proposalId, "decline")}
                       onRsvp={(rsvpId, response) => void respondRsvp(rsvpId, response)}
@@ -994,25 +1314,19 @@ export function CommsPanel({
                   ))
                 )}
               </div>
-              <div className="shell-comms-compose shell-comms-intent">
-                <input
-                  value={intentQuery}
-                  onChange={(e) => setIntentQuery(e.target.value)}
-                  placeholder="Purchase intent (catalog query)…"
-                />
-                <button
-                  type="button"
-                  disabled={busy || !intentQuery.trim()}
-                  onClick={() => void sendPurchaseIntent()}
-                >
-                  Send intent
-                </button>
               </div>
-              <div className="shell-comms-compose">
-                <input
+              )}
+
+              {!demoMode ? (
+              <footer className="comms-compose">
+                <textarea
+                  className="panel-textarea"
                   value={compose}
                   onChange={(e) => setCompose(e.target.value)}
-                  placeholder="Message…"
+                  placeholder={selected.blocked ? "Unblock to send messages…" : "Write a message…"}
+                  rows={2}
+                  aria-label="Message"
+                  disabled={selected.blocked || busy}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
@@ -1020,23 +1334,48 @@ export function CommsPanel({
                     }
                   }}
                 />
-                <button
-                  type="button"
-                  className="chrome-approve"
-                  disabled={busy || !compose.trim()}
-                  onClick={() => void sendMessage()}
-                >
-                  Send
-                </button>
-              </div>
+                <div className="comms-compose-row">
+                  <input
+                    className="panel-input"
+                    value={intentQuery}
+                    onChange={(e) => setIntentQuery(e.target.value)}
+                    placeholder="Purchase intent (catalog query)…"
+                    aria-label="Purchase intent query"
+                  />
+                  <button
+                    type="button"
+                    className="panel-btn"
+                    disabled={busy || !intentQuery.trim()}
+                    onClick={() => void sendPurchaseIntent()}
+                  >
+                    Send intent
+                  </button>
+                  <button
+                    type="button"
+                    className="panel-btn panel-btn-primary"
+                    disabled={busy || !compose.trim() || selected.blocked}
+                    onClick={() => void sendMessage()}
+                  >
+                    Send
+                  </button>
+                </div>
+              </footer>
+              ) : null}
             </>
           ) : (
-            <p className="shell-comms-empty">Select a contact to view the thread.</p>
+            <div className="panel-empty comms-no-selection">
+              <strong>Select a contact</strong>
+              <p>
+                {ATOM_BROWSER_MODE
+                  ? "Choose someone from the list, use Discover, or add a contact with + Add."
+                  : "Choose someone from the list, or open Setup to add a new contact."}
+              </p>
+            </div>
           )}
-        </div>
+        </section>
       </div>
 
-      {actionNote ? <p className="shell-comms-note shell-comms-action-note">{actionNote}</p> : null}
+      {actionNote ? <p className="comms-toast">{actionNote}</p> : null}
     </aside>
   );
 }

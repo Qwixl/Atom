@@ -28,6 +28,20 @@ describe("portConflict", () => {
     expect(port).toBe(59211);
   });
 
+  it("resolvePortWithPrompt auto-bumps when not interactive", async () => {
+    const occupied = await listenOn("127.0.0.1", 59214);
+    try {
+      const port = await resolvePortWithPrompt({
+        host: "127.0.0.1",
+        startPort: 59214,
+        interactive: false,
+      });
+      expect(port).toBe(59215);
+    } finally {
+      occupied.close();
+    }
+  });
+
   it("resolvePortWithPrompt bumps port when user chooses next", async () => {
     const occupied = await listenOn("127.0.0.1", 59212);
     try {

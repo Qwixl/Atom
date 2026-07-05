@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Audio player</title>
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body { margin: 0; padding: 12px; background: var(--atom-color-bg, #111); color: var(--atom-color-text, #eee); }
+    .title { font-weight: 600; margin-bottom: 8px; }
+    audio { width: 100%; margin-bottom: 8px; }
+    .meta { font-size: 0.8rem; color: var(--atom-color-text-dim, #aaa); }
+  </style>
+</head>
+<body>
+  <div class="title" id="title">Audio</div>
+  <audio id="player" controls></audio>
+  <p class="meta" id="meta"></p>
+  <script>
+    let shellOrigin = null;
+    const player = document.getElementById("player");
+    function emit(name, payload) {
+      if (shellOrigin) window.parent.postMessage({ type: "event", name, payload }, shellOrigin);
+    }
+    player.addEventListener("play", () => emit("playbackStarted", { currentTime: player.currentTime }));
+    player.addEventListener("pause", () => emit("playbackPaused", { currentTime: player.currentTime }));
+    player.addEventListener("ended", () => emit("playbackEnded", {}));
+    window.addEventListener("message", (e) => {
+      if (!e.data || e.data.type !== "init") return;
+      shellOrigin = e.origin;
+      const props = e.data.props || {};
+      document.getElementById("title").textContent = props.title || "Audio clip";
+      document.getElementById("meta").textContent = props.artist || props.description || "";
+      if (props.src) player.src = props.src;
+      else player.src = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+    });
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>

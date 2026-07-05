@@ -17,6 +17,7 @@ import {
   type RegistryTrustPolicy,
 } from "./registry/trust.js";
 import type { RegistryCacheStore, RegistryIndex, RegistryModuleEntry } from "./registry/types.js";
+import { resolveRegistryUrl } from "./registry/resolveUrl.js";
 
 export type {
   RegistryIndex,
@@ -216,7 +217,7 @@ export class ModuleRegistry {
     const index = await this.loadIndex();
     if (!index.revocationsUrl) return null;
 
-    const url = new URL(index.revocationsUrl, this.indexUrl).href;
+    const url = resolveRegistryUrl(index.revocationsUrl, this.indexUrl);
     const response = await this.fetchFn(url);
     if (!response.ok) {
       throw new Error(`Revocations fetch failed: ${response.status}`);
@@ -315,7 +316,7 @@ export class ModuleRegistry {
       if (reference && catalog.lookup(reference)) return;
       if (!entry) return;
 
-      const manifestUrl = new URL(entry.manifestUrl, this.indexUrl).href;
+      const manifestUrl = resolveRegistryUrl(entry.manifestUrl, this.indexUrl);
       const bytes = await this.fetchManifestBytes(entry, moduleId, manifestUrl);
 
       if (entry.integrity && !(await integrityMatches(bytes, entry.integrity))) {
@@ -401,7 +402,7 @@ export class ModuleRegistry {
     manifestUrl: string,
     bundleIntegrity: string,
   ): Promise<void> {
-    const resolved = new URL(bundleUrl, manifestUrl).href;
+    const resolved = resolveRegistryUrl(bundleUrl, manifestUrl);
     const response = await this.fetchFn(resolved);
     if (!response.ok) {
       throw new Error(`Bundle fetch failed: ${response.status} ${resolved}`);
