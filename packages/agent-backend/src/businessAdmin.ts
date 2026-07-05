@@ -1,11 +1,14 @@
 import type { Express } from "express";
 import type { BusinessCatalogItemValue } from "@qwixl/owner-store";
 import type { BusinessCatalogStore } from "./businessCatalogStore.js";
+import type { BusinessContextStore, BusinessContextRecord } from "./businessContextStore.js";
+import { parseBusinessContextRecord } from "./businessContextStore.js";
 import type { BusinessStore } from "./businessStore.js";
 import type { BusinessVerificationStore } from "./businessVerificationStore.js";
 
 export interface BusinessAdminDeps {
   catalog: BusinessCatalogStore;
+  context: BusinessContextStore;
   store: BusinessStore;
   verification: BusinessVerificationStore;
 }
@@ -72,6 +75,54 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
     const removed = deps.catalog.remove(req.params.catalogItemId);
     if (!removed) {
       res.status(404).json({ error: "Catalog item not found" });
+      return;
+    }
+    res.json({ ok: true });
+  });
+
+  adminApp.get("/business/context", (_req, res) => {
+    res.json({
+      brand: deps.context.list("business-brand"),
+      policy: deps.context.list("business-policy"),
+    });
+  });
+
+  adminApp.post("/business/context", (req, res) => {
+    try {
+      const record = parseBusinessContextRecord(req.body as Record<string, unknown>);
+      deps.context.upsert(record);
+      res.json({ record });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/business/context/sync", (req, res) => {
+    const body = req.body as { records?: BusinessContextRecord[] };
+    if (!Array.isArray(body.records)) {
+      res.status(400).json({ error: "records array required" });
+      return;
+    }
+    try {
+      deps.context.replaceAll(body.records);
+      res.json({
+        brand: deps.context.list("business-brand"),
+        policy: deps.context.list("business-policy"),
+      });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.delete("/business/context/:category/:label", (req, res) => {
+    const category = req.params.category;
+    if (category !== "business-brand" && category !== "business-policy") {
+      res.status(400).json({ error: "category must be business-brand or business-policy" });
+      return;
+    }
+    const removed = deps.context.remove(category, req.params.label);
+    if (!removed) {
+      res.status(404).json({ error: "Context record not found" });
       return;
     }
     res.json({ ok: true });
