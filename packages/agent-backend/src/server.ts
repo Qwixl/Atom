@@ -27,7 +27,7 @@ import { MlsPeerRecordStore } from "./mlsPeerRecords.js";
 import { MlsSessionRecordStore } from "./mlsSessionRecords.js";
 import { RoomStore } from "./roomStore.js";
 import { registerRoomsAdminRoutes, handleInboundRoomWire } from "./roomsAdmin.js";
-import { seedCoffeeShopBrand, seedCoffeeShopRoom } from "./communityCoffeeShop.js";
+import { seedCoffeeShopBrand, seedCoffeeShopKnowledge, seedCoffeeShopRoom } from "./communityCoffeeShop.js";
 import { registerDiscoverAdminRoutes, registerDiscoverPublicRoutes } from "./discoverAdmin.js";
 import { HandleCacheStore } from "./handleCache.js";
 import { connectMlsPeer, reconnectStoredMlsPeers } from "./mlsReconnect.js";
@@ -38,10 +38,11 @@ import { registerPaymentAdminRoutes } from "./paymentAdmin.js";
 import { registerTransactionAdminRoutes } from "./transactionAdmin.js";
 import { registerQualifyAdminRoutes } from "./qualifyAdmin.js";
 import { registerChannelAdminRoutes } from "./channelAdmin.js";
-import { registerBusinessAdminRoutes } from "./businessAdmin.js";
-import { formatBusinessAgentContext } from "@qwixl/owner-store";
+import { registerBusinessAdminRoutes, syncContextPoliciesToKnowledge } from "./businessAdmin.js";
+import { formatBusinessAgentPrompt } from "@qwixl/owner-store";
 import { BusinessCatalogStore } from "./businessCatalogStore.js";
 import { BusinessContextStore } from "./businessContextStore.js";
+import { BusinessKnowledgeStore } from "./businessKnowledgeStore.js";
 import { BusinessVerificationStore } from "./businessVerificationStore.js";
 import { BusinessStore } from "./businessStore.js";
 import type { PaymentRail } from "./payment/types.js";
@@ -97,6 +98,9 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   await catalogStore.load();
   const businessContextStore = new BusinessContextStore();
   await businessContextStore.load();
+  const businessKnowledgeStore = new BusinessKnowledgeStore();
+  await businessKnowledgeStore.load();
+  syncContextPoliciesToKnowledge(businessContextStore, businessKnowledgeStore);
 
   const resolvePaymentRail = (): PaymentRail => {
     if (options.paymentRail) return options.paymentRail;
@@ -343,6 +347,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   registerBusinessAdminRoutes(adminApp, {
     catalog: catalogStore,
     context: businessContextStore,
+    knowledge: businessKnowledgeStore,
     store: businessStore,
     verification: verificationStore,
   });
@@ -499,14 +504,24 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     const input = req.body as import("@ag-ui/client").RunAgentInput;
     const llmConfig = loadLlmAgUiConfigFromEnv();
     const usesBusinessContext = config.businessMode || config.communityHostMode;
-    const { brandLines, policyLines } = businessContextStore.brandPolicyLines();
-    const serverBusinessContext = usesBusinessContext
-      ? formatBusinessAgentContext({
-          catalog: config.businessMode ? catalogStore.list() : [],
-          brandLines,
-          policyLines,
-        })
-      : undefined;
+    let serverBusinessContext: string | undefined;
+    if (usesBusinessContext) {
+      const { brandLines } = businessContextStore.brandPolicyLines();
+      let query = "";
+      for (let i = input.messages.length - 1; i >= 0; i--) {
+        const message = input.messages[i];
+        if (message?.role === "user" && typeof message.content === "string") {
+          query = message.content;
+          break;
+        }
+      }
+      const knowledgeSnippets = query ? businessKnowledgeStore.retrieve(query) : [];
+      serverBusinessContext = formatBusinessAgentPrompt({
+        catalog: config.businessMode ? catalogStore.list() : [],
+        brandLines,
+        knowledgeSnippets,
+      });
+    }
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
@@ -588,6 +603,17 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
           .catch((error) => {
             console.warn(
               `[rooms] Coffee Shop brand seed failed: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          });
+        void seedCoffeeShopKnowledge(businessKnowledgeStore)
+          .then((knowledge) => {
+            if (knowledge.seeded) {
+              console.log("[rooms] Coffee Shop knowledge base seeded");
+            }
+          })
+          .catch((error) => {
+            console.warn(
+              `[rooms] Coffee Shop knowledge seed failed: ${error instanceof Error ? error.message : String(error)}`,
             );
           });
         void seedCoffeeShopRoom({ identity, mlsStore, rooms })

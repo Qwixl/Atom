@@ -49,6 +49,7 @@ export {
 } from "./commerceReceipt.js";
 export {
   BUSINESS_BRAND_CATEGORY,
+  BUSINESS_KNOWLEDGE_CATEGORY,
   BUSINESS_CATALOG_CATEGORY,
   BUSINESS_CATEGORIES,
   BUSINESS_POLICY_CATEGORY,
@@ -62,6 +63,7 @@ export {
   buildBusinessAgentContext,
   brandPolicyLinesFromRecords,
   formatBusinessAgentContext,
+  formatBusinessAgentPrompt,
   mergeBusinessContextIntoProfile,
   type BusinessAgentContext,
 } from "./businessAgentContext.js";

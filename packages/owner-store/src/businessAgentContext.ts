@@ -45,17 +45,33 @@ export function brandPolicyLinesFromRecords(
 
 /** Prompt-oriented summary for AG-UI / LLM (M12.1). */
 export function formatBusinessAgentContext(ctx: BusinessAgentContext): string {
+  return formatBusinessAgentPrompt({
+    catalog: ctx.catalog,
+    brandLines: ctx.brandLines,
+    knowledgeSnippets: ctx.policyLines.map((line) => `policy: ${line}`),
+  });
+}
+
+/** M12.8 — brand voice always on; catalog summary; policies/docs retrieved per turn. */
+export function formatBusinessAgentPrompt(input: {
+  catalog: BusinessCatalogItemValue[];
+  brandLines: string[];
+  knowledgeSnippets: string[];
+}): string {
   const lines: string[] = [];
-  if (ctx.brandLines.length) {
-    lines.push("Brand voice:", ...ctx.brandLines.map((l) => `- ${l}`));
+  if (input.brandLines.length) {
+    lines.push("Brand voice (always apply):", ...input.brandLines.map((l) => `- ${l}`));
   }
-  if (ctx.policyLines.length) {
-    lines.push("Policies:", ...ctx.policyLines.map((l) => `- ${l}`));
+  if (input.knowledgeSnippets.length) {
+    lines.push(
+      "Retrieved business reference (cite accurately; do not invent beyond these excerpts):",
+      ...input.knowledgeSnippets.map((snippet, index) => `${index + 1}. ${snippet}`),
+    );
   }
-  if (ctx.catalog.length) {
+  if (input.catalog.length) {
     lines.push(
       "Catalog:",
-      ...ctx.catalog.map(
+      ...input.catalog.map(
         (item) =>
           `- ${item.catalogItemId}: ${item.label} ${(item.amount.amountMinor / 100).toFixed(2)} ${item.amount.currency}${item.available ? "" : " (unavailable)"}`,
       ),
