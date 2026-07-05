@@ -18,6 +18,8 @@ import { isHandleTaken, parseSignupHandle, publicHandle } from "./handles.js";
 import { loadAgentStore, resolveDataDir, saveAgentStore } from "./fleet/store.js";
 import type { FleetProvisioner, HostedAgentRecord } from "./fleet/types.js";
 import { createRateLimiter } from "./rateLimit.js";
+import { registerAccountRoutes } from "./accountRoutes.js";
+import { isSupabaseConfigured } from "./supabaseAdmin.js";
 
 const app = express();
 app.use(express.json());
@@ -80,6 +82,12 @@ async function persistAgents(): Promise<void> {
   await saveAgentStore(dataDir, agents);
 }
 
+registerAccountRoutes(app, {
+  fleet: () => fleet,
+  fleetAgents: () => agents,
+  persistAgents,
+});
+
 app.get("/health", (_req, res) => {
   res.json({
     ok: true,
@@ -88,6 +96,7 @@ app.get("/health", (_req, res) => {
     fleetMode: fleet?.mode ?? "loading",
     agents: agents.size,
     dataDir,
+    supabase: isSupabaseConfigured(),
   });
 });
 

@@ -30,7 +30,8 @@ import { IS_DEMO_MODE } from "./demoPersonas.js";
 
 
 import { markFirstRunDone } from "./firstRunStorage.js";
-import { CONTROL_PLANE_URL, MANAGED_HOSTING, SHOW_DEV_WORKFLOWS } from "./hostConfig.js";
+import { CONTROL_PLANE_URL, MANAGED_HOSTING, SHOW_DEV_WORKFLOWS, isSupabaseConfigured } from "./hostConfig.js";
+import { HostedAuthScreen } from "./auth/HostedAuthScreen.js";
 import { productionFetchUrl, resolveInjectedUrl } from "./productionGuard.js";
 import { probeLocalDevAgentBase } from "./devAgentProbe.js";
 import {
@@ -1031,13 +1032,18 @@ export function FirstRunWizard({
 
 
           {mode === "hosted" ? (
-
+            MANAGED_HOSTING ? (
+              isSupabaseConfigured() ? (
+                <HostedAuthScreen onDone={onDone} />
+              ) : (
+                <p className="settings-note comms-status-error">
+                  Signup is temporarily unavailable. Please try again in a few minutes.
+                </p>
+              )
+            ) : (
             <>
-
               <p className="settings-note">
-                {MANAGED_HOSTING
-                  ? "Your agent runs on Qwixl infrastructure. You can export your data and move to self-hosting any time from Settings."
-                  : "A hosted agent means the operator holds your keys and store. You can export and self-host when you want."}
+                A hosted agent means the operator holds your keys and store. You can export and self-host when you want.
               </p>
               {SHOW_DEV_WORKFLOWS ? (
                 <>
@@ -1084,12 +1090,7 @@ export function FirstRunWizard({
                     </p>
                   ) : null}
                 </>
-              ) : (
-                <p className="settings-note">
-                  Enter your email to create your hosted agent. Connection is set up automatically —
-                  no URLs or tokens to copy.
-                </p>
-              )}
+              ) : null}
               {MANAGED_HOSTING && controlPlaneFleetMode === "unconfigured" ? (
                 <p className="settings-note comms-status-error">
                   Hosted signup is not available on the control plane yet. Please try again later.
@@ -1153,7 +1154,7 @@ export function FirstRunWizard({
               </div>
 
             </>
-
+            )
           ) : null}
 
 

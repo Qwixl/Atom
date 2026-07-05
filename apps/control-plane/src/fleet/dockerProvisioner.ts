@@ -51,7 +51,12 @@ export class DockerFleetProvisioner implements FleetProvisioner {
 
   constructor(private readonly agents: Map<string, HostedAgentRecord>) {}
 
-  async provision(input: { id: string; handle: string; email: string }): Promise<ProvisionOutcome> {
+  async provision(input: {
+    id: string;
+    handle: string;
+    email: string;
+    llmApiKey?: string;
+  }): Promise<ProvisionOutcome> {
     const adminToken = randomBytes(32).toString("base64url");
     const hostPort = allocatePort(this.agents.values());
     const containerName = `atom-hosted-${input.handle}-${input.id.slice(0, 8)}`;
@@ -87,8 +92,12 @@ export class DockerFleetProvisioner implements FleetProvisioner {
       agentImage(),
     ];
 
+    if (input.llmApiKey?.trim()) {
+      runArgs.splice(runArgs.length - 1, 0, "-e", `LLM_API_KEY=${input.llmApiKey.trim()}`);
+    }
+
     const containerId = await docker(runArgs);
-    await waitForAgentHealth(agentUrl, adminToken);
+    await waitForAgentHealth(internalHealthUrl(hostPort), adminToken);
 
     const agent: HostedAgentRecord = {
       id: input.id,
@@ -119,7 +128,7 @@ export class DockerFleetProvisioner implements FleetProvisioner {
   async resume(agent: HostedAgentRecord): Promise<void> {
     if (!agent.containerName) return;
     await docker(["start", agent.containerName]);
-    await waitForAgentHealth(agent.agentUrl, agent.adminToken);
+    await waitForAgentHealth(internalHealthUrl(agent.hostPort ?? AGENT_CONTAINER_PORT), agent.adminToken);
   }
 
   async destroy(agent: HostedAgentRecord): Promise<void> {
@@ -129,11 +138,17 @@ export class DockerFleetProvisioner implements FleetProvisioner {
   }
 }
 
-async function waitForAgentHealth(agentUrl: string, adminToken: string, maxMs = 90_000): Promise<void> {
+/** Reach agent on the Docker host loopback (control plane runs in a container). */
+function internalHealthUrl(hostPort: number): string {
+  const host = process.env.ATOM_FLEET_HEALTH_HOST?.trim() || "host.docker.internal";
+  return `http://${host}:${hostPort}`;
+}
+
+async function waitForAgentHealth(healthBaseUrl: string, adminToken: string, maxMs = 90_000): Promise<void> {
   const started = Date.now();
   while (Date.now() - started < maxMs) {
     try {
-      const resp = await fetch(`${agentUrl.replace(/\/$/, "")}/health`, {
+      const resp = await fetch(`${healthBaseUrl.replace(/\/$/, "")}/health`, {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
       if (resp.ok) return;
@@ -142,7 +157,7 @@ async function waitForAgentHealth(agentUrl: string, adminToken: string, maxMs = 
     }
     await new Promise((resolve) => setTimeout(resolve, 750));
   }
-  throw new Error(`Provisioned agent did not become healthy at ${agentUrl}`);
+  throw new Error(`Provisioned agent did not become healthy at ${healthBaseUrl}`);
 }
 
 export async function isDockerAvailable(): Promise<boolean> {

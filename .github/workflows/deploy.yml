@@ -26,7 +26,9 @@ jobs:
       - run: pnpm registry:verify
       - run: pnpm --filter @qwixl/shell-app build
         env:
-          VITE_CONTROL_PLANE_URL: https://control.qwixl.dev
+          VITE_CONTROL_PLANE_URL: https://control.atom.qwixl.com
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - uses: amondnet/vercel-action@16e87c0a08142b0d0d33b76aeaf20823c381b9b9 # v25
         with:

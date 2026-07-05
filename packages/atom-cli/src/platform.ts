@@ -1,5 +1,5 @@
 export const DEFAULT_PLATFORM_URL = "https://atom.qwixl.com";
-export const DEFAULT_CONTROL_PLANE_URL = "https://control.qwixl.dev";
+export const DEFAULT_CONTROL_PLANE_URL = "https://control.atom.qwixl.com";
 
 /** Always-on Atom platform (shell, registry, discovery indexes). Production by default. */
 export function resolvePlatformUrl(env: NodeJS.ProcessEnv = process.env): string {

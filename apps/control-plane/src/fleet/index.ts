@@ -12,7 +12,12 @@ function devStubCredentials(): { agentUrl: string; adminToken: string } | null {
 class DevStubProvisioner implements FleetProvisioner {
   readonly mode = "dev-stub" as const;
 
-  async provision(input: { id: string; handle: string; email: string }): Promise<ProvisionOutcome> {
+  async provision(input: {
+    id: string;
+    handle: string;
+    email: string;
+    llmApiKey?: string;
+  }): Promise<ProvisionOutcome> {
     const stub = devStubCredentials();
     if (!stub) {
       throw new Error("Dev stub credentials not configured");
@@ -51,7 +56,12 @@ class DevStubProvisioner implements FleetProvisioner {
 class UnconfiguredProvisioner implements FleetProvisioner {
   readonly mode = "unconfigured" as const;
 
-  async provision(): Promise<ProvisionOutcome> {
+  async provision(_input: {
+    id: string;
+    handle: string;
+    email: string;
+    llmApiKey?: string;
+  }): Promise<ProvisionOutcome> {
     throw new Error(
       "Hosted signup is unavailable: fleet not configured. Set ATOM_FLEET_MODE=docker and build atom-agent:latest, or self-host with npx @qwixl/agent-backend.",
     );
