@@ -24,12 +24,44 @@ export interface VerifyOptions {
 
 const TEXT_HASH_EXTENSIONS = new Set([".html", ".json", ".js", ".css", ".mjs", ".ts"]);
 
-/** Normalize CRLF→LF before hashing text bundles so verify matches Linux CI and production hosts. */
-function normalizeTextBytes(bytes: Uint8Array, filePath: string): Uint8Array {
-  const ext = path.extname(filePath).toLowerCase();
-  if (!TEXT_HASH_EXTENSIONS.has(ext)) return bytes;
-  const text = Buffer.from(bytes).toString("utf8").replace(/\r\n/g, "\n");
+export function isRegistryTextPath(filePath: string): boolean {
+  return TEXT_HASH_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+}
+
+/** Canonical LF normalization for registry text assets (CRLF and lone CR → LF). */
+export function normalizeRegistryText(bytes: Uint8Array): Uint8Array {
+  const text = Buffer.from(bytes).toString("utf8").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   return Buffer.from(text, "utf8");
+}
+
+function normalizeTextBytes(bytes: Uint8Array, filePath: string): Uint8Array {
+  if (!isRegistryTextPath(filePath)) return bytes;
+  return normalizeRegistryText(bytes);
+}
+
+export function hasLfLineEndings(bytes: Uint8Array, filePath: string): boolean {
+  if (!isRegistryTextPath(filePath)) return true;
+  return Buffer.from(bytes).equals(normalizeRegistryText(bytes));
+}
+
+export function lfLineEndingError(label: string, filePath: string, bytes: Uint8Array): string | undefined {
+  if (hasLfLineEndings(bytes, filePath)) return undefined;
+  return `${label}: text file must use LF line endings only (${filePath}); run atom-registry publish-all to normalize`;
+}
+
+async function readRegistryTextFile(filePath: string): Promise<Buffer> {
+  return readFile(filePath);
+}
+
+/** Normalize text assets on disk so git, CI, and integrity hashes agree. */
+export async function normalizeRegistryTextFile(filePath: string): Promise<Uint8Array> {
+  const bytes = await readRegistryTextFile(filePath);
+  if (!isRegistryTextPath(filePath)) return bytes;
+  const normalized = normalizeRegistryText(bytes);
+  if (!Buffer.from(bytes).equals(normalized)) {
+    await writeFile(filePath, normalized);
+  }
+  return normalized;
 }
 
 function sha256File(bytes: Uint8Array, filePath?: string): string {
@@ -54,6 +86,17 @@ export async function verifyRegistry(options: VerifyOptions): Promise<void> {
   }
 
   const errors: string[] = [];
+
+  for (const registryFile of ["index.json", "revocations.json"]) {
+    const filePath = path.join(options.registryDir, registryFile);
+    try {
+      const bytes = await readFile(filePath);
+      const lfError = lfLineEndingError(registryFile, filePath, bytes);
+      if (lfError) errors.push(lfError);
+    } catch {
+      // revocations.json is optional until populated
+    }
+  }
 
   for (const entry of index.modules) {
     try {
@@ -84,6 +127,11 @@ async function verifyEntry(
 
   const manifestPath = path.resolve(options.registryDir, entry.manifestUrl);
   const manifestBytes = await readFile(manifestPath);
+  const manifestLfError = lfLineEndingError(entry.id, manifestPath, manifestBytes);
+  if (manifestLfError) {
+    errors.push(manifestLfError);
+    return;
+  }
   const manifestDigest = sha256File(manifestBytes, manifestPath);
 
   if (entry.integrity) {
@@ -107,6 +155,11 @@ async function verifyEntry(
 
   const bundlePath = resolveBundlePath(manifest.bundleUrl, manifestPath, options.bundleBase);
   const bundleBytes = await readFile(bundlePath);
+  const bundleLfError = lfLineEndingError(entry.id, bundlePath, bundleBytes);
+  if (bundleLfError) {
+    errors.push(bundleLfError);
+    return;
+  }
   const bundleDigest = sha256File(bundleBytes, bundlePath);
   const expectedBundle = manifest.bundleIntegrity.replace(/^sha256:/, "");
 
@@ -197,11 +250,13 @@ export interface PublishOptions {
 /** Recompute integrity hashes and upsert a module entry in index.json. */
 export async function publishModule(options: PublishOptions): Promise<void> {
   const manifestPath = path.join(options.moduleDir, "manifest.json");
-  const manifestBytes = await readFile(manifestPath);
-  const manifest = validateModuleManifest(JSON.parse(manifestBytes.toString("utf8")));
+  const manifestBytes = await normalizeRegistryTextFile(manifestPath);
+  const manifest = validateModuleManifest(
+    JSON.parse(Buffer.from(manifestBytes).toString("utf8")),
+  );
 
   const bundlePath = resolveBundlePath(manifest.bundleUrl, manifestPath, options.bundleBase);
-  const bundleBytes = await readFile(bundlePath);
+  const bundleBytes = await normalizeRegistryTextFile(bundlePath);
 
   const manifestIntegrity = formatIntegrity(sha256File(manifestBytes, manifestPath));
   const bundleIntegrity = formatIntegrity(sha256File(bundleBytes, bundlePath));
