@@ -15,6 +15,16 @@ import { deliverSignedObject } from "./deliverObject.js";
 import type { MlsSessionStore } from "./mlsSessions.js";
 import type { PaymentRail } from "./payment/types.js";
 import { AGENT_STORE_REGISTRY } from "./storeContracts.js";
+import { resolveDataPath } from "./dataDir.js";
+import { createJsonStoreWriter, loadJsonStore } from "./persistedJsonStore.js";
+
+const TRANSACTION_COMMIT_FILE = "transaction-commit.json";
+const SCHEMA_VERSION = 1;
+
+interface TransactionCommitFile {
+  schemaVersion: number;
+  records: TransactionCommitRecord[];
+}
 
 export type TransactionCommitPhase =
   | "awaiting_payee_confirm"
@@ -71,8 +81,41 @@ function nowIso(): string {
 export class TransactionCommitStore {
   static readonly storeMeta = AGENT_STORE_REGISTRY.transactionCommit;
   private readonly records = new Map<string, TransactionCommitRecord>();
+  private readonly filePath: string;
+  private readonly writer: ReturnType<typeof createJsonStoreWriter<TransactionCommitFile>>;
 
-  constructor(private readonly deps: TransactionCommitStoreDeps) {}
+  constructor(
+    private readonly deps: TransactionCommitStoreDeps,
+    filePath = resolveDataPath(TRANSACTION_COMMIT_FILE),
+  ) {
+    this.filePath = filePath;
+    this.writer = createJsonStoreWriter<TransactionCommitFile>(
+      this.filePath,
+      SCHEMA_VERSION,
+      "transaction-commit",
+      () => ({ records: this.list() }),
+    );
+  }
+
+  async load(): Promise<void> {
+    await loadJsonStore<TransactionCommitFile>(this.filePath, (file) => {
+      this.records.clear();
+      for (const record of file?.records ?? []) {
+        if (record.transactionId) {
+          this.records.set(record.transactionId, record);
+        }
+      }
+    });
+  }
+
+  private setRecord(record: TransactionCommitRecord): void {
+    this.records.set(record.transactionId, record);
+    this.writer.persist();
+  }
+
+  private flushRecord(_record: TransactionCommitRecord): void {
+    this.writer.persist();
+  }
 
   list(): TransactionCommitRecord[] {
     return [...this.records.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -175,7 +218,7 @@ export class TransactionCommitStore {
       },
       updatedAt: nowIso(),
     };
-    this.records.set(params.transactionId, record);
+    this.setRecord(record);
     return record;
   }
 
@@ -242,6 +285,7 @@ export class TransactionCommitStore {
       return this.captureRecord(record, record.payeeConfirm.attestationRef);
     }
 
+    this.setRecord(record);
     return record;
   }
 
@@ -286,6 +330,7 @@ export class TransactionCommitStore {
       if (record) {
         record.phase = "captured";
         record.updatedAt = nowIso();
+        this.flushRecord(record);
       }
       return record;
     }
@@ -313,6 +358,7 @@ export class TransactionCommitStore {
       if (record) {
         record.phase = object.payload.reason === "timeout" ? "expired" : "released";
         record.updatedAt = nowIso();
+        this.flushRecord(record);
       }
       return record;
     }
@@ -338,7 +384,7 @@ export class TransactionCommitStore {
       expiresAt: payload.expiresAt,
       updatedAt: nowIso(),
     };
-    this.records.set(payload.transactionId, record);
+    this.setRecord(record);
     return record;
   }
 
@@ -359,7 +405,7 @@ export class TransactionCommitStore {
         rail: "unknown",
         updatedAt: nowIso(),
       };
-      this.records.set(payload.transactionId, record);
+      this.setRecord(record);
     }
 
     const partyConfirm: PartyConfirmRecord = {
@@ -389,6 +435,7 @@ export class TransactionCommitStore {
       return this.captureRecord(record, record.payeeConfirm.attestationRef);
     }
 
+    this.flushRecord(record);
     return record;
   }
 
@@ -401,6 +448,7 @@ export class TransactionCommitStore {
       record.captureAttestationRef = captureAttestationRef;
       record.phase = "awaiting_capture";
       record.updatedAt = nowIso();
+      this.flushRecord(record);
       return record;
     }
 
@@ -454,6 +502,7 @@ export class TransactionCommitStore {
     record.phase = "captured";
     record.captureAttestationRef = captureAttestationRef;
     record.updatedAt = nowIso();
+    this.flushRecord(record);
     return record;
   }
 
@@ -502,6 +551,7 @@ export class TransactionCommitStore {
 
     record.phase = reason === "timeout" ? "expired" : "released";
     record.updatedAt = nowIso();
+    this.flushRecord(record);
     return record;
   }
 

@@ -7,6 +7,17 @@ import {
 import type { AgentKeyPair, DataObject } from "@qwixl/protocol";
 import { deliverSignedObject } from "./deliverObject.js";
 import type { MlsSessionStore } from "./mlsSessions.js";
+import { AGENT_STORE_REGISTRY } from "./storeContracts.js";
+import { resolveDataPath } from "./dataDir.js";
+import { createJsonStoreWriter, loadJsonStore } from "./persistedJsonStore.js";
+
+const QUALIFY_HISTORY_FILE = "qualify-history.json";
+const SCHEMA_VERSION = 1;
+
+interface QualifyHistoryFile {
+  schemaVersion: number;
+  records: QualifyRecord[];
+}
 
 export interface QualifyRecord {
   subjectId: string;
@@ -38,9 +49,35 @@ function nowIso(): string {
 }
 
 export class QualifyStore {
+  static readonly storeMeta = AGENT_STORE_REGISTRY.qualify;
   private readonly records = new Map<string, QualifyRecord[]>();
+  private readonly filePath: string;
+  private readonly writer: ReturnType<typeof createJsonStoreWriter<QualifyHistoryFile>>;
 
-  constructor(private readonly deps: QualifyStoreDeps) {}
+  constructor(
+    private readonly deps: QualifyStoreDeps,
+    filePath = resolveDataPath(QUALIFY_HISTORY_FILE),
+  ) {
+    this.filePath = filePath;
+    this.writer = createJsonStoreWriter<QualifyHistoryFile>(
+      this.filePath,
+      SCHEMA_VERSION,
+      "qualify-history",
+      () => ({ records: this.list() }),
+    );
+  }
+
+  async load(): Promise<void> {
+    await loadJsonStore<QualifyHistoryFile>(this.filePath, (file) => {
+      this.records.clear();
+      for (const record of file?.records ?? []) {
+        if (!record.subjectId) continue;
+        const list = this.records.get(record.subjectId) ?? [];
+        list.push(record);
+        this.records.set(record.subjectId, list);
+      }
+    });
+  }
 
   list(subjectId?: string): QualifyRecord[] {
     if (subjectId) {
@@ -101,6 +138,7 @@ export class QualifyStore {
     const list = this.records.get(p.subjectId) ?? [];
     list.push(record);
     this.records.set(p.subjectId, list);
+    this.writer.persist();
     return record;
   }
 }

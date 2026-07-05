@@ -10,6 +10,17 @@ import type { AgentKeyPair, DataObject } from "@qwixl/protocol";
 import { deliverSignedObject } from "./deliverObject.js";
 import type { BusinessCatalogStore } from "./businessCatalogStore.js";
 import type { MlsSessionStore } from "./mlsSessions.js";
+import { AGENT_STORE_REGISTRY } from "./storeContracts.js";
+import { resolveDataPath } from "./dataDir.js";
+import { createJsonStoreWriter, loadJsonStore } from "./persistedJsonStore.js";
+
+const COMMERCE_INTENTS_FILE = "commerce-intents.json";
+const SCHEMA_VERSION = 1;
+
+interface CommerceIntentsFile {
+  schemaVersion: number;
+  intents: CommerceIntentPayload[];
+}
 
 export interface BusinessStoreDeps {
   localDid: string;
@@ -26,9 +37,34 @@ interface PeerDelivery {
 }
 
 export class BusinessStore {
+  static readonly storeMeta = AGENT_STORE_REGISTRY.commerceIntents;
   private readonly intents = new Map<string, CommerceIntentPayload>();
+  private readonly filePath: string;
+  private readonly writer: ReturnType<typeof createJsonStoreWriter<CommerceIntentsFile>>;
 
-  constructor(private readonly deps: BusinessStoreDeps) {}
+  constructor(
+    private readonly deps: BusinessStoreDeps,
+    filePath = resolveDataPath(COMMERCE_INTENTS_FILE),
+  ) {
+    this.filePath = filePath;
+    this.writer = createJsonStoreWriter<CommerceIntentsFile>(
+      this.filePath,
+      SCHEMA_VERSION,
+      "commerce-intents",
+      () => ({ intents: this.listIntents() }),
+    );
+  }
+
+  async load(): Promise<void> {
+    await loadJsonStore<CommerceIntentsFile>(this.filePath, (file) => {
+      this.intents.clear();
+      for (const intent of file?.intents ?? []) {
+        if (intent.intentId) {
+          this.intents.set(intent.intentId, intent);
+        }
+      }
+    });
+  }
 
   listIntents(): CommerceIntentPayload[] {
     return [...this.intents.values()];
@@ -45,6 +81,7 @@ export class BusinessStore {
       payload: params.payload,
     });
     this.intents.set(params.payload.intentId, params.payload);
+    this.writer.persist();
     if (params.peerUrl?.trim()) {
       await deliverSignedObject({
         mlsStore: this.deps.mlsStore,
@@ -98,6 +135,7 @@ export class BusinessStore {
 
     const { payload } = await verifyCommerceIntent(object);
     this.intents.set(payload.intentId, payload);
+    this.writer.persist();
     const peerUrl = payload.replyUrl?.trim();
     if (!peerUrl) return undefined;
 

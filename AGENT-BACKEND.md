@@ -169,7 +169,7 @@ Choreography: payer offers hold → payee confirms in shell → payer captures �
 | `POST /transactions/offer` | Payer: place hold + send `action:hold` + payer `action:confirm` to peer |
 | `POST /transactions/confirm` | Local party confirm; sends `action:confirm`; payer auto-captures when both confirms present |
 | `POST /transactions/decline` | Release hold (payer) or notify payer to release (payee) |
-| `GET /transactions` | List in-memory commit states (sweeps expired holds) |
+| `GET /transactions` | List persisted commit states (sweeps expired holds) |
 | `GET /transactions/:transactionId` | Single commit state |
 | `GET /qualify` | List qualify presentations (`?subjectId=` optional filter) |
 | `POST /qualify/present` | Mint `action:qualify` with VC/PSI presentation; optional peer send |
@@ -295,13 +295,13 @@ Many subsystems ship **v1 engines** to prove product loops before production sca
 | Interface + inject | Hosted fleet | `FleetProvisioner` (`dev-stub`, Docker, future cloud) |
 | Interface + inject | Connectors | `ConnectorBackend` registry (WebCal v1) |
 | Interface + inject | Embeddings | `createTextEmbedder()` / `ATOM_EMBEDDER=hash\|api` |
-| Documented ephemeral store | Transaction commit, inbox, qualify | `GET /admin/store-contracts` — durability metadata |
+| JSON file store (M13.6) | Transaction commit, dispute channels, qualify, inbox, commerce intents | Atomic JSON beside identity dir; survives restart |
 
 **Known v1 limits (not exhaustive):**
 
 - Business knowledge JSON backend: short reference corpora only — not enterprise policy libraries.
-- Transaction/dispute/qualify/inbox stores: **in-memory** — lost on restart.
-- Export bundle: identity + business data + MLS peers — not vault, transactions, or session snapshots.
+- Transaction/dispute/qualify/inbox/commerce-intent stores: **JSON files** beside identity (`transaction-commit.json`, etc.) — M13.6.
+- Export bundle: identity + business data + MLS peers + commerce state — not vault or MLS session snapshots.
 - Shell owner store + memory: **localStorage** — quota-sensitive; IndexedDB planned.
 - Module store: beta-free flag; no in-app billing yet.
 - Hosted signup: dev stub or local Docker fleet — not production cloud fleet until M15 substrate (Q17).
