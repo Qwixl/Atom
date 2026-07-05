@@ -1,0 +1,238 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import {
+  decryptJson,
+  encryptJson,
+  generateMasterKey,
+  type DpopKeyPair,
+  type EncryptedBlob,
+} from "@qwixl/connector-custody";
+import { atomicWriteJson, readJsonFile } from "@qwixl/owner-store/file-persistence";
+import { resolveDataPath } from "./dataDir.js";
+
+const MASTER_KEY_FILE = "vault-master.key";
+const VAULT_FILE = "connector-vault.enc";
+
+export interface StoredOAuthTokens {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: number;
+  scope?: string;
+  dpopJkt?: string;
+}
+
+export interface StoredOAuthClient {
+  clientId: string;
+  clientSecret: string;
+  configuredAt: number;
+}
+
+export interface StoredWebAuthnCredential {
+  id: string;
+  publicKey: Uint8Array;
+  counter: number;
+  transports?: string[];
+}
+
+export interface StoredWebcalFeed {
+  id: string;
+  label: string;
+  url: string;
+  addedAt: number;
+}
+
+interface ConnectorVaultPayload {
+  schemaVersion: 1;
+  oauth?: Record<string, StoredOAuthTokens>;
+  oauthClients?: Record<string, StoredOAuthClient>;
+  webcalFeeds?: StoredWebcalFeed[];
+  dpopKey?: DpopKeyPair;
+  webauthn?: StoredWebAuthnCredential[];
+  ownerRecords?: unknown[];
+  ownerProposals?: unknown[];
+  attestations?: unknown[];
+}
+
+export class ConnectorVault {
+  private masterKey: Uint8Array | null = null;
+  private payload: ConnectorVaultPayload = { schemaVersion: 1 };
+  private readonly masterKeyPath: string;
+  private readonly vaultPath: string;
+  private persistQueue: Promise<void> = Promise.resolve();
+
+  constructor(
+    masterKeyPath = resolveDataPath(MASTER_KEY_FILE),
+    vaultPath = resolveDataPath(VAULT_FILE),
+  ) {
+    this.masterKeyPath = masterKeyPath;
+    this.vaultPath = vaultPath;
+  }
+
+  async load(): Promise<void> {
+    this.masterKey = await this.loadOrCreateMasterKey();
+    const legacyOAuth = await readJsonFile<{
+      accessToken?: string;
+      refreshToken?: string;
+      expiresAt?: number;
+      scope?: string;
+    }>(resolveDataPath("google-oauth.json"));
+    const blob = await readJsonFile<EncryptedBlob>(this.vaultPath);
+    if (blob) {
+      this.payload = decryptJson<ConnectorVaultPayload>(this.masterKey, blob);
+    } else if (legacyOAuth?.accessToken) {
+      this.payload.oauth = {
+        google: {
+          accessToken: legacyOAuth.accessToken,
+          refreshToken: legacyOAuth.refreshToken,
+          expiresAt: legacyOAuth.expiresAt,
+          scope: legacyOAuth.scope,
+        },
+      };
+      await this.persist();
+    }
+  }
+
+  private async loadOrCreateMasterKey(): Promise<Uint8Array> {
+    try {
+      const raw = await readFile(this.masterKeyPath);
+      if (raw.length >= 32) return raw.subarray(0, 32);
+    } catch {
+      // create below
+    }
+    const key = generateMasterKey();
+    await mkdir(path.dirname(this.masterKeyPath), { recursive: true });
+    await writeFile(this.masterKeyPath, key, { mode: 0o600 });
+    return key;
+  }
+
+  getDpopKeyPair(): DpopKeyPair | undefined {
+    return this.payload.dpopKey;
+  }
+
+  async ensureDpopKeyPair(): Promise<DpopKeyPair> {
+    if (this.payload.dpopKey) return this.payload.dpopKey;
+    const { generateDpopKeyPair } = await import("@qwixl/connector-custody");
+    this.payload.dpopKey = await generateDpopKeyPair();
+    await this.persist();
+    return this.payload.dpopKey;
+  }
+
+  getOAuth(provider: string): StoredOAuthTokens | undefined {
+    return this.payload.oauth?.[provider];
+  }
+
+  async setOAuth(provider: string, tokens: StoredOAuthTokens): Promise<void> {
+    this.payload.oauth ??= {};
+    this.payload.oauth[provider] = tokens;
+    await this.persist();
+  }
+
+  getOAuthClient(provider: string): StoredOAuthClient | undefined {
+    return this.payload.oauthClients?.[provider];
+  }
+
+  async setOAuthClient(provider: string, client: StoredOAuthClient): Promise<void> {
+    this.payload.oauthClients ??= {};
+    this.payload.oauthClients[provider] = client;
+    await this.persist();
+  }
+
+  async clearOAuth(provider: string): Promise<void> {
+    if (this.payload.oauth?.[provider]) {
+      delete this.payload.oauth[provider];
+      await this.persist();
+    }
+  }
+
+  getWebcalFeeds(): StoredWebcalFeed[] {
+    return this.payload.webcalFeeds ?? [];
+  }
+
+  async addWebcalFeed(input: { label: string; url: string }): Promise<StoredWebcalFeed> {
+    const feed: StoredWebcalFeed = {
+      id: crypto.randomUUID(),
+      label: input.label.trim() || "Calendar feed",
+      url: input.url.trim(),
+      addedAt: Date.now(),
+    };
+    this.payload.webcalFeeds = [...this.getWebcalFeeds(), feed];
+    await this.persist();
+    return feed;
+  }
+
+  async removeWebcalFeed(feedId: string): Promise<boolean> {
+    const existing = this.getWebcalFeeds();
+    const next = existing.filter((feed) => feed.id !== feedId);
+    if (next.length === existing.length) return false;
+    this.payload.webcalFeeds = next;
+    await this.persist();
+    return true;
+  }
+
+  listWebAuthnCredentials(): StoredWebAuthnCredential[] {
+    return this.payload.webauthn ?? [];
+  }
+
+  async saveWebAuthnCredential(credential: StoredWebAuthnCredential): Promise<void> {
+    const existing = this.payload.webauthn ?? [];
+    this.payload.webauthn = [...existing.filter((item) => item.id !== credential.id), credential];
+    await this.persist();
+  }
+
+  async updateWebAuthnCounter(credentialId: string, counter: number): Promise<void> {
+    const creds = this.payload.webauthn ?? [];
+    this.payload.webauthn = creds.map((cred) =>
+      cred.id === credentialId ? { ...cred, counter } : cred,
+    );
+    await this.persist();
+  }
+
+  hasPasskey(): boolean {
+    return (this.payload.webauthn?.length ?? 0) > 0;
+  }
+
+  getOwnerRecords<T>(): T[] {
+    return (this.payload.ownerRecords ?? []) as T[];
+  }
+
+  async setOwnerRecords<T>(records: T[]): Promise<void> {
+    this.payload.ownerRecords = records;
+    await this.persist();
+  }
+
+  getOwnerProposals<T>(): T[] {
+    return (this.payload.ownerProposals ?? []) as T[];
+  }
+
+  async setOwnerProposals<T>(proposals: T[]): Promise<void> {
+    this.payload.ownerProposals = proposals;
+    await this.persist();
+  }
+
+  getAttestations<T>(): T[] {
+    return (this.payload.attestations ?? []) as T[];
+  }
+
+  async setAttestations<T>(entries: T[]): Promise<void> {
+    this.payload.attestations = entries;
+    await this.persist();
+  }
+
+  private persist(): void {
+    if (!this.masterKey) return;
+    this.persistQueue = this.persistQueue
+      .then(async () => {
+        const blob = encryptJson(this.masterKey!, this.payload);
+        await atomicWriteJson(this.vaultPath, blob);
+      })
+      .catch((error) => {
+        console.warn(
+          `[connector-vault] persist failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+  }
+
+  async flush(): Promise<void> {
+    await this.persistQueue;
+  }
+}

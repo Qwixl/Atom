@@ -9,16 +9,33 @@ import {
 } from "@qwixl/a2a-transport";
 import type { BusinessCatalogItemValue } from "@qwixl/owner-store";
 import type { UnsignedDataObject } from "@qwixl/protocol";
+import type { BusinessIndexEntry } from "@qwixl/business-index";
 import type { InboxEntryWire } from "./types.js";
+
+export interface ResolvedDiscoverTarget {
+  adminBase: string;
+  agentCardUrl: string;
+  did: string;
+  resolvedVia: "local" | "localhost-probe" | "registry" | "well-known" | "index-url";
+}
+
+function adminHeaders(adminToken?: string): HeadersInit {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (adminToken?.trim()) {
+    headers.Authorization = `Bearer ${adminToken.trim()}`;
+  }
+  return headers;
+}
 
 async function postJson<T>(
   adminUrl: string,
   path: string,
   body: Record<string, unknown>,
+  adminToken?: string,
 ): Promise<T> {
   const resp = await fetch(`${adminUrl.replace(/\/$/, "")}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: adminHeaders(adminToken),
     body: JSON.stringify(body),
   });
   if (!resp.ok) {
@@ -28,50 +45,91 @@ async function postJson<T>(
   return resp.json() as Promise<T>;
 }
 
+async function getJson<T>(adminUrl: string, path: string, adminToken?: string): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (adminToken?.trim()) {
+    headers.Authorization = `Bearer ${adminToken.trim()}`;
+  }
+  const resp = await fetch(`${adminUrl.replace(/\/$/, "")}${path}`, { headers });
+  if (!resp.ok) {
+    const err = (await resp.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Request failed (${resp.status})`);
+  }
+  return resp.json() as Promise<T>;
+}
+
 export class CommsAgentClient {
-  constructor(private readonly adminUrl: string) {}
+  constructor(
+    private readonly adminUrl: string,
+    private readonly adminToken?: string,
+  ) {}
 
   private base(): string {
     return this.adminUrl.replace(/\/$/, "");
   }
 
   async health(): Promise<{ ok: boolean; did: string; inbox: number; mlsPeers: string[] }> {
-    const resp = await fetch(`${this.base()}/health`);
-    if (!resp.ok) throw new Error(`Agent health check failed (${resp.status})`);
-    return resp.json() as Promise<{ ok: boolean; did: string; inbox: number; mlsPeers: string[] }>;
+    return getJson(this.base(), "/health", this.adminToken);
   }
 
   async inbox(): Promise<InboxEntryWire[]> {
-    const resp = await fetch(`${this.base()}/inbox`);
-    if (!resp.ok) throw new Error(`Inbox fetch failed (${resp.status})`);
-    const body = (await resp.json()) as { entries?: InboxEntryWire[] };
+    const body = await getJson<{ entries?: InboxEntryWire[] }>(this.base(), "/inbox", this.adminToken);
     return body.entries ?? [];
   }
 
   async createInvite(ttlSeconds?: number): Promise<{ token: string; issuerDid: string }> {
-    const resp = await fetch(`${this.base()}/invite`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(ttlSeconds ? { ttlSeconds } : {}),
-    });
-    if (!resp.ok) {
-      const err = (await resp.json().catch(() => ({}))) as { error?: string };
-      throw new Error(err.error ?? `Invite failed (${resp.status})`);
-    }
-    return resp.json() as Promise<{ token: string; issuerDid: string }>;
+    return postJson(
+      this.base(),
+      "/invite",
+      ttlSeconds ? { ttlSeconds } : {},
+      this.adminToken,
+    );
   }
 
   async connectInvite(invite: string): Promise<{ connected: string }> {
-    const resp = await fetch(`${this.base()}/mls/connect`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ invite: invite.trim() }),
-    });
-    if (!resp.ok) {
-      const err = (await resp.json().catch(() => ({}))) as { error?: string };
-      throw new Error(err.error ?? `MLS connect failed (${resp.status})`);
-    }
-    return resp.json() as Promise<{ connected: string }>;
+    return postJson(this.base(), "/mls/connect", { invite: invite.trim() }, this.adminToken);
+  }
+
+  async connectPeer(peerUrl: string, peerDid?: string): Promise<{ connected: string }> {
+    return postJson(
+      this.base(),
+      "/mls/connect",
+      { peerUrl: peerUrl.trim(), ...(peerDid?.trim() ? { peerDid: peerDid.trim() } : {}) },
+      this.adminToken,
+    );
+  }
+
+  async resolveDiscoverEntry(entry: BusinessIndexEntry): Promise<ResolvedDiscoverTarget> {
+    const body = await postJson<{ resolved: ResolvedDiscoverTarget }>(
+      this.base(),
+      "/discover/resolve",
+      entry as unknown as Record<string, unknown>,
+      this.adminToken,
+    );
+    return body.resolved;
+  }
+
+  async filterAvailableDiscoverEntries(
+    entries: BusinessIndexEntry[],
+  ): Promise<Array<{ entry: BusinessIndexEntry; resolved: ResolvedDiscoverTarget }>> {
+    const body = await postJson<{
+      available: Array<{ entry: BusinessIndexEntry; resolved: ResolvedDiscoverTarget }>;
+    }>(this.base(), "/discover/availability", { entries }, this.adminToken);
+    return body.available;
+  }
+
+  async discoverSearch(opts: {
+    terms: string;
+    kind?: import("@qwixl/business-index").IndexEntryKind;
+  }): Promise<{
+    summary: string;
+    results: Array<{
+      entry: BusinessIndexEntry;
+      resolved: ResolvedDiscoverTarget;
+      indexLabel: string;
+    }>;
+  }> {
+    return postJson(this.base(), "/discover/search", opts, this.adminToken);
   }
 
   async sendText(opts: {
@@ -85,12 +143,17 @@ export class CommsAgentClient {
       payload: { text: opts.text.trim() },
       governance: { purpose: COMMS_MESSAGE_PURPOSE },
     };
-    await postJson(this.base(), "/send", {
-      peerUrl: opts.peerUrl,
-      peerDid: opts.peerDid,
-      message,
-      encrypt: opts.encrypt,
-    });
+    await postJson(
+      this.base(),
+      "/send",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        message,
+        encrypt: opts.encrypt,
+      },
+      this.adminToken,
+    );
   }
 
   async sendSchedulingProposal(opts: {
@@ -110,6 +173,7 @@ export class CommsAgentClient {
         slots: opts.slots,
         encrypt: opts.encrypt ?? true,
       },
+      this.adminToken,
     );
     return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
   }
@@ -122,14 +186,19 @@ export class CommsAgentClient {
     slotId?: string;
     encrypt?: boolean;
   }): Promise<void> {
-    await postJson(this.base(), "/coordination/scheduling-response", {
-      peerUrl: opts.peerUrl,
-      peerDid: opts.peerDid,
-      proposalId: opts.proposalId,
-      response: opts.response,
-      slotId: opts.slotId,
-      encrypt: opts.encrypt ?? true,
-    });
+    await postJson(
+      this.base(),
+      "/coordination/scheduling-response",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        proposalId: opts.proposalId,
+        response: opts.response,
+        slotId: opts.slotId,
+        encrypt: opts.encrypt ?? true,
+      },
+      this.adminToken,
+    );
   }
 
   async sendRsvpRequest(opts: {
@@ -151,6 +220,7 @@ export class CommsAgentClient {
         location: opts.location,
         encrypt: opts.encrypt ?? true,
       },
+      this.adminToken,
     );
     return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
   }
@@ -162,30 +232,64 @@ export class CommsAgentClient {
     response: RsvpAnswer;
     encrypt?: boolean;
   }): Promise<void> {
-    await postJson(this.base(), "/coordination/rsvp-response", {
-      peerUrl: opts.peerUrl,
-      peerDid: opts.peerDid,
-      rsvpId: opts.rsvpId,
-      response: opts.response,
-      encrypt: opts.encrypt ?? true,
-    });
+    await postJson(
+      this.base(),
+      "/coordination/rsvp-response",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        rsvpId: opts.rsvpId,
+        response: opts.response,
+        encrypt: opts.encrypt ?? true,
+      },
+      this.adminToken,
+    );
   }
 
-  async calendarStatus(): Promise<{ configured: boolean; protocol: string; provider: string }> {
-    const resp = await fetch(`${this.base()}/calendar/status`);
-    if (!resp.ok) throw new Error(`Calendar status failed (${resp.status})`);
-    return resp.json() as Promise<{ configured: boolean; protocol: string; provider: string }>;
+  async connectorStatus(connectorId: string): Promise<{
+    connectorId: string;
+    provider: string;
+    label?: string;
+    configured: boolean;
+    oauthAvailable?: boolean;
+    oauthConnected?: boolean;
+    vaultOnly?: boolean;
+  }> {
+    return getJson(this.base(), `/connectors/${encodeURIComponent(connectorId)}/status`, this.adminToken);
   }
 
-  async createCalendarEvent(opts: {
-    title: string;
-    start: string;
-    end: string;
-    location?: string;
-    description?: string;
-    accessToken?: string;
-  }): Promise<{ created: { uid: string; href: string } }> {
-    return postJson(this.base(), "/calendar/events", opts);
+  async invokeConnector(
+    connectorId: string,
+    operation: string,
+    input: Record<string, unknown>,
+    approvalRef?: string,
+  ): Promise<{ operation: string; result: unknown }> {
+    return postJson(
+      this.base(),
+      `/connectors/${encodeURIComponent(connectorId)}/invoke`,
+      { operation, input, approvalRef },
+      this.adminToken,
+    );
+  }
+
+  async addWebcalFeed(url: string, label?: string): Promise<{ feed: { id: string; label: string } }> {
+    return postJson(this.base(), "/connectors/webcal/feeds", { url, label }, this.adminToken);
+  }
+
+  async removeWebcalFeed(feedId: string): Promise<{ removed: boolean; feedId: string }> {
+    const headers: Record<string, string> = {};
+    if (this.adminToken?.trim()) {
+      headers.Authorization = `Bearer ${this.adminToken.trim()}`;
+    }
+    const resp = await fetch(
+      `${this.base()}/connectors/webcal/feeds/${encodeURIComponent(feedId)}`,
+      { method: "DELETE", headers },
+    );
+    if (!resp.ok) {
+      const err = (await resp.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? `Request failed (${resp.status})`);
+    }
+    return resp.json() as Promise<{ removed: boolean; feedId: string }>;
   }
 
   async createActionReserve(opts: {
@@ -200,7 +304,7 @@ export class CommsAgentClient {
     peerUrl?: string;
     encrypt?: boolean;
   }): Promise<{ object: { id: string } }> {
-    return postJson(this.base(), "/actions/reserve", opts);
+    return postJson(this.base(), "/actions/reserve", opts, this.adminToken);
   }
 
   async confirmTransaction(opts: {
@@ -210,7 +314,7 @@ export class CommsAgentClient {
     peerDid: string;
     encrypt?: boolean;
   }): Promise<{ transaction: { phase: string } }> {
-    return postJson(this.base(), "/transactions/confirm", opts);
+    return postJson(this.base(), "/transactions/confirm", opts, this.adminToken);
   }
 
   async declineTransaction(opts: {
@@ -221,7 +325,7 @@ export class CommsAgentClient {
     peerDid: string;
     encrypt?: boolean;
   }): Promise<{ transaction: { phase: string } }> {
-    return postJson(this.base(), "/transactions/decline", opts);
+    return postJson(this.base(), "/transactions/decline", opts, this.adminToken);
   }
 
   async sendCommerceIntent(opts: {
@@ -235,7 +339,7 @@ export class CommsAgentClient {
     maxAmountMinor?: number;
     currency?: string;
   }): Promise<{ object: { id: string } }> {
-    return postJson(this.base(), "/business/intent", opts);
+    return postJson(this.base(), "/business/intent", opts, this.adminToken);
   }
 
   async offerTransaction(opts: {
@@ -251,13 +355,103 @@ export class CommsAgentClient {
     stripeSecretKey?: string;
     encrypt?: boolean;
   }): Promise<{ transaction: { phase: string } }> {
-    return postJson(this.base(), "/transactions/offer", opts);
+    return postJson(this.base(), "/transactions/offer", opts, this.adminToken);
   }
 
   async syncBusinessCatalog(
     items: BusinessCatalogItemValue[],
   ): Promise<{ catalog: unknown[] }> {
-    return postJson(this.base(), "/business/catalog/sync", { items });
+    return postJson(this.base(), "/business/catalog/sync", { items }, this.adminToken);
+  }
+
+  async listRooms(): Promise<{
+    hosted: Array<{
+      roomId: string;
+      hostDid: string;
+      name: string;
+      topic?: string;
+      admission: string;
+      moduleId?: string;
+      maxMembers: number;
+    }>;
+    joined: Array<{
+      roomId: string;
+      hostUrl: string;
+      descriptor: {
+        roomId: string;
+        hostDid: string;
+        name: string;
+        topic?: string;
+        moduleId?: string;
+      };
+    }>;
+  }> {
+    return getJson(this.base(), "/rooms", this.adminToken);
+  }
+
+  async getRoom(roomId: string): Promise<{
+    descriptor: {
+      roomId: string;
+      hostDid: string;
+      name: string;
+      topic?: string;
+      moduleId?: string;
+      admission: string;
+    };
+    memberCount: number;
+  }> {
+    return getJson(this.base(), `/rooms/${encodeURIComponent(roomId)}`, this.adminToken);
+  }
+
+  async listRoomMembers(roomId: string): Promise<{
+    members: Array<{ did: string; name?: string; joinedAt: string }>;
+  }> {
+    return getJson(this.base(), `/rooms/${encodeURIComponent(roomId)}/members`, this.adminToken);
+  }
+
+  async listRoomMessages(
+    roomId: string,
+    afterSeq = 0,
+  ): Promise<{
+    messages: Array<{
+      seq: number;
+      roomId: string;
+      senderDid: string;
+      kind: "message" | "activity";
+      text?: string;
+      activityKind?: string;
+      at: string;
+    }>;
+  }> {
+    return getJson(
+      this.base(),
+      `/rooms/${encodeURIComponent(roomId)}/messages?after=${afterSeq}`,
+      this.adminToken,
+    );
+  }
+
+  async joinRemoteRoom(opts: {
+    hostUrl: string;
+    roomId: string;
+    memberName?: string;
+  }): Promise<{ joined: string; descriptor: { roomId: string; name: string; moduleId?: string } | null }> {
+    return postJson(this.base(), "/rooms/join-remote", opts, this.adminToken);
+  }
+
+  async sendRoomMessage(opts: {
+    roomId: string;
+    text?: string;
+    kind?: "message" | "activity";
+    activityKind?: string;
+    payload?: Record<string, unknown>;
+  }): Promise<{ message?: { seq: number; text?: string }; pending?: boolean }> {
+    return postJson(this.base(), `/rooms/${encodeURIComponent(opts.roomId)}/send`, opts, this.adminToken);
+  }
+
+  async roomStats(roomId: string): Promise<{
+    stats: { present: number; joinsToday: number; messagesToday: number; activities: Record<string, number> };
+  }> {
+    return getJson(this.base(), `/rooms/${encodeURIComponent(roomId)}/stats`, this.adminToken);
   }
 }
 

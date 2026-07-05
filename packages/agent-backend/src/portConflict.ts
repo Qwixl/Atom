@@ -87,21 +87,43 @@ export interface ResolvePortOptions {
   host: string;
   startPort: number;
   interactive: boolean;
+  /** Max ports to scan when auto-resolving (default 50). */
+  maxScan?: number;
   ask?: (message: string) => Promise<string>;
   sleep?: (ms: number) => Promise<void>;
 }
 
-/** Resolve a listen port, prompting on conflict when `interactive` is true. */
+async function findNextAvailablePort(
+  host: string,
+  startPort: number,
+  maxScan: number,
+): Promise<number | null> {
+  for (let offset = 0; offset < maxScan; offset += 1) {
+    const candidate = startPort + offset;
+    if (await isPortAvailable(host, candidate)) return candidate;
+  }
+  return null;
+}
+
+/** Resolve a listen port; auto-scan by default, optional interactive prompt. */
 export async function resolvePortWithPrompt(options: ResolvePortOptions): Promise<number> {
   let port = options.startPort;
   const sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const maxScan = options.maxScan ?? 50;
 
   while (true) {
     if (await isPortAvailable(options.host, port)) return port;
 
     if (!options.interactive) {
+      const next = await findNextAvailablePort(options.host, port + 1, maxScan - 1);
+      if (next !== null) {
+        console.warn(
+          `[agent] Port ${port} is in use on ${options.host}; using ${next} instead. Set PORT to pin a port.`,
+        );
+        return next;
+      }
       throw new Error(
-        `Port ${port} is in use on ${options.host}. Set PORT to another value or free the port.`,
+        `No free port found from ${port}..${port + maxScan - 1} on ${options.host}. Set PORT explicitly.`,
       );
     }
 

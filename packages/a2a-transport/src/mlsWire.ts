@@ -6,6 +6,8 @@ export interface AtomMlsWireEnvelope {
   mediaType: typeof ATOM_MLS_WIRE_MEDIA_TYPE;
   /** Base64-encoded MLS wire bytes (private message, welcome, or key package). */
   wire: string;
+  /** Sender agent DID (required for room fan-out). */
+  senderDid?: string;
 }
 
 export function isAtomMlsWireEnvelope(value: unknown): value is AtomMlsWireEnvelope {
@@ -14,10 +16,11 @@ export function isAtomMlsWireEnvelope(value: unknown): value is AtomMlsWireEnvel
   return record.mediaType === ATOM_MLS_WIRE_MEDIA_TYPE && typeof record.wire === "string";
 }
 
-export function mlsWireToPart(wire: MlsWireMessage): Part {
+export function mlsWireToPart(wire: MlsWireMessage, senderDid?: string): Part {
   const envelope: AtomMlsWireEnvelope = {
     mediaType: ATOM_MLS_WIRE_MEDIA_TYPE,
     wire: bytesToBase64(wire),
+    ...(senderDid?.trim() ? { senderDid: senderDid.trim() } : {}),
   };
   return {
     kind: "data",
@@ -25,9 +28,14 @@ export function mlsWireToPart(wire: MlsWireMessage): Part {
   };
 }
 
-export function parseMlsWireFromPart(part: Part): MlsWireMessage | undefined {
+export function parseMlsWireFromPart(
+  part: Part,
+): { wire: MlsWireMessage; senderDid?: string } | undefined {
   if (part.kind !== "data") return undefined;
   const data = part.data;
   if (!isAtomMlsWireEnvelope(data)) return undefined;
-  return base64ToBytes(data.wire);
+  return {
+    wire: base64ToBytes(data.wire),
+    senderDid: data.senderDid?.trim() || undefined,
+  };
 }

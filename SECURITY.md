@@ -30,6 +30,7 @@ Production deployments (`shell-atom.vercel.app`, npm `@qwixl/*`) are treated as 
 | CSP + HSTS | `apps/shell/vercel.json` security headers |
 | Browser LLM keys | **Disabled** on `import.meta.env.PROD` builds |
 | Secrets | Session memory only (`createProductionSecretStore`); legacy `localStorage` credentials purged on startup |
+| Connector custody | Encrypted agent vault for connector secrets (e.g. WebCal feed URLs); shell never receives raw feed URLs after save; passkey required for consequential approvals (WebAuthn); owner store + attestations sync to backend when agent connected |
 | Registry trust | Integrity required; URL/policy not user-editable in production |
 | Curator auto-accept | Default **off** |
 | Agent images | `core/image` accepts **https** public URLs only |

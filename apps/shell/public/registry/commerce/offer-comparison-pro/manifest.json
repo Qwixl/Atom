@@ -1,0 +1,32 @@
+{
+  "id": "commerce/offer-comparison-pro",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/commerce-offer-comparison-pro/index.html",
+  "pricing": {
+    "model": "paid",
+    "priceCents": 499,
+    "currency": "USD",
+    "purchaseUrl": "https://qwixl.dev/store/offer-comparison-pro"
+  },
+  "components": [
+    {
+      "name": "commerce/offer-comparison-pro",
+      "semanticRole": "display/offer-comparison",
+      "events": [
+        {
+          "name": "offerSelected"
+        }
+      ],
+      "agentHint": "Premium offer comparison with scoring column; paid listing demo for M8.5 store plumbing."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "commerce"
+  ],
+  "bundleIntegrity": "sha256:9c5d374ddda832460951a8183740efe46e27bd5a2d6a84e5525f28143c0d6cac"
+}

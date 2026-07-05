@@ -19,6 +19,12 @@
       "types": "./dist/server-entry.d.ts",
       "import": "./dist/server-entry.js",
       "default": "./dist/server-entry.js"
+    },
+    "./dispute-channel": {
+      "development": "./src/disputeChannel.ts",
+      "types": "./dist/disputeChannel.d.ts",
+      "import": "./dist/disputeChannel.js",
+      "default": "./dist/disputeChannel.js"
     }
   },
   "files": [
@@ -38,6 +44,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@noble/hashes": "^1.8.0",
     "@a2a-js/sdk": "^0.3.13",
     "@qwixl/mls-session": "workspace:*",
     "@qwixl/protocol": "workspace:*",

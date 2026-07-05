@@ -15,9 +15,10 @@ Owner-controlled agent backend for Phase 1 private comms: **did:key** identity, 
 | `POST /coordination/scheduling-response` | Reply to proposal (`proposalId`, `response`, `slotId?`) |
 | `POST /coordination/rsvp` | Send RSVP request (`eventTitle`, `eventAt`, `location?`) |
 | `POST /coordination/rsvp-response` | Reply to RSVP (`rsvpId`, `response: yes\|maybe\|no`) |
-| `GET /calendar/status` | Whether `GOOGLE_CALENDAR_ACCESS_TOKEN` is set on the server |
-| `POST /calendar/query` | CalDAV query events (`timeMin`, `timeMax`, optional `accessToken`) |
-| `POST /calendar/events` | Create CalDAV event (`title`, `start`, `end`, optional `location`, `accessToken`) |
+| `GET /connectors/webcal/status` | WebCal feeds configured (read-only ICS) |
+| `POST /connectors/webcal/invoke` | `getStatus` or `listEvents` (vault custody) |
+| `POST /connectors/webcal/feeds` | Add ICS/WebCal feed URL to vault |
+| `DELETE /connectors/webcal/feeds/:feedId` | Remove a feed |
 | `POST /actions/reserve` | Mint `action:reserve` object (`refId`, `refKind`, `attestationRef`; optional peer send) |
 | `GET /payments/status` | Stripe rail configured + publishable key + product id |
 | `POST /payments/hold` | Place Stripe auth hold + mint `action:hold` (`transactionId`, `attestationRef`, `paymentMethodId`, `amountMinor`, `currency`) |
@@ -28,6 +29,44 @@ Owner-controlled agent backend for Phase 1 private comms: **did:key** identity, 
 | `/a2a/jsonrpc` | A2A JSON-RPC transport |
 
 Wire contracts: [PROTOCOL-v1.md](./PROTOCOL-v1.md).
+
+## Admin API authentication (M13)
+
+All admin routes require a bearer token:
+
+```http
+Authorization: Bearer <admin-token>
+```
+
+- On first start, a token is generated and saved next to the identity file (`agent-admin-token.txt` under `ATOM_DATA_DIR`, or beside `ATOM_AGENT_IDENTITY_PATH`).
+- The token is printed **once** at startup when newly created.
+- Set `ATOM_ADMIN_TOKEN` to use a fixed token (Docker/CI/hosted deployments).
+
+**Public (no bearer):** A2A JSON-RPC, `/.well-known/agent-card.json`, `GET /mls/key-package` (peer MLS handshake).
+
+Shell: Comms panel → **Admin bearer token**.
+
+### Export / import (M13.4)
+
+```http
+POST /admin/export   { "passphrase": "…" }   → { fileName, ciphertext }
+POST /admin/import   { "passphrase": "…", "ciphertext": "…" }   → { restoredFiles }
+```
+
+Passphrase-encrypted bundle: identity, business catalog, MLS peer records.
+
+### WebCal connector (M13.5)
+
+Owners paste a **private ICS/WebCal feed URL** in Settings. Feed URLs stay encrypted in the agent vault (D044); no Google OAuth app verification.
+
+```http
+GET  /connectors/webcal/status
+POST /connectors/webcal/invoke   { "operation": "getStatus" | "listEvents", "input": { … } }
+POST /connectors/webcal/feeds    { "url": "webcal://…", "label": "Work" }
+DELETE /connectors/webcal/feeds/:feedId
+```
+
+Read-only — scheduling over MLS/comms does not auto-create calendar events. To add an event to Google Calendar after accepting a slot, the shell opens a prefilled Google Calendar URL (`action=TEMPLATE`) — no OAuth required.
 
 ## One command (npm)
 
@@ -87,8 +126,6 @@ Bind is `0.0.0.0` inside the container; expose port `5204` or terminate TLS at t
 | `LLM_API_KEY` | — | OpenAI-compatible API key for `POST /agent` (also accepts `OPENAI_API_KEY`) |
 | `LLM_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible base URL |
 | `LLM_MODEL` | `gpt-4o-mini` | Model name for AG-UI responses |
-| `GOOGLE_CALENDAR_ACCESS_TOKEN` | — | Google OAuth access token with calendar scope for CalDAV proxy |
-| `GOOGLE_OAUTH_ACCESS_TOKEN` | — | Alias for `GOOGLE_CALENDAR_ACCESS_TOKEN` |
 | `STRIPE_SECRET_KEY` | — | Stripe secret key for payment hold/capture/release (`sk_test_...` or `sk_live_...`) |
 | `STRIPE_PUBLISHABLE_KEY` | — | Stripe publishable key for shell Stripe.js (`pk_test_...` or `pk_live_...`) |
 | `ATOM_STRIPE_PRODUCT_ID` | — | Stripe Product id from catalog setup (optional; groups holds in Dashboard) |

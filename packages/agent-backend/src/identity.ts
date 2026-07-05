@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { generateAgentKeyPair, type AgentKeyPair, bytesToBase64, base64ToBytes } from "@qwixl/protocol";
+import { defaultDataDir, resolveDataPath } from "./dataDir.js";
 
 interface StoredIdentity {
   did: string;
@@ -8,15 +9,10 @@ interface StoredIdentity {
   privateKey: string;
 }
 
-function defaultDataDir(): string {
-  if (process.env.ATOM_DATA_DIR?.trim()) return process.env.ATOM_DATA_DIR.trim();
-  return path.join(process.env.USERPROFILE ?? process.env.HOME ?? ".", ".atom");
-}
-
 function resolveIdentityPath(): string {
   return (
     process.env.ATOM_AGENT_IDENTITY_PATH?.trim() ??
-    path.join(defaultDataDir(), "agent-identity.json")
+    resolveDataPath("agent-identity.json")
   );
 }
 
@@ -46,3 +42,5 @@ export async function loadOrCreateIdentity(): Promise<AgentKeyPair> {
 export function identityPath(): string {
   return resolveIdentityPath();
 }
+
+export { defaultDataDir };

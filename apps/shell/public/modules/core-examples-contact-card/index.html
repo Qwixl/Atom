@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Contact card module</title>
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, sans-serif; }
+    body { margin: 0; padding: 12px; background: var(--atom-color-bg, #111); color: var(--atom-color-text, #eee); }
+    .card { border: 1px solid var(--atom-color-border, #333); border-radius: var(--atom-radius-md, 8px); padding: 12px; }
+    .name { font-size: 1.1rem; font-weight: 600; }
+    .role { color: var(--atom-color-text-dim, #aaa); font-size: 0.9rem; margin-top: 4px; }
+    .meta { margin-top: 8px; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="name" id="name">—</div>
+    <div class="role" id="role"></div>
+    <div class="meta" id="meta"></div>
+  </div>
+  <script>
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "init") return;
+      if (data.theme) {
+        const root = document.documentElement.style;
+        if (data.theme.colorBg) root.setProperty("--atom-color-bg", data.theme.colorBg);
+        if (data.theme.colorText) root.setProperty("--atom-color-text", data.theme.colorText);
+        if (data.theme.colorTextDim) root.setProperty("--atom-color-text-dim", data.theme.colorTextDim);
+        if (data.theme.colorBorder) root.setProperty("--atom-color-border", data.theme.colorBorder);
+        if (data.theme.radiusMd) root.setProperty("--atom-radius-md", data.theme.radiusMd);
+      }
+      const props = data.props || {};
+      document.getElementById("name").textContent = props.name || props.displayName || "Unknown";
+      document.getElementById("role").textContent = props.role || props.title || "";
+      const lines = [];
+      if (props.email) lines.push(props.email);
+      if (props.endpoint) lines.push(props.endpoint);
+      if (props.did) lines.push(props.did);
+      document.getElementById("meta").textContent = lines.join(" · ");
+    });
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+[data-atom-skin="high-contrast"] {
+  --atom-color-bg: #000000;
+  --atom-color-bg-raised: #0a0a0a;
+  --atom-color-bg-inset: #000000;
+  --atom-color-border: #ffffff;
+  --atom-color-border-strong: #ffff00;
+  --atom-color-text: #ffffff;
+  --atom-color-text-dim: #e0e0e0;
+  --atom-color-accent: #00ffff;
+  --atom-color-accent-soft: rgba(0, 255, 255, 0.2);
+  --atom-color-good: #00ff66;
+  --atom-color-warn: #ffcc00;
+  --atom-color-bad: #ff4444;
+
+  --bg: var(--atom-color-bg);
+  --bg-raised: var(--atom-color-bg-raised);
+  --bg-inset: var(--atom-color-bg-inset);
+  --border: var(--atom-color-border);
+  --border-strong: var(--atom-color-border-strong);
+  --text: var(--atom-color-text);
+  --text-dim: var(--atom-color-text-dim);
+  --accent: var(--atom-color-accent);
+  --accent-soft: var(--atom-color-accent-soft);
+  --good: var(--atom-color-good);
+  --warn: var(--atom-color-warn);
+  --bad: var(--atom-color-bad);
+}

@@ -17,6 +17,7 @@ export interface SendMlsWireParams {
   wire: MlsWireMessage;
   contextId?: string;
   role?: "user" | "agent";
+  senderDid?: string;
 }
 
 export interface SendMlsHandshakeParams {
@@ -56,7 +57,7 @@ export async function sendDataObject(
 
 /** Send MLS wire bytes (application message, welcome, or key package) via A2A. */
 export async function sendMlsWire(client: Client, params: SendMlsWireParams): Promise<Message> {
-  return sendParts(client, [mlsWireToPart(params.wire)], params);
+  return sendParts(client, [mlsWireToPart(params.wire, params.senderDid)], params);
 }
 
 /** Send MLS pair handshake metadata via A2A. */

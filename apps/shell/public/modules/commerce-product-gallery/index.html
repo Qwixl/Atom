@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Product gallery</title>
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body { margin: 0; padding: 12px; background: var(--atom-color-bg, #111); color: var(--atom-color-text, #eee); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+    .item { border: 1px solid var(--atom-color-border, #333); border-radius: var(--atom-radius-md, 8px); overflow: hidden; cursor: pointer; }
+    .item.selected { outline: 2px solid var(--atom-color-accent, #5aa9ff); }
+    .thumb { aspect-ratio: 1; background: var(--atom-color-bg-raised, #222); display: grid; place-items: center; font-size: 2rem; }
+    .label { padding: 6px 8px; font-size: 0.85rem; }
+    .price { color: var(--atom-color-text-dim, #aaa); font-size: 0.75rem; padding: 0 8px 8px; }
+  </style>
+</head>
+<body>
+  <div class="grid" id="grid"></div>
+  <script>
+    let shellOrigin = null;
+    function render(props) {
+      const items = Array.isArray(props.items) ? props.items : [
+        { id: "p1", label: "Desk lamp", price: "$45", emoji: "💡" },
+        { id: "p2", label: "Notebook", price: "$12", emoji: "📓" },
+        { id: "p3", label: "Mug", price: "$18", emoji: "☕" },
+      ];
+      const grid = document.getElementById("grid");
+      grid.innerHTML = "";
+      for (const item of items) {
+        const el = document.createElement("div");
+        el.className = "item";
+        el.innerHTML = `<div class="thumb">${item.emoji || "📦"}</div><div class="label">${item.label || item.id}</div><div class="price">${item.price || ""}</div>`;
+        el.onclick = () => {
+          grid.querySelectorAll(".item.selected").forEach((n) => n.classList.remove("selected"));
+          el.classList.add("selected");
+          if (shellOrigin) window.parent.postMessage({ type: "event", name: "productSelected", payload: { productId: item.id } }, shellOrigin);
+        };
+        grid.appendChild(el);
+      }
+    }
+    window.addEventListener("message", (e) => {
+      if (!e.data || e.data.type !== "init") return;
+      shellOrigin = e.origin;
+      render(e.data.props || {});
+    });
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>

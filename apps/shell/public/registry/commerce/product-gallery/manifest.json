@@ -1,0 +1,26 @@
+{
+  "id": "commerce/product-gallery",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/commerce-product-gallery/index.html",
+  "components": [
+    {
+      "name": "commerce/product-gallery",
+      "semanticRole": "display/product-gallery",
+      "events": [
+        {
+          "name": "productSelected"
+        }
+      ],
+      "agentHint": "Business catalog grid; pairs with Profile catalog sync and commerce flows."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "commerce"
+  ],
+  "bundleIntegrity": "sha256:337234c0aa07468407db9de695c691765777ee17e5d8674d84c4437f5247bea2"
+}

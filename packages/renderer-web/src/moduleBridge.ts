@@ -1,4 +1,5 @@
 import { resolveModuleBundleOrigin } from "@qwixl/shell-core";
+import { readAtomThemeTokens } from "@qwixl/skin-default/tokens";
 
 /** v1 module sandbox: scripts only — never allow-same-origin (parent storage isolation). */
 export const MODULE_IFRAME_SANDBOX = "allow-scripts";
@@ -20,7 +21,10 @@ export function createModuleBridge(bundleUrl: string): ModuleBridge {
       // Sandboxed iframes without allow-same-origin use an opaque origin; init uses "*"
       // only for same-site bundle URLs (local dev). Cross-origin targets the bundle origin.
       const target = crossOrigin ? bundleOrigin : "*";
-      contentWindow.postMessage({ type: "init", props, theme: {} }, target);
+      contentWindow.postMessage(
+        { type: "init", props, theme: readAtomThemeTokens() },
+        target,
+      );
     },
     isAllowedMessageOrigin(origin: string) {
       if (crossOrigin) return origin === bundleOrigin;

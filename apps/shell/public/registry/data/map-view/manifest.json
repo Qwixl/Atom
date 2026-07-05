@@ -1,0 +1,26 @@
+{
+  "id": "data/map-view",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/data-map-view/index.html",
+  "components": [
+    {
+      "name": "data/map-view",
+      "semanticRole": "input/map-view",
+      "events": [
+        {
+          "name": "locationSelected"
+        }
+      ],
+      "agentHint": "Leaflet map inside the sandbox; proves third-party library dependencies work under the iframe contract."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "data"
+  ],
+  "bundleIntegrity": "sha256:73fdf5d00536339f4bec6dde11b120193c4b2a6c3544e009b8e35da50c98a7b0"
+}

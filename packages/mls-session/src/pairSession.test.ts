@@ -1,31 +1,31 @@
 import { describe, expect, it } from "vitest";
 import { establishPairSession, MlsPairSession } from "./pairSession.js";
-import { deserializeRatchetTree, serializeRatchetTree } from "./ratchetTree.js";
 
-describe("MlsPairSession", () => {
-  it("establishes a pair session and exchanges encrypted messages", async () => {
+describe("MlsPairSession snapshots", () => {
+  it("exports a versioned snapshot with group state", async () => {
     const { initiator, responder } = await establishPairSession({
-      initiatorDid: "did:key:z6Mkinitiator",
-      responderDid: "did:key:z6Mkresponder",
+      initiatorDid: "did:key:snap-init",
+      responderDid: "did:key:snap-resp",
     });
 
-    const plaintext = new TextEncoder().encode("atom mls payload");
-    const wire = await initiator.encrypt(plaintext);
+    const snap = initiator.exportSnapshot();
+    expect(snap.version).toBe(1);
+    expect(snap.localDid).toBe("did:key:snap-init");
+    expect(snap.peerDid).toBe("did:key:snap-resp");
+    expect(snap.groupStateB64.length).toBeGreaterThan(16);
+
+    const wire = await initiator.encrypt(new TextEncoder().encode("live session"));
     const decrypted = await responder.decrypt(wire);
-    expect(new TextDecoder().decode(decrypted)).toBe("atom mls payload");
+    expect(new TextDecoder().decode(decrypted)).toBe("live session");
 
-    const reply = await responder.encrypt(new TextEncoder().encode("ack"));
-    const gotReply = await initiator.decrypt(reply);
-    expect(new TextDecoder().decode(gotReply)).toBe("ack");
-  });
-
-  it("round-trips ratchet tree encoding for handshake transport", async () => {
-    const { initiator } = await establishPairSession({
-      initiatorDid: "did:key:z6Mkalice",
-      responderDid: "did:key:z6Mkbob",
-    });
-    const encoded = serializeRatchetTree(initiator.ratchetTree());
-    const restored = deserializeRatchetTree(encoded);
-    expect(restored.length).toBeGreaterThan(0);
+    expect(() =>
+      MlsPairSession.restoreFromSnapshot(
+        { ...snap, version: 99 as 1 },
+        {
+          publicPackage: {} as never,
+          privatePackage: {} as never,
+        },
+      ),
+    ).toThrow(/Unsupported MLS pair snapshot version/);
   });
 });

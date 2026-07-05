@@ -1,4 +1,5 @@
 import { sha256Hex } from "./hash.js";
+import { resolveRegistryUrl } from "./resolveUrl.js";
 
 export interface SigstoreBundleShape {
   mediaType?: string;
@@ -28,7 +29,7 @@ export async function verifyManifestSignature(
     return;
   }
 
-  const url = new URL(signatureUrl, manifestUrl).href;
+  const url = resolveRegistryUrl(signatureUrl, manifestUrl);
   const response = await fetchFn(url);
   if (!response.ok) {
     throw new Error(`Signature bundle fetch failed: ${response.status} ${url}`);

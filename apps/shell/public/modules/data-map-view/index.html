@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Map view</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body { margin: 0; padding: 8px; background: var(--atom-color-bg, #111); color: var(--atom-color-text, #eee); }
+    #map { height: 280px; border-radius: var(--atom-radius-md, 8px); border: 1px solid var(--atom-color-border, #333); }
+    .hint { margin-top: 8px; font-size: 0.8rem; color: var(--atom-color-text-dim, #aaa); }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <p class="hint" id="hint">Click a marker to select a location.</p>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+    let shellOrigin = null;
+    let map = null;
+    let markers = [];
+    function initMap(props) {
+      if (map) { map.remove(); map = null; markers = []; }
+      const center = props.center || { lat: 51.5074, lng: -0.1278 };
+      const zoom = props.zoom || 12;
+      map = L.map("map").setView([center.lat, center.lng], zoom);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap",
+        maxZoom: 18,
+      }).addTo(map);
+      const pins = Array.isArray(props.pins) ? props.pins : [
+        { id: "hq", label: "HQ", lat: center.lat, lng: center.lng },
+        { id: "branch", label: "Branch", lat: center.lat + 0.02, lng: center.lng + 0.03 },
+      ];
+      for (const pin of pins) {
+        const m = L.marker([pin.lat, pin.lng]).addTo(map);
+        m.bindPopup(pin.label || pin.id);
+        m.on("click", () => {
+          document.getElementById("hint").textContent = `Selected ${pin.label || pin.id}`;
+          if (shellOrigin) window.parent.postMessage({ type: "event", name: "locationSelected", payload: { locationId: pin.id, lat: pin.lat, lng: pin.lng } }, shellOrigin);
+        });
+        markers.push(m);
+      }
+    }
+    window.addEventListener("message", (e) => {
+      if (!e.data || e.data.type !== "init") return;
+      shellOrigin = e.origin;
+      initMap(e.data.props || {});
+    });
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>

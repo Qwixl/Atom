@@ -1,4 +1,5 @@
-import { createHash } from "node:crypto";
+import { sha256 } from "@noble/hashes/sha256";
+import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils";
 import {
   signDataObject,
   verifyDataObject,
@@ -69,7 +70,7 @@ export function hashDataObjectFingerprint(object: DataObject): string {
     schema: object.semantic.schema,
     payload: object.payload,
   });
-  return createHash("sha256").update(canonical, "utf8").digest("hex");
+  return bytesToHex(sha256(utf8ToBytes(canonical)));
 }
 
 export function channelIdForTransaction(transactionId: string): string {
@@ -96,7 +97,7 @@ export function computeChannelHeadHash(entries: DisputeChannelEntry[]): string {
       objectHash: e.objectHash,
     })),
   );
-  return createHash("sha256").update(canonical, "utf8").digest("hex");
+  return bytesToHex(sha256(utf8ToBytes(canonical)));
 }
 
 export function buildChannelEntry(object: DataObject, sequence: number): DisputeChannelEntry {

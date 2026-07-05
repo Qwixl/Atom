@@ -5,7 +5,7 @@ import {
   createActionAnchor,
   verifyActionAnchor,
   type DisputeChannelEntry,
-} from "@qwixl/a2a-transport";
+} from "@qwixl/a2a-transport/dispute-channel";
 import type { AgentKeyPair, DataObject } from "@qwixl/protocol";
 import { deliverSignedObject } from "./deliverObject.js";
 import type { MlsSessionStore } from "./mlsSessions.js";

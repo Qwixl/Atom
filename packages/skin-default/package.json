@@ -1,0 +1,30 @@
+{
+  "name": "@qwixl/skin-default",
+  "version": "0.1.0",
+  "description": "Default Atom shell design tokens and component skin (M14.2).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./default.css": "./default.css",
+    "./dark.css": "./dark.css",
+    "./high-contrast.css": "./high-contrast.css",
+    "./tokens": {
+      "development": "./src/tokens.ts",
+      "import": "./src/tokens.ts"
+    }
+  },
+  "files": [
+    "default.css",
+    "dark.css",
+    "high-contrast.css",
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Qwixl/Atom.git",
+    "directory": "packages/skin-default"
+  }
+}

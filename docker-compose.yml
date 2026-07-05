@@ -16,5 +16,45 @@ services:
       - atom-agent-data:/data
     restart: unless-stopped
 
+  demo-peer-agent:
+    build:
+      context: .
+      dockerfile: packages/agent-backend/Dockerfile
+    ports:
+      - "${DEMO_PEER_PORT:-5205}:5205"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "5205"
+      PUBLIC_BASE_URL: "${DEMO_PEER_PUBLIC_URL:-http://127.0.0.1:5205}"
+      AGENT_NAME: "Qwixl demo peer"
+      ATOM_DATA_DIR: "/data"
+      ATOM_DEMO_PEER: "1"
+      ATOM_ADMIN_TOKEN: "${DEMO_PEER_ADMIN_TOKEN:-atom-demo-peer-token}"
+      ATOM_SHELL_ORIGINS: "${ATOM_SHELL_ORIGINS:-http://localhost:5200,http://127.0.0.1:5200}"
+    volumes:
+      - demo-peer-data:/data
+    restart: unless-stopped
+
+  control-plane:
+    build:
+      context: .
+      dockerfile: apps/control-plane/Dockerfile
+    ports:
+      - "${CONTROL_PLANE_PORT:-5300}:5300"
+    environment:
+      PORT: "5300"
+      ATOM_CONTROL_PLANE_DATA_DIR: "/data"
+      ATOM_FLEET_MODE: "${ATOM_FLEET_MODE:-}"
+      ATOM_AGENT_IMAGE: "${ATOM_AGENT_IMAGE:-atom-agent:latest}"
+      ATOM_SHELL_ORIGINS: "${ATOM_SHELL_ORIGINS:-http://localhost:5200,http://127.0.0.1:5200}"
+      HOSTED_STUB_AGENT_URL: "${HOSTED_STUB_AGENT_URL:-}"
+      HOSTED_STUB_AGENT_TOKEN: "${HOSTED_STUB_AGENT_TOKEN:-}"
+    volumes:
+      - control-plane-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
 volumes:
   atom-agent-data:
+  demo-peer-data:
+  control-plane-data:

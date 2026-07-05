@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Offer comparison Pro</title>
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body { margin: 0; padding: 12px; background: var(--atom-color-bg, #111); color: var(--atom-color-text, #eee); font-size: 0.9rem; }
+    .pro { font-size: 0.75rem; color: var(--atom-color-accent, #5aa9ff); margin-bottom: 8px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid var(--atom-color-border, #333); padding: 8px; text-align: left; }
+    th { background: var(--atom-color-bg-raised, #1a1a1a); }
+    tr { cursor: pointer; }
+    tr.selected { outline: 2px solid var(--atom-color-accent, #5aa9ff); }
+  </style>
+</head>
+<body>
+  <div class="pro">Premium module listing (paid — beta installs free)</div>
+  <table><thead><tr><th>Offer</th><th>Price</th><th>Score</th></tr></thead><tbody id="rows"></tbody></table>
+  <script>
+    let shellOrigin = null;
+    window.addEventListener("message", (e) => {
+      if (!e.data || e.data.type !== "init") return;
+      shellOrigin = e.origin;
+      const offers = (e.data.props?.offers) || [
+        { id: "pro-a", label: "Enterprise A", amount: "$199/mo", score: "98" },
+        { id: "pro-b", label: "Enterprise B", amount: "$179/mo", score: "95" },
+      ];
+      const tbody = document.getElementById("rows");
+      for (const o of offers) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${o.label}</td><td>${o.amount}</td><td>${o.score || "—"}</td>`;
+        tr.onclick = () => {
+          tbody.querySelectorAll("tr.selected").forEach((r) => r.classList.remove("selected"));
+          tr.classList.add("selected");
+          if (shellOrigin) window.parent.postMessage({ type: "event", name: "offerSelected", payload: { offerId: o.id } }, shellOrigin);
+        };
+        tbody.appendChild(tr);
+      }
+    });
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "id": "media/audio-player",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/media-audio-player/index.html",
+  "components": [
+    {
+      "name": "media/audio-player",
+      "semanticRole": "display/audio-player",
+      "events": [
+        {
+          "name": "playbackStarted"
+        },
+        {
+          "name": "playbackPaused"
+        },
+        {
+          "name": "playbackEnded"
+        }
+      ],
+      "agentHint": "HTML5 audio under sandbox constraints; emits playback lifecycle events."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "media"
+  ],
+  "bundleIntegrity": "sha256:2648e674ea423c3ca0ad06147b2fa7c0f12315cf807bb9302ada5ae9e3bdc7d1"
+}

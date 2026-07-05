@@ -1,0 +1,50 @@
+{
+  "id": "connectors/webcal",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/connectors-webcal/index.html",
+  "connector": {
+    "agentId": "webcal",
+    "provider": "webcal",
+    "label": "WebCal",
+    "operations": [
+      {
+        "id": "getStatus",
+        "permission": "read",
+        "description": "Return whether WebCal feeds are configured and list feed labels (not URLs)."
+      },
+      {
+        "id": "listEvents",
+        "permission": "read",
+        "description": "List events from configured feeds between timeMin and timeMax (ISO 8601)."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "connectors/webcal",
+      "semanticRole": "settings/connector",
+      "events": [
+        {
+          "name": "setFeedRequested"
+        },
+        {
+          "name": "removeFeedRequested"
+        },
+        {
+          "name": "refreshRequested"
+        }
+      ],
+      "agentHint": "WebCal connector: owner pastes a private ICS feed URL in Settings; agent vault stores the URL and serves read-only listEvents for scheduling context."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "connectors",
+    "scheduling"
+  ],
+  "bundleIntegrity": "sha256:e3187130fd5ad319a44bdf25093bfb72898059c7a7a0b4dd06dad1c450e34b39"
+}

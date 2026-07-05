@@ -1,8 +1,70 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-03T18:24:32.809Z",
+  "updatedAt": "2026-07-05T00:30:00.000Z",
   "revocationsUrl": "revocations.json",
   "modules": [
+    {
+      "id": "commerce/offer-comparison",
+      "version": "1.0.0",
+      "manifestUrl": "commerce/offer-comparison/manifest.json",
+      "integrity": "sha256:da5ea6ee817974ba15f86bbc4d59ce5357affa2e22806b24f5a16202a1656d96",
+      "bundleIntegrity": "sha256:fd80be0b74b1c053e1c566dbaf747662c86e138df0122597e41e8fcad90d901c",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "commerce/offer-comparison-pro",
+      "version": "1.0.0",
+      "manifestUrl": "commerce/offer-comparison-pro/manifest.json",
+      "integrity": "sha256:e420921849e231b4d7ee7e449dd33a49fba58f7f7f3c16e4f33968ee62f6de80",
+      "bundleIntegrity": "sha256:9c5d374ddda832460951a8183740efe46e27bd5a2d6a84e5525f28143c0d6cac",
+      "publisher": "did:key:z6Mkatomexamples01",
+      "pricing": {
+        "model": "paid",
+        "priceCents": 499,
+        "currency": "USD",
+        "purchaseUrl": "https://qwixl.dev/store/offer-comparison-pro"
+      }
+    },
+    {
+      "id": "commerce/product-gallery",
+      "version": "1.0.0",
+      "manifestUrl": "commerce/product-gallery/manifest.json",
+      "integrity": "sha256:0889d513116a92cab18a0cb6bc176757006497d3fe65169ccdc48f54fb031a4a",
+      "bundleIntegrity": "sha256:337234c0aa07468407db9de695c691765777ee17e5d8674d84c4437f5247bea2",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "core-examples/contact-card",
+      "version": "1.0.0",
+      "manifestUrl": "core-examples/contact-card/manifest.json",
+      "integrity": "sha256:28d7f47761d11190718f83568c8d1ddbcbf66d9ae0c8f43b75221e4a965f632d",
+      "bundleIntegrity": "sha256:63645d3737a09d7b9a250c4d8e7f94bb55844bd91cd075b04cc037c100884377",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "data/map-view",
+      "version": "1.0.0",
+      "manifestUrl": "data/map-view/manifest.json",
+      "integrity": "sha256:cf2e0ffe6a1c6a8a432b54965662d9e7d65fb1f6b4ae435ad2eae9f1c0eca284",
+      "bundleIntegrity": "sha256:73fdf5d00536339f4bec6dde11b120193c4b2a6c3544e009b8e35da50c98a7b0",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "media/audio-player",
+      "version": "1.0.0",
+      "manifestUrl": "media/audio-player/manifest.json",
+      "integrity": "sha256:cd957fb480c81a88a6d42096ea3a5c1e41897b355604ecdd8795784204a614d3",
+      "bundleIntegrity": "sha256:2648e674ea423c3ca0ad06147b2fa7c0f12315cf807bb9302ada5ae9e3bdc7d1",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "scheduling/availability-grid",
+      "version": "1.0.0",
+      "manifestUrl": "scheduling/availability-grid/manifest.json",
+      "integrity": "sha256:848dec25c176634e8c2c9615bb99e3f5e08b7e3f025326d48a12f5a05514e73a",
+      "bundleIntegrity": "sha256:fd7c3e7ae49ec73ca60712287aed1966cbc93d6656ea11f6f6d840d6223390b7",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
     {
       "id": "travel/seat-map",
       "version": "1.0.0",
@@ -10,6 +72,22 @@
       "integrity": "sha256:2ec97da48f0a2be013c48110e5815936e40b98514754f926169f9b3e90d856ca",
       "bundleIntegrity": "sha256:2143262eb8e3abacf7688735991f32defa348f2e1a262400684ee68be9efb968",
       "publisher": "did:key:z6Mkdemotravel0001"
+    },
+    {
+      "id": "connectors/webcal",
+      "version": "1.0.0",
+      "manifestUrl": "connectors/webcal/manifest.json",
+      "integrity": "sha256:e2ac9e2da2fc2ccc24bca81563dedb5e0b117bae32211bb73f9f84ea9dadd69e",
+      "bundleIntegrity": "sha256:e3187130fd5ad319a44bdf25093bfb72898059c7a7a0b4dd06dad1c450e34b39",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "community/coffee-shop",
+      "version": "1.0.0",
+      "manifestUrl": "community/coffee-shop/manifest.json",
+      "integrity": "sha256:97cdd5c84c7dfdbb580f72652ce75468e2ccfd8663af846c514935a1a0ab39f6",
+      "bundleIntegrity": "sha256:43109c800cc5ffc68b2e95914de0d99dcc0651598587f616daf032ec496e2ffa",
+      "publisher": "did:key:z6Mkatomexamples01"
     }
   ]
 }

@@ -37,55 +37,92 @@ import {
   createDefaultSecretStore,
   createProductionSecretStore,
   DEFAULT_LLM_SECRET_REF,
-  DEFAULT_GOOGLE_CALENDAR_OAUTH_REF,
   isLlmConnectionReady,
   loadAndMigrateLlmConnection,
   loadLlmConnectionFromSession,
-  loadOAuthConnections,
   LLM_CONNECTION_STORAGE_KEY,
   maskSecret,
   persistLlmConnection,
   persistLlmConnectionToSession,
   purgeInsecureLocalCredentials,
   resolveLlmConfig,
-  upsertOAuthConnection,
   DEFAULT_STRIPE_PAYMENT_REF,
   loadPaymentConnections,
   upsertPaymentConnection,
   type LlmConnectionConfig,
-  type OAuthConnectionConfig,
   type PaymentConnectionConfig,
   type SecretStore,
 } from "@qwixl/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
 import { ProfilePanel } from "./ProfilePanel.js";
 import { CommsPanel } from "./CommsPanel.js";
+import { DiscoverPanel } from "./DiscoverPanel.js";
+import { DiscoverChatResults, type DiscoverChatResult } from "./DiscoverChatResults.js";
+import { connectDiscoverEntry, joinDiscoverRoom } from "./discoverActions.js";
+import { extractDiscoverTerms, isDiscoverQuery } from "./discoverQuery.js";
+import { RoomsPanel } from "./RoomsPanel.js";
+import { FirstRunWizard } from "./FirstRunWizard.js";
+import { loadFirstRunDone, markFirstRunDone } from "./firstRunStorage.js";
+import { DemoBootstrap } from "./DemoBootstrap.js";
+import { PersonalDemoWalkthrough } from "./PersonalDemoWalkthrough.js";
+import { buildGoogleCalendarAddUrl } from "./calendarAddLink.js";
+import { type DemoCalendarEvent } from "./demoScheduling.js";
+import { CommsAgentClient } from "./comms/client.js";
+import {
+  applyDemoPersona,
+  loadDemoPersona,
+  IS_DEMO_MODE,
+} from "./demoPersonas.js";
+import { CustodySecurityPanel } from "./custody/CustodySecurityPanel.js";
+import { WebCalSettingsPanel } from "./connectors/WebCalSettingsPanel.js";
+import { requireCustodyApproval } from "./custody/approvalGate.js";
+import {
+  loadAttestations,
+  loadOwnerProposals,
+  loadOwnerRecords,
+  saveAttestations,
+  saveOwnerProposals,
+  saveOwnerRecords,
+} from "./custody/client.js";
+import { loadCommsAgentConfig, loadCommsAgentConfigSecure, saveCommsAgentConfigSecure, clearCommsAdminToken, loadOwnerAgentKind } from "./comms/storage.js";
+import { probeAgentConnection, reconcileAgentConnection } from "./comms/agentConnection.js";
+import { loadBrowserAgentConfig } from "./browserAgentConfig.js";
+import { isVaultInitialized, isVaultUnlocked } from "./custody/dataVault.js";
+import { VaultUnlockGate } from "./custody/VaultUnlockGate.js";
 import { RegistryCatalogList } from "./RegistryCatalogList.js";
 import { loadContacts } from "./comms/storage.js";
 import type { AgentContact } from "./comms/types.js";
 import {
   ALLOW_BROWSER_LLM,
+  ATOM_BROWSER_MODE,
   IS_PRODUCTION_HOST,
   PRODUCTION_REGISTRY_TRUST,
   PRODUCTION_REGISTRY_URL,
+  SHOW_DEV_WORKFLOWS,
 } from "./hostConfig.js";
+import { applyAtomSkin, ATOM_SKINS, type AtomSkinId } from "@qwixl/skin-default/tokens";
+import { ShellComposer } from "./shell/ShellComposer.js";
+import { ConfirmationChrome } from "./shell/ConfirmationChrome.js";
+import { ShellMainHeader } from "./shell/ShellMainHeader.js";
+import { ShellSidebar, type ShellNavPanel } from "./shell/ShellSidebar.js";
 
 type Provider = "mock" | "llm" | "ag-ui";
-type SidePanel = "none" | "log" | "profile" | "comms";
+type SidePanel = ShellNavPanel;
 
 type ShellSession = AgentSession & { dispose?: () => void };
 
 const SUGGESTIONS = [
+  "Find a coffee shop",
   "Schedule a team standup next week",
   "RSVP to the design review",
   "What time works for our standup?",
-  "Show me my spending this quarter",
 ];
 const AGUI_CONFIG_KEY = "atom-agui-config";
 const REGISTRY_URL_KEY = "atom-registry-url";
 const REGISTRY_TRUST_KEY = "atom-registry-trust";
 const CURATOR_ENABLED_KEY = "atom-curator-enabled";
 const CURATOR_AUTO_ACCEPT_KEY = "atom-curator-auto-accept-open";
+const SKIN_STORAGE_KEY = "atom-shell-skin";
 const PROVIDER_KEY = "atom-provider";
 const DEFAULT_AGUI_URL = "http://localhost:5201/agent";
 const DEFAULT_REGISTRY_URL = "/registry/index.json";
@@ -128,16 +165,18 @@ function loadLlmConnection(store: SecretStore): LlmConnectionConfig | null {
 }
 
 function loadSavedProvider(store: SecretStore): Provider {
+  if (IS_DEMO_MODE) return "mock";
   try {
     const saved = loadStringFromStorage(PROVIDER_KEY);
     if (saved === "llm" && ALLOW_BROWSER_LLM && isLlmConnectionReady(loadLlmConnection(store), store)) {
       return "llm";
     }
     if (saved === "ag-ui") return "ag-ui";
+    if (saved === "mock" && SHOW_DEV_WORKFLOWS) return "mock";
   } catch {
     // fall through
   }
-  return "mock";
+  return "ag-ui";
 }
 
 const attestationPersistence = createAttestationPersistence();
@@ -164,7 +203,14 @@ export function App() {
   const attestationLog = useMemo(
     () =>
       new AttestationLog({
-        persist: (entries) => attestationPersistence.save([...entries]),
+        persist: (entries) => {
+          const config = loadCommsAgentConfig();
+          if (config.adminToken?.trim()) {
+            void saveAttestations(config, entries);
+            return;
+          }
+          attestationPersistence.save([...entries]);
+        },
         restore: attestationPersistence.load() as AttestationEntry[] | undefined,
       }),
     [],
@@ -173,9 +219,23 @@ export function App() {
   const ownerStore = useMemo(
     () =>
       new OwnerStore({
-        persist: (records) => ownerRecordsPersistence.save([...records]),
+        persist: (records) => {
+          const config = loadCommsAgentConfig();
+          if (config.adminToken?.trim()) {
+            void saveOwnerRecords(config, records);
+            return;
+          }
+          ownerRecordsPersistence.save([...records]);
+        },
         restore: ownerRecordsPersistence.load(),
-        persistProposals: (proposals) => ownerProposalsPersistence.save([...proposals]),
+        persistProposals: (proposals) => {
+          const config = loadCommsAgentConfig();
+          if (config.adminToken?.trim()) {
+            void saveOwnerProposals(config, proposals);
+            return;
+          }
+          ownerProposalsPersistence.save([...proposals]);
+        },
         restoreProposals: ownerProposalsPersistence.load(),
       }),
     [],
@@ -186,9 +246,123 @@ export function App() {
     [],
   );
 
+  const [firstRunOpen, setFirstRunOpen] = useState(false);
+  const [agentConnectionReady, setAgentConnectionReady] = useState(false);
+  const [agentBootstrapPending, setAgentBootstrapPending] = useState(!IS_DEMO_MODE);
+  const [vaultUnlocked, setVaultUnlocked] = useState(() => !isVaultInitialized() || isVaultUnlocked());
+
   useEffect(() => {
     if (IS_PRODUCTION_HOST) purgeInsecureLocalCredentials(LLM_CONNECTION_STORAGE_KEY);
   }, []);
+
+  useEffect(() => {
+    if (IS_DEMO_MODE) {
+      setAgentConnectionReady(true);
+      return;
+    }
+    void (async () => {
+      const finishConnected = () => {
+        setAgentConnectionReady(true);
+        markFirstRunDone();
+        setFirstRunOpen(false);
+        if (isVaultInitialized() && !isVaultUnlocked()) {
+          setVaultUnlocked(false);
+        }
+      };
+
+      if ((await reconcileAgentConnection()) === "ok") {
+        finishConnected();
+        setAgentBootstrapPending(false);
+        return;
+      }
+
+      if (ATOM_BROWSER_MODE) {
+        const browserConfig = loadBrowserAgentConfig();
+        if (browserConfig) {
+          await saveCommsAgentConfigSecure(browserConfig);
+          if ((await probeAgentConnection(browserConfig)) === "ok") {
+            finishConnected();
+            setAgentBootstrapPending(false);
+            return;
+          }
+        }
+        setAgentConnectionReady(false);
+        setAgentBootstrapPending(false);
+        return;
+      }
+
+      const stored = await loadCommsAgentConfigSecure();
+
+      if (stored.adminToken?.trim()) {
+        const status = await probeAgentConnection(stored);
+        if (status === "ok") {
+          finishConnected();
+          setAgentBootstrapPending(false);
+          return;
+        }
+      }
+
+      // Local dev: never block the shell with a signup wizard. Configure once in Comms → Setup.
+      if (SHOW_DEV_WORKFLOWS) {
+        markFirstRunDone();
+        setFirstRunOpen(false);
+        setAgentConnectionReady(false);
+        setAgentBootstrapPending(false);
+        return;
+      }
+
+      // Production: first-time hosted signup only when nothing is connected yet.
+      setAgentConnectionReady(false);
+      setFirstRunOpen(!loadFirstRunDone());
+      setAgentBootstrapPending(false);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!agentConnectionReady || !vaultUnlocked) return;
+    void (async () => {
+      try {
+        const config = await loadCommsAgentConfigSecure();
+        if (!config.adminToken?.trim()) return;
+        const [remoteRecords, remoteProposals, remoteAttestations] = await Promise.all([
+          loadOwnerRecords<OwnerRecord>(config),
+          loadOwnerProposals<RecordProposal>(config),
+          loadAttestations<AttestationEntry>(config),
+        ]);
+        const localRecords = ownerRecordsPersistence.load() ?? [];
+        const localProposals = ownerProposalsPersistence.load() ?? [];
+        if (remoteRecords.length === 0 && localRecords.length > 0) {
+          for (const record of localRecords) {
+            ownerStore.upsert(record);
+          }
+          await saveOwnerRecords(config, ownerStore.list());
+          ownerRecordsPersistence.clear();
+        } else if (remoteRecords.length > 0) {
+          for (const record of remoteRecords) {
+            ownerStore.upsert(record);
+          }
+        }
+        if (remoteProposals.length === 0 && localProposals.length > 0) {
+          await saveOwnerProposals(config, localProposals);
+          ownerProposalsPersistence.clear();
+        }
+        if (remoteAttestations.length > 0) {
+          setAttestations(remoteAttestations);
+        }
+        setProfileRecords(ownerStore.list());
+        setProfileProposals(ownerStore.listProposals());
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (/unauthorized|401/i.test(message)) {
+          clearCommsAdminToken();
+          setAgentConnectionReady(false);
+          setFirstRunOpen(true);
+          return;
+        }
+        console.warn("[custody] backend hydrate failed", error);
+      }
+    })();
+  }, [ownerStore, agentConnectionReady, vaultUnlocked]);
 
   const [provider, setProvider] = useState<Provider>(() => loadSavedProvider(secretStore));
   const [llmConnection, setLlmConnection] = useState<LlmConnectionConfig | null>(() =>
@@ -203,26 +377,9 @@ export function App() {
     const key = secretStore.get(llmConnection.secretRef);
     return key ? maskSecret(key) : null;
   }, [llmConnection, secretStore]);
-  const [oauthConnections, setOauthConnections] = useState<OAuthConnectionConfig[]>(() =>
-    loadOAuthConnections(),
-  );
   const [paymentConnections, setPaymentConnections] = useState<PaymentConnectionConfig[]>(() =>
     loadPaymentConnections(),
   );
-  const googleCalendarOAuth = useMemo(
-    () => oauthConnections.find((c) => c.secretRef === DEFAULT_GOOGLE_CALENDAR_OAUTH_REF) ?? null,
-    [oauthConnections],
-  );
-  const savedGoogleCalendarTokenHint = useMemo(() => {
-    if (!googleCalendarOAuth) return null;
-    const token = secretStore.get(googleCalendarOAuth.secretRef);
-    return token ? maskSecret(token) : null;
-  }, [googleCalendarOAuth, secretStore]);
-  const calendarAccessToken = useMemo(() => {
-    if (!googleCalendarOAuth) return null;
-    const token = secretStore.get(googleCalendarOAuth.secretRef);
-    return token?.trim() ? token.trim() : null;
-  }, [googleCalendarOAuth, secretStore]);
   const stripePayment = useMemo(
     () => paymentConnections.find((c) => c.provider === "stripe") ?? null,
     [paymentConnections],
@@ -234,6 +391,31 @@ export function App() {
   }, [stripePayment, secretStore]);
   const [agUiConfig, setAgUiConfig] = useState<AgUiAgentConfig>(() => loadAgUiConfig());
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const ownerAgentSummary = useMemo(() => {
+    if (agentBootstrapPending) return "Starting…";
+    if (!agentConnectionReady) {
+      if (ATOM_BROWSER_MODE) return "Starting your agent…";
+      return SHOW_DEV_WORKFLOWS
+        ? "Agent not connected — open Messages → Setup"
+        : "Connecting to your agent…";
+    }
+    const kind = loadOwnerAgentKind(loadCommsAgentConfig());
+    return kind === "hosted" ? "Hosted agent connected" : "Your agent is connected";
+  }, [agentBootstrapPending, agentConnectionReady, ATOM_BROWSER_MODE, SHOW_DEV_WORKFLOWS]);
+
+  const chatProviderSummary = useMemo(() => {
+    if (provider === "mock") return "mock chat";
+    if (provider === "ag-ui") {
+      return `ag-ui · ${agUiConfig.url.replace(/^https?:\/\//, "")}`;
+    }
+    return llmConfig ? `live chat · ${llmConfig.model}` : "live chat (not configured)";
+  }, [provider, agUiConfig.url, llmConfig]);
+  const [demoReady, setDemoReady] = useState(() => !IS_DEMO_MODE);
+  const [demoBootstrapError, setDemoBootstrapError] = useState<string | null>(null);
+  const [demoScheduleSent, setDemoScheduleSent] = useState(false);
+  const [demoCalendarAdded, setDemoCalendarAdded] = useState(false);
+  const [demoWebcalReady, setDemoWebcalReady] = useState(false);
+  const [demoCalendarEvents, setDemoCalendarEvents] = useState<DemoCalendarEvent[]>([]);
   /** Set when user picks a provider that needs configuration first. */
   const [settingsIntent, setSettingsIntent] = useState<Provider | null>(null);
   const [input, setInput] = useState("");
@@ -245,10 +427,16 @@ export function App() {
     resolve: (
       result:
         | { decision: "declined" }
-        | { decision: "approved"; attestationRef: string },
+        | { decision: "approved"; attestationRef: string; approvalRef: string },
     ) => void;
   } | null>(null);
-  const [panel, setPanel] = useState<SidePanel>("none");
+  const [custodyError, setCustodyError] = useState<string | null>(null);
+  const [panel, setPanel] = useState<SidePanel>(() => "none");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [roomsFocusId, setRoomsFocusId] = useState<string | null>(null);
+  const [commsFocusId, setCommsFocusId] = useState<string | null>(null);
+  const [chatDiscoverResults, setChatDiscoverResults] = useState<DiscoverChatResult[] | null>(null);
+  const [discoverActionBusy, setDiscoverActionBusy] = useState(false);
   const [commsContacts, setCommsContacts] = useState<AgentContact[]>(() =>
     loadContacts(ownerRecordsPersistence.load()),
   );
@@ -296,6 +484,54 @@ export function App() {
     () => new ModuleRegistry({ indexUrl: registryUrl, trust: registryTrust }),
     [registryUrl, registryTrust],
   );
+
+  const loadDemoWebcalEvents = useCallback(async (): Promise<DemoCalendarEvent[]> => {
+    const config = loadCommsAgentConfig();
+    const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+    const status = await client.invokeConnector("webcal", "getStatus", {});
+    const connected = Boolean((status.result as { connected?: boolean }).connected);
+    if (!connected) return [];
+    const now = new Date();
+    const twoWeeks = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const listed = await client.invokeConnector("webcal", "listEvents", {
+      timeMin: now.toISOString(),
+      timeMax: twoWeeks.toISOString(),
+    });
+    return (listed.result as { events?: DemoCalendarEvent[] }).events ?? [];
+  }, []);
+
+  const refreshDemoWebcalState = useCallback(async () => {
+    try {
+      const statusResult = await (async () => {
+        const config = loadCommsAgentConfig();
+        const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+        return client.invokeConnector("webcal", "getStatus", {});
+      })();
+      const connected = Boolean((statusResult.result as { connected?: boolean }).connected);
+      setDemoWebcalReady(connected);
+      if (!connected) {
+        setDemoCalendarEvents([]);
+        return;
+      }
+      const events = await loadDemoWebcalEvents();
+      setDemoCalendarEvents(events);
+    } catch {
+      setDemoWebcalReady(false);
+      setDemoCalendarEvents([]);
+    }
+  }, [loadDemoWebcalEvents]);
+
+  useEffect(() => {
+    if (!IS_DEMO_MODE) return;
+    applyDemoPersona(loadDemoPersona());
+  }, []);
+
+  useEffect(() => {
+    if (!IS_DEMO_MODE || !demoReady) return;
+    void refreshDemoWebcalState();
+    const timer = window.setInterval(() => void refreshDemoWebcalState(), 4000);
+    return () => window.clearInterval(timer);
+  }, [demoReady, refreshDemoWebcalState]);
 
   useEffect(() => {
     if (!modulesEnabled) {
@@ -366,9 +602,10 @@ export function App() {
     }
     return new MockAgentSession({
       profileProvider: buildContext,
+      webcalEventsProvider: IS_DEMO_MODE && demoWebcalReady ? loadDemoWebcalEvents : undefined,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, llmConfig, agUiConfig, catalog, ownerStore, conversationMemory, buildContext]);
+  }, [provider, llmConfig, agUiConfig, catalog, ownerStore, conversationMemory, buildContext, demoWebcalReady, loadDemoWebcalEvents]);
 
   const sessionRef = useRef(session);
   sessionRef.current = session;
@@ -528,10 +765,84 @@ export function App() {
       );
       return;
     }
+    if (
+      !IS_DEMO_MODE &&
+      panel === "none" &&
+      agentConnectionReady &&
+      isDiscoverQuery(trimmed)
+    ) {
+      turnTranscript.current = [];
+      conversationRef.current.appendUser(trimmed);
+      setInput("");
+      setChatDiscoverResults(null);
+      conversationRef.current.setBusy(true);
+      void (async () => {
+        try {
+          const config = loadCommsAgentConfig();
+          const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+          const { summary, results } = await client.discoverSearch({
+            terms: extractDiscoverTerms(trimmed),
+          });
+          conversationRef.current.appendLocalAgentText(summary);
+          setChatDiscoverResults(results);
+        } catch (error) {
+          conversationRef.current.appendLocalAgentText(
+            error instanceof Error ? error.message : String(error),
+          );
+        } finally {
+          conversationRef.current.setBusy(false);
+        }
+      })();
+      return;
+    }
     turnTranscript.current = [];
     conversationRef.current.appendUser(trimmed);
     setInput("");
     sessionRef.current.sendUserMessage(trimmed);
+  }
+
+  async function handleChatDiscoverDm(result: DiscoverChatResult): Promise<void> {
+    setDiscoverActionBusy(true);
+    try {
+      const config = loadCommsAgentConfig();
+      const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+      const { contact, contacts } = await connectDiscoverEntry({
+        client,
+        entry: { ...result.entry, resolved: result.resolved },
+        contacts: commsContacts,
+      });
+      setCommsContacts(contacts);
+      setCommsFocusId(contact.id);
+      setChatDiscoverResults(null);
+      setPanel("comms");
+    } catch (error) {
+      conversationRef.current.appendLocalAgentText(
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setDiscoverActionBusy(false);
+    }
+  }
+
+  async function handleChatDiscoverJoin(result: DiscoverChatResult): Promise<void> {
+    setDiscoverActionBusy(true);
+    try {
+      const config = loadCommsAgentConfig();
+      const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+      const roomId = await joinDiscoverRoom({
+        client,
+        entry: { ...result.entry, resolved: result.resolved },
+      });
+      setRoomsFocusId(roomId);
+      setChatDiscoverResults(null);
+      setPanel("rooms");
+    } catch (error) {
+      conversationRef.current.appendLocalAgentText(
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setDiscoverActionBusy(false);
+    }
   }
 
   function handleUiEvent(event: UiEvent) {
@@ -544,6 +855,15 @@ export function App() {
 
   async function decide(decision: "approved" | "declined") {
     if (!pending) return;
+    if (decision === "approved") {
+      setCustodyError(null);
+      try {
+        await requireCustodyApproval(pending.action);
+      } catch (error) {
+        setCustodyError(error instanceof Error ? error.message : String(error));
+        return;
+      }
+    }
     const entry = await attestationLog.append({
       surfaceId: pending.surfaceId,
       action: pending.action,
@@ -554,6 +874,20 @@ export function App() {
     );
     setAttestations([...attestationLog.list()]);
     const { dataRequest } = pending;
+    if (
+      IS_DEMO_MODE &&
+      decision === "approved" &&
+      typeof pending.action.terms.start === "string" &&
+      typeof pending.action.terms.end === "string"
+    ) {
+      const url = buildGoogleCalendarAddUrl({
+        title: String(pending.action.terms.event ?? pending.action.title),
+        start: pending.action.terms.start,
+        end: pending.action.terms.end,
+      });
+      window.open(url, "_blank", "noopener,noreferrer");
+      setDemoCalendarAdded(true);
+    }
     conversationRef.current.clearPending();
     conversationRef.current.setBusy(true);
     if (dataRequest) {
@@ -575,7 +909,7 @@ export function App() {
     (action: ConsequentialAction) =>
       new Promise<
         | { decision: "declined" }
-        | { decision: "approved"; attestationRef: string }
+        | { decision: "approved"; attestationRef: string; approvalRef: string }
       >((resolve) => {
         setCommsPending({ action, resolve });
       }),
@@ -583,6 +917,18 @@ export function App() {
   );
 
   async function decideChrome(decision: "approved" | "declined") {
+    const activeAction = commsPending?.action ?? pending?.action;
+    let approvalRef = "";
+    if (decision === "approved" && activeAction) {
+      setCustodyError(null);
+      try {
+        const custody = await requireCustodyApproval(activeAction);
+        approvalRef = custody.approvalRef;
+      } catch (error) {
+        setCustodyError(error instanceof Error ? error.message : String(error));
+        return;
+      }
+    }
     if (commsPending) {
       const pendingComms = commsPending;
       const entry = await attestationLog.append({
@@ -599,6 +945,7 @@ export function App() {
         pendingComms.resolve({
           decision: "approved",
           attestationRef: `attestation:${entry.seq}:${entry.hash.slice(0, 16)}`,
+          approvalRef,
         });
       } else {
         pendingComms.resolve({ decision: "declined" });
@@ -638,98 +985,126 @@ export function App() {
     conversationRef.current.reset();
   }
 
+  function handleDemoReady() {
+    markFirstRunDone();
+    setDemoReady(true);
+    setDemoBootstrapError(null);
+    applyDemoPersona("alice");
+    setPanel("none");
+  }
+
   function closeSettings() {
     setSettingsOpen(false);
     setSettingsIntent(null);
   }
 
-  return (
-    <div className="shell">
-      <header className="shell-titlebar">
-        <div className="shell-brand">
-          <span className="shell-brand-mark" />
-          Atom Shell
-          <span className="shell-brand-tag">
-            v1 ·{" "}
-            {provider === "mock"
-              ? "mock agent"
-              : provider === "ag-ui"
-                ? `ag-ui · ${agUiConfig.url.replace(/^https?:\/\//, "")}`
-                : `live agent · ${llmConfig?.model}`}
-            {modulesEnabled ? ` · registry · ${registry.installedModuleIds().length} installed` : ""}
-          </span>
-        </div>
-        {registryError ? (
-          <span className="shell-brand-tag shell-registry-error" title={registryError}>
-            {registryError.startsWith("Revoked") ? "revoked" : "registry error"}
-          </span>
-        ) : null}
-        <div className="shell-titlebar-actions">
-          <div className="shell-provider">
-            <button
-              className={provider === "mock" ? "active" : ""}
-              onClick={() => switchProvider("mock")}
-            >
-              Mock
-            </button>
-            {ALLOW_BROWSER_LLM ? (
-              <button
-                className={provider === "llm" || settingsIntent === "llm" ? "active" : ""}
-                onClick={() => switchProvider("llm")}
-              >
-                Live LLM
-              </button>
-            ) : null}
-            <button
-              className={provider === "ag-ui" || settingsIntent === "ag-ui" ? "active" : ""}
-              onClick={() => switchProvider("ag-ui")}
-            >
-              AG-UI
-            </button>
-          </div>
-          <button
-            className={`shell-log-toggle${modulesEnabled ? " active" : ""}`}
-            onClick={() => setModulesEnabled((current) => !current)}
-            title="Toggle module registry (off → resolver fallback for community refs)"
-          >
-            Modules {modulesEnabled ? "on" : "off"}
-          </button>
-          <button className="shell-log-toggle" onClick={() => { setSettingsIntent(null); setSettingsOpen(true); }}>
-            Settings
-          </button>
-          <button
-            className="shell-log-toggle"
-            onClick={() => setPanel((current) => (current === "comms" ? "none" : "comms"))}
-          >
-            Comms
-            {commsContacts.length > 0 ? (
-              <span className="shell-log-count">{commsContacts.length}</span>
-            ) : null}
-          </button>
-          <button
-            className="shell-log-toggle"
-            onClick={() => setPanel((current) => (current === "profile" ? "none" : "profile"))}
-          >
-            Profile
-            {profileProposals.length > 0 ? (
-              <span className="shell-log-count shell-log-count-proposal">{profileProposals.length}</span>
-            ) : profileRecords.length > 0 ? (
-              <span className="shell-log-count">{profileRecords.length}</span>
-            ) : null}
-          </button>
-          <button
-            className="shell-log-toggle"
-            onClick={() => setPanel((current) => (current === "log" ? "none" : "log"))}
-          >
-            Attestation log
-            {attestations.length > 0 ? (
-              <span className="shell-log-count">{attestations.length}</span>
-            ) : null}
-          </button>
-        </div>
-      </header>
+  const demoLlmReady = isLlmConnectionReady(llmConnection, secretStore);
+  const showMainFeed =
+    (IS_DEMO_MODE && demoReady && panel !== "log") || (!IS_DEMO_MODE && panel === "none");
+  const showMainComposer = showMainFeed;
 
-      <div className="shell-body">
+  function navigatePanel(next: SidePanel): void {
+    setPanel(next);
+  }
+
+  const profileNavBadge = profileProposals.length
+    ? { count: profileProposals.length, tone: "warn" as const }
+    : profileRecords.length
+      ? { count: profileRecords.length, tone: "default" as const }
+      : null;
+
+  function saveDemoLlmKey(apiKey: string) {
+    const connection: LlmConnectionConfig = llmConnection ?? {
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o-mini",
+      secretRef: DEFAULT_LLM_SECRET_REF,
+    };
+    secretStore.set(connection.secretRef, apiKey);
+    persistLlmConnection(connection);
+    setLlmConnection(connection);
+  }
+
+  async function saveDemoWebcalFeed(url: string) {
+    const config = loadCommsAgentConfig();
+    const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+    await client.addWebcalFeed(url);
+    await refreshDemoWebcalState();
+  }
+
+  function sendDemoScheduleMessage(text: string) {
+    setDemoScheduleSent(true);
+    submitMessage(text);
+  }
+
+  return (
+    <div className={`shell${IS_DEMO_MODE ? " shell--demo" : ""}`}>
+      <div className="shell-frame">
+        {!IS_DEMO_MODE ? (
+          <ShellSidebar
+            panel={panel}
+            onNavigate={navigatePanel}
+            onOpenSettings={() => {
+              setSettingsIntent(null);
+              setSettingsOpen(true);
+            }}
+            commsCount={commsContacts.length}
+            profileBadge={profileNavBadge}
+            logCount={attestations.length}
+            mobileOpen={mobileNavOpen}
+            onMobileClose={() => setMobileNavOpen(false)}
+          />
+        ) : null}
+
+        <div className="shell-main">
+          {!IS_DEMO_MODE ? (
+            <ShellMainHeader
+              panel={panel}
+              ownerAgentSummary={ownerAgentSummary}
+              vaultUnlocked={vaultUnlocked}
+              registryError={registryError}
+              modulesEnabled={modulesEnabled}
+              onToggleModules={() => setModulesEnabled((current) => !current)}
+              provider={provider}
+              onSwitchProvider={switchProvider}
+              allowBrowserLlm={ALLOW_BROWSER_LLM}
+              settingsIntent={settingsIntent}
+              onOpenMobileNav={() => setMobileNavOpen(true)}
+              showChatProviderControls={panel === "none"}
+            />
+          ) : (
+            <header className="shell-main-header">
+              <div className="shell-main-header-start">
+                <div className="shell-main-header-titles">
+                  <h1 className="shell-main-header-title">Atom</h1>
+                  <p className="shell-main-header-subtitle">Personal demo</p>
+                </div>
+              </div>
+            </header>
+          )}
+
+          <div
+            className={`shell-main-body${
+              !IS_DEMO_MODE && (panel === "comms" || panel === "discover" || panel === "rooms")
+                ? " shell-main-body--comms"
+                : ""
+            }${IS_DEMO_MODE && demoReady ? " shell-main-body--personal-demo" : ""}`}
+          >
+        {IS_DEMO_MODE && demoReady && panel !== "log" ? (
+          <PersonalDemoWalkthrough
+            agentReady={demoReady}
+            llmReady={demoLlmReady}
+            webcalReady={demoWebcalReady}
+            calendarEvents={demoCalendarEvents}
+            scheduleSent={demoScheduleSent}
+            calendarAdded={demoCalendarAdded}
+            waitingForConfirm={Boolean(pending && !commsPending)}
+            onSaveLlm={saveDemoLlmKey}
+            onSaveWebcal={saveDemoWebcalFeed}
+            onSendDemoMessage={sendDemoScheduleMessage}
+          />
+        ) : null}
+
+        {showMainFeed ? (
         <main className="shell-feed" ref={feedRef}>
           {feed.length === 0 ? (
             <div className="shell-empty">
@@ -784,26 +1159,75 @@ export function App() {
               );
             })
           )}
+          {chatDiscoverResults && chatDiscoverResults.length > 0 ? (
+            <div className="feed-discover-bundle">
+              <DiscoverChatResults
+                results={chatDiscoverResults}
+                busy={discoverActionBusy || busy}
+                onDm={(result) => void handleChatDiscoverDm(result)}
+                onJoinRoom={(result) => void handleChatDiscoverJoin(result)}
+                onOpenDiscover={() => {
+                  setChatDiscoverResults(null);
+                  setPanel("discover");
+                }}
+              />
+            </div>
+          ) : null}
           {busy ? <div className="feed-busy">agent working…</div> : null}
         </main>
+        ) : null}
 
-        {panel === "comms" ? (
+        {!IS_DEMO_MODE && panel === "comms" ? (
+          <div className="shell-panel-view shell-panel-view--inset">
           <CommsPanel
             contacts={commsContacts}
             ownerRecords={profileRecords}
             ownerStore={ownerStore}
-            onContactsChanged={() => setCommsContacts(loadContacts(ownerStore.list()))}
+            focusContactId={commsFocusId}
+            onContactsChanged={() => {
+              setCommsFocusId(null);
+              setCommsContacts(loadContacts(ownerStore.list()));
+            }}
             onProfileChanged={() => {
               setProfileRecords(ownerStore.list());
               setCommsContacts(loadContacts(ownerStore.list()));
             }}
             onRequestConfirmation={requestCommsConfirmation}
-            calendarAccessToken={calendarAccessToken}
             attestationEntries={attestations}
           />
+          </div>
         ) : null}
 
-        {panel === "profile" ? (
+        {!IS_DEMO_MODE && panel === "discover" ? (
+          <div className="shell-panel-view shell-panel-view--inset">
+          <DiscoverPanel
+            contacts={commsContacts}
+            onContactsChange={setCommsContacts}
+            onJoinedRoom={(roomId) => {
+              setRoomsFocusId(roomId);
+              setPanel("rooms");
+            }}
+            onDmStarted={(contactId) => {
+              setCommsFocusId(contactId);
+              setPanel("comms");
+            }}
+          />
+          </div>
+        ) : null}
+
+        {!IS_DEMO_MODE && panel === "rooms" ? (
+          <div className="shell-panel-view shell-panel-view--inset">
+          <RoomsPanel
+            initialRoomId={roomsFocusId}
+            onActivity={() => {
+              if (roomsFocusId) setRoomsFocusId(null);
+            }}
+          />
+          </div>
+        ) : null}
+
+        {!IS_DEMO_MODE && panel === "profile" ? (
+          <div className="shell-panel-view">
           <ProfilePanel
             store={ownerStore}
             records={profileRecords}
@@ -813,19 +1237,22 @@ export function App() {
               setProfileProposals(ownerStore.listProposals());
             }}
           />
+          </div>
         ) : null}
 
         {panel === "log" ? (
-          <aside className="shell-attestations">
-            <h2>Attestation log</h2>
-            <p className="shell-attestations-note">
+          <div className="panel-view shell-panel-view">
+          <div className="panel-body panel-body-scroll">
+            <div className="panel-content-wide">
+            <p className="panel-section-note">
               Append-only, hash-chained record of every consequential decision and the exact terms
               displayed when you made it.
             </p>
             {attestations.length === 0 ? (
-              <p className="shell-attestations-empty">No decisions recorded yet.</p>
+              <p className="panel-empty">No decisions recorded yet.</p>
             ) : (
-              attestations.map((entry) => (
+              <div className="attestation-list">
+              {attestations.map((entry) => (
                 <div key={entry.seq} className={`attestation attestation-${entry.decision}`}>
                   <div className="attestation-head">
                     <span>#{entry.seq}</span>
@@ -843,66 +1270,81 @@ export function App() {
                   </dl>
                   <div className="attestation-hash">{entry.hash.slice(0, 16)}…</div>
                 </div>
-              ))
+              ))}
+              </div>
             )}
-          </aside>
+            </div>
+          </div>
+          </div>
         ) : null}
+          </div>
+
+          {showMainComposer ? (
+            <ShellComposer
+              value={input}
+              busy={busy}
+              onChange={setInput}
+              onSubmit={submitMessage}
+            />
+          ) : null}
+        </div>
       </div>
 
-      <footer className="shell-composer">
-        <input
-          value={input}
-          placeholder="Tell your agent what you want…"
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") submitMessage(input);
+      {chromePending ? (
+        <ConfirmationChrome
+          action={chromePending.action}
+          isDemoMode={IS_DEMO_MODE}
+          banner={
+            chromePending.dataRequest
+              ? "Shell-verified request · guarded data disclosure"
+              : chromePending.surfaceId === "comms"
+                ? "Shell-verified request · coordination action"
+                : "Shell-verified request · terms restated from the data object"
+          }
+          footnote={
+            IS_DEMO_MODE
+              ? "Demo mode — this approval is logged locally, then Google Calendar opens in a new tab."
+              : "Approving requires your passkey (biometric or PIN). This decision is recorded in your attestation log."
+          }
+          error={custodyError}
+          onDecline={() => void decideChrome("declined")}
+          onApprove={() => void decideChrome("approved")}
+        />
+      ) : null}
+
+      {IS_DEMO_MODE && !demoReady ? (
+        <DemoBootstrap
+          onReady={handleDemoReady}
+          onError={(message) => setDemoBootstrapError(message)}
+        />
+      ) : null}
+
+      {demoBootstrapError && IS_DEMO_MODE && !demoReady ? (
+        <p className="demo-bootstrap-error">{demoBootstrapError}</p>
+      ) : null}
+
+      {!IS_DEMO_MODE && !firstRunOpen && agentConnectionReady && !vaultUnlocked ? (
+        <VaultUnlockGate onUnlocked={() => setVaultUnlocked(true)} />
+      ) : null}
+
+      {!IS_DEMO_MODE && firstRunOpen && !ATOM_BROWSER_MODE && !SHOW_DEV_WORKFLOWS ? (
+        <FirstRunWizard
+          onDone={() => {
+            setFirstRunOpen(false);
+            setAgentConnectionReady(true);
+            if (!isVaultInitialized()) setVaultUnlocked(true);
+          }}
+          onOpenComms={() => {
+            setPanel("comms");
+            setFirstRunOpen(false);
           }}
         />
-        <button onClick={() => submitMessage(input)} disabled={!input.trim()}>
-          Send
-        </button>
-      </footer>
-
-      {chromePending ? (
-        <div className="chrome-overlay" role="dialog" aria-modal="true">
-          <div className="chrome-dialog">
-            <div className="chrome-dialog-banner">
-              {chromePending.dataRequest
-                ? "Shell-verified request · guarded data disclosure"
-                : chromePending.surfaceId === "comms"
-                  ? "Shell-verified request · coordination action"
-                  : "Shell-verified request · terms restated from the data object"}
-            </div>
-            <h2>{chromePending.action.title}</h2>
-            <dl className="chrome-terms">
-              {Object.entries(chromePending.action.terms).map(([key, value]) => (
-                <div key={key}>
-                  <dt>{key}</dt>
-                  <dd>{String(value)}</dd>
-                </div>
-              ))}
-            </dl>
-            <div className="chrome-actions">
-              <button className="chrome-decline" onClick={() => void decideChrome("declined")}>
-                {chromePending.action.declineLabel ?? "Decline"}
-              </button>
-              <button className="chrome-approve" onClick={() => void decideChrome("approved")}>
-                {chromePending.action.confirmLabel ?? "Approve"}
-              </button>
-            </div>
-            <p className="chrome-footnote">
-              This decision and the terms above will be recorded in your local attestation log.
-            </p>
-          </div>
-        </div>
       ) : null}
 
       {settingsOpen ? (
         <SettingsDialog
           llmConnectionInitial={llmConnection}
           savedLlmKeyHint={savedLlmKeyHint}
-          googleCalendarOAuthInitial={googleCalendarOAuth}
-          savedGoogleCalendarTokenHint={savedGoogleCalendarTokenHint}
           stripePaymentInitial={stripePayment}
           savedStripeSecretHint={savedStripeSecretHint}
           agUiInitial={agUiConfig}
@@ -965,12 +1407,6 @@ export function App() {
               }
             }
           }}
-          onSaveGoogleCalendarOAuth={(connection, accessToken) => {
-            if (accessToken !== undefined) {
-              secretStore.set(connection.secretRef, accessToken);
-            }
-            setOauthConnections(upsertOAuthConnection(connection));
-          }}
           onSaveStripePayment={(connection, secretKey) => {
             if (secretKey !== undefined) {
               secretStore.set(connection.secretRef, secretKey);
@@ -986,8 +1422,6 @@ export function App() {
 function SettingsDialog({
   llmConnectionInitial,
   savedLlmKeyHint,
-  googleCalendarOAuthInitial,
-  savedGoogleCalendarTokenHint,
   stripePaymentInitial,
   savedStripeSecretHint,
   agUiInitial,
@@ -1000,7 +1434,6 @@ function SettingsDialog({
   intent,
   onClose,
   onSaveLlm,
-  onSaveGoogleCalendarOAuth,
   onSaveStripePayment,
   onSaveAgUi,
   onSaveRegistry,
@@ -1008,8 +1441,6 @@ function SettingsDialog({
 }: {
   llmConnectionInitial: LlmConnectionConfig | null;
   savedLlmKeyHint: string | null;
-  googleCalendarOAuthInitial: OAuthConnectionConfig | null;
-  savedGoogleCalendarTokenHint: string | null;
   stripePaymentInitial: PaymentConnectionConfig | null;
   savedStripeSecretHint: string | null;
   agUiInitial: AgUiAgentConfig;
@@ -1022,7 +1453,6 @@ function SettingsDialog({
   intent: Provider | null;
   onClose: () => void;
   onSaveLlm: (connection: LlmConnectionConfig, apiKey?: string) => void;
-  onSaveGoogleCalendarOAuth: (connection: OAuthConnectionConfig, accessToken?: string) => void;
   onSaveStripePayment: (connection: PaymentConnectionConfig, secretKey?: string) => void;
   onSaveAgUi: (config: AgUiAgentConfig) => void;
   onSaveRegistry: (url: string, trust: RegistryTrustPolicy) => void;
@@ -1040,10 +1470,6 @@ function SettingsDialog({
   const [requireSignature, setRequireSignature] = useState(trustInitial.requireSignature === true);
   const [curatorOn, setCuratorOn] = useState(curatorInitial);
   const [curatorAutoAcceptOn, setCuratorAutoAcceptOn] = useState(curatorAutoAcceptInitial);
-  const [googleCalendarToken, setGoogleCalendarToken] = useState("");
-  const [changingGoogleCalendarToken, setChangingGoogleCalendarToken] = useState(
-    !savedGoogleCalendarTokenHint,
-  );
   const [stripeSecretKey, setStripeSecretKey] = useState("");
   const [changingStripeSecret, setChangingStripeSecret] = useState(!savedStripeSecretHint);
   const [stripePublishableKey, setStripePublishableKey] = useState(
@@ -1051,13 +1477,9 @@ function SettingsDialog({
   );
   const [stripeProductId, setStripeProductId] = useState(stripePaymentInitial?.productId ?? "");
   const hasSavedKey = Boolean(savedLlmKeyHint) && !changingKey;
-  const hasSavedGoogleCalendarToken =
-    Boolean(savedGoogleCalendarTokenHint) && !changingGoogleCalendarToken;
   const llmValid =
     Boolean(baseUrl.trim() && model.trim()) &&
     (hasSavedKey || Boolean(apiKey.trim()));
-  const googleCalendarOAuthValid =
-    hasSavedGoogleCalendarToken || Boolean(googleCalendarToken.trim());
   const hasSavedStripeSecret = Boolean(savedStripeSecretHint) && !changingStripeSecret;
   const stripePaymentValid =
     (hasSavedStripeSecret || Boolean(stripeSecretKey.trim())) &&
@@ -1072,19 +1494,6 @@ function SettingsDialog({
       secretRef: llmConnectionInitial?.secretRef ?? DEFAULT_LLM_SECRET_REF,
     };
     onSaveLlm(connection, hasSavedKey ? undefined : apiKey.trim());
-  }
-
-  function saveGoogleCalendarOAuth() {
-    const connection: OAuthConnectionConfig = {
-      provider: "google",
-      scopes: ["https://www.googleapis.com/auth/calendar"],
-      secretRef: googleCalendarOAuthInitial?.secretRef ?? DEFAULT_GOOGLE_CALENDAR_OAUTH_REF,
-      label: "Google Calendar",
-    };
-    onSaveGoogleCalendarOAuth(
-      connection,
-      hasSavedGoogleCalendarToken ? undefined : googleCalendarToken.trim(),
-    );
   }
 
   function saveStripePayment() {
@@ -1208,54 +1617,8 @@ function SettingsDialog({
             </span>
           </label>
         </section>
-        <section className="settings-section">
-          <h3>Google Calendar (OAuth)</h3>
-          <p className="settings-note">
-            Scoped calendar access for low-stakes scheduling actions. Live OAuth redirect is not
-            wired yet — paste an access token from your OAuth flow for local dev (stored in
-            SecretStore, same pattern as LLM keys).
-          </p>
-          {hasSavedGoogleCalendarToken ? (
-            <div className="settings-saved-key">
-              <span className="settings-saved-key-label">Access token</span>
-              <span className="settings-saved-key-value">
-                Using saved token ({savedGoogleCalendarTokenHint})
-              </span>
-              <button
-                type="button"
-                className="settings-saved-key-change"
-                onClick={() => {
-                  setChangingGoogleCalendarToken(true);
-                  setGoogleCalendarToken("");
-                }}
-              >
-                Change token
-              </button>
-            </div>
-          ) : (
-            <label className="atom-field">
-              <span className="atom-field-label">Access token</span>
-              <input
-                type="password"
-                value={googleCalendarToken}
-                placeholder={
-                  savedGoogleCalendarTokenHint ? "Enter new access token" : undefined
-                }
-                onChange={(e) => setGoogleCalendarToken(e.target.value)}
-              />
-            </label>
-          )}
-          <div className="chrome-actions settings-section-actions">
-            <button
-              type="button"
-              className="chrome-approve"
-              disabled={!googleCalendarOAuthValid}
-              onClick={saveGoogleCalendarOAuth}
-            >
-              Save calendar connection
-            </button>
-          </div>
-        </section>
+        <CustodySecurityPanel />
+        <WebCalSettingsPanel />
         <section className="settings-section">
           <h3>Stripe wallet (M11)</h3>
           <p className="settings-note">
@@ -1335,6 +1698,14 @@ function SettingsDialog({
               Use AG-UI
             </button>
           </div>
+        </section>
+        <section className="settings-section">
+          <h3>Appearance</h3>
+          <p className="settings-note">
+            Shell skins swap design tokens on the <code>atom-*</code> class contract. Action chrome
+            is unchanged (D041).
+          </p>
+          <SkinPicker />
         </section>
         <section className="settings-section">
           <h3>Module registry</h3>
@@ -1431,5 +1802,31 @@ function SettingsDialog({
         </div>
       </div>
     </div>
+  );
+}
+
+function SkinPicker() {
+  const saved = loadStringFromStorage(SKIN_STORAGE_KEY);
+  const initial: AtomSkinId =
+    saved === "dark" || saved === "high-contrast" || saved === "default" ? saved : "default";
+  const [skinId, setSkinId] = useState<AtomSkinId>(initial);
+
+  function applySkin(next: AtomSkinId) {
+    setSkinId(next);
+    applyAtomSkin(next);
+    saveStringToStorage(SKIN_STORAGE_KEY, next);
+  }
+
+  return (
+    <label className="atom-field">
+      <span className="atom-field-label">Skin</span>
+      <select value={skinId} onChange={(e) => applySkin(e.target.value as AtomSkinId)}>
+        {ATOM_SKINS.map((skin) => (
+          <option key={skin.id} value={skin.id}>
+            {skin.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

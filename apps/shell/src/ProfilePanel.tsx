@@ -71,7 +71,8 @@ export function ProfilePanel({
   }
 
   async function syncCatalogToAgent() {
-    const url = loadCommsAgentConfig().adminUrl;
+    const config = loadCommsAgentConfig();
+    const url = config.adminUrl;
     const items = catalogItemsFromStore(records);
     if (items.length === 0) {
       setSyncStatus("Add catalog items below before syncing.");
@@ -79,7 +80,7 @@ export function ProfilePanel({
     }
     setSyncStatus("Syncing…");
     try {
-      const client = new CommsAgentClient(url);
+      const client = new CommsAgentClient(url, config.adminToken);
       await client.syncBusinessCatalog(items);
       setSyncStatus(`Synced ${items.length} item${items.length === 1 ? "" : "s"} to agent backend.`);
     } catch (error) {
@@ -103,18 +104,18 @@ export function ProfilePanel({
   }
 
   return (
-    <aside className="shell-profile">
-      <h2>Owner profile</h2>
-      <p className="shell-profile-note">
-        Stored only on this device, in portable records you control. Open records are shared with
-        your agent's model; <strong>guarded</strong> records require your approval in shell chrome,
-        every time. Curator proposals appear below for your review before they enter the store.
+    <aside className="panel-view shell-profile">
+      <div className="panel-body panel-body-scroll">
+        <div className="panel-content panel-content-wide">
+      <p className="panel-section-note">
+        Stored only on this device. Open records are shared with your agent's model; guarded records
+        require shell approval every time.
       </p>
 
       {proposals.length > 0 ? (
-        <div className="shell-profile-proposals">
+        <div className="panel-section shell-profile-proposals">
           <h3>Curator proposals</h3>
-          <p className="shell-profile-proposals-note">
+          <p className="panel-section-note">
             Background extraction from your last Live LLM turn — approve to save, dismiss to discard.
           </p>
           {proposals.map((proposal) => (
@@ -147,20 +148,22 @@ export function ProfilePanel({
               </div>
               <div className="shell-profile-record-actions">
                 <button
+                  className="panel-btn panel-btn-primary"
                   onClick={() => {
                     store.acceptProposal(proposal.id);
                     onChanged();
                   }}
                 >
-                  accept
+                  Accept
                 </button>
                 <button
+                  className="panel-btn"
                   onClick={() => {
                     store.rejectProposal(proposal.id);
                     onChanged();
                   }}
                 >
-                  dismiss
+                  Dismiss
                 </button>
               </div>
             </div>
@@ -168,74 +171,84 @@ export function ProfilePanel({
         </div>
       ) : null}
 
-      <div className="shell-profile-business">
-        <h3>Business catalog (M12)</h3>
-        <p className="shell-profile-note">
-          Add sellable items here, then sync to a business-mode agent backend (
-          <code>ATOM_BUSINESS_MODE=true</code>). Brand voice uses{" "}
+      <div className="panel-section shell-profile-business">
+        <h3>Business catalog</h3>
+        <p className="panel-section-note">
+          Add sellable items, then sync to a business-mode agent backend. Brand voice uses{" "}
           <code>{BUSINESS_BRAND_CATEGORY}</code>; policies use <code>{BUSINESS_POLICY_CATEGORY}</code>.
         </p>
-        <div className="shell-profile-add">
+        <div className="panel-form-grid shell-profile-add">
           <input
+            className="panel-input"
             value={catalogItemId}
-            placeholder="catalog item id (e.g. room-standard)"
+            placeholder="Item id (e.g. room-standard)"
             onChange={(e) => setCatalogItemId(e.target.value)}
           />
           <input
+            className="panel-input"
             value={catalogLabel}
-            placeholder="label (e.g. Standard room · 2 nights)"
+            placeholder="Label (e.g. Standard room · 2 nights)"
             onChange={(e) => setCatalogLabel(e.target.value)}
           />
-          <div className="shell-profile-add-row">
+          <div className="panel-form-grid panel-form-grid-2">
             <input
+              className="panel-input"
               value={catalogCurrency}
-              placeholder="currency"
+              placeholder="EUR"
               onChange={(e) => setCatalogCurrency(e.target.value)}
             />
             <input
+              className="panel-input"
               value={catalogAmount}
-              placeholder="price (major units, e.g. 89.00)"
+              placeholder="Price (e.g. 89.00)"
               onChange={(e) => setCatalogAmount(e.target.value)}
             />
           </div>
+          <div className="panel-form-actions">
           <button
-            className="atom-button"
+            className="panel-btn panel-btn-primary"
             onClick={() => void addCatalogItem()}
             disabled={!catalogItemId.trim() || !catalogLabel.trim() || !catalogAmount.trim()}
           >
             Add catalog item
           </button>
-          <button className="atom-button" onClick={() => void syncCatalogToAgent()}>
+          <button className="panel-btn" onClick={() => void syncCatalogToAgent()}>
             Sync {catalogItemsFromStore(records).length} item(s) to agent
           </button>
-          {syncStatus ? <p className="shell-profile-sync-status">{syncStatus}</p> : null}
+          </div>
+          {syncStatus ? <p className="panel-section-note">{syncStatus}</p> : null}
         </div>
       </div>
 
-      <div className="shell-profile-add">
-        <div className="shell-profile-add-row">
+      <div className="panel-section">
+        <h3>Add record</h3>
+        <div className="panel-form-grid shell-profile-add">
+        <div className="panel-form-grid panel-form-grid-2">
           <input
+            className="panel-input"
             value={category}
-            placeholder="category (e.g. travel-history)"
+            placeholder="Category"
             onChange={(e) => setCategory(e.target.value)}
           />
           <label className="shell-profile-guarded">
             <input type="checkbox" checked={guarded} onChange={(e) => setGuarded(e.target.checked)} />
-            guarded
+            Guarded
           </label>
         </div>
-        <input value={label} placeholder="label (e.g. Favourite hotel)" onChange={(e) => setLabel(e.target.value)} />
+        <input className="panel-input" value={label} placeholder="Label" onChange={(e) => setLabel(e.target.value)} />
         <input
+          className="panel-input"
           value={value}
-          placeholder="value (e.g. Hotel Sacher, Vienna — loved it)"
+          placeholder="Value"
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") addRecord();
           }}
         />
-        <button className="atom-button" onClick={addRecord} disabled={!label.trim() || !value.trim()}>
+        <button className="panel-btn panel-btn-primary" onClick={addRecord} disabled={!label.trim() || !value.trim()}>
           Add record
         </button>
+        </div>
       </div>
 
       {records.length === 0 ? (
@@ -311,7 +324,7 @@ export function ProfilePanel({
 
       {records.length > 0 ? (
         <button
-          className="shell-profile-wipe"
+          className="panel-btn panel-btn-danger shell-profile-wipe"
           onClick={() => {
             store.wipe();
             onChanged();
@@ -320,6 +333,8 @@ export function ProfilePanel({
           Wipe all records
         </button>
       ) : null}
+        </div>
+      </div>
     </aside>
   );
 }
