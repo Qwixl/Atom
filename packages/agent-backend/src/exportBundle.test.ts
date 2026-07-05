@@ -26,6 +26,11 @@ describe("exportBundle", () => {
         items: [{ catalogItemId: "x", label: "Item", amount: { currency: "EUR", amountMinor: 100 }, available: true }],
       });
 
+      await atomicWriteJson(path.join(dir, "trusted-agents.json"), {
+        schemaVersion: 1,
+        agents: [{ did: keyPair.did, endpoint: "https://example.com", updatedAt: new Date().toISOString() }],
+      });
+
       const exported = await exportEncryptedBundle("test-passphrase");
       expect(exported.ciphertext.length).toBeGreaterThan(20);
 
@@ -34,6 +39,10 @@ describe("exportBundle", () => {
       expect(restored.restoredFiles.length).toBeGreaterThan(0);
       const identity = await import("./identity.js").then((m) => m.loadOrCreateIdentity());
       expect(identity.did).toBe(keyPair.did);
+      const trusted = await import("@qwixl/owner-store/file-persistence").then((m) =>
+        m.readJsonFile<{ agents?: Array<{ did: string }> }>(path.join(dir, "trusted-agents.json")),
+      );
+      expect(trusted?.agents?.[0]?.did).toBe(keyPair.did);
     } finally {
       restoreToken();
       if (prevData === undefined) delete process.env.ATOM_DATA_DIR;

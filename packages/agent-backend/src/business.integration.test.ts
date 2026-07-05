@@ -63,8 +63,8 @@ describe("M12 commerce intent → offer", () => {
     let businessServer: Server | undefined;
 
     try {
-      const buyerPort = 59101;
-      const businessPort = 59102;
+      const buyerPort = 59111;
+      const businessPort = 59112;
       const buyerBase = `http://127.0.0.1:${buyerPort}`;
       const businessBase = `http://127.0.0.1:${businessPort}`;
 

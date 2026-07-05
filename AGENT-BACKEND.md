@@ -46,14 +46,14 @@ Authorization: Bearer <admin-token>
 
 Shell: Comms panel → **Admin bearer token**.
 
-### Export / import (M13.4)
+### Export / import (M13.4 / M13.7)
 
 ```http
 POST /admin/export   { "passphrase": "…" }   → { fileName, ciphertext }
 POST /admin/import   { "passphrase": "…", "ciphertext": "…" }   → { restoredFiles }
 ```
 
-Passphrase-encrypted bundle: identity, business catalog, MLS peer records.
+Passphrase-encrypted bundle includes: identity, business catalog/context/knowledge, MLS peers + session snapshots, rooms, trusted contacts, connector vault, and commerce state (transactions, dispute channels, qualify, inbox, intents). Restart the agent after import.
 
 ### WebCal connector (M13.5)
 
@@ -301,7 +301,7 @@ Many subsystems ship **v1 engines** to prove product loops before production sca
 
 - Business knowledge JSON backend: short reference corpora only — not enterprise policy libraries.
 - Transaction/dispute/qualify/inbox/commerce-intent stores: **JSON files** beside identity (`transaction-commit.json`, etc.) — M13.6.
-- Export bundle: identity + business data + MLS peers + commerce state — not vault or MLS session snapshots.
+- Export bundle: identity + business data + MLS peers + commerce state + vault + MLS sessions + rooms + contacts — restart agent after import.
 - Shell owner store + memory: **localStorage** — quota-sensitive; IndexedDB planned.
 - Module store: beta-free flag; no in-app billing yet.
 - Hosted signup: dev stub or local Docker fleet — not production cloud fleet until M15 substrate (Q17).
