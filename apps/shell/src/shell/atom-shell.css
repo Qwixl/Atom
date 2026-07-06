@@ -123,8 +123,37 @@
 }
 
 .atom-app-header.site-header {
+  display: flex;
+  justify-content: center;
   padding-left: 24px;
   padding-right: 24px;
+}
+
+.atom-app-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  max-width: min(1120px, 100%);
+  min-height: var(--atom-header-h);
+}
+
+.atom-app-content {
+  width: 100%;
+  max-width: min(1120px, 100%);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.atom-app-content > .shell-feed,
+.atom-app-content > .shell-panel-view,
+.atom-app-content > .panel-view {
+  flex: 1;
+  min-height: 0;
 }
 
 .atom-app-body {
@@ -145,9 +174,12 @@
 
 .atom-app-stage > .shell-feed,
 .atom-app-stage > .shell-panel-view,
-.atom-app-stage > .panel-view {
+.atom-app-stage > .panel-view,
+.atom-app-content > .shell-feed,
+.atom-app-content > .shell-panel-view,
+.atom-app-content > .panel-view {
   width: 100%;
-  max-width: min(1120px, 100%);
+  max-width: 100%;
   box-sizing: border-box;
 }
 

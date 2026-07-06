@@ -8,6 +8,7 @@ import type { AgentContact } from "./comms/types.js";
 import { loadRoomAttendance, saveRoomAttendance, type RoomAttendanceMode } from "./roomAttendance.js";
 import { formatRoomActivity, moduleBundleUrl, COFFEE_SHOP_ROOM_ID } from "./roomUtils.js";
 import { formatRoomMemberLabel, formatRoomSenderLabel, loadOwnerHandle, ownerHandleForRooms } from "./ownerHandle.js";
+import { IconLeave, IconRefresh } from "./shell/ShellIcons.js";
 
 interface RoomDescriptorWire {
   roomId: string;
@@ -80,6 +81,7 @@ export function RoomsPanel({
   const [compose, setCompose] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sceneOpen, setSceneOpen] = useState(false);
   const pollRef = useRef<number | null>(null);
   const memberPollRef = useRef<number | null>(null);
   const lastSeqRef = useRef(0);
@@ -377,14 +379,6 @@ export function RoomsPanel({
 
   return (
     <aside className="panel-view rooms-view">
-      <header className="panel-toolbar">
-        <p className="panel-toolbar-meta">Community spaces — chat, activities, and presence</p>
-        <div className="panel-toolbar-actions">
-          <button type="button" className="panel-btn" onClick={() => void refreshRooms()}>
-            Refresh
-          </button>
-        </div>
-      </header>
       {status ? (
         <div className="comms-status-error">
           <p>{status}</p>
@@ -464,31 +458,30 @@ export function RoomsPanel({
                       <option value="away">Away</option>
                     </select>
                   </label>
+                  <button
+                    type="button"
+                    className="panel-btn panel-btn-icon"
+                    aria-label="Refresh rooms"
+                    title="Refresh rooms"
+                    disabled={loading}
+                    onClick={() => void refreshRooms()}
+                  >
+                    <IconRefresh />
+                  </button>
                   {canLeave ? (
                     <button
                       type="button"
-                      className="panel-btn"
+                      className="panel-btn panel-btn-icon panel-btn-danger"
+                      aria-label="Leave room"
+                      title="Leave room"
                       disabled={loading}
                       onClick={() => void leaveSelectedRoom()}
                     >
-                      Leave
+                      <IconLeave />
                     </button>
                   ) : null}
                 </div>
               </header>
-
-              {selected.moduleId ? (
-                <div className="rooms-scene">
-                  <iframe
-                    ref={moduleFrameRef}
-                    className="rooms-module-frame"
-                    title={selected.name}
-                    src={moduleBundleUrl(selected.moduleId)}
-                    sandbox="allow-scripts allow-same-origin"
-                    onLoad={() => pushModuleInit()}
-                  />
-                </div>
-              ) : null}
 
               <div className="rooms-thread-grid">
                 <aside className="rooms-members" aria-label="Room members">
@@ -605,6 +598,29 @@ export function RoomsPanel({
                   </footer>
                 </div>
               </div>
+
+              {selected.moduleId ? (
+                <details
+                  className="rooms-scene-details"
+                  onToggle={(event) => setSceneOpen((event.currentTarget as HTMLDetailsElement).open)}
+                >
+                  <summary>Room activities</summary>
+                  <p className="rooms-scene-note">
+                    Optional interactive scene for this room (presence avatars, pretend coffee orders). Chat
+                    works without opening this.
+                  </p>
+                  {sceneOpen ? (
+                    <iframe
+                      ref={moduleFrameRef}
+                      className="rooms-module-frame"
+                      title={`${selected.name} activities`}
+                      src={moduleBundleUrl(selected.moduleId)}
+                      sandbox="allow-scripts allow-same-origin"
+                      onLoad={() => pushModuleInit()}
+                    />
+                  ) : null}
+                </details>
+              ) : null}
             </>
           ) : (
             <div className="panel-empty comms-no-selection rooms-empty-detail">
