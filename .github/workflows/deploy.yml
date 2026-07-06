@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Load SSH key
-        uses: webfactory/ssh-agent@b66ed4b238d7222170e98dae966ee6332b0c69ec # v0.9.0
+        uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387 # v0.9.0
         with:
           ssh-private-key: ${{ secrets.CONTROL_PLANE_SSH_PRIVATE_KEY }}
 

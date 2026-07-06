@@ -114,11 +114,16 @@ export const COMMERCE_OFFER_SCHEMA = "https://atom.qwixl.dev/schema/CommerceOffe
 export const COMMERCE_DECLINE_PURPOSE = "commerce:decline";
 export const COMMERCE_DECLINE_SCHEMA = "https://atom.qwixl.dev/schema/CommerceDecline";
 
+/** M-ECO-05 — split bill proposal (either contact). */
+export const COMMERCE_SPLIT_PROPOSAL_PURPOSE = "commerce:split-proposal";
+export const COMMERCE_SPLIT_PROPOSAL_SCHEMA = "https://atom.qwixl.dev/schema/SplitProposal";
+
 /** All M12 commerce purposes (receiver allowlists). */
 export const COMMERCE_PURPOSES = [
   COMMERCE_INTENT_PURPOSE,
   COMMERCE_OFFER_PURPOSE,
   COMMERCE_DECLINE_PURPOSE,
+  COMMERCE_SPLIT_PROPOSAL_PURPOSE,
 ] as const;
 
 /** Plain-language tier-1 disclosure (D039). */

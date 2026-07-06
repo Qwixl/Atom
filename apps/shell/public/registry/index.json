@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-06T15:34:20.400Z",
+  "updatedAt": "2026-07-06T18:02:16.910Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
@@ -32,14 +32,6 @@
       "manifestUrl": "commerce/product-gallery/manifest.json",
       "integrity": "sha256:0889d513116a92cab18a0cb6bc176757006497d3fe65169ccdc48f54fb031a4a",
       "bundleIntegrity": "sha256:337234c0aa07468407db9de695c691765777ee17e5d8674d84c4437f5247bea2",
-      "publisher": "did:key:z6Mkatomexamples01"
-    },
-    {
-      "id": "commerce/split-bill",
-      "version": "0.1.0",
-      "manifestUrl": "commerce/split-bill/manifest.json",
-      "integrity": "sha256:d2472ee8f876ccd05cbd8e72de9b1e5ae8897ade112edf61fba10fe5f9c44fd9",
-      "bundleIntegrity": "sha256:5c472b2375511e6ce9da37d3850b81a1bbd30debe6732fd9ab210d0e39591161",
       "publisher": "did:key:z6Mkatomexamples01"
     },
     {
@@ -142,6 +134,14 @@
       "integrity": "sha256:2ec97da48f0a2be013c48110e5815936e40b98514754f926169f9b3e90d856ca",
       "bundleIntegrity": "sha256:2143262eb8e3abacf7688735991f32defa348f2e1a262400684ee68be9efb968",
       "publisher": "did:key:z6Mkdemotravel0001"
+    },
+    {
+      "id": "commerce/split-bill",
+      "version": "1.0.0",
+      "manifestUrl": "commerce/split-bill/manifest.json",
+      "integrity": "sha256:80775d7f4ae942711a8f7f26b453ab80fb38273e1b508b5ee5d77145b256f1c8",
+      "bundleIntegrity": "sha256:9a97efa43e6b73e5af10a35b5cea6d3cdf7a3c64d318bed8a6ab4a57facbf801",
+      "publisher": "did:key:z6Mkatomexamples01"
     }
   ]
 }

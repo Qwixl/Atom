@@ -8,6 +8,7 @@ import {
   createSchedulingResponse,
   createSharedList,
   createSharedListUpdate,
+  createSplitProposal,
   createTttMove,
   createTttState,
   type RsvpAnswer,
@@ -307,6 +308,44 @@ export function registerCoordinationAdminRoutes(adminApp: Express, deps: Coordin
           gameId: body.gameId.trim(),
           cell: body.cell,
           mark: body.mark === "O" ? "O" : "X",
+          threadId: body.threadId?.trim() || undefined,
+        },
+      });
+      await sendCoordinationObject(deps, res, body, object);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/commerce/split-bill", async (req, res) => {
+    const body = req.body as PeerSendBody & {
+      splitId?: string;
+      label?: string;
+      totalMinor?: number;
+      currency?: string;
+      splitCount?: number;
+      shareMinor?: number;
+    };
+    if (
+      !body.splitId?.trim() ||
+      !body.label?.trim() ||
+      typeof body.totalMinor !== "number" ||
+      typeof body.shareMinor !== "number" ||
+      typeof body.splitCount !== "number"
+    ) {
+      res.status(400).json({ error: "splitId, label, totalMinor, shareMinor, and splitCount required" });
+      return;
+    }
+    try {
+      const object = await createSplitProposal({
+        identity: deps.identity,
+        payload: {
+          splitId: body.splitId.trim(),
+          label: body.label.trim(),
+          totalMinor: body.totalMinor,
+          currency: (body.currency?.trim() || "USD").toUpperCase(),
+          splitCount: body.splitCount,
+          shareMinor: body.shareMinor,
           threadId: body.threadId?.trim() || undefined,
         },
       });

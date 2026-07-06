@@ -1,5 +1,85 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><title>Split bill</title>
-<style>body{font-family:system-ui,sans-serif;margin:0;padding:12px;color:#111}input,button{font:inherit;padding:8px}</style>
-</head><body><p>Split bill module (M-ECO-05) — hooks M11 hold flow; coming soon.</p>
-<script>window.parent.postMessage({type:"ready"},"*");</script></body></html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Split bill</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 12px; color: #111; }
+    label { display: block; font-size: 12px; margin: 8px 0 4px; color: #444; }
+    input, select, button { font: inherit; padding: 8px; box-sizing: border-box; width: 100%; }
+    .row { display: flex; gap: 8px; }
+    .row > * { flex: 1; }
+    .summary { margin: 12px 0; padding: 8px; background: #f4f4f4; border-radius: 6px; font-size: 14px; }
+    #sendSplit { margin-top: 8px; width: auto; }
+  </style>
+</head>
+<body>
+  <label for="label">Description</label>
+  <input id="label" type="text" placeholder="Dinner, taxi, groceries…" />
+  <div class="row">
+    <div>
+      <label for="total">Total</label>
+      <input id="total" type="number" min="0.01" step="0.01" placeholder="100.00" />
+    </div>
+    <div>
+      <label for="currency">Currency</label>
+      <select id="currency">
+        <option value="USD">USD</option>
+        <option value="GBP">GBP</option>
+        <option value="EUR">EUR</option>
+      </select>
+    </div>
+  </div>
+  <label for="splitCount">Split between</label>
+  <input id="splitCount" type="number" min="2" max="20" value="2" />
+  <div class="summary" id="summary">Each pays —</div>
+  <button type="button" id="sendSplit">Send split</button>
+  <script>
+    let shellOrigin = null;
+    function emit(name, payload) {
+      if (shellOrigin) window.parent.postMessage({ type: "event", name, payload }, shellOrigin);
+    }
+    function parseTotalMinor() {
+      const raw = Number(document.getElementById("total").value);
+      if (!Number.isFinite(raw) || raw <= 0) return 0;
+      return Math.round(raw * 100);
+    }
+    function updateSummary() {
+      const totalMinor = parseTotalMinor();
+      const splitCount = Math.max(2, Number(document.getElementById("splitCount").value) || 2);
+      const currency = document.getElementById("currency").value || "USD";
+      const shareMinor = totalMinor > 0 ? Math.round(totalMinor / splitCount) : 0;
+      const share = shareMinor > 0 ? (shareMinor / 100).toFixed(2) : "—";
+      document.getElementById("summary").textContent =
+        totalMinor > 0
+          ? `Each pays ${share} ${currency} (${splitCount} ways)`
+          : "Each pays —";
+    }
+    ["total", "splitCount", "currency"].forEach((id) => {
+      document.getElementById(id).addEventListener("input", updateSummary);
+      document.getElementById(id).addEventListener("change", updateSummary);
+    });
+    document.getElementById("sendSplit").addEventListener("click", () => {
+      const label = document.getElementById("label").value.trim() || "Split bill";
+      const totalMinor = parseTotalMinor();
+      const splitCount = Math.max(2, Number(document.getElementById("splitCount").value) || 2);
+      const currency = document.getElementById("currency").value || "USD";
+      const shareMinor = totalMinor > 0 ? Math.round(totalMinor / splitCount) : 0;
+      if (!totalMinor || !shareMinor) return;
+      emit("splitProposed", { label, totalMinor, currency, splitCount, shareMinor });
+    });
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "init") return;
+      shellOrigin = event.origin;
+      const props = data.props || {};
+      if (typeof props.defaultLabel === "string") {
+        document.getElementById("label").value = props.defaultLabel;
+      }
+      updateSummary();
+    });
+    updateSummary();
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>

@@ -18,6 +18,7 @@ import {
   COMMERCE_INTENT_PURPOSE,
   COMMERCE_OFFER_PURPOSE,
   COMMERCE_DECLINE_PURPOSE,
+  COMMERCE_SPLIT_PROPOSAL_PURPOSE,
   COMMS_MESSAGE_PURPOSE,
   type ActionReserveRefKind,
   type MonetaryAmount,
@@ -275,6 +276,32 @@ export function inboxEntryToThreadItem(
       intentId: String(payload.intentId ?? ""),
       reasonCode: String(payload.reasonCode ?? "other"),
       note: typeof payload.note === "string" ? payload.note : undefined,
+    };
+  }
+
+  if (purpose === COMMERCE_SPLIT_PROPOSAL_PURPOSE) {
+    const totalMinor = payload.totalMinor;
+    const shareMinor = payload.shareMinor;
+    const splitCount = payload.splitCount;
+    if (
+      typeof totalMinor !== "number" ||
+      typeof shareMinor !== "number" ||
+      typeof splitCount !== "number"
+    ) {
+      return null;
+    }
+    return {
+      kind: "split-proposal",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      splitId: String(payload.splitId ?? id),
+      label: typeof payload.label === "string" ? payload.label : "Split bill",
+      totalMinor,
+      currency: typeof payload.currency === "string" ? payload.currency : "USD",
+      splitCount,
+      shareMinor,
     };
   }
 

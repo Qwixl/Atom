@@ -16,6 +16,7 @@ export function CoordinationCard({
   onDeclineTransaction,
   onAcceptOffer,
   onPollVote,
+  onPaySplitShare,
   onTttCell,
   sharedListItems,
   onSharedListChange,
@@ -35,6 +36,11 @@ export function CoordinationCard({
     amount: MonetaryAmount,
   ) => void;
   onPollVote?: (pollId: string, optionId: string) => void;
+  onPaySplitShare?: (
+    splitId: string,
+    label: string,
+    amount: MonetaryAmount,
+  ) => void;
   onTttCell?: (gameId: string, cell: number, mark: "X" | "O") => void;
   sharedListItems?: SharedListItem[];
   onSharedListChange?: (listId: string, items: SharedListItem[]) => void;
@@ -320,6 +326,38 @@ export function CoordinationCard({
     );
   }
 
+  if (item.kind === "split-proposal") {
+    const shareAmount: MonetaryAmount = {
+      amountMinor: item.shareMinor,
+      currency: item.currency,
+    };
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
+        <div className="shell-comms-coord-head">
+          <strong>Split bill</strong>
+          <span>{item.label}</span>
+        </div>
+        <p className="shell-comms-coord-meta">
+          Total {formatMonetaryAmount({ amountMinor: item.totalMinor, currency: item.currency })} ·{" "}
+          {item.splitCount} ways · Your share {formatMonetaryAmount(shareAmount)}
+        </p>
+        {showActions ? (
+          <div className="shell-comms-coord-rsvp">
+            <button
+              type="button"
+              className="chrome-approve"
+              disabled={busy}
+              onClick={() => onPaySplitShare?.(item.splitId, item.label, shareAmount)}
+            >
+              Pay your share
+            </button>
+          </div>
+        ) : null}
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
   if (item.kind === "poll-vote") {
     return (
       <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
@@ -424,6 +462,7 @@ export function ThreadItemView({
   onDeclineTransaction,
   onAcceptOffer,
   onPollVote,
+  onPaySplitShare,
   onTttCell,
   sharedListItems,
   onSharedListChange,
@@ -443,6 +482,11 @@ export function ThreadItemView({
     amount: MonetaryAmount,
   ) => void;
   onPollVote?: (pollId: string, optionId: string) => void;
+  onPaySplitShare?: (
+    splitId: string,
+    label: string,
+    amount: MonetaryAmount,
+  ) => void;
   onTttCell?: (gameId: string, cell: number, mark: "X" | "O") => void;
   sharedListItems?: SharedListItem[];
   onSharedListChange?: (listId: string, items: SharedListItem[]) => void;
@@ -475,6 +519,7 @@ export function ThreadItemView({
       onDeclineTransaction={onDeclineTransaction}
       onAcceptOffer={onAcceptOffer}
       onPollVote={onPollVote}
+      onPaySplitShare={onPaySplitShare}
       onTttCell={onTttCell}
       sharedListItems={sharedListItems}
       onSharedListChange={onSharedListChange}
@@ -530,6 +575,7 @@ export function threadItemNeedsActions(
   if (item.kind === "rsvp-request") return !respondedIds.has(item.id);
   if (item.kind === "poll-request") return !respondedIds.has(item.id);
   if (item.kind === "shared-list") return true;
+  if (item.kind === "split-proposal") return !respondedTxnIds.has(`txn-split-${item.splitId}`);
   if (item.kind === "transaction-hold") return !respondedTxnIds.has(item.transactionId);
   if (item.kind === "commerce-offer") return !respondedOfferIds.has(item.offerId);
   return false;

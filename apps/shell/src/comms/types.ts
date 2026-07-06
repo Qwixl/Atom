@@ -236,4 +236,17 @@ export type CommsThreadItem =
       listId: string;
       title?: string;
       items: Array<{ id: string; text: string; done: boolean }>;
+    }
+  | {
+      kind: "split-proposal";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      splitId: string;
+      label: string;
+      totalMinor: number;
+      currency: string;
+      splitCount: number;
+      shareMinor: number;
     };
