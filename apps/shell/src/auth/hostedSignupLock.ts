@@ -1,0 +1,41 @@
+import { loadPendingHostedAuth } from "./pendingHostedAuth.js";
+
+const LOCK_KEY = "atom:hosted-provisioning";
+
+export function tryAcquireProvisioningLock(): boolean {
+  try {
+    if (sessionStorage.getItem(LOCK_KEY)) return false;
+    sessionStorage.setItem(LOCK_KEY, String(Date.now()));
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+export function releaseProvisioningLock(): void {
+  try {
+    sessionStorage.removeItem(LOCK_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export type ResolvedHostedSignup = {
+  email: string;
+  handle: string;
+  llmApiKey: string;
+};
+
+/** Merge React state with persisted signup draft (state updates may lag behind resume). */
+export function resolveHostedSignupFields(state: {
+  email: string;
+  handle: string;
+  llmApiKey: string;
+}): ResolvedHostedSignup | null {
+  const pending = loadPendingHostedAuth();
+  const email = state.email.trim() || pending?.email?.trim() || "";
+  const handle = state.handle.trim() || pending?.handle?.trim() || "";
+  const llmApiKey = state.llmApiKey.trim() || pending?.llmApiKey?.trim() || "";
+  if (!handle || !llmApiKey) return null;
+  return { email, handle, llmApiKey };
+}

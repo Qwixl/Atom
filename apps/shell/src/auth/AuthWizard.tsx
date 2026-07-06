@@ -43,6 +43,11 @@ import {
   subscribeToEmailConfirmed,
 } from "./emailConfirmBridge.js";
 import {
+  releaseProvisioningLock,
+  resolveHostedSignupFields,
+  tryAcquireProvisioningLock,
+} from "./hostedSignupLock.js";
+import {
   clearPendingHostedAuth,
   loadPendingHostedAuth,
   savePendingHostedAuth,
@@ -108,7 +113,17 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
     [steps],
   );
 
-  const slideIndex = stepIndex(steps, step);
+  const slideIndex = Math.max(0, stepIndex(steps, step));
+
+  useEffect(() => {
+    if (steps.includes(step)) return;
+    const fallback = steps.includes("provisioning")
+      ? "provisioning"
+      : steps.includes("confirm-email")
+        ? "confirm-email"
+        : steps[0];
+    if (fallback) goTo(fallback);
+  }, [steps, step]);
 
   useEffect(() => {
     if (hosting !== "hosted" || !handle.trim() || !isHostedSignupAvailable()) {
@@ -156,6 +171,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
     if (pending.handle) setHandle(pending.handle);
     if (pending.llmApiKey) setLlmApiKey(pending.llmApiKey);
     if (pending.kind === "register") setHosting("hosted");
+    setStep("provisioning");
 
     void (async () => {
       const hasSession = await hasSupabaseSession();
@@ -168,7 +184,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
           } else {
             void runHostedSupabaseProvisioning();
           }
-        }, 1800);
+        }, 800);
       } else if (pending.kind === "register") {
         goTo("confirm-email");
       } else {
@@ -206,7 +222,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         } else {
           void runHostedSupabaseProvisioning();
         }
-      }, 1800);
+      }, 800);
     };
 
     const unsubBridge = subscribeToEmailConfirmed(() => {
@@ -276,6 +292,8 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
   }
 
   async function runHostedSupabaseProvisioning(): Promise<void> {
+    if (!tryAcquireProvisioningLock()) return;
+
     setBusy(true);
     setError(null);
     setProvisionTasks(initProvisionTasks());
@@ -284,19 +302,26 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       if (!(await hasSupabaseSession())) {
         throw new Error("Sign in required — confirm your email first.");
       }
+
+      const fields = resolveHostedSignupFields({ email, handle, llmApiKey });
+      if (!fields) {
+        throw new Error("Signup details missing — go back to Profile and try again.");
+      }
+
       advanceTask("auth", "agent");
       await bootstrapHostedAccount({
-        handle: bareOwnerHandle(handle),
+        handle: bareOwnerHandle(fields.handle),
         accountType: "user",
-        llmApiKey: llmApiKey.trim(),
+        llmApiKey: fields.llmApiKey,
       });
       advanceTask("agent", "connect");
       const connection = await fetchHostedAgentConnection();
       await completeAgentSetup({
         adminUrl: connection.adminUrl,
         adminToken: connection.adminToken,
-        handle: connection.handle ?? bareOwnerHandle(handle),
+        handle: connection.handle ?? bareOwnerHandle(fields.handle),
         kind: "hosted",
+        skipConnectionProbe: true,
       });
       updateTask("connect", "done");
       clearPendingHostedAuth();
@@ -308,11 +333,14 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         prev.map((t) => (t.state === "active" ? { ...t, state: "error" } : t)),
       );
     } finally {
+      releaseProvisioningLock();
       setBusy(false);
     }
   }
 
   async function finishHostedSupabaseLogin(): Promise<void> {
+    if (!tryAcquireProvisioningLock()) return;
+
     setBusy(true);
     setError(null);
     setProvisionTasks([{ id: "connect", label: "Connecting to your agent", state: "active" }]);
@@ -324,6 +352,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         adminToken: connection.adminToken,
         handle: connection.handle,
         kind: "hosted",
+        skipConnectionProbe: true,
       });
       updateTask("connect", "done");
       clearPendingHostedAuth();
@@ -335,6 +364,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         prev.map((t) => (t.state === "active" ? { ...t, state: "error" } : t)),
       );
     } finally {
+      releaseProvisioningLock();
       setBusy(false);
     }
   }
@@ -846,7 +876,14 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
                 type="button"
                 className="atom-btn atom-btn-primary"
                 onClick={() => {
-                  goTo(mode === "login" ? "credentials" : "profile");
+                  releaseProvisioningLock();
+                  if (mode === "login") {
+                    void finishHostedSupabaseLogin();
+                  } else if (usesSupabaseHostedAuth() && hosting === "hosted") {
+                    void runHostedSupabaseProvisioning();
+                  } else {
+                    goTo("profile");
+                  }
                 }}
               >
                 Try again
