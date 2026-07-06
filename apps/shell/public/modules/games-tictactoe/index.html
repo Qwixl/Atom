@@ -102,7 +102,7 @@
       if (!data || data.type !== "init") return;
       shellOrigin = event.origin;
       const props = data.props || {};
-      if (props.board || props.status === "active" || props.status === "won" || props.status === "draw") {
+      if (props.board !== undefined || props.status === "active" || props.status === "won" || props.status === "draw") {
         board = normalizeBoard(props.board);
         turn = props.turn === "O" ? "O" : "X";
         status = props.status || "active";

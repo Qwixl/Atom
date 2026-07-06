@@ -58,7 +58,9 @@ import {
 import { MockAgentSession } from "./mock-agent.js";
 import { ProfilePanel } from "./ProfilePanel.js";
 import { bridgeChatModuleEvent } from "./comms/moduleBridge.js";
-import { handleChatTttUiEvent, looksLikeTttIntent, openChatTttBoard } from "./chat/tttChat.js";
+import { handleChatTttUiEvent } from "./chat/tttChat.js";
+import { handleChatBsUiEvent } from "./chat/bsChat.js";
+import { isChatOwnedSurface, matchChatModuleIntent, openChatModuleForIntent } from "./chat/chatModules.js";
 import { CommsPanel } from "./CommsPanel.js";
 import { DiscoverPanel } from "./DiscoverPanel.js";
 import { DiscoverChatResults, type DiscoverChatResult } from "./DiscoverChatResults.js";
@@ -992,11 +994,11 @@ export function App() {
       })();
       return;
     }
-    if (looksLikeTttIntent(trimmed) && modulesActiveRef.current) {
+    if (matchChatModuleIntent(trimmed, conversationRef.current.getSnapshot().feed)) {
       turnTranscript.current = [];
       conversationRef.current.appendUser(trimmed);
       setInput("");
-      void openChatTttBoard({
+      void openChatModuleForIntent(trimmed, conversationRef.current.getSnapshot().feed, {
         runtime: conversationRef.current,
         catalog: catalogRef.current,
         registry: registryRef.current,
@@ -1063,6 +1065,15 @@ export function App() {
         ? (event.payload as Record<string, unknown>)
         : undefined;
     if (handleChatTttUiEvent(event, conversationRef.current)) {
+      return;
+    }
+    if (handleChatBsUiEvent(event, conversationRef.current)) {
+      return;
+    }
+    if (
+      isChatOwnedSurface(event.surfaceId) &&
+      (event.name === "tttStart" || event.name === "tttMove" || event.name === "bsStart" || event.name === "bsCommit")
+    ) {
       return;
     }
     if (bridgeChatModuleEvent(event.name, payload)) {

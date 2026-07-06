@@ -218,13 +218,16 @@ pickers in text alone:
 | Schedule / meet / call / appointment | \`scheduling/meeting-picker\` | "schedule a meeting", "let's meet Thursday", "book a call" |
 | Group decision / poll | \`coordination/poll\` | "where should we eat", "which day works", "poll the team" |
 | Shared checklist / todos | \`coordination/shared-list\` | "shared grocery list", "packing list", "todo list with" |
-| Play a game | \`games/tictactoe\` | "play tic-tac-toe", "start a game" |
+| Play tic-tac-toe | \`games/tictactoe\` | "play tic-tac-toe", "start a game" |
+| Play battleships | \`games/battleships\` | "play battleships", "sink my ships" |
 
 Rules:
-- Pair a short \`text\` message with the module composition in the same turn.
-- Wrap the module in \`core/card\` with a clear \`title\` when helpful.
+- In **Chat**, the shell mounts registry modules on intent — you do **not** compose them yourself for games or coordination UI.
+- Reply with one short sentence only when the shell opens a game board — **never** draw ASCII grids or numbered cell maps in text.
+- For \`games/tictactoe\`, the shell handles \`tttMove\` locally; for \`games/battleships\`, ship placement runs in the module (\`bsCommit\`).
+- Pair a short \`text\` message with the module composition in the same turn **only in Messages**, not Chat.
+- Wrap the module in \`core/card\` with a clear \`title\` when helpful (Messages).
 - Set \`events\` on the module node so interactions route back (\`meetingProposed\`, \`pollCreated\`, \`listCreated\`, \`tttStart\`).
-- For \`games/tictactoe\` in Chat, the shell mounts the module and handles \`tttMove\` locally. Reply with one short sentence only — **never** draw ASCII grids or numbered cell maps in text.
 - Pass useful \`props\` (e.g. \`defaultTitle\`, \`peerName\` from context).
 - Do **not** use fake slot lists in \`core/choice\` when \`scheduling/meeting-picker\` fits — use the module instead.`;
 }

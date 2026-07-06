@@ -1,4 +1,4 @@
-import type { Catalog, Composition, ConversationRuntime, ModuleRegistry } from "@qwixl/shell-core";
+import type { Catalog, Composition, ConversationRuntime, FeedItem, ModuleRegistry } from "@qwixl/shell-core";
 import { applyTttMove, emptyTttBoard, pickBotMove } from "../comms/tttLogic.js";
 import type { TttBoard } from "../comms/types.js";
 
@@ -13,6 +13,33 @@ export function looksLikeTttIntent(text: string): boolean {
   if (/new game.*(tic|toe|tictactoe)/.test(lower)) return true;
   if (/(play|start|try).*(tic|tictactoe|tic-tac-toe)/.test(lower)) return true;
   return false;
+}
+
+const TTT_RETRY =
+  /\b(try again|retry|render|didn't render|did not render|not render|show (the )?board|fix the board|board again)\b/i;
+
+/** User asked to retry after a broken or missing board in an ongoing tic-tac-toe chat. */
+export function looksLikeTttRetry(text: string, feed: readonly FeedItem[]): boolean {
+  if (!TTT_RETRY.test(text.trim())) return false;
+  const window = feed.slice(-12);
+  return window.some((item) => {
+    if (item.kind === "user" && looksLikeTttIntent(item.text)) return true;
+    if (item.kind === "agent-text" && /\btic[\s-]?tac[\s-]?toe\b/i.test(item.text)) return true;
+    if (item.kind === "surface" && feedSurfaceHasTtt(item.surface)) return true;
+    return false;
+  });
+}
+
+function feedSurfaceHasTtt(surface: import("@qwixl/shell-core").ResolvedSurface): boolean {
+  const walk = (node: import("@qwixl/shell-core").ResolvedNode): boolean => {
+    if (node.node.component === TTT_COMPONENT) return true;
+    return node.children.some(walk);
+  };
+  return walk(surface.root);
+}
+
+export function shouldOpenChatTtt(text: string, feed: readonly FeedItem[]): boolean {
+  return looksLikeTttIntent(text) || looksLikeTttRetry(text, feed);
 }
 
 interface ChatTttState {
@@ -86,17 +113,20 @@ export async function openChatTttBoard(opts: {
 }): Promise<void> {
   const surfaceId = `ttt-chat-${Date.now()}`;
   const composition = buildChatTttComposition(surfaceId);
-  try {
-    await opts.registry.ensureModules(opts.catalog, composition);
-  } catch (error) {
-    opts.runtime.appendLocalAgentText(
-      error instanceof Error ? error.message : "Could not load tic-tac-toe module.",
-    );
-    return;
+  if (!opts.catalog.lookup(TTT_COMPONENT)) {
+    try {
+      await opts.registry.ensureModules(opts.catalog, composition);
+    } catch (error) {
+      opts.runtime.appendLocalAgentText(
+        error instanceof Error ? error.message : "Could not load tic-tac-toe module.",
+      );
+      opts.runtime.setBusy(false);
+      return;
+    }
   }
   chatTttBySurface.set(surfaceId, initialChatState());
   await opts.runtime.showComposition(composition);
-  opts.runtime.appendLocalAgentText("You're X — tap a square. Moves are handled locally (no ASCII board).");
+  opts.runtime.appendLocalAgentText("You're X — tap a square to play.");
   opts.runtime.setBusy(false);
 }
 

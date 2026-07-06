@@ -7,9 +7,9 @@
   <style>
     * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
     body { margin: 0; padding: 10px 12px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
-    .board { display: grid; grid-template-columns: repeat(6, 36px); gap: 4px; width: fit-content; }
+    .board { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; width: min(100%, 260px); }
     button.cell {
-      width: 36px; height: 36px; font-size: 11px; font-weight: 600;
+      aspect-ratio: 1; width: 100%; min-height: 36px; font-size: 11px; font-weight: 600;
       border: 1px solid var(--atom-color-border, #ccc); border-radius: 6px;
       background: var(--atom-color-bg-raised, #fafafa); cursor: pointer; color: inherit; padding: 0;
     }
@@ -135,6 +135,7 @@
       if (props.phase) phase = props.phase;
       if (props.myPlayer === "B") myPlayer = "B";
       if (props.readOnly) readOnly = true;
+      if (phase === "setup" && !readOnly) selected = new Set();
       render();
     });
 
