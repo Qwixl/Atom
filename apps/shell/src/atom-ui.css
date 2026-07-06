@@ -1,0 +1,322 @@
+/* Shared UI primitives — marketing, auth wizard, shell */
+
+.atom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: var(--shell-radius-sm);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.atom-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.atom-btn-primary {
+  background: var(--shell-cta-bg);
+  color: var(--shell-cta-text);
+  border: 1px solid var(--shell-cta-bg);
+}
+
+.atom-btn-primary:hover:not(:disabled) {
+  background: var(--shell-cta-hover);
+  border-color: var(--shell-cta-hover);
+}
+
+.atom-btn-secondary {
+  background: transparent;
+  color: var(--shell-text);
+  border: 1px solid var(--shell-border-strong);
+}
+
+.atom-btn-secondary:hover:not(:disabled) {
+  background: var(--shell-hover-bg);
+}
+
+.atom-btn-ghost {
+  background: transparent;
+  color: var(--shell-text-muted);
+  border: 1px solid transparent;
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.atom-btn-ghost:hover:not(:disabled) {
+  color: var(--shell-text);
+  background: var(--shell-hover-bg);
+}
+
+.atom-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--shell-radius-sm);
+  color: var(--shell-text-muted);
+  cursor: pointer;
+}
+
+.atom-btn-icon:hover:not(:disabled) {
+  color: var(--shell-text);
+  background: var(--shell-hover-bg);
+  border-color: var(--shell-border);
+}
+
+.atom-btn:focus-visible,
+.atom-field input:focus-visible,
+.atom-field select:focus-visible,
+.atom-field textarea:focus-visible {
+  outline: 2px solid var(--shell-status-active);
+  outline-offset: 2px;
+}
+
+.atom-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.atom-field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--shell-text);
+}
+
+.atom-field-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.atom-field-hint-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--shell-border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--shell-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.atom-field-hint-trigger:hover,
+.atom-field-hint-trigger:focus-visible {
+  color: var(--shell-text);
+  border-color: var(--shell-border-strong);
+}
+
+.atom-field-hint-popover {
+  max-width: min(320px, calc(100vw - 32px));
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--shell-border);
+  border-radius: var(--shell-radius-sm);
+  background: var(--shell-raised-bg);
+  box-shadow: var(--shell-shadow-sm);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--shell-text-muted);
+}
+
+.atom-field-hint-popover p {
+  margin: 0 0 10px;
+}
+
+.atom-field-hint-popover p:last-child {
+  margin-bottom: 0;
+}
+
+.atom-field-hint-popover a {
+  color: var(--shell-text);
+}
+
+.atom-field-hint-popover code {
+  font-family: var(--shell-font-mono);
+  font-size: 0.88em;
+}
+
+.atom-field input,
+.atom-field select,
+.atom-field textarea {
+  width: 100%;
+  background: var(--shell-raised-bg);
+  border: 1px solid var(--shell-border);
+  border-radius: var(--shell-radius-sm);
+  color: var(--shell-text);
+  padding: 10px 12px;
+  font: inherit;
+  transition: border-color 150ms ease;
+}
+
+.atom-field input::placeholder {
+  color: var(--shell-text-subtle);
+}
+
+.atom-field input:hover:not(:disabled) {
+  border-color: var(--shell-border-strong);
+}
+
+.atom-radio-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--shell-border);
+  border-radius: var(--shell-radius-sm);
+  background: var(--shell-raised-bg);
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.atom-radio-card:hover {
+  border-color: var(--shell-border-strong);
+  background: var(--shell-inset-bg);
+}
+
+.atom-radio-card.is-selected {
+  border-color: var(--shell-text);
+  background: var(--shell-inset-bg);
+}
+
+.atom-radio-card.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.atom-radio-card.is-disabled input {
+  cursor: not-allowed;
+}
+
+.atom-radio-card input {
+  margin-top: 3px;
+  accent-color: var(--shell-text);
+}
+
+.atom-radio-card strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.atom-radio-card span {
+  font-size: 13px;
+  color: var(--shell-text-muted);
+  line-height: 1.4;
+}
+
+.atom-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.atom-status-dot--active {
+  background: var(--shell-status-active);
+}
+
+.atom-status-dot--ready {
+  background: var(--shell-text);
+}
+
+.atom-status-dot--pending {
+  background: transparent;
+  border: 1px solid var(--shell-border-strong);
+}
+
+.atom-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--shell-text-muted);
+}
+
+.atom-note-error {
+  color: var(--shell-danger);
+}
+
+.atom-note code {
+  font-family: var(--shell-font-mono);
+  font-size: 12px;
+}
+
+/* Legacy chrome button aliases */
+.chrome-approve,
+.chrome-decline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: var(--shell-radius-sm);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.chrome-approve {
+  background: var(--shell-cta-bg);
+  color: var(--shell-cta-text);
+  border: 1px solid var(--shell-cta-bg);
+}
+
+.chrome-approve:hover:not(:disabled) {
+  background: var(--shell-cta-hover);
+  border-color: var(--shell-cta-hover);
+}
+
+.chrome-decline {
+  background: transparent;
+  color: var(--shell-text);
+  border: 1px solid var(--shell-border-strong);
+}
+
+.chrome-decline:hover:not(:disabled) {
+  background: var(--shell-hover-bg);
+}
+
+.chrome-approve:disabled,
+.chrome-decline:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.chrome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.chrome-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--shell-overlay);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}

@@ -52,6 +52,17 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 }
 
+/** Hosted signup (Supabase auth + control plane, or local dev /signup stub). */
+export function isHostedSignupAvailable(): boolean {
+  if (isSupabaseConfigured()) return true;
+  return IS_LOCAL_DEV && !IS_PRODUCTION_HOST;
+}
+
+/** Production hosted accounts use Supabase; local dev uses control-plane /signup. */
+export function usesSupabaseHostedAuth(): boolean {
+  return isSupabaseConfigured();
+}
+
 export { isLocalHostUrl, productionFetchUrl, resolveInjectedUrl, assertProductionAgentUrl } from "./productionGuard.js";
 
 /** Browser-direct LLM keys are not permitted on deployed hosts. */

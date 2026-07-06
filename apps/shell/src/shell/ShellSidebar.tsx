@@ -1,5 +1,5 @@
+import { useEffect, useRef } from "react";
 import {
-  IconAtomMark,
   IconChat,
   IconDiscover,
   IconLog,
@@ -30,6 +30,78 @@ type ShellSidebarProps = {
   onMobileClose: () => void;
 };
 
+function NavList({
+  panel,
+  primaryNav,
+  onSelect,
+  onOpenSettings,
+  onMobileClose,
+}: {
+  panel: ShellNavPanel;
+  primaryNav: NavItem[];
+  onSelect: (id: ShellNavPanel) => void;
+  onOpenSettings: () => void;
+  onMobileClose: () => void;
+}) {
+  return (
+    <>
+      <div className="shell-sidebar-brand">
+        <a className="shell-sidebar-brand-link" href="/" aria-label="Atom home">
+          <span className="shell-sidebar-brand-mark" aria-hidden="true">
+            A
+          </span>
+          <span className="shell-sidebar-brand-name">Atom</span>
+        </a>
+      </div>
+
+      <nav className="shell-sidebar-nav" aria-label="Sections">
+        <ul className="shell-sidebar-nav-list">
+          {primaryNav.map((item) => {
+            const Icon = item.icon;
+            const active = panel === item.id;
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className={`shell-sidebar-nav-item${active ? " is-active" : ""}`}
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => onSelect(item.id)}
+                >
+                  <Icon className="shell-sidebar-nav-icon" />
+                  <span className="shell-sidebar-nav-label">{item.label}</span>
+                  {item.badge ? (
+                    <span
+                      className={`shell-sidebar-badge${
+                        item.badgeTone === "warn" ? " shell-sidebar-badge-warn" : ""
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  ) : null}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      <div className="shell-sidebar-footer">
+        <button
+          type="button"
+          className="shell-sidebar-footer-item"
+          onClick={() => {
+            onOpenSettings();
+            onMobileClose();
+          }}
+        >
+          <IconSettings className="shell-sidebar-nav-icon" />
+          <span>Settings</span>
+        </button>
+      </div>
+    </>
+  );
+}
+
 export function ShellSidebar({
   panel,
   onNavigate,
@@ -40,6 +112,8 @@ export function ShellSidebar({
   mobileOpen,
   onMobileClose,
 }: ShellSidebarProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
   const primaryNav: NavItem[] = [
     { id: "none", label: "Chat", icon: IconChat },
     {
@@ -70,69 +144,46 @@ export function ShellSidebar({
     onMobileClose();
   }
 
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (mobileOpen && !dialog.open) {
+      dialog.showModal();
+    } else if (!mobileOpen && dialog.open) {
+      dialog.close();
+    }
+  }, [mobileOpen]);
+
+  const nav = (
+    <NavList
+      panel={panel}
+      primaryNav={primaryNav}
+      onSelect={selectPanel}
+      onOpenSettings={onOpenSettings}
+      onMobileClose={onMobileClose}
+    />
+  );
+
   return (
     <>
-      <div
-        className={`shell-sidebar-backdrop${mobileOpen ? " is-open" : ""}`}
-        onClick={onMobileClose}
-        aria-hidden="true"
-      />
-      <aside
-        className={`shell-sidebar${mobileOpen ? " is-open" : ""}`}
-        aria-label="Primary navigation"
-      >
-        <div className="shell-sidebar-inner">
-          <div className="shell-sidebar-brand">
-            <IconAtomMark className="shell-sidebar-brand-mark" />
-            <span className="shell-sidebar-brand-name">Atom</span>
-          </div>
-
-          <nav className="shell-sidebar-nav" aria-label="Sections">
-            <ul className="shell-sidebar-nav-list">
-              {primaryNav.map((item) => {
-                const Icon = item.icon;
-                const active = panel === item.id;
-                return (
-                  <li key={item.id}>
-                    <button
-                      type="button"
-                      className={`shell-sidebar-nav-item${active ? " is-active" : ""}`}
-                      aria-current={active ? "page" : undefined}
-                      onClick={() => selectPanel(item.id)}
-                    >
-                      <Icon className="shell-sidebar-nav-icon" />
-                      <span className="shell-sidebar-nav-label">{item.label}</span>
-                      {item.badge ? (
-                        <span
-                          className={`shell-sidebar-badge${
-                            item.badgeTone === "warn" ? " shell-sidebar-badge-warn" : ""
-                          }`}
-                        >
-                          {item.badge}
-                        </span>
-                      ) : null}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
-
-          <div className="shell-sidebar-footer">
-            <button
-              type="button"
-              className="shell-sidebar-footer-item"
-              onClick={() => {
-                onOpenSettings();
-                onMobileClose();
-              }}
-            >
-              <IconSettings className="shell-sidebar-nav-icon" />
-              <span>Settings</span>
-            </button>
-          </div>
-        </div>
+      <aside className="shell-sidebar shell-sidebar--desktop" aria-label="Primary navigation">
+        <div className="shell-sidebar-inner">{nav}</div>
       </aside>
+
+      <dialog
+        ref={dialogRef}
+        className="shell-nav-dialog"
+        aria-label="Navigation menu"
+        onClose={onMobileClose}
+        onCancel={onMobileClose}
+      >
+        <div className="shell-nav-dialog-inner">{nav}</div>
+        <form method="dialog">
+          <button type="submit" className="shell-nav-dialog-close" aria-label="Close menu">
+            Close
+          </button>
+        </form>
+      </dialog>
     </>
   );
 }

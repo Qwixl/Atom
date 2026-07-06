@@ -2,10 +2,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { marketingStaticPlugin } from "./src/vite-marketing-static.ts";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const shellRoot = path.dirname(fileURLToPath(import.meta.url));
 
-/** Keep in sync with scripts/dev-demo.mjs */
 const DEMO_ALICE_URL = "http://127.0.0.1:5204";
 const DEMO_ALICE_TOKEN = "atom-demo-alice-token";
 const DEMO_BOB_URL = "http://127.0.0.1:5206";
@@ -21,7 +22,20 @@ export default defineConfig(({ mode }) => {
   const productionBuild = mode === "production";
 
   return {
-    plugins: [react()],
+    base: productionBuild ? "/app/" : "/",
+    plugins: [react(), marketingStaticPlugin()],
+    appType: "spa",
+    root: shellRoot,
+    publicDir: path.join(shellRoot, "public"),
+    build: {
+      outDir: path.join(shellRoot, "dist/app"),
+      emptyOutDir: true,
+      rollupOptions: {
+        input: {
+          app: path.join(shellRoot, "app.html"),
+        },
+      },
+    },
     define: {
       "import.meta.env.VITE_DEMO_MODE": JSON.stringify(process.env.VITE_DEMO_MODE ?? ""),
       "import.meta.env.VITE_DEMO_ALICE_URL": JSON.stringify(

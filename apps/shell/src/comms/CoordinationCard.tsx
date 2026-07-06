@@ -75,7 +75,12 @@ export function CoordinationCard({
       <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
         <div className="shell-comms-coord-head">
           <strong>Scheduling response</strong>
-          <span>{formatSchedulingResponse(item.response, item.slotId)}</span>
+          <span>
+            {formatSchedulingResponse(item.response, {
+              slotId: item.slotId,
+              slotLabel: item.slotLabel,
+            })}
+          </span>
         </div>
         <time>{new Date(item.at).toLocaleTimeString()}</time>
       </div>

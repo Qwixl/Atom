@@ -36,6 +36,36 @@ export interface BootstrapHostedAccountInput {
   llmBaseUrl?: string;
 }
 
+export async function signupHostedDevAccount(input: {
+  email: string;
+  handle: string;
+}): Promise<{ adminUrl: string; adminToken: string; handle: string }> {
+  const { CONTROL_PLANE_URL } = await import("../hostConfig.js");
+  const resp = await fetch(`${CONTROL_PLANE_URL.replace(/\/$/, "")}/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: input.email.trim(),
+      handle: input.handle,
+    }),
+  });
+  const data = (await resp.json()) as {
+    agentUrl?: string;
+    adminToken?: string;
+    handle?: string;
+    error?: string;
+  };
+  if (!resp.ok) throw new Error(data.error ?? `Signup failed (${resp.status})`);
+  if (!data.agentUrl || !data.adminToken) {
+    throw new Error("Hosted agent credentials were not returned");
+  }
+  return {
+    adminUrl: data.agentUrl.replace(/\/$/, ""),
+    adminToken: data.adminToken,
+    handle: data.handle ?? input.handle,
+  };
+}
+
 export async function bootstrapHostedAccount(input: BootstrapHostedAccountInput): Promise<void> {
   const token = await supabaseAccessToken();
   if (!token) throw new Error("Sign in required");

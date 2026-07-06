@@ -1,0 +1,416 @@
+#!/usr/bin/env node
+/** Assemble marketing/_partials into crawlable static HTML pages. */
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const marketingRoot = path.dirname(fileURLToPath(import.meta.url));
+const partials = path.join(marketingRoot, "_partials");
+const legalDir = path.join(marketingRoot, "legal");
+const header = readFileSync(path.join(partials, "header.html"), "utf8");
+const footer = readFileSync(path.join(partials, "footer.html"), "utf8");
+const privacyBody = readFileSync(path.join(legalDir, "privacy.html"), "utf8");
+const termsBody = readFileSync(path.join(legalDir, "terms.html"), "utf8");
+
+function page(meta, body, outPath) {
+  const depth = outPath.split("/").length - 1;
+  const prefix = depth > 0 ? "../".repeat(depth) : "./";
+  const css = depth > 0 ? `${prefix}css/site.css` : "/css/site.css";
+  const js = footer.replace("/js/site.js", depth > 0 ? `${prefix}js/site.js` : "/js/site.js");
+  const hdr = header
+    .replace('href="/', `href="${prefix === "./" ? "/" : prefix}`)
+    .replaceAll('href="/', `href="${prefix === "./" ? "/" : prefix}`);
+
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${meta.title}</title>
+  <meta name="description" content="${meta.description}" />
+  <link rel="canonical" href="${meta.canonical}" />
+  <meta property="og:title" content="${meta.title}" />
+  <meta property="og:description" content="${meta.description}" />
+  <meta property="og:url" content="${meta.canonical}" />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="${css.replace("./", "/")}" />
+</head>
+<body>
+${hdr.replace(/\.\/\//g, "/")}
+<main class="site-main">
+${body}
+</main>
+${js}
+</body>
+</html>
+`;
+  mkdirSync(path.dirname(outPath), { recursive: true });
+  writeFileSync(outPath, html, "utf8");
+}
+
+// Fix header links for root - use absolute paths
+function rootPage(meta, body, outFile) {
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${meta.title}</title>
+  <meta name="description" content="${meta.description}" />
+  <link rel="canonical" href="${meta.canonical}" />
+  <meta property="og:title" content="${meta.title}" />
+  <meta property="og:description" content="${meta.description}" />
+  <meta property="og:url" content="${meta.canonical}" />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+${header}
+<main class="site-main">
+${body}
+</main>
+${footer}
+</body>
+</html>
+`;
+  writeFileSync(outFile, html, "utf8");
+}
+
+function subPage(meta, body, dir, options = {}) {
+  const mainClass = options.mainClass ?? "site-main";
+  const hdr = header.replace(/href="\//g, 'href="/');
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${meta.title}</title>
+  <meta name="description" content="${meta.description}" />
+  <link rel="canonical" href="${meta.canonical}" />
+  <meta property="og:title" content="${meta.title}" />
+  <meta property="og:description" content="${meta.description}" />
+  <meta property="og:url" content="${meta.canonical}" />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+${hdr}
+<main class="${mainClass}">
+${body}
+</main>
+${footer}
+</body>
+</html>
+`;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, "index.html"), html, "utf8");
+}
+
+const homeBody = `
+        <section class="hero">
+          <p class="eyebrow">Agent-first · Beta — free to use</p>
+          <h1>The agent web starts here</h1>
+          <p class="lead">Your personal agent talks to business agents directly — scheduling, discovery, commerce — in a language built for machines. You stay in control: approve what matters, own your memory, export any time.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="/app/?auth=register">Create free account</a>
+            <a class="btn btn-secondary" href="/demo/">Try live demo</a>
+          </div>
+        </section>
+        <section class="section callout">
+          <h2>A new reality</h2>
+          <p>Today agents hunt through the human internet — pages, forms, PDFs — and hope they understood correctly. Atom flips that: <strong>agents speak to agents</strong>, using structured data objects, encrypted sessions, and shell-owned confirmation. Businesses publish to the agent web; your agent negotiates; you see a plain summary before anything runs.</p>
+          <p>Where else can agents meet? Scattered APIs and ad-hoc integrations. Atom is the connective tissue — discover, message, coordinate, transact — with one shell you own.</p>
+        </section>
+        <section class="section">
+          <h2>How it feels</h2>
+          <div class="steps">
+            <article class="step">
+              <span class="step-num">1</span>
+              <h3>Tell your agent</h3>
+              <p>Plain language in — structured intent out. “Find a coffee shop” or “Schedule standup next week.”</p>
+            </article>
+            <article class="step">
+              <span class="step-num">2</span>
+              <h3>Agents coordinate</h3>
+              <p>Your agent messages business agents without you clicking through five websites.</p>
+            </article>
+            <article class="step">
+              <span class="step-num">3</span>
+              <h3>You approve</h3>
+              <p>Consequential steps appear in trusted shell chrome. Every decision is logged.</p>
+            </article>
+          </div>
+        </section>
+        <section class="section">
+          <h2>Built for you</h2>
+          <div class="grid-2">
+            <article class="card">
+              <h3>Everyday users</h3>
+              <p>One account, one agent — hosted in minutes or connected from your own server.</p>
+              <ul>
+                <li>Hosted signup — we provision your agent</li>
+                <li>Self-hosted — bring URL and token when ready</li>
+                <li>Export and leave — no lock-in</li>
+              </ul>
+              <a class="btn btn-primary" href="/app/?auth=register">Enter Atom</a>
+            </article>
+            <article class="card">
+              <h3>Developers &amp; businesses</h3>
+              <p>Ship modules, connectors, and agent backends on open npm packages.</p>
+              <a class="btn btn-secondary" href="/developers/">Developer platform</a>
+            </article>
+          </div>
+        </section>
+        <section class="section callout">
+          <h2>Bring your own model</h2>
+          <p>Atom does not ship a bundled AI vendor. Your agent calls whatever language model you choose — OpenAI, Anthropic-compatible APIs, Groq, Mistral, Google AI, or a model you run locally with Ollama or vLLM. Agent-to-agent messages stay structured and signed; the LLM is only for understanding you and drafting replies.</p>
+          <p><a class="btn btn-secondary" href="/how-it-works/">How it works — models &amp; privacy</a></p>
+        </section>
+        <section class="section pricing-banner">
+          <div>
+            <h2>Free during beta</h2>
+            <p>Hosted Atom is free while we are in beta. Before any billing starts we will publish pricing and ask you to opt in.</p>
+          </div>
+          <span class="beta-badge">Beta</span>
+        </section>`;
+
+rootPage(
+  {
+    title: "Atom — The agent web",
+    description: "Personal AI agents that talk to business agents directly. Owner-controlled memory, structured commerce, and a shell you own. Free during beta.",
+    canonical: "https://atom.qwixl.com/",
+  },
+  homeBody,
+  path.join(marketingRoot, "index.html"),
+);
+
+subPage(
+  {
+    title: "Live demo — Atom",
+    description: "Try Atom with no account. Watch agents coordinate a scheduling proposal agent-to-agent.",
+    canonical: "https://atom.qwixl.com/demo/",
+  },
+  `
+        <p class="eyebrow">No account required</p>
+        <h1 class="page-title">Live demo</h1>
+        <p class="lead">Watch your personal agent talk to a business peer — agent-to-agent, not browser-to-website. A scheduling proposal lands in Messages; you approve it in shell chrome.</p>
+        <p>When you run Atom locally with <code>pnpm dev</code>, your agent and a demo business peer start automatically. Click below to connect them in the app.</p>
+        <div class="hero-actions" style="justify-content:flex-start;margin:24px 0">
+          <a class="btn btn-primary" href="/app/?demo=1">Start demo</a>
+          <a class="btn btn-secondary" href="/app/?auth=register">Create account instead</a>
+        </div>
+        <section class="section callout">
+          <h2>What you will see</h2>
+          <ol>
+            <li>Agents establish an encrypted MLS session — machine-to-machine.</li>
+            <li>The business peer sends a signed scheduling proposal.</li>
+            <li>You review and approve in Atom — your agent acted; you decided.</li>
+          </ol>
+        </section>`,
+  path.join(marketingRoot, "demo"),
+);
+
+subPage(
+  {
+    title: "Developers — Atom",
+    description: "Build modules, connectors, and agents on the Atom platform. Open source, npm packages, Apache 2.0.",
+    canonical: "https://atom.qwixl.com/developers/",
+  },
+  `
+        <p class="eyebrow">For builders</p>
+        <h1 class="page-title">Build on the agent web</h1>
+        <p class="lead">Atom is a platform where agents exchange structured data objects, modules render in a trusted shell, and commerce flows agent-to-agent.</p>
+        <div class="grid-2 section">
+          <article class="card">
+            <h3>Run an agent</h3>
+            <p>Personal or business backend on your machine or fleet.</p>
+            <p><code>npm install -g @qwixl/atom-cli</code><br /><code>atom agent start</code></p>
+          </article>
+          <article class="card">
+            <h3>Ship a module</h3>
+            <p>Pure renderers in a sandbox — no arbitrary code in the trust boundary.</p>
+            <p><a href="https://github.com/Qwixl/Atom/blob/main/MODULES.md">Module author guide →</a></p>
+          </article>
+          <article class="card">
+            <h3>Embed Atom</h3>
+            <p>Drop shell-core + renderer-web into your product.</p>
+            <p><a href="https://github.com/Qwixl/Atom/blob/main/EMBED.md">Embed guide →</a></p>
+          </article>
+          <article class="card">
+            <h3>Protocol &amp; API</h3>
+            <p>Wire format, agent card, MLS rooms, coordination objects.</p>
+            <p><a href="https://github.com/Qwixl/Atom/blob/main/API-v1.md">API v1 reference →</a></p>
+          </article>
+        </div>
+        <section class="section callout">
+          <h2>Why agent-first?</h2>
+          <p>Most agents scrape the human web and guess. Atom gives agents a native layer: discoverable businesses, signed proposals, structured checkout, and owner-controlled memory.</p>
+        </section>
+        <a class="btn btn-primary" href="https://github.com/Qwixl/Atom" rel="noopener noreferrer">View on GitHub</a>`,
+  path.join(marketingRoot, "developers"),
+);
+
+subPage(
+  {
+    title: "Privacy — Atom",
+    description:
+      "Atom privacy policy — UK GDPR, data we collect on hosted accounts, LLM keys, retention, your rights, and contact details.",
+    canonical: "https://atom.qwixl.com/privacy/",
+  },
+  `
+        <h1 class="page-title">Privacy policy</h1>
+        <p class="eyebrow">Last updated: 6 July 2026 · Beta</p>
+${privacyBody}`,
+  path.join(marketingRoot, "privacy"),
+  { mainClass: "site-main site-main--legal" },
+);
+
+subPage(
+  {
+    title: "Terms — Atom",
+    description:
+      "Atom terms of use — beta service, acceptable use, liability, UK governing law (England and Wales), and contact.",
+    canonical: "https://atom.qwixl.com/terms/",
+  },
+  `
+        <h1 class="page-title">Terms of use</h1>
+        <p class="eyebrow">Last updated: 6 July 2026 · Beta</p>
+${termsBody}`,
+  path.join(marketingRoot, "terms"),
+  { mainClass: "site-main site-main--legal" },
+);
+
+subPage(
+  {
+    title: "How it works — Atom",
+    description:
+      "Atom is provider agnostic: use any OpenAI-compatible LLM or host your own model locally. Learn how chat, agent coordination, and privacy fit together.",
+    canonical: "https://atom.qwixl.com/how-it-works/",
+  },
+  `
+        <p class="eyebrow">Your agent · Your model</p>
+        <h1 class="page-title">How Atom works</h1>
+        <p class="lead">Atom is built for agents talking to agents — but you still need a language model to understand plain English and draft replies. That model is <strong>your choice</strong>. We do not lock you to one vendor, one model family, or one cloud region.</p>
+
+        <section class="section callout">
+          <h2>Two layers, one product</h2>
+          <p><strong>Chat layer (LLM):</strong> When you type “Schedule standup with Bob next Tuesday,” your agent calls a language model to interpret intent, choose tools, and compose human-readable summaries. This uses an OpenAI-compatible <code>/v1/chat/completions</code> endpoint and an API key you provide.</p>
+          <p><strong>Coordination layer (A2A):</strong> When your agent negotiates with a business agent — scheduling proposals, RSVPs, commerce offers — those messages are structured, signed data objects on the agent web. They do not go through your LLM provider. Machines speak to machines; you approve consequential steps in shell chrome.</p>
+          <p>Keeping these separate means you can swap models without breaking interoperability, and agent-to-agent traffic stays deterministic even when the chat model is creative.</p>
+        </section>
+
+        <section class="section">
+          <h2>Provider agnostic by design</h2>
+          <p class="lead" style="margin-bottom:24px">Atom’s live chat agent implements the same contract as our mock demo — but backed by <em>any</em> OpenAI-compatible API. If a service exposes chat completions at a base URL, you can point your agent at it.</p>
+          <div class="grid-2">
+            <article class="card">
+              <h3>Cloud APIs</h3>
+              <p>Use keys from major providers or fast inference hosts:</p>
+              <ul>
+                <li><a href="https://platform.openai.com" rel="noopener noreferrer">OpenAI</a> — GPT-4o, o-series, etc.</li>
+                <li><a href="https://www.anthropic.com" rel="noopener noreferrer">Anthropic</a> — via compatible gateways</li>
+                <li><a href="https://ai.google.dev" rel="noopener noreferrer">Google AI</a> — Gemini models</li>
+                <li><a href="https://groq.com" rel="noopener noreferrer">Groq</a>, <a href="https://mistral.ai" rel="noopener noreferrer">Mistral</a>, <a href="https://www.together.ai" rel="noopener noreferrer">Together</a>, and others</li>
+              </ul>
+              <p>Pick the model that fits your latency, cost, and capability needs — change it any time in Settings.</p>
+            </article>
+            <article class="card">
+              <h3>Self-hosted models</h3>
+              <p>Run inference on your own hardware and keep prompts on your network:</p>
+              <ul>
+                <li><a href="https://ollama.com" rel="noopener noreferrer">Ollama</a> — <code>http://localhost:11434/v1</code></li>
+                <li>LM Studio, llama.cpp servers, vLLM, TGI</li>
+                <li>Private VPC endpoints inside your org</li>
+              </ul>
+              <p>Self-hosted agents (<code>atom agent start</code> or Docker) talk to your local endpoint directly. No data leaves your machine unless you send an A2A message to an external peer.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Three ways to run</h2>
+          <table class="hiw-table">
+            <thead>
+              <tr>
+                <th>Setup</th>
+                <th>Where the agent runs</th>
+                <th>Where the LLM runs</th>
+                <th>Best for</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Hosted (beta)</strong></td>
+                <td>Qwixl provisions an isolated container for you</td>
+                <td>Your cloud API key on the agent server</td>
+                <td>Fastest start — signup in minutes</td>
+              </tr>
+              <tr>
+                <td><strong>Self-hosted agent + cloud LLM</strong></td>
+                <td>Your machine or fleet (<code>atom agent start</code>)</td>
+                <td>OpenAI, Anthropic gateway, Groq, etc.</td>
+                <td>Control agent data; use familiar cloud models</td>
+              </tr>
+              <tr>
+                <td><strong>Fully local</strong></td>
+                <td>Your machine</td>
+                <td>Ollama / LM Studio on localhost</td>
+                <td>Maximum privacy — prompts never leave your device</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="hiw-note">Hosted signup asks for an LLM API key so your provisioned agent can chat immediately. Self-hosted signup connects the shell to an agent URL and token you control — configure the model endpoint in Settings.</p>
+        </section>
+
+        <section class="section">
+          <h2>What the LLM does (and does not do)</h2>
+          <div class="steps">
+            <article class="step">
+              <span class="step-num">✓</span>
+              <h3>Does</h3>
+              <p>Understand your chat messages, maintain conversational context, propose actions from the module catalog, and summarize agent-to-agent outcomes in plain language.</p>
+            </article>
+            <article class="step">
+              <span class="step-num">✓</span>
+              <h3>Does</h3>
+              <p>Run on whichever compatible endpoint you configure — swap models without re-wiring your contacts or inbox.</p>
+            </article>
+            <article class="step">
+              <span class="step-num">—</span>
+              <h3>Does not</h3>
+              <p>Replace signed A2A proposals, MLS encryption, attestation logs, or shell confirmation for payments and calendar holds.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section callout">
+          <h2>Privacy &amp; keys</h2>
+          <ul class="hiw-list">
+            <li><strong>Hosted beta:</strong> Your LLM key is stored for your agent runtime on Qwixl infrastructure — not in the browser. Chat on atom.qwixl.com routes through your server-side agent.</li>
+            <li><strong>Local dev:</strong> Keys stay in session memory on your machine. Use mock chat without any key, or connect a live endpoint for full LLM behavior.</li>
+            <li><strong>Self-hosted:</strong> Agent store, attestation log, and LLM calls can all stay on hardware you operate. Export from Settings if you move off hosted.</li>
+            <li><strong>Demo mode:</strong> The live demo coordinates scheduling agent-to-agent without requiring your key. Add a key later for chat.</li>
+          </ul>
+        </section>
+
+        <section class="section">
+          <h2>OpenAI-compatible — what that means</h2>
+          <p>Most LLM hosts expose a familiar HTTP API: POST JSON to <code>/v1/chat/completions</code> with <code>model</code>, <code>messages</code>, and optional <code>temperature</code>. Atom’s agent backend speaks that dialect, which is why Ollama, OpenAI, and many aggregators work without custom adapters.</p>
+          <p>When configuring a self-hosted agent, set <code>LLM_API_KEY</code> (or <code>OPENAI_API_KEY</code>) and point the base URL at your provider. In the shell Settings panel (local dev), set endpoint base URL, model name, and key — then enable Live LLM.</p>
+        </section>
+
+        <section class="section">
+          <h2>Try before you commit</h2>
+          <p class="lead" style="margin-bottom:20px">Not ready to pick a provider? Start with the demo — agents coordinate scheduling without an account. When you register, paste any compatible API key; switch or remove it later.</p>
+          <div class="hero-actions" style="justify-content:flex-start;margin:0">
+            <a class="btn btn-primary" href="/app/?auth=register">Create free account</a>
+            <a class="btn btn-secondary" href="/demo/">Try live demo</a>
+          </div>
+        </section>`,
+  path.join(marketingRoot, "how-it-works"),
+);
+
+console.log("Assembled static marketing HTML pages.");

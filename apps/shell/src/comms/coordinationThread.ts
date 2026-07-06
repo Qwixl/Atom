@@ -275,23 +275,66 @@ export function inboxEntryToThreadItem(
   return null;
 }
 
+/** Derive a locale time label from a wire slot id (e.g. slot-2026-07-07T09:00:00.000Z). */
+export function humanizeSlotId(slotId?: string): string | undefined {
+  if (!slotId) return undefined;
+  const iso = slotId.startsWith("slot-") ? slotId.slice("slot-".length) : slotId;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toLocaleString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function enrichSchedulingResponseLabels(
+  item: Extract<CommsThreadItem, { kind: "scheduling-response" }>,
+  proposals: Map<string, SchedulingSlot[]>,
+): CommsThreadItem {
+  if (item.response !== "accept" || item.slotLabel) return item;
+  const slots = proposals.get(item.proposalId);
+  const matching = item.slotId ? slots?.find((slot) => slot.id === item.slotId) : undefined;
+  const slotLabel = matching?.label ?? humanizeSlotId(item.slotId);
+  if (!slotLabel) return item;
+  return { ...item, slotLabel };
+}
+
+/** Attach human-facing slot labels to scheduling responses for UI display. */
+export function enrichThreadHumanLabels(items: CommsThreadItem[]): CommsThreadItem[] {
+  const proposals = new Map<string, SchedulingSlot[]>();
+  for (const item of items) {
+    if (item.kind === "scheduling-proposal") {
+      proposals.set(item.id, item.slots);
+    }
+  }
+  return items.map((item) =>
+    item.kind === "scheduling-response" ? enrichSchedulingResponseLabels(item, proposals) : item,
+  );
+}
+
 export function mergeThread(
   inbox: InboxEntryWire[],
   outbound: CommsThreadItem[],
   peerDid: string,
+  order: "asc" | "desc" = "asc",
 ): CommsThreadItem[] {
   const inbound = inbox
     .map((entry) => inboxEntryToThreadItem(entry, peerDid))
     .filter((item): item is CommsThreadItem => item !== null);
   const localOut = outbound.filter((item) => item.peerDid === peerDid);
   const seen = new Set<string>();
-  return [...inbound, ...localOut]
-    .filter((item) => {
-      if (seen.has(item.id)) return false;
-      seen.add(item.id);
-      return true;
-    })
-    .sort((a, b) => a.at.localeCompare(b.at));
+  return enrichThreadHumanLabels(
+    [...inbound, ...localOut]
+      .filter((item) => {
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      })
+      .sort((a, b) => (order === "desc" ? b.at.localeCompare(a.at) : a.at.localeCompare(b.at))),
+  );
 }
 
 /** Demo standup slots for M8 organizer actions. */
@@ -318,8 +361,14 @@ export function defaultStandupSlots(): SchedulingSlot[] {
   ];
 }
 
-export function formatSchedulingResponse(response: SchedulingResponseKind, slotId?: string): string {
-  if (response === "accept") return `Accepted slot ${slotId ?? ""}`.trim();
+export function formatSchedulingResponse(
+  response: SchedulingResponseKind,
+  opts?: { slotId?: string; slotLabel?: string },
+): string {
+  if (response === "accept") {
+    const label = opts?.slotLabel ?? humanizeSlotId(opts?.slotId);
+    return label ? `Accepted: ${label}` : "Accepted meeting time";
+  }
   if (response === "decline") return "Declined scheduling proposal";
   return "Counter-proposed (not implemented in v1 UI)";
 }

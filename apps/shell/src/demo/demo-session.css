@@ -1,0 +1,93 @@
+/* Demo session shell chrome — layout frame only; panes use atom-panels.css */
+
+.demo-tag {
+  display: inline-flex;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: var(--shell-radius-full, 9999px);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--shell-status-active, #e87722);
+  color: #fff;
+  vertical-align: middle;
+}
+
+.atom-app-stage {
+  padding: 20px 24px;
+}
+
+.atom-app--demo .atom-app-stage {
+  padding: 24px 32px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.demo-session-frame {
+  flex: 1;
+  width: 100%;
+  max-width: 1120px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+}
+
+.demo-instructions-dialog {
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--shell-border);
+  border-radius: var(--shell-radius-lg, 12px);
+  background: var(--shell-raised-bg);
+  color: var(--shell-text);
+  width: min(440px, calc(100vw - 48px));
+  max-height: calc(100dvh - 48px);
+}
+
+.demo-instructions-dialog::backdrop {
+  background: rgb(0 0 0 / 0.5);
+}
+
+.demo-instructions-dialog-inner {
+  padding: 28px 28px 24px;
+}
+
+.demo-instructions-dialog-inner h2 {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.demo-instructions-steps {
+  margin: 0 0 24px;
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--shell-text-muted);
+}
+
+.demo-instructions-steps li + li {
+  margin-top: 8px;
+}
+
+.demo-instructions-actions {
+  margin: 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 800px) {
+  .atom-app--demo .atom-app-stage {
+    padding: 16px;
+  }
+}
+
+@media (min-width: 960px) {
+  .atom-app-header.site-header {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+}

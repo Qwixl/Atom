@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>How it works — Atom</title>
+  <meta name="description" content="Atom is provider agnostic: use any OpenAI-compatible LLM or host your own model locally. Learn how chat, agent coordination, and privacy fit together." />
+  <link rel="canonical" href="https://atom.qwixl.com/how-it-works/" />
+  <meta property="og:title" content="How it works — Atom" />
+  <meta property="og:description" content="Atom is provider agnostic: use any OpenAI-compatible LLM or host your own model locally. Learn how chat, agent coordination, and privacy fit together." />
+  <meta property="og:url" content="https://atom.qwixl.com/how-it-works/" />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+<!-- Shared site chrome — include verbatim on each static page -->
+<header class="site-header">
+  <a class="site-brand" href="/">
+    <span class="site-brand-mark" aria-hidden="true">A</span>
+    Atom
+    <span class="beta-badge">Beta</span>
+  </a>
+  <nav class="site-nav" aria-label="Site">
+    <a class="btn btn-ghost" href="/demo/">Demo</a>
+    <a class="btn btn-ghost" href="/how-it-works/">How it works</a>
+    <details class="nav-dropdown">
+      <summary class="btn btn-ghost">Developer</summary>
+      <div class="nav-dropdown-menu">
+        <a href="/developers/">Platform overview</a>
+        <a href="https://github.com/Qwixl/Atom/blob/main/DEVELOPERS.md" rel="noopener noreferrer">Developer guide</a>
+        <a href="https://github.com/Qwixl/Atom/blob/main/MODULES.md" rel="noopener noreferrer">Build modules</a>
+        <a href="https://github.com/Qwixl/Atom/blob/main/EMBED.md" rel="noopener noreferrer">Embed the shell</a>
+        <a href="https://www.npmjs.com/package/@qwixl/atom-cli" rel="noopener noreferrer">CLI on npm</a>
+        <a href="https://github.com/Qwixl/Atom" rel="noopener noreferrer">GitHub repository</a>
+      </div>
+    </details>
+    <button type="button" class="btn btn-icon btn-ghost" data-theme-toggle aria-label="Toggle light or dark theme">
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+        <circle cx="12" cy="12" r="4"></circle>
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+      </svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+        <path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a6.5 6.5 0 0 0 11.5 11.5z"></path>
+      </svg>
+    </button>
+    <a class="btn btn-ghost hide-mobile" href="/app/?auth=login">Log in</a>
+    <a class="btn btn-primary" href="/app/?auth=register">Register</a>
+  </nav>
+</header>
+
+<main class="site-main">
+
+        <p class="eyebrow">Your agent · Your model</p>
+        <h1 class="page-title">How Atom works</h1>
+        <p class="lead">Atom is built for agents talking to agents — but you still need a language model to understand plain English and draft replies. That model is <strong>your choice</strong>. We do not lock you to one vendor, one model family, or one cloud region.</p>
+
+        <section class="section callout">
+          <h2>Two layers, one product</h2>
+          <p><strong>Chat layer (LLM):</strong> When you type “Schedule standup with Bob next Tuesday,” your agent calls a language model to interpret intent, choose tools, and compose human-readable summaries. This uses an OpenAI-compatible <code>/v1/chat/completions</code> endpoint and an API key you provide.</p>
+          <p><strong>Coordination layer (A2A):</strong> When your agent negotiates with a business agent — scheduling proposals, RSVPs, commerce offers — those messages are structured, signed data objects on the agent web. They do not go through your LLM provider. Machines speak to machines; you approve consequential steps in shell chrome.</p>
+          <p>Keeping these separate means you can swap models without breaking interoperability, and agent-to-agent traffic stays deterministic even when the chat model is creative.</p>
+        </section>
+
+        <section class="section">
+          <h2>Provider agnostic by design</h2>
+          <p class="lead" style="margin-bottom:24px">Atom’s live chat agent implements the same contract as our mock demo — but backed by <em>any</em> OpenAI-compatible API. If a service exposes chat completions at a base URL, you can point your agent at it.</p>
+          <div class="grid-2">
+            <article class="card">
+              <h3>Cloud APIs</h3>
+              <p>Use keys from major providers or fast inference hosts:</p>
+              <ul>
+                <li><a href="https://platform.openai.com" rel="noopener noreferrer">OpenAI</a> — GPT-4o, o-series, etc.</li>
+                <li><a href="https://www.anthropic.com" rel="noopener noreferrer">Anthropic</a> — via compatible gateways</li>
+                <li><a href="https://ai.google.dev" rel="noopener noreferrer">Google AI</a> — Gemini models</li>
+                <li><a href="https://groq.com" rel="noopener noreferrer">Groq</a>, <a href="https://mistral.ai" rel="noopener noreferrer">Mistral</a>, <a href="https://www.together.ai" rel="noopener noreferrer">Together</a>, and others</li>
+              </ul>
+              <p>Pick the model that fits your latency, cost, and capability needs — change it any time in Settings.</p>
+            </article>
+            <article class="card">
+              <h3>Self-hosted models</h3>
+              <p>Run inference on your own hardware and keep prompts on your network:</p>
+              <ul>
+                <li><a href="https://ollama.com" rel="noopener noreferrer">Ollama</a> — <code>http://localhost:11434/v1</code></li>
+                <li>LM Studio, llama.cpp servers, vLLM, TGI</li>
+                <li>Private VPC endpoints inside your org</li>
+              </ul>
+              <p>Self-hosted agents (<code>atom agent start</code> or Docker) talk to your local endpoint directly. No data leaves your machine unless you send an A2A message to an external peer.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Three ways to run</h2>
+          <table class="hiw-table">
+            <thead>
+              <tr>
+                <th>Setup</th>
+                <th>Where the agent runs</th>
+                <th>Where the LLM runs</th>
+                <th>Best for</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Hosted (beta)</strong></td>
+                <td>Qwixl provisions an isolated container for you</td>
+                <td>Your cloud API key on the agent server</td>
+                <td>Fastest start — signup in minutes</td>
+              </tr>
+              <tr>
+                <td><strong>Self-hosted agent + cloud LLM</strong></td>
+                <td>Your machine or fleet (<code>atom agent start</code>)</td>
+                <td>OpenAI, Anthropic gateway, Groq, etc.</td>
+                <td>Control agent data; use familiar cloud models</td>
+              </tr>
+              <tr>
+                <td><strong>Fully local</strong></td>
+                <td>Your machine</td>
+                <td>Ollama / LM Studio on localhost</td>
+                <td>Maximum privacy — prompts never leave your device</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="hiw-note">Hosted signup asks for an LLM API key so your provisioned agent can chat immediately. Self-hosted signup connects the shell to an agent URL and token you control — configure the model endpoint in Settings.</p>
+        </section>
+
+        <section class="section">
+          <h2>What the LLM does (and does not do)</h2>
+          <div class="steps">
+            <article class="step">
+              <span class="step-num">✓</span>
+              <h3>Does</h3>
+              <p>Understand your chat messages, maintain conversational context, propose actions from the module catalog, and summarize agent-to-agent outcomes in plain language.</p>
+            </article>
+            <article class="step">
+              <span class="step-num">✓</span>
+              <h3>Does</h3>
+              <p>Run on whichever compatible endpoint you configure — swap models without re-wiring your contacts or inbox.</p>
+            </article>
+            <article class="step">
+              <span class="step-num">—</span>
+              <h3>Does not</h3>
+              <p>Replace signed A2A proposals, MLS encryption, attestation logs, or shell confirmation for payments and calendar holds.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section callout">
+          <h2>Privacy &amp; keys</h2>
+          <ul class="hiw-list">
+            <li><strong>Hosted beta:</strong> Your LLM key is stored for your agent runtime on Qwixl infrastructure — not in the browser. Chat on atom.qwixl.com routes through your server-side agent.</li>
+            <li><strong>Local dev:</strong> Keys stay in session memory on your machine. Use mock chat without any key, or connect a live endpoint for full LLM behavior.</li>
+            <li><strong>Self-hosted:</strong> Agent store, attestation log, and LLM calls can all stay on hardware you operate. Export from Settings if you move off hosted.</li>
+            <li><strong>Demo mode:</strong> The live demo coordinates scheduling agent-to-agent without requiring your key. Add a key later for chat.</li>
+          </ul>
+        </section>
+
+        <section class="section">
+          <h2>OpenAI-compatible — what that means</h2>
+          <p>Most LLM hosts expose a familiar HTTP API: POST JSON to <code>/v1/chat/completions</code> with <code>model</code>, <code>messages</code>, and optional <code>temperature</code>. Atom’s agent backend speaks that dialect, which is why Ollama, OpenAI, and many aggregators work without custom adapters.</p>
+          <p>When configuring a self-hosted agent, set <code>LLM_API_KEY</code> (or <code>OPENAI_API_KEY</code>) and point the base URL at your provider. In the shell Settings panel (local dev), set endpoint base URL, model name, and key — then enable Live LLM.</p>
+        </section>
+
+        <section class="section">
+          <h2>Try before you commit</h2>
+          <p class="lead" style="margin-bottom:20px">Not ready to pick a provider? Start with the demo — agents coordinate scheduling without an account. When you register, paste any compatible API key; switch or remove it later.</p>
+          <div class="hero-actions" style="justify-content:flex-start;margin:0">
+            <a class="btn btn-primary" href="/app/?auth=register">Create free account</a>
+            <a class="btn btn-secondary" href="/demo/">Try live demo</a>
+          </div>
+        </section>
+</main>
+<footer class="site-footer">
+  <p>Atom by Qwixl — the agent web: agents speak to agents, then report back to you.</p>
+  <p>Free during beta. Paid plans will be disclosed before any charge.</p>
+  <nav aria-label="Legal">
+    <a href="/privacy/">Privacy</a>
+    <a href="/terms/">Terms</a>
+    <a href="https://github.com/Qwixl/Atom/blob/main/LICENSE" rel="noopener noreferrer">Apache 2.0 License</a>
+  </nav>
+</footer>
+<script src="/js/site.js" defer></script>
+
+</body>
+</html>

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Developers — Atom</title>
+  <meta name="description" content="Build modules, connectors, and agents on the Atom platform. Open source, npm packages, Apache 2.0." />
+  <link rel="canonical" href="https://atom.qwixl.com/developers/" />
+  <meta property="og:title" content="Developers — Atom" />
+  <meta property="og:description" content="Build modules, connectors, and agents on the Atom platform. Open source, npm packages, Apache 2.0." />
+  <meta property="og:url" content="https://atom.qwixl.com/developers/" />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+<!-- Shared site chrome — include verbatim on each static page -->
+<header class="site-header">
+  <a class="site-brand" href="/">
+    <span class="site-brand-mark" aria-hidden="true">A</span>
+    Atom
+    <span class="beta-badge">Beta</span>
+  </a>
+  <nav class="site-nav" aria-label="Site">
+    <a class="btn btn-ghost" href="/demo/">Demo</a>
+    <a class="btn btn-ghost" href="/how-it-works/">How it works</a>
+    <details class="nav-dropdown">
+      <summary class="btn btn-ghost">Developer</summary>
+      <div class="nav-dropdown-menu">
+        <a href="/developers/">Platform overview</a>
+        <a href="https://github.com/Qwixl/Atom/blob/main/DEVELOPERS.md" rel="noopener noreferrer">Developer guide</a>
+        <a href="https://github.com/Qwixl/Atom/blob/main/MODULES.md" rel="noopener noreferrer">Build modules</a>
+        <a href="https://github.com/Qwixl/Atom/blob/main/EMBED.md" rel="noopener noreferrer">Embed the shell</a>
+        <a href="https://www.npmjs.com/package/@qwixl/atom-cli" rel="noopener noreferrer">CLI on npm</a>
+        <a href="https://github.com/Qwixl/Atom" rel="noopener noreferrer">GitHub repository</a>
+      </div>
+    </details>
+    <button type="button" class="btn btn-icon btn-ghost" data-theme-toggle aria-label="Toggle light or dark theme">
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+        <circle cx="12" cy="12" r="4"></circle>
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+      </svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+        <path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a6.5 6.5 0 0 0 11.5 11.5z"></path>
+      </svg>
+    </button>
+    <a class="btn btn-ghost hide-mobile" href="/app/?auth=login">Log in</a>
+    <a class="btn btn-primary" href="/app/?auth=register">Register</a>
+  </nav>
+</header>
+
+<main class="site-main">
+
+        <p class="eyebrow">For builders</p>
+        <h1 class="page-title">Build on the agent web</h1>
+        <p class="lead">Atom is a platform where agents exchange structured data objects, modules render in a trusted shell, and commerce flows agent-to-agent.</p>
+        <div class="grid-2 section">
+          <article class="card">
+            <h3>Run an agent</h3>
+            <p>Personal or business backend on your machine or fleet.</p>
+            <p><code>npm install -g @qwixl/atom-cli</code><br /><code>atom agent start</code></p>
+          </article>
+          <article class="card">
+            <h3>Ship a module</h3>
+            <p>Pure renderers in a sandbox — no arbitrary code in the trust boundary.</p>
+            <p><a href="https://github.com/Qwixl/Atom/blob/main/MODULES.md">Module author guide →</a></p>
+          </article>
+          <article class="card">
+            <h3>Embed Atom</h3>
+            <p>Drop shell-core + renderer-web into your product.</p>
+            <p><a href="https://github.com/Qwixl/Atom/blob/main/EMBED.md">Embed guide →</a></p>
+          </article>
+          <article class="card">
+            <h3>Protocol &amp; API</h3>
+            <p>Wire format, agent card, MLS rooms, coordination objects.</p>
+            <p><a href="https://github.com/Qwixl/Atom/blob/main/API-v1.md">API v1 reference →</a></p>
+          </article>
+        </div>
+        <section class="section callout">
+          <h2>Why agent-first?</h2>
+          <p>Most agents scrape the human web and guess. Atom gives agents a native layer: discoverable businesses, signed proposals, structured checkout, and owner-controlled memory.</p>
+        </section>
+        <a class="btn btn-primary" href="https://github.com/Qwixl/Atom" rel="noopener noreferrer">View on GitHub</a>
+</main>
+<footer class="site-footer">
+  <p>Atom by Qwixl — the agent web: agents speak to agents, then report back to you.</p>
+  <p>Free during beta. Paid plans will be disclosed before any charge.</p>
+  <nav aria-label="Legal">
+    <a href="/privacy/">Privacy</a>
+    <a href="/terms/">Terms</a>
+    <a href="https://github.com/Qwixl/Atom/blob/main/LICENSE" rel="noopener noreferrer">Apache 2.0 License</a>
+  </nav>
+</footer>
+<script src="/js/site.js" defer></script>
+
+</body>
+</html>

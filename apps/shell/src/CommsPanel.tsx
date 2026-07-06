@@ -14,7 +14,7 @@ import {
   contactToTrustedAgentPayload,
   findTrustedAgentRecord,
 } from "./comms/trustedAgent.js";
-import type { AgentContact, CommsThreadItem, InboxEntryWire } from "./comms/types.js";
+import type { AgentContact, CommsAgentConfig, CommsThreadItem, InboxEntryWire } from "./comms/types.js";
 import type { ConsequentialAction } from "@qwixl/shell-core";
 import { DemoWalkthrough } from "./DemoWalkthrough.js";
 import { DemoProposalComposer } from "./DemoProposalComposer.js";
@@ -24,6 +24,8 @@ import {
   type DemoPersonaId,
   IS_DEMO_MODE,
 } from "./demoPersonas.js";
+import { DemoSessionRoleSwitcher, highlightRoleForDemoStep } from "./demo/DemoSessionRoleSwitcher.js";
+import type { DemoSessionRole } from "./demo/demoSessionStorage.js";
 import { ATOM_BROWSER_MODE, IS_PRODUCTION_HOST } from "./hostConfig.js";
 
 export type CommsConfirmationResult =
@@ -81,6 +83,11 @@ export function CommsPanel({
   agentConnectionReady = true,
   onAgentAuthFailure,
   onRequestReconnect,
+  agentConfigOverride,
+  onPersistContacts,
+  demoSession = false,
+  demoSessionRole = "alice",
+  onDemoSessionRoleChange,
 }: {
   contacts: AgentContact[];
   ownerRecords: OwnerRecord[];
@@ -99,9 +106,18 @@ export function CommsPanel({
   agentConnectionReady?: boolean;
   onAgentAuthFailure?: () => void;
   onRequestReconnect?: () => void;
+  /** Ephemeral demo session — do not read/write live agent config. */
+  agentConfigOverride?: CommsAgentConfig;
+  onPersistContacts?: (contacts: AgentContact[]) => void;
+  /** Browser demo sandbox — minimal chrome, no inline walkthrough. */
+  demoSession?: boolean;
+  demoSessionRole?: DemoSessionRole;
+  onDemoSessionRoleChange?: (role: DemoSessionRole) => void;
 }) {
-  const [agentUrl, setAgentUrl] = useState(() => loadCommsAgentConfig().adminUrl);
-  const [adminToken, setAdminToken] = useState(() => loadCommsAgentConfig().adminToken ?? "");
+  const contactsDialogRef = useRef<HTMLDialogElement>(null);
+  const initialConfig = agentConfigOverride ?? loadCommsAgentConfig();
+  const [agentUrl, setAgentUrl] = useState(() => initialConfig.adminUrl);
+  const [adminToken, setAdminToken] = useState(() => initialConfig.adminToken ?? "");
   const [localDid, setLocalDid] = useState<string | null>(null);
   const [mlsPeers, setMlsPeers] = useState<string[]>([]);
   const [statusError, setStatusError] = useState<string | null>(null);
@@ -137,16 +153,30 @@ export function CommsPanel({
   }, [contacts, demoPersona, focusContactId]);
 
   useEffect(() => {
-    if (!demoMode) return;
+    if (!demoMode || agentConfigOverride || demoSession) return;
     const persona = DEMO_PERSONAS[demoPersona];
     setAgentUrl(persona.adminUrl);
     setAdminToken(persona.adminToken);
-  }, [demoMode, demoPersona]);
+  }, [agentConfigOverride, demoMode, demoPersona, demoSession]);
+
+  useEffect(() => {
+    if (!agentConfigOverride) return;
+    setAgentUrl(agentConfigOverride.adminUrl);
+    setAdminToken(agentConfigOverride.adminToken ?? "");
+  }, [agentConfigOverride]);
+
+  function persistContacts(next: AgentContact[]) {
+    if (onPersistContacts) onPersistContacts(next);
+    else saveContacts(next);
+  }
 
   const { client: syncedClient } = useAgentConfig(vaultUnlocked);
   const connectionActive = agentConnectionReady && vaultUnlocked;
 
   const client = useMemo(() => {
+    if (agentConfigOverride) {
+      return new CommsAgentClient(agentConfigOverride.adminUrl, agentConfigOverride.adminToken);
+    }
     if (demoMode) {
       const persona = DEMO_PERSONAS[demoPersona];
       return new CommsAgentClient(persona.adminUrl, persona.adminToken);
@@ -155,7 +185,7 @@ export function CommsPanel({
       return new CommsAgentClient(agentUrl, adminToken || undefined);
     }
     return syncedClient;
-  }, [adminToken, agentUrl, demoMode, demoPersona, showSetup, syncedClient]);
+  }, [adminToken, agentConfigOverride, agentUrl, demoMode, demoPersona, showSetup, syncedClient]);
   const selected = contacts.find((c) => c.id === selectedId) ?? null;
   const ownerCategories = useMemo(() => uniqueOwnerCategories(ownerRecords), [ownerRecords]);
   const visibleContacts = useMemo(() => {
@@ -274,7 +304,7 @@ export function CommsPanel({
         connectedAt: new Date().toISOString(),
       };
       const next = [...contacts.filter((c) => c.did !== contact.did), contact];
-      saveContacts(next);
+      persistContacts(next);
       syncContactToOwnerStore(ownerStore, contact);
       onContactsChanged();
       setSelectedId(contact.id);
@@ -540,6 +570,7 @@ export function CommsPanel({
           proposalId,
           response,
           slotId: slot?.id,
+          slotLabel: slot?.label,
         },
       ]);
       setActionNote("Scheduling response sent.");
@@ -827,7 +858,7 @@ export function CommsPanel({
     if (!selected) return;
     const updated: AgentContact = { ...selected, ...patch };
     const next = contacts.map((contact) => (contact.id === selected.id ? updated : contact));
-    saveContacts(next);
+    persistContacts(next);
     syncContactToOwnerStore(ownerStore, updated);
     onContactsChanged();
     onProfileChanged();
@@ -840,7 +871,7 @@ export function CommsPanel({
       if (record) ownerStore.remove(record.id);
     }
     const next = contacts.filter((c) => c.id !== id);
-    saveContacts(next);
+    persistContacts(next);
     onContactsChanged();
     onProfileChanged();
     if (selectedId === id) setSelectedId(next[0]?.id ?? null);
@@ -857,14 +888,17 @@ export function CommsPanel({
       standingDisclosure: standingDisclosure.length > 0 ? standingDisclosure : undefined,
     };
     const next = contacts.map((c) => (c.id === selected.id ? updated : c));
-    saveContacts(next);
+    persistContacts(next);
     syncContactToOwnerStore(ownerStore, updated);
     onContactsChanged();
     onProfileChanged();
   }
 
   return (
-    <aside className={`panel-view comms-view${demoMode ? " comms-view--demo" : ""}`}>
+    <aside
+      className={`panel-view comms-view comms-workspace${demoMode ? " comms-view--demo" : ""}${demoSession ? " comms-view--session" : ""}`}
+    >
+      {!demoSession ? (
       <header className="panel-toolbar">
         <p className="panel-toolbar-meta">
           {demoMode ? (
@@ -913,8 +947,9 @@ export function CommsPanel({
           </div>
         ) : null}
       </header>
+      ) : null}
 
-      {demoMode ? <DemoWalkthrough step={demoStep} /> : null}
+      {demoMode && !demoSession ? <DemoWalkthrough step={demoStep} /> : null}
 
       {!demoMode && !ATOM_BROWSER_MODE && !IS_PRODUCTION_HOST && showSetup ? (
         <div className="comms-setup">
@@ -1014,8 +1049,49 @@ export function CommsPanel({
         </div>
       ) : null}
 
+      <dialog ref={contactsDialogRef} className="comms-contacts-dialog" aria-label="Contacts">
+        <div className="comms-contacts-dialog-inner">
+          <header className="comms-contacts-dialog-head">
+            <strong>Contacts</strong>
+            <form method="dialog">
+              <button type="submit" className="btn btn-ghost">
+                Close
+              </button>
+            </form>
+          </header>
+          <ul className="panel-list-scroll comms-contact-list">
+            {visibleContacts.map((contact) => {
+              const encrypted = mlsPeers.includes(contact.did);
+              const isSelected = contact.id === selectedId;
+              return (
+                <li key={`dialog-${contact.id}`}>
+                  <button
+                    type="button"
+                    className={`panel-row comms-contact${isSelected ? " is-selected" : ""}`}
+                    onClick={() => {
+                      setSelectedId(contact.id);
+                      contactsDialogRef.current?.close();
+                    }}
+                  >
+                    <span className="panel-avatar comms-contact-avatar" aria-hidden="true">
+                      {contactInitials(contactDisplayName(contact))}
+                    </span>
+                    <span className="panel-row-body comms-contact-body">
+                      <span className="panel-row-title comms-contact-name">{contactDisplayName(contact)}</span>
+                      <span className="panel-row-meta comms-contact-meta">
+                        {encrypted ? "Encrypted" : "Connecting…"}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </dialog>
+
       <div className={`panel-body panel-master-detail comms-main${demoMode ? " comms-main--demo" : ""}`}>
-        {!demoMode ? (
+        {!demoSession ? (
         <nav className="panel-list comms-sidebar" aria-label="Contacts">
           <div className="panel-list-head">
             <span>Contacts</span>
@@ -1128,6 +1204,13 @@ export function CommsPanel({
           {selected ? (
             <>
               <header className="panel-detail-head comms-peer-bar">
+                {demoSession && onDemoSessionRoleChange ? (
+                  <DemoSessionRoleSwitcher
+                    active={demoSessionRole}
+                    highlight={highlightRoleForDemoStep(demoStep)}
+                    onSwitch={onDemoSessionRoleChange}
+                  />
+                ) : null}
                 <div className="panel-detail-identity comms-peer-identity">
                   <span className="panel-avatar panel-avatar-lg comms-contact-avatar" aria-hidden="true">
                     {contactInitials(selected.name)}
@@ -1147,6 +1230,15 @@ export function CommsPanel({
                   </div>
                 </div>
                 <div className="panel-detail-actions comms-peer-actions">
+                  {!demoSession ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost comms-open-contacts"
+                    onClick={() => contactsDialogRef.current?.showModal()}
+                  >
+                    Contacts
+                  </button>
+                  ) : null}
                   {!demoMode ? (
                     <>
                       <button
