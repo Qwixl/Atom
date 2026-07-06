@@ -117,6 +117,7 @@ export function AtomShell({
   return (
     <div className={`atom-app${variant === "demo" ? " atom-app--demo" : ""}`}>
       <header className="atom-app-header site-header">
+        <div className="atom-app-header-inner">
         <a className="site-brand" href="/">
           <span className="site-brand-mark" aria-hidden="true">
             A
@@ -137,13 +138,12 @@ export function AtomShell({
           <ThemeToggle className="btn btn-ghost atom-theme-toggle" />
           <button
             type="button"
-            className="btn btn-ghost atom-app-settings"
+            className="btn btn-ghost atom-app-settings panel-btn-icon"
             aria-label={settingsLabel}
             title={settingsLabel}
             onClick={onOpenSettings}
           >
             <IconSettings className="atom-nav-icon" />
-            <span className="atom-app-settings-label">{settingsLabel}</span>
           </button>
           <button
             type="button"
@@ -154,12 +154,15 @@ export function AtomShell({
             Menu
           </button>
         </div>
+        </div>
       </header>
 
       {banner}
 
       <div className="atom-app-body">
-        <main className="atom-app-stage">{children}</main>
+        <main className="atom-app-stage">
+          <div className="atom-app-content">{children}</div>
+        </main>
         {composer ? <footer className="atom-app-composer">{composer}</footer> : null}
       </div>
 

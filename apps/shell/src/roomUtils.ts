@@ -3,8 +3,13 @@ export const COFFEE_SHOP_ROOM_ID = "room:coffeeshop";
 
 export function moduleBundleUrl(moduleId: string): string {
   const slug = moduleId.trim().replace(/\//g, "-");
-  // Module bundles are static assets at site root (/modules/…), not under the /app/ SPA base.
-  return `/modules/${slug}/index.html`;
+  if (!slug) return "";
+  // Absolute origin-root path — must not resolve under /app/ (SPA rewrite + frame-ancestors 'none').
+  const origin =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : "https://atom.qwixl.com";
+  return `${origin}/modules/${slug}/index.html`;
 }
 
 const ACTIVITY_LABELS: Record<string, string> = {

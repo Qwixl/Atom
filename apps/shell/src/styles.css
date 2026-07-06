@@ -1378,6 +1378,59 @@ body {
   max-width: none;
 }
 
+.profile-panel-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.profile-panel-body {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 20px 24px;
+}
+
+.profile-panel-content {
+  max-width: 640px;
+}
+
+.profile-nav {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--shell-raised-bg, var(--bg-inset));
+}
+
+@media (min-width: 720px) {
+  .profile-panel-layout {
+    flex-direction: row;
+  }
+
+  .profile-nav {
+    flex-direction: column;
+    width: 200px;
+    padding: 12px 0 12px 12px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+  }
+
+  .profile-nav .settings-nav-item {
+    width: 100%;
+    white-space: normal;
+  }
+
+  .profile-panel-body {
+    padding-top: 12px;
+  }
+
+  .profile-panel-content .settings-panel-head {
+    display: none;
+  }
+}
+
 .shell-profile h2 {
   margin: 0 0 6px;
   font-size: 16px;
