@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Catalog, ModuleRegistry } from "@qwixl/shell-core";
-import { createModuleBridge, MODULE_IFRAME_SANDBOX } from "@qwixl/renderer-web";
+import { createModuleBridge, MODULE_IFRAME_SANDBOX, resolveModuleBundleUrl } from "@qwixl/renderer-web";
 
 function resolveBundleUrl(bundleUrl: string): string {
-  if (/^https?:\/\//i.test(bundleUrl)) return bundleUrl;
-  const base = import.meta.env.BASE_URL ?? "/";
-  const root = base.endsWith("/") ? base : `${base}/`;
-  return new URL(bundleUrl.replace(/^\//, ""), `${window.location.origin}${root}`).href;
+  return resolveModuleBundleUrl(bundleUrl);
 }
 
 export function CommsModuleEmbed({

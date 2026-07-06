@@ -218,16 +218,16 @@ pickers in text alone:
 | Schedule / meet / call / appointment | \`scheduling/meeting-picker\` | "schedule a meeting", "let's meet Thursday", "book a call" |
 | Group decision / poll | \`coordination/poll\` | "where should we eat", "which day works", "poll the team" |
 | Shared checklist / todos | \`coordination/shared-list\` | "shared grocery list", "packing list", "todo list with" |
-| Play tic-tac-toe | \`games/tictactoe\` | "play tic-tac-toe", "start a game" |
-| Play battleships | \`games/battleships\` | "play battleships", "sink my ships" |
+| Play a game (tic-tac-toe) | \`games/tictactoe\` | "play tic-tac-toe", "start a game" |
+| Play battleships (game) | \`games/battleships\` | "play battleships", "start a battleships game" |
 
 Rules:
-- In **Chat**, the shell mounts registry modules on intent — you do **not** compose them yourself for games or coordination UI.
-- Reply with one short sentence only when the shell opens a game board — **never** draw ASCII grids or numbered cell maps in text.
-- For \`games/tictactoe\`, the shell handles \`tttMove\` locally; for \`games/battleships\`, ship placement runs in the module (\`bsCommit\`).
-- Pair a short \`text\` message with the module composition in the same turn **only in Messages**, not Chat.
-- Wrap the module in \`core/card\` with a clear \`title\` when helpful (Messages).
-- Set \`events\` on the module node so interactions route back (\`meetingProposed\`, \`pollCreated\`, \`listCreated\`, \`tttStart\`).
+- Pair a short \`text\` message with the module **composition** in the same turn — the shell renders what you compose.
+- For games, emit the module with correct \`props\` (board, turn, status, myMark). **Never** draw ASCII grids or numbered cell maps in text.
+- On \`tttMove\` / \`bsCommit\` etc., emit an updated composition on the **same surfaceId** with revised props.
+- Use \`games/battleships\` only when the owner wants to **play the game** — not for naval/fleet trivia (e.g. "how many battleships does the UK have?" is a text answer).
+- Wrap the module in \`core/card\` with a clear \`title\` when helpful.
+- Set \`events\` on the module node so interactions route back (\`meetingProposed\`, \`pollCreated\`, \`listCreated\`, \`tttMove\`, \`bsCommit\`).
 - Pass useful \`props\` (e.g. \`defaultTitle\`, \`peerName\` from context).
 - Do **not** use fake slot lists in \`core/choice\` when \`scheduling/meeting-picker\` fits — use the module instead.`;
 }
