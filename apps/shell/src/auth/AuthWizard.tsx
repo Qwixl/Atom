@@ -39,6 +39,10 @@ import { probeLocalDevAgentBase } from "../devAgentProbe.js";
 import { defaultCommsAgentUrl, loadCommsAgentConfig } from "../comms/storage.js";
 import { FieldLabelWithHint, LlmApiKeyHintContent } from "../ui/FieldHint.js";
 import {
+  claimEmailConfirmation,
+  subscribeToEmailConfirmed,
+} from "./emailConfirmBridge.js";
+import {
   clearPendingHostedAuth,
   loadPendingHostedAuth,
   savePendingHostedAuth,
@@ -191,6 +195,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
 
     const continueAfterConfirm = async () => {
       if (cancelled || !(await hasSupabaseSession())) return;
+      claimEmailConfirmation();
       setEmailConfirmedThanks(true);
       setError(null);
       thanksTimer = window.setTimeout(() => {
@@ -204,6 +209,10 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       }, 1800);
     };
 
+    const unsubBridge = subscribeToEmailConfirmed(() => {
+      void continueAfterConfirm();
+    });
+
     const supabase = getSupabaseClient();
     const {
       data: { subscription },
@@ -216,6 +225,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
 
     return () => {
       cancelled = true;
+      unsubBridge();
       subscription.unsubscribe();
       clearInterval(interval);
       if (thanksTimer !== undefined) window.clearTimeout(thanksTimer);
