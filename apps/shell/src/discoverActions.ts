@@ -101,12 +101,15 @@ export async function joinDiscoverRoom(opts: {
   await opts.client.joinRemoteRoom({
     hostUrl: opts.entry.resolved.adminBase,
     roomId,
-    memberName: opts.memberName ?? "Guest",
+    memberName: opts.memberName?.trim() || "Guest",
   });
   return roomId;
 }
 
-export async function quickJoinCoffeeShop(client: CommsAgentClient): Promise<string> {
+export async function quickJoinCoffeeShop(
+  client: CommsAgentClient,
+  memberName?: string,
+): Promise<string> {
   const indexUrl = DEFAULT_DISCOVER_INDEXES.find((row) => row.label === "Community")?.url ?? "/community-index/index.json";
   const body = await fetchBusinessIndex(indexUrl);
   const matches = filterBusinessIndex(body, { kind: "community" }).filter(
@@ -117,7 +120,16 @@ export async function quickJoinCoffeeShop(client: CommsAgentClient): Promise<str
     throw new Error("Coffee Shop is not listed in the community index.");
   }
   const resolved = await resolveDiscoverEntryForClient(client, entry);
-  return joinDiscoverRoom({ client, entry: { ...entry, resolved } });
+  return joinDiscoverRoom({ client, entry: { ...entry, resolved }, memberName });
+}
+
+/** True when the user has already joined every joinable room on this listing. */
+export function isDiscoverEntryJoined(
+  entry: BusinessIndexEntry,
+  joinedRoomIds: ReadonlySet<string>,
+): boolean {
+  const roomIds = entry.roomIds ?? [];
+  return roomIds.length > 0 && roomIds.every((roomId) => joinedRoomIds.has(roomId));
 }
 
 export type { IndexEntryKind, ResolvedDiscoverTarget };

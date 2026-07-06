@@ -1216,8 +1216,11 @@
 }
 
 .rooms-chat-layout {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 .rooms-chat-head {
@@ -1227,7 +1230,8 @@
 
 .rooms-messages {
   flex: 1;
-  min-height: 0;
+  min-height: 120px;
+  overflow-y: auto;
   padding: 8px 12px;
   gap: 6px;
 }
@@ -1254,6 +1258,10 @@
 
 .rooms-venue {
   display: none;
+}
+
+.rooms-view .panel-toolbar {
+  justify-content: flex-end;
 }
 
 .rooms-view .panel-toolbar-meta {

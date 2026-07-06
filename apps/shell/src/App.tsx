@@ -59,6 +59,7 @@ import { CommsPanel } from "./CommsPanel.js";
 import { DiscoverPanel } from "./DiscoverPanel.js";
 import { DiscoverChatResults, type DiscoverChatResult } from "./DiscoverChatResults.js";
 import { connectDiscoverEntry, joinDiscoverRoom } from "./discoverActions.js";
+import { ownerHandleForRooms } from "./ownerHandle.js";
 import { extractDiscoverTerms, isDiscoverQuery } from "./discoverQuery.js";
 import { loadDiscoverIndexes } from "./discoverIndexStorage.js";
 import { RoomsPanel } from "./RoomsPanel.js";
@@ -900,6 +901,7 @@ export function App() {
       const roomId = await joinDiscoverRoom({
         client,
         entry: { ...result.entry, resolved: result.resolved },
+        memberName: ownerHandleForRooms(),
       });
       setRoomsFocusId(roomId);
       setChatDiscoverResults(null);
