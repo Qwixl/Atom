@@ -35,6 +35,12 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
   private queued: string[] = [];
   private disposed = false;
   private abortController: AbortController | null = null;
+  /**
+   * Endpoint capability learned at runtime: some OpenAI-compatible providers
+   * reject `response_format`. Once we see that, stop asking for it rather
+   * than failing every subsequent turn.
+   */
+  private jsonModeSupported = true;
 
   private static readonly REQUEST_TIMEOUT_MS = 120_000;
 
@@ -132,16 +138,47 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
     }
 
     this.messages.push({ role: "assistant", content: raw });
-    const parsed = extractJson(raw);
+    let parsed = extractJson(raw);
     if (!parsed || !Array.isArray((parsed as { messages?: unknown }).messages)) {
-      // Model ignored the protocol; degrade to plain text rather than failing.
-      this.emit({ type: "text", text: raw });
-      return;
+      // Model broke protocol (e.g. drew an ASCII grid instead of composing).
+      // Give it one chance to self-correct before degrading to plain text —
+      // this keeps the agent in charge of *what* to say while enforcing
+      // *how* it must say it.
+      const repaired = await this.attemptRepair();
+      if (repaired) {
+        parsed = repaired;
+      } else {
+        this.emit({ type: "text", text: raw });
+        return;
+      }
     }
 
     for (const message of (parsed as { messages: unknown[] }).messages) {
       this.emitAgentMessage(message);
     }
+  }
+
+  private async attemptRepair(): Promise<{ messages: unknown[] } | null> {
+    if (this.disposed) return null;
+    this.messages.push({
+      role: "user",
+      content:
+        '[format-error] Your previous reply did not match the required protocol. ' +
+        'Respond again for that same turn with ONLY the JSON object described in the ' +
+        'system prompt — no markdown fences, no prose outside the JSON, no ASCII grids. ' +
+        'If the turn calls for a game or module, use a "composition" message with the ' +
+        "correct component, not a text drawing.",
+    });
+    let raw: string;
+    try {
+      raw = await this.callApi();
+    } catch {
+      return null;
+    }
+    this.messages.push({ role: "assistant", content: raw });
+    const parsed = extractJson(raw);
+    if (!parsed || !Array.isArray((parsed as { messages?: unknown }).messages)) return null;
+    return parsed as { messages: unknown[] };
   }
 
   private emitAgentMessage(message: unknown): void {
@@ -161,22 +198,35 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
     const signal = this.abortController.signal;
     const timeout = setTimeout(() => this.abortController?.abort(), LlmAgentSession.REQUEST_TIMEOUT_MS);
     try {
-      const response = await fetch(`${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.config.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: this.config.model,
-          temperature: this.config.temperature ?? 0.4,
-          messages: this.messages,
-        }),
-        signal,
-      });
+      const body: Record<string, unknown> = {
+        model: this.config.model,
+        temperature: this.config.temperature ?? 0.4,
+        messages: this.messages,
+      };
+      // Force strict JSON output where the endpoint supports it, so the
+      // model can no longer fall back to freeform prose (ASCII grids etc).
+      if (this.jsonModeSupported) body.response_format = { type: "json_object" };
+
+      const url = `${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`;
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.config.apiKey}`,
+      };
+      let response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal });
+
+      if (!response.ok && this.jsonModeSupported && (response.status === 400 || response.status === 422)) {
+        // Some OpenAI-compatible providers don't support response_format —
+        // retry once without it and stop requesting it for future turns.
+        this.jsonModeSupported = false;
+        delete body.response_format;
+        response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal });
+      }
+
       if (!response.ok) {
-        const body = await response.text().catch(() => "");
-        throw new Error(`${response.status} ${response.statusText}${body ? ` — ${body.slice(0, 200)}` : ""}`);
+        const errBody = await response.text().catch(() => "");
+        throw new Error(
+          `${response.status} ${response.statusText}${errBody ? ` — ${errBody.slice(0, 200)}` : ""}`,
+        );
       }
       const data = (await response.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
