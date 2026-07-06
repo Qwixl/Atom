@@ -3,12 +3,13 @@ import {
   appendAgentText,
   appendUserMessage,
   clearFeed,
+  patchSurfaceNodeProps,
   upsertFeedSurface,
   type FeedItem,
 } from "./conversation.js";
 import { buildDataRequestChrome, type PendingChrome } from "./chrome.js";
 import { resolveComposition } from "./resolver.js";
-import type { Composition } from "./types.js";
+import type { Composition, JsonObject } from "./types.js";
 import type { AgentOutput, AgentSession } from "./session.js";
 
 export interface ConversationSnapshot {
@@ -96,6 +97,26 @@ export class ConversationRuntime {
   appendLocalAgentText(text: string): void {
     this.feed = appendAgentText(this.feed, this.nextId(), text);
     this.notify();
+  }
+
+  /** Update props on a module node within an active surface (e.g. live game state). */
+  updateSurfaceModuleProps(
+    surfaceId: string,
+    componentName: string,
+    propsPatch: JsonObject,
+  ): boolean {
+    const index = this.feed.findIndex(
+      (item) => item.kind === "surface" && item.surface.surfaceId === surfaceId,
+    );
+    if (index < 0) return false;
+    const item = this.feed[index];
+    if (!item || item.kind !== "surface") return false;
+    const surface = patchSurfaceNodeProps(item.surface, componentName, propsPatch);
+    const next = [...this.feed];
+    next[index] = { kind: "surface", id: item.id, surface };
+    this.feed = next;
+    this.notify();
+    return true;
   }
 
   appendUserAndAgentText(userText: string, agentText: string): void {
