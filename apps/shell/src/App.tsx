@@ -1568,6 +1568,28 @@ function SettingsDialog({
   const [hostedLlmBusy, setHostedLlmBusy] = useState(false);
   const [hostedLlmNote, setHostedLlmNote] = useState<string | null>(null);
   const [hostedLlmError, setHostedLlmError] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<
+    "agent" | "security" | "connectors" | "appearance" | "modules" | "payments" | "developer"
+  >("agent");
+
+  const navItems = useMemo(() => {
+    const items: Array<{
+      id: typeof activeSection;
+      label: string;
+      hint: string;
+    }> = [
+      { id: "agent", label: "Agent", hint: "Connection and API keys" },
+      { id: "security", label: "Security", hint: "Vault and passkey" },
+      { id: "connectors", label: "Connectors", hint: "Calendar and integrations" },
+      { id: "appearance", label: "Appearance", hint: "Theme and skin" },
+      { id: "modules", label: "Modules", hint: "Catalog and registry" },
+    ];
+    if (!productionLocked) {
+      items.splice(4, 0, { id: "payments", label: "Payments", hint: "Stripe and commerce" });
+      items.push({ id: "developer", label: "Developer", hint: "AG-UI and registry URL" });
+    }
+    return items;
+  }, [productionLocked]);
 
   async function saveHostedLlmKey() {
     const key = hostedLlmKey.trim();
@@ -1618,6 +1640,364 @@ function SettingsDialog({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  useEffect(() => {
+    if (intent === "llm") setActiveSection("agent");
+  }, [intent]);
+
+  const activeNav = navItems.find((item) => item.id === activeSection) ?? navItems[0]!;
+
+  function renderAgentPanel() {
+    return (
+      <>
+        {intent === "llm" && !productionLocked ? (
+          <p className="settings-intent-note">
+            Enter your model endpoint and API key, then click <strong>Enable Live LLM</strong> below.
+          </p>
+        ) : null}
+        {productionLocked ? (
+          <>
+            <p className="settings-note">
+              {isHostedAgent
+                ? "Chat runs on your hosted agent server. Update your LLM API key below if chat fails or you need to rotate credentials."
+                : "On this site, chat runs through a server-side agent — your API keys never enter the browser."}
+            </p>
+            {isHostedAgent ? (
+              <>
+                <label className="atom-field">
+                  <FieldLabelWithHint label="LLM API key" hint={<LlmApiKeyHintContent />} />
+                  <input
+                    type="password"
+                    autoComplete="off"
+                    value={hostedLlmKey}
+                    onChange={(e) => setHostedLlmKey(e.target.value)}
+                    placeholder="sk-…"
+                  />
+                </label>
+                {hostedLlmError ? (
+                  <p className="settings-note settings-error">{hostedLlmError}</p>
+                ) : null}
+                {hostedLlmNote ? <p className="settings-note">{hostedLlmNote}</p> : null}
+                <div className="chrome-actions settings-section-actions">
+                  <button
+                    type="button"
+                    className="chrome-approve"
+                    disabled={hostedLlmBusy || !hostedLlmKey.trim()}
+                    onClick={() => void saveHostedLlmKey()}
+                  >
+                    {hostedLlmBusy ? "Updating…" : "Update LLM key"}
+                  </button>
+                </div>
+              </>
+            ) : null}
+            <details className="settings-advanced">
+              <summary>Advanced connection</summary>
+              <div className="settings-advanced-body">
+                <label className="atom-field">
+                  <span className="atom-field-label">Chat agent URL</span>
+                  <input
+                    value={agUiUrl}
+                    onChange={(e) => setAgUiUrl(e.target.value)}
+                    placeholder="https://your-agent.example.com/agent"
+                  />
+                </label>
+                {agUiError ? <p className="settings-note settings-error">{agUiError}</p> : null}
+                <div className="chrome-actions settings-section-actions">
+                  <button
+                    className="chrome-approve"
+                    disabled={!agUiValid}
+                    onClick={() => onSaveAgUi({ url: agUiUrl.trim() })}
+                  >
+                    Save chat agent URL
+                  </button>
+                </div>
+              </div>
+            </details>
+          </>
+        ) : (
+          <>
+            <p className="settings-note">
+              OpenAI-compatible chat endpoint. Keys are stored in memory for this session only (local
+              dev). For production embedders, use AG-UI or inject a host SecretStore.
+            </p>
+            <label className="atom-field">
+              <span className="atom-field-label">Endpoint base URL</span>
+              <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+            </label>
+            <label className="atom-field">
+              <span className="atom-field-label">Model</span>
+              <input
+                value={model}
+                placeholder="e.g. gpt-4o-mini"
+                onChange={(e) => setModel(e.target.value)}
+              />
+            </label>
+            {hasSavedKey ? (
+              <div className="settings-saved-key">
+                <span className="settings-saved-key-label">API key</span>
+                <span className="settings-saved-key-value">Using saved key ({savedLlmKeyHint})</span>
+                <button
+                  type="button"
+                  className="settings-saved-key-change"
+                  onClick={() => {
+                    setChangingKey(true);
+                    setApiKey("");
+                  }}
+                >
+                  Change key
+                </button>
+              </div>
+            ) : (
+              <label className="atom-field">
+                <span className="atom-field-label">API key</span>
+                <input
+                  type="password"
+                  value={apiKey}
+                  placeholder={savedLlmKeyHint ? "Enter new API key" : undefined}
+                  onChange={(e) => setApiKey(e.target.value)}
+                />
+              </label>
+            )}
+            {!intent ? (
+              <div className="chrome-actions settings-section-actions">
+                <button
+                  type="button"
+                  className="chrome-approve"
+                  disabled={!llmValid}
+                  onClick={saveLlmAndEnable}
+                >
+                  Use live LLM
+                </button>
+              </div>
+            ) : null}
+            <label className="atom-field atom-field-checkbox">
+              <input type="checkbox" checked={curatorOn} onChange={(e) => setCuratorOn(e.target.checked)} />
+              <span>Remember preferences from chat (curator)</span>
+            </label>
+            <label className="atom-field atom-field-checkbox">
+              <input
+                type="checkbox"
+                checked={curatorAutoAcceptOn}
+                disabled={!curatorOn}
+                onChange={(e) => setCuratorAutoAcceptOn(e.target.checked)}
+              />
+              <span>Apply remembered preferences automatically on your next turn</span>
+            </label>
+          </>
+        )}
+      </>
+    );
+  }
+
+  function renderSecurityPanel() {
+    return (
+      <>
+        <p className="settings-note">
+          Calendar and provider credentials stay in your agent vault — never in browser storage.
+          Consequential approvals require a hardware-backed passkey.
+        </p>
+        <CustodySecurityPanel embedded />
+      </>
+    );
+  }
+
+  function renderConnectorsPanel() {
+    return (
+      <>
+        <p className="settings-note">
+          Paste your private calendar subscription link (from Google, Apple, or Outlook). It is stored
+          encrypted on your agent — not in this browser.
+        </p>
+        <WebCalSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
+      </>
+    );
+  }
+
+  function renderAppearancePanel() {
+    return (
+      <>
+        {!productionLocked ? (
+          <p className="settings-note">Choose a color theme for the shell.</p>
+        ) : null}
+        <SkinPicker />
+      </>
+    );
+  }
+
+  function renderPaymentsPanel() {
+    return (
+      <>
+        <p className="settings-note">
+          Optional Stripe keys for paid modules and commerce holds. Keys stay on your agent, not in the
+          browser.
+        </p>
+        {hasSavedStripeSecret ? (
+          <div className="settings-saved-key">
+            <span className="settings-saved-key-label">Secret key</span>
+            <span className="settings-saved-key-value">Using saved key ({savedStripeSecretHint})</span>
+            <button
+              type="button"
+              className="settings-saved-key-change"
+              onClick={() => {
+                setChangingStripeSecret(true);
+                setStripeSecretKey("");
+              }}
+            >
+              Change key
+            </button>
+          </div>
+        ) : (
+          <label className="atom-field">
+            <span className="atom-field-label">Secret key (sk_live_…)</span>
+            <input
+              type="password"
+              value={stripeSecretKey}
+              onChange={(e) => setStripeSecretKey(e.target.value)}
+            />
+          </label>
+        )}
+        <label className="atom-field">
+          <span className="atom-field-label">Publishable key (pk_live_…)</span>
+          <input
+            value={stripePublishableKey}
+            onChange={(e) => setStripePublishableKey(e.target.value)}
+          />
+        </label>
+        <label className="atom-field">
+          <span className="atom-field-label">Product id (optional)</span>
+          <input
+            value={stripeProductId}
+            placeholder="prod_… from setup:stripe"
+            onChange={(e) => setStripeProductId(e.target.value)}
+          />
+        </label>
+        <div className="chrome-actions settings-section-actions">
+          <button
+            type="button"
+            className="chrome-approve"
+            disabled={!stripePaymentValid}
+            onClick={saveStripePayment}
+          >
+            Save payment connection
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  function renderModulesPanel() {
+    if (productionLocked) {
+      return (
+        <>
+          <p className="settings-note">Browse modules from the trusted catalog for this site.</p>
+          <RegistryCatalogList indexUrl={PRODUCTION_REGISTRY_URL} />
+        </>
+      );
+    }
+    return (
+      <>
+        <p className="settings-note">
+          URL of the module catalog your shell loads modules from, plus trust policy for signed
+          manifests.
+        </p>
+        <label className="atom-field">
+          <span className="atom-field-label">Index URL</span>
+          <input value={registryIndexUrl} onChange={(e) => setRegistryIndexUrl(e.target.value)} />
+        </label>
+        <label className="atom-field atom-field-checkbox">
+          <input
+            type="checkbox"
+            checked={requireIntegrity}
+            onChange={(e) => setRequireIntegrity(e.target.checked)}
+          />
+          <span>Require manifest integrity hash (recommended)</span>
+        </label>
+        <label className="atom-field atom-field-checkbox">
+          <input
+            type="checkbox"
+            checked={requireSignature}
+            onChange={(e) => setRequireSignature(e.target.checked)}
+          />
+          <span>Require signed manifests</span>
+        </label>
+        <div className="chrome-actions settings-section-actions">
+          <button
+            className="chrome-approve"
+            disabled={!registryIndexUrl.trim()}
+            onClick={() =>
+              onSaveRegistry(registryIndexUrl.trim(), { requireIntegrity, requireSignature })
+            }
+          >
+            Save registry settings
+          </button>
+        </div>
+        {revokedModules.length > 0 ? (
+          <div className="settings-revocations">
+            <span className="atom-field-label">Revoked modules ({revokedModules.length})</span>
+            <ul className="settings-revocations-list">
+              {revokedModules.map((item) => (
+                <li key={`${item.id}@${item.version}`}>
+                  <code>{item.id}@{item.version}</code>
+                  {item.reason ? ` — ${item.reason}` : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className="settings-note">No revoked modules in the current index revocations list.</p>
+        )}
+        <div className="settings-registry-store">
+          <span className="atom-field-label">Module store catalog</span>
+          <RegistryCatalogList indexUrl={registryIndexUrl.trim() || registryInitial} />
+        </div>
+      </>
+    );
+  }
+
+  function renderDeveloperPanel() {
+    return (
+      <>
+        <p className="settings-note">
+          URL of a server-side chat agent (local dev default: {DEFAULT_AGUI_URL}).
+        </p>
+        <label className="atom-field">
+          <span className="atom-field-label">Agent URL</span>
+          <input value={agUiUrl} onChange={(e) => setAgUiUrl(e.target.value)} />
+        </label>
+        {agUiError ? <p className="settings-note settings-error">{agUiError}</p> : null}
+        <div className="chrome-actions settings-section-actions">
+          <button
+            className="chrome-approve"
+            disabled={!agUiValid}
+            onClick={() => onSaveAgUi({ url: agUiUrl.trim() })}
+          >
+            Save AG-UI URL
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  function renderActivePanel() {
+    switch (activeSection) {
+      case "agent":
+        return renderAgentPanel();
+      case "security":
+        return renderSecurityPanel();
+      case "connectors":
+        return renderConnectorsPanel();
+      case "appearance":
+        return renderAppearancePanel();
+      case "payments":
+        return renderPaymentsPanel();
+      case "modules":
+        return renderModulesPanel();
+      case "developer":
+        return renderDeveloperPanel();
+      default:
+        return renderAgentPanel();
+    }
+  }
+
   return (
     <div
       className="chrome-overlay settings-overlay"
@@ -1626,311 +2006,37 @@ function SettingsDialog({
       aria-labelledby="settings-dialog-title"
       onClick={onClose}
     >
-      <div className="settings-dialog" onClick={(event) => event.stopPropagation()}>
+      <div className="settings-dialog settings-dialog--sections" onClick={(event) => event.stopPropagation()}>
         <div className="settings-dialog-header">
-          <h2 id="settings-dialog-title">Agent connection</h2>
+          <h2 id="settings-dialog-title">Settings</h2>
           <button type="button" className="settings-close" onClick={onClose} aria-label="Close settings">
             ×
           </button>
         </div>
-        <div className="settings-dialog-body">
-        {intent === "llm" ? (
-          <p className="settings-intent-note">
-            Enter your model endpoint and API key, then click <strong>Enable Live LLM</strong> below.
-          </p>
-        ) : null}
-        <section className="settings-section settings-section-first">
-          <h3>Chat agent</h3>
-          {productionLocked ? (
-            <p className="settings-note">
-              {isHostedAgent
-                ? "Chat runs on your hosted agent server. Update your LLM API key below if chat fails or you need to rotate credentials."
-                : "On this site, chat runs through a server-side agent — your API keys never enter the browser. Set the agent URL below, or use the Composer tab for scripted demos."}
-            </p>
-          ) : (
-            <>
-          <h3>Live LLM</h3>
-          <p className="settings-note">
-            OpenAI-compatible chat endpoint. Keys are stored in memory for this session only (local
-            dev). For production embedders, use AG-UI or inject a host SecretStore.
-          </p>
-          <label className="atom-field">
-            <span className="atom-field-label">Endpoint base URL</span>
-            <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
-          </label>
-          <label className="atom-field">
-            <span className="atom-field-label">Model</span>
-            <input
-              value={model}
-              placeholder="e.g. gpt-4o-mini"
-              onChange={(e) => setModel(e.target.value)}
-            />
-          </label>
-          {hasSavedKey ? (
-            <div className="settings-saved-key">
-              <span className="settings-saved-key-label">API key</span>
-              <span className="settings-saved-key-value">Using saved key ({savedLlmKeyHint})</span>
+        <div className="settings-dialog-layout">
+          <nav className="settings-nav" aria-label="Settings sections">
+            {navItems.map((item) => (
               <button
+                key={item.id}
                 type="button"
-                className="settings-saved-key-change"
-                onClick={() => {
-                  setChangingKey(true);
-                  setApiKey("");
-                }}
+                className={`settings-nav-item${activeSection === item.id ? " is-active" : ""}`}
+                aria-current={activeSection === item.id ? "true" : undefined}
+                onClick={() => setActiveSection(item.id)}
               >
-                Change key
+                <span className="settings-nav-label">{item.label}</span>
+                <span className="settings-nav-hint">{item.hint}</span>
               </button>
-            </div>
-          ) : (
-            <label className="atom-field">
-              <span className="atom-field-label">API key</span>
-              <input
-                type="password"
-                value={apiKey}
-                placeholder={savedLlmKeyHint ? "Enter new API key" : undefined}
-                onChange={(e) => setApiKey(e.target.value)}
-              />
-            </label>
-          )}
-          {!intent ? (
-            <div className="chrome-actions settings-section-actions">
-              <button
-                type="button"
-                className="chrome-approve"
-                disabled={!llmValid}
-                onClick={saveLlmAndEnable}
-              >
-                Use live LLM
-              </button>
-            </div>
-          ) : null}
-            </>
-          )}
-          {!productionLocked ? (
-            <>
-          <label className="atom-field atom-field-checkbox">
-            <input type="checkbox" checked={curatorOn} onChange={(e) => setCuratorOn(e.target.checked)} />
-            <span>Remember preferences from chat (curator)</span>
-          </label>
-          <label className="atom-field atom-field-checkbox">
-            <input
-              type="checkbox"
-              checked={curatorAutoAcceptOn}
-              disabled={!curatorOn}
-              onChange={(e) => setCuratorAutoAcceptOn(e.target.checked)}
-            />
-            <span>Apply remembered preferences automatically on your next turn</span>
-          </label>
-            </>
-          ) : null}
-          {productionLocked ? (
-            <>
-              {isHostedAgent ? (
-                <>
-                  <label className="atom-field">
-                    <FieldLabelWithHint label="LLM API key" hint={<LlmApiKeyHintContent />} />
-                    <input
-                      type="password"
-                      autoComplete="off"
-                      value={hostedLlmKey}
-                      onChange={(e) => setHostedLlmKey(e.target.value)}
-                      placeholder="sk-…"
-                    />
-                  </label>
-                  {hostedLlmError ? (
-                    <p className="settings-note settings-error">{hostedLlmError}</p>
-                  ) : null}
-                  {hostedLlmNote ? <p className="settings-note">{hostedLlmNote}</p> : null}
-                  <div className="chrome-actions settings-section-actions">
-                    <button
-                      type="button"
-                      className="chrome-approve"
-                      disabled={hostedLlmBusy || !hostedLlmKey.trim()}
-                      onClick={() => void saveHostedLlmKey()}
-                    >
-                      {hostedLlmBusy ? "Updating…" : "Update LLM key"}
-                    </button>
-                  </div>
-                </>
-              ) : null}
-              <label className="atom-field">
-                <span className="atom-field-label">Chat agent URL</span>
-                <input
-                  value={agUiUrl}
-                  onChange={(e) => setAgUiUrl(e.target.value)}
-                  placeholder="https://your-agent.example.com/agent"
-                />
-              </label>
-              {agUiError ? <p className="settings-note settings-error">{agUiError}</p> : null}
-              <div className="chrome-actions settings-section-actions">
-                <button
-                  className="chrome-approve"
-                  disabled={!agUiValid}
-                  onClick={() => onSaveAgUi({ url: agUiUrl.trim() })}
-                >
-                  Save chat agent
-                </button>
+            ))}
+          </nav>
+          <div className="settings-dialog-body">
+            <div className="settings-panel">
+              <div className="settings-panel-head">
+                <h3>{activeNav.label}</h3>
+                <p className="settings-panel-desc">{activeNav.hint}</p>
               </div>
-            </>
-          ) : null}
-        </section>
-        <CustodySecurityPanel />
-        <WebCalSettingsPanel vaultUnlocked={vaultUnlocked} />
-        {!productionLocked ? (
-        <section className="settings-section">
-          <h3>Payments</h3>
-          <p className="settings-note">
-            Optional Stripe keys for paid modules and commerce holds. Keys stay on your agent, not
-            in the browser.
-          </p>
-          {hasSavedStripeSecret ? (
-            <div className="settings-saved-key">
-              <span className="settings-saved-key-label">Secret key</span>
-              <span className="settings-saved-key-value">
-                Using saved key ({savedStripeSecretHint})
-              </span>
-              <button
-                type="button"
-                className="settings-saved-key-change"
-                onClick={() => {
-                  setChangingStripeSecret(true);
-                  setStripeSecretKey("");
-                }}
-              >
-                Change key
-              </button>
+              <div className="settings-panel-fields">{renderActivePanel()}</div>
             </div>
-          ) : (
-            <label className="atom-field">
-              <span className="atom-field-label">Secret key (sk_live_…)</span>
-              <input
-                type="password"
-                value={stripeSecretKey}
-                onChange={(e) => setStripeSecretKey(e.target.value)}
-              />
-            </label>
-          )}
-          <label className="atom-field">
-            <span className="atom-field-label">Publishable key (pk_live_…)</span>
-            <input
-              value={stripePublishableKey}
-              onChange={(e) => setStripePublishableKey(e.target.value)}
-            />
-          </label>
-          <label className="atom-field">
-            <span className="atom-field-label">Product id (optional)</span>
-            <input
-              value={stripeProductId}
-              placeholder="prod_… from setup:stripe"
-              onChange={(e) => setStripeProductId(e.target.value)}
-            />
-          </label>
-          <div className="chrome-actions settings-section-actions">
-            <button
-              type="button"
-              className="chrome-approve"
-              disabled={!stripePaymentValid}
-              onClick={saveStripePayment}
-            >
-              Save payment connection
-            </button>
           </div>
-        </section>
-        ) : null}
-        {!productionLocked ? (
-        <section className="settings-section">
-          <h3>AG-UI backend</h3>
-          <p className="settings-note">
-            URL of a server-side chat agent (local dev default: {DEFAULT_AGUI_URL}).
-          </p>
-          <label className="atom-field">
-            <span className="atom-field-label">Agent URL</span>
-            <input value={agUiUrl} onChange={(e) => setAgUiUrl(e.target.value)} />
-          </label>
-          <div className="chrome-actions settings-section-actions">
-            <button
-              className="chrome-approve"
-              disabled={!agUiValid}
-              onClick={() => onSaveAgUi({ url: agUiUrl.trim() })}
-            >
-              Use AG-UI
-            </button>
-          </div>
-        </section>
-        ) : null}
-        <section className="settings-section">
-          <h3>Appearance</h3>
-          {!productionLocked ? (
-          <p className="settings-note">
-            Choose a color theme for the shell.
-          </p>
-          ) : null}
-          <SkinPicker />
-        </section>
-        {!productionLocked ? (
-        <section className="settings-section">
-          <h3>Module registry</h3>
-          <p className="settings-note">
-            URL of the module catalog your shell loads modules from.
-          </p>
-          <label className="atom-field">
-            <span className="atom-field-label">Index URL</span>
-            <input value={registryIndexUrl} onChange={(e) => setRegistryIndexUrl(e.target.value)} />
-          </label>
-          <label className="atom-field atom-field-checkbox">
-            <input
-              type="checkbox"
-              checked={requireIntegrity}
-              onChange={(e) => setRequireIntegrity(e.target.checked)}
-            />
-            <span>Require manifest integrity hash (recommended)</span>
-          </label>
-          <label className="atom-field atom-field-checkbox">
-            <input
-              type="checkbox"
-              checked={requireSignature}
-              onChange={(e) => setRequireSignature(e.target.checked)}
-            />
-            <span>Require signed manifests</span>
-          </label>
-          <div className="chrome-actions settings-section-actions">
-            <button
-              className="chrome-approve"
-              disabled={!registryIndexUrl.trim()}
-              onClick={() =>
-                onSaveRegistry(registryIndexUrl.trim(), { requireIntegrity, requireSignature })
-              }
-            >
-              Save registry settings
-            </button>
-          </div>
-          {revokedModules.length > 0 ? (
-            <div className="settings-revocations">
-              <span className="atom-field-label">Revoked modules ({revokedModules.length})</span>
-              <ul className="settings-revocations-list">
-                {revokedModules.map((item) => (
-                  <li key={`${item.id}@${item.version}`}>
-                    <code>{item.id}@{item.version}</code>
-                    {item.reason ? ` — ${item.reason}` : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <p className="settings-note">No revoked modules in the current index revocations list.</p>
-          )}
-          <div className="settings-registry-store">
-            <span className="atom-field-label">Module store catalog</span>
-            <RegistryCatalogList indexUrl={registryIndexUrl.trim() || registryInitial} />
-          </div>
-        </section>
-        ) : (
-        <section className="settings-section">
-          <h3>Modules</h3>
-          <p className="settings-note">Browse modules from the trusted catalog for this site.</p>
-          <RegistryCatalogList indexUrl={PRODUCTION_REGISTRY_URL} />
-        </section>
-        )}
         </div>
         <div className="settings-dialog-footer">
           {intent === "llm" && !productionLocked ? (
@@ -1944,7 +2050,7 @@ function SettingsDialog({
             </button>
           ) : null}
           <button type="button" className="chrome-decline" onClick={onClose}>
-            Cancel
+            Close
           </button>
         </div>
       </div>
