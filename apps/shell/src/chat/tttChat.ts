@@ -1,13 +1,19 @@
-import type { ConversationRuntime } from "@qwixl/shell-core";
-import type { UiEvent } from "@qwixl/shell-core";
-import {
-  applyTttMove,
-  emptyTttBoard,
-  pickBotMove,
-} from "../comms/tttLogic.js";
+import type { Catalog, Composition, ConversationRuntime, ModuleRegistry } from "@qwixl/shell-core";
+import { applyTttMove, emptyTttBoard, pickBotMove } from "../comms/tttLogic.js";
 import type { TttBoard } from "../comms/types.js";
 
 const TTT_COMPONENT = "games/tictactoe";
+
+const TTT_INTENT =
+  /\b(tic[\s-]?tac[\s-]?toe|tictactoe)\b/i;
+
+export function looksLikeTttIntent(text: string): boolean {
+  const lower = text.trim().toLowerCase();
+  if (TTT_INTENT.test(lower)) return true;
+  if (/new game.*(tic|toe|tictactoe)/.test(lower)) return true;
+  if (/(play|start|try).*(tic|tictactoe|tic-tac-toe)/.test(lower)) return true;
+  return false;
+}
 
 interface ChatTttState {
   board: TttBoard;
@@ -31,6 +37,36 @@ function statusText(state: ChatTttState): string | null {
   return null;
 }
 
+function buildChatTttComposition(surfaceId: string): Composition {
+  return {
+    version: 1,
+    surfaceId,
+    intent: "Play tic-tac-toe",
+    root: {
+      id: "game",
+      component: TTT_COMPONENT,
+      semanticRole: "input/game-board",
+      events: ["tttStart", "tttMove"],
+      props: {
+        board: emptyTttBoard(),
+        turn: "X",
+        status: "active",
+        myMark: "X",
+        readOnly: false,
+      },
+    },
+  };
+}
+
+function initialChatState(): ChatTttState {
+  return {
+    board: emptyTttBoard(),
+    status: "active",
+    turn: "X",
+    userMark: "X",
+  };
+}
+
 function pushSurfaceProps(runtime: ConversationRuntime, surfaceId: string, state: ChatTttState): void {
   runtime.updateSurfaceModuleProps(surfaceId, TTT_COMPONENT, {
     board: state.board,
@@ -42,23 +78,35 @@ function pushSurfaceProps(runtime: ConversationRuntime, surfaceId: string, state
   });
 }
 
-function startChatGame(surfaceId: string, runtime: ConversationRuntime): void {
-  const state: ChatTttState = {
-    board: emptyTttBoard(),
-    status: "active",
-    turn: "X",
-    userMark: "X",
-  };
-  chatTttBySurface.set(surfaceId, state);
-  pushSurfaceProps(runtime, surfaceId, state);
-  runtime.appendLocalAgentText("Game on — you're X. Tap a square to start.");
+/** Shell-owned board — do not rely on the LLM to compose the module. */
+export async function openChatTttBoard(opts: {
+  runtime: ConversationRuntime;
+  catalog: Catalog;
+  registry: ModuleRegistry;
+}): Promise<void> {
+  const surfaceId = `ttt-chat-${Date.now()}`;
+  const composition = buildChatTttComposition(surfaceId);
+  try {
+    await opts.registry.ensureModules(opts.catalog, composition);
+  } catch (error) {
+    opts.runtime.appendLocalAgentText(
+      error instanceof Error ? error.message : "Could not load tic-tac-toe module.",
+    );
+    return;
+  }
+  chatTttBySurface.set(surfaceId, initialChatState());
+  await opts.runtime.showComposition(composition);
+  opts.runtime.appendLocalAgentText("You're X — tap a square. Moves are handled locally (no ASCII board).");
+  opts.runtime.setBusy(false);
 }
 
-function applyUserMove(
-  surfaceId: string,
-  cell: number,
-  runtime: ConversationRuntime,
-): boolean {
+function startChatGame(surfaceId: string, runtime: ConversationRuntime): void {
+  chatTttBySurface.set(surfaceId, initialChatState());
+  pushSurfaceProps(runtime, surfaceId, chatTttBySurface.get(surfaceId)!);
+  runtime.appendLocalAgentText("New game — you're X. Tap a square to play.");
+}
+
+function applyUserMove(surfaceId: string, cell: number, runtime: ConversationRuntime): boolean {
   const state = chatTttBySurface.get(surfaceId);
   if (!state || state.status !== "active" || state.turn !== state.userMark) return false;
   if (cell < 0 || cell > 8 || state.board[cell]) return false;
@@ -92,7 +140,10 @@ function applyUserMove(
 }
 
 /** Client-side tic-tac-toe in Chat — avoids LLM board corruption. Returns true if handled. */
-export function handleChatTttUiEvent(event: UiEvent, runtime: ConversationRuntime): boolean {
+export function handleChatTttUiEvent(
+  event: import("@qwixl/shell-core").UiEvent,
+  runtime: ConversationRuntime,
+): boolean {
   if (event.name !== "tttMove" && event.name !== "tttStart") return false;
 
   if (event.name === "tttStart") {
@@ -109,12 +160,7 @@ export function handleChatTttUiEvent(event: UiEvent, runtime: ConversationRuntim
 
   let state = chatTttBySurface.get(event.surfaceId);
   if (!state) {
-    state = {
-      board: emptyTttBoard(),
-      status: "active",
-      turn: "X",
-      userMark: "X",
-    };
+    state = initialChatState();
     chatTttBySurface.set(event.surfaceId, state);
     pushSurfaceProps(runtime, event.surfaceId, state);
   }
