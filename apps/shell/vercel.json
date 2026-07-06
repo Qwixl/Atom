@@ -4,6 +4,7 @@
   "outputDirectory": "dist",
   "framework": null,
   "rewrites": [
+    { "source": "/app/modules/(.*)", "destination": "/modules/$1" },
     { "source": "/app", "destination": "/app/index.html" },
     { "source": "/app/", "destination": "/app/index.html" },
     { "source": "/app/(.*)", "destination": "/app/index.html" }

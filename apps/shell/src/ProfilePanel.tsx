@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   BUSINESS_BRAND_CATEGORY,
   BUSINESS_CATALOG_CATEGORY,
@@ -26,6 +26,8 @@ import { loadCommsAgentConfig } from "./comms/storage.js";
 function tierLabel(tier: PreferenceTier | undefined): string {
   return tier ?? "preference";
 }
+
+type ProfileSection = "overview" | "brand" | "policies" | "knowledge" | "catalog" | "records";
 
 export function ProfilePanel({
   store,
@@ -247,78 +249,101 @@ export function ProfilePanel({
     byCategory.set(record.category, list);
   }
 
-  return (
-    <aside className="panel-view shell-profile">
-      <div className="panel-body panel-body-scroll">
-        <div className="panel-content panel-content-wide">
-      <p className="panel-section-note">
-        Stored only on this device. Open records are shared with your agent's model; guarded records
-        require shell approval every time.
-      </p>
+  const [activeSection, setActiveSection] = useState<ProfileSection>("overview");
 
-      {proposals.length > 0 ? (
-        <div className="panel-section shell-profile-proposals">
-          <h3>Curator proposals</h3>
-          <p className="panel-section-note">
-            Background extraction from your last Live LLM turn — approve to save, dismiss to discard.
-          </p>
-          {proposals.map((proposal) => (
-            <div
-              key={proposal.id}
-              className={`shell-profile-record proposal${proposal.guarded ? " guarded" : ""}`}
-            >
-              <div className="shell-profile-record-main">
-                <span className="shell-profile-record-label">
-                  {proposal.label}
-                  <span className="shell-profile-badge">{proposal.category}</span>
-                  {proposal.guarded ? <span className="shell-profile-badge">guarded</span> : null}
-                  {proposal.tier ? (
-                    <span className={`shell-profile-badge shell-profile-badge-tier tier-${proposal.tier}`}>
-                      {proposal.tier}
-                    </span>
-                  ) : null}
-                </span>
-                <span className="shell-profile-record-value">
-                  {proposal.splitConditions?.length
-                    ? formatSplitProposal(proposal)
-                    : formatRecordValue(proposal.value)}
-                </span>
-                {proposal.splitConditions?.length ? (
-                  <span className="shell-profile-badge">conditional split</span>
-                ) : null}
-                {proposal.reason ? (
-                  <span className="shell-profile-proposal-reason">{proposal.reason}</span>
-                ) : null}
-              </div>
-              <div className="shell-profile-record-actions">
-                <button
-                  className="panel-btn panel-btn-primary"
-                  onClick={() => {
-                    store.acceptProposal(proposal.id);
-                    onChanged();
-                  }}
-                >
-                  Accept
-                </button>
-                <button
-                  className="panel-btn"
-                  onClick={() => {
-                    store.rejectProposal(proposal.id);
-                    onChanged();
-                  }}
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : null}
+  const navItems = useMemo(
+    () =>
+      [
+        { id: "overview" as const, label: "Overview", hint: "Privacy and curator proposals" },
+        { id: "brand" as const, label: "Brand voice", hint: "Tone and personality" },
+        { id: "policies" as const, label: "Policies", hint: "House rules and guidelines" },
+        { id: "knowledge" as const, label: "Knowledge", hint: "FAQs and reference docs" },
+        { id: "catalog" as const, label: "Catalog", hint: "Sellable items" },
+        { id: "records" as const, label: "Records", hint: "Preferences and custom data" },
+      ] satisfies Array<{ id: ProfileSection; label: string; hint: string }>,
+    [],
+  );
 
-      <div className="panel-section shell-profile-business">
-        <h3>Brand voice</h3>
+  const activeNav = navItems.find((item) => item.id === activeSection) ?? navItems[0]!;
+
+  function renderOverviewPanel() {
+    return (
+      <>
         <p className="panel-section-note">
-          Tone and personality for your business agent's replies. Sync when you change these.
+          Stored only on this device. Open records are shared with your agent&apos;s model; guarded
+          records require shell approval every time.
+        </p>
+        {proposals.length > 0 ? (
+          <div className="panel-section shell-profile-proposals">
+            <h3>Curator proposals</h3>
+            <p className="panel-section-note">
+              Background extraction from your last Live LLM turn — approve to save, dismiss to discard.
+            </p>
+            {proposals.map((proposal) => (
+              <div
+                key={proposal.id}
+                className={`shell-profile-record proposal${proposal.guarded ? " guarded" : ""}`}
+              >
+                <div className="shell-profile-record-main">
+                  <span className="shell-profile-record-label">
+                    {proposal.label}
+                    <span className="shell-profile-badge">{proposal.category}</span>
+                    {proposal.guarded ? <span className="shell-profile-badge">guarded</span> : null}
+                    {proposal.tier ? (
+                      <span
+                        className={`shell-profile-badge shell-profile-badge-tier tier-${proposal.tier}`}
+                      >
+                        {proposal.tier}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="shell-profile-record-value">
+                    {proposal.splitConditions?.length
+                      ? formatSplitProposal(proposal)
+                      : formatRecordValue(proposal.value)}
+                  </span>
+                  {proposal.splitConditions?.length ? (
+                    <span className="shell-profile-badge">conditional split</span>
+                  ) : null}
+                  {proposal.reason ? (
+                    <span className="shell-profile-proposal-reason">{proposal.reason}</span>
+                  ) : null}
+                </div>
+                <div className="shell-profile-record-actions">
+                  <button
+                    className="panel-btn panel-btn-primary"
+                    onClick={() => {
+                      store.acceptProposal(proposal.id);
+                      onChanged();
+                    }}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    className="panel-btn"
+                    onClick={() => {
+                      store.rejectProposal(proposal.id);
+                      onChanged();
+                    }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="shell-profile-empty">No pending curator proposals.</p>
+        )}
+      </>
+    );
+  }
+
+  function renderBrandPanel() {
+    return (
+      <>
+        <p className="panel-section-note">
+          Tone and personality for your business agent&apos;s replies. Sync when you change these.
         </p>
         {brandRecords.length > 0 ? (
           <ul className="shell-profile-context-list">
@@ -352,10 +377,13 @@ export function ProfilePanel({
             Add brand record
           </button>
         </div>
-      </div>
+      </>
+    );
+  }
 
-      <div className="panel-section shell-profile-business">
-        <h3>Policies</h3>
+  function renderPoliciesPanel() {
+    return (
+      <>
         <p className="panel-section-note">
           House rules and guidelines your agent can reference in conversation.
         </p>
@@ -395,14 +423,18 @@ export function ProfilePanel({
             onClick={() => void syncContextToAgent()}
             disabled={contextRecords.length === 0}
           >
-            Sync {contextRecords.length} brand/policy record{contextRecords.length === 1 ? "" : "s"} to agent
+            Sync {contextRecords.length} brand/policy record{contextRecords.length === 1 ? "" : "s"} to
+            agent
           </button>
           {contextSyncStatus ? <p className="panel-section-note">{contextSyncStatus}</p> : null}
         </div>
-      </div>
+      </>
+    );
+  }
 
-      <div className="panel-section shell-profile-business">
-        <h3>Knowledge base</h3>
+  function renderKnowledgePanel() {
+    return (
+      <>
         <p className="panel-section-note">
           Policies, FAQs, and reference docs your agent can look up during chat.
         </p>
@@ -465,10 +497,13 @@ export function ProfilePanel({
           </button>
           {knowledgeSyncStatus ? <p className="panel-section-note">{knowledgeSyncStatus}</p> : null}
         </div>
-      </div>
+      </>
+    );
+  }
 
-      <div className="panel-section shell-profile-business">
-        <h3>Business catalog</h3>
+  function renderCatalogPanel() {
+    return (
+      <>
         <p className="panel-section-note">
           Sellable items for commerce flows. Sync after editing; catalog is separate from brand voice.
         </p>
@@ -500,134 +535,197 @@ export function ProfilePanel({
             />
           </div>
           <div className="panel-form-actions">
-          <button
-            className="panel-btn panel-btn-primary"
-            onClick={() => void addCatalogItem()}
-            disabled={!catalogItemId.trim() || !catalogLabel.trim() || !catalogAmount.trim()}
-          >
-            Add catalog item
-          </button>
-          <button className="panel-btn" onClick={() => void syncCatalogToAgent()}>
-            Sync {catalogItemsFromStore(records).length} item(s) to agent
-          </button>
+            <button
+              className="panel-btn panel-btn-primary"
+              onClick={() => void addCatalogItem()}
+              disabled={!catalogItemId.trim() || !catalogLabel.trim() || !catalogAmount.trim()}
+            >
+              Add catalog item
+            </button>
+            <button className="panel-btn" onClick={() => void syncCatalogToAgent()}>
+              Sync {catalogItemsFromStore(records).length} item(s) to agent
+            </button>
           </div>
           {syncStatus ? <p className="panel-section-note">{syncStatus}</p> : null}
         </div>
-      </div>
+      </>
+    );
+  }
 
-      <div className="panel-section">
-        <h3>Add record</h3>
+  function renderRecordsPanel() {
+    return (
+      <>
+        <p className="panel-section-note">
+          Personal preferences and custom categories. Guarded records never leave this device without
+          approval.
+        </p>
         <div className="panel-form-grid shell-profile-add">
-        <div className="panel-form-grid panel-form-grid-2">
+          <div className="panel-form-grid panel-form-grid-2">
+            <input
+              className="panel-input"
+              value={category}
+              placeholder="Category"
+              onChange={(e) => setCategory(e.target.value)}
+            />
+            <label className="shell-profile-guarded">
+              <input type="checkbox" checked={guarded} onChange={(e) => setGuarded(e.target.checked)} />
+              Guarded
+            </label>
+          </div>
           <input
             className="panel-input"
-            value={category}
-            placeholder="Category"
-            onChange={(e) => setCategory(e.target.value)}
+            value={label}
+            placeholder="Label"
+            onChange={(e) => setLabel(e.target.value)}
           />
-          <label className="shell-profile-guarded">
-            <input type="checkbox" checked={guarded} onChange={(e) => setGuarded(e.target.checked)} />
-            Guarded
-          </label>
+          <input
+            className="panel-input"
+            value={value}
+            placeholder="Value"
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") addRecord();
+            }}
+          />
+          <button
+            className="panel-btn panel-btn-primary"
+            onClick={addRecord}
+            disabled={!label.trim() || !value.trim()}
+          >
+            Add record
+          </button>
         </div>
-        <input className="panel-input" value={label} placeholder="Label" onChange={(e) => setLabel(e.target.value)} />
-        <input
-          className="panel-input"
-          value={value}
-          placeholder="Value"
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") addRecord();
-          }}
-        />
-        <button className="panel-btn panel-btn-primary" onClick={addRecord} disabled={!label.trim() || !value.trim()}>
-          Add record
-        </button>
-        </div>
-      </div>
+        {records.length === 0 ? (
+          <p className="shell-profile-empty">No records yet.</p>
+        ) : (
+          [...byCategory.entries()].map(([cat, group]) => (
+            <div key={cat} className="shell-profile-group">
+              <h3>{cat}</h3>
+              {group.map((record) => {
+                const tier = record.tier ?? "preference";
+                const weights = derivePreferenceWeights(record.evidence ?? [], tier);
+                const tags = activeContextTags(record.evidence ?? []);
+                return (
+                  <div
+                    key={record.id}
+                    className={`shell-profile-record${record.guarded ? " guarded" : ""}`}
+                  >
+                    <div className="shell-profile-record-main">
+                      <span className="shell-profile-record-label">
+                        {record.label}
+                        {record.guarded ? <span className="shell-profile-badge">guarded</span> : null}
+                        {!record.guarded ? (
+                          <span className={`shell-profile-badge shell-profile-badge-tier tier-${tier}`}>
+                            {tierLabel(record.tier)}
+                          </span>
+                        ) : null}
+                        {record.guarded ? (
+                          <span className="shell-profile-badge shell-profile-badge-guarded-hint">
+                            not shared with model
+                          </span>
+                        ) : null}
+                        {!record.guarded ? (
+                          <span className="shell-profile-badge shell-profile-badge-weight">
+                            conf {weights.confidence.toFixed(2)} · str {weights.strength.toFixed(2)}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="shell-profile-record-value">{formatConditionalValue(record)}</span>
+                      {tags.length > 0 ? (
+                        <span className="shell-profile-context-tags">context: {tags.join(", ")}</span>
+                      ) : null}
+                      {(record.evidence?.length ?? 0) > 0 ? (
+                        <span className="shell-profile-evidence-note">
+                          {record.evidence!.length} observation
+                          {record.evidence!.length === 1 ? "" : "s"}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="shell-profile-record-actions">
+                      <button
+                        title={record.guarded ? "Make open" : "Make guarded"}
+                        onClick={() => {
+                          store.upsert({ ...record, guarded: !record.guarded });
+                          onChanged();
+                        }}
+                      >
+                        {record.guarded ? "unguard" : "guard"}
+                      </button>
+                      <button
+                        title="Delete record"
+                        onClick={() => {
+                          store.remove(record.id);
+                          onChanged();
+                        }}
+                      >
+                        delete
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))
+        )}
+        {records.length > 0 ? (
+          <button
+            className="panel-btn panel-btn-danger shell-profile-wipe"
+            onClick={() => {
+              store.wipe();
+              onChanged();
+            }}
+          >
+            Wipe all records
+          </button>
+        ) : null}
+      </>
+    );
+  }
 
-      {records.length === 0 ? (
-        <p className="shell-profile-empty">No records yet.</p>
-      ) : (
-        [...byCategory.entries()].map(([cat, group]) => (
-          <div key={cat} className="shell-profile-group">
-            <h3>{cat}</h3>
-            {group.map((record) => {
-              const tier = record.tier ?? "preference";
-              const weights = derivePreferenceWeights(record.evidence ?? [], tier);
-              const tags = activeContextTags(record.evidence ?? []);
-              return (
-              <div key={record.id} className={`shell-profile-record${record.guarded ? " guarded" : ""}`}>
-                <div className="shell-profile-record-main">
-                  <span className="shell-profile-record-label">
-                    {record.label}
-                    {record.guarded ? <span className="shell-profile-badge">guarded</span> : null}
-                    {!record.guarded ? (
-                      <span className={`shell-profile-badge shell-profile-badge-tier tier-${tier}`}>
-                        {tierLabel(record.tier)}
-                      </span>
-                    ) : null}
-                    {record.guarded ? (
-                      <span className="shell-profile-badge shell-profile-badge-guarded-hint">
-                        not shared with model
-                      </span>
-                    ) : null}
-                    {!record.guarded ? (
-                      <span className="shell-profile-badge shell-profile-badge-weight">
-                        conf {weights.confidence.toFixed(2)} · str {weights.strength.toFixed(2)}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="shell-profile-record-value">
-                    {formatConditionalValue(record)}
-                  </span>
-                  {tags.length > 0 ? (
-                    <span className="shell-profile-context-tags">context: {tags.join(", ")}</span>
-                  ) : null}
-                  {(record.evidence?.length ?? 0) > 0 ? (
-                    <span className="shell-profile-evidence-note">
-                      {record.evidence!.length} observation{record.evidence!.length === 1 ? "" : "s"}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="shell-profile-record-actions">
-                  <button
-                    title={record.guarded ? "Make open" : "Make guarded"}
-                    onClick={() => {
-                      store.upsert({ ...record, guarded: !record.guarded });
-                      onChanged();
-                    }}
-                  >
-                    {record.guarded ? "unguard" : "guard"}
-                  </button>
-                  <button
-                    title="Delete record"
-                    onClick={() => {
-                      store.remove(record.id);
-                      onChanged();
-                    }}
-                  >
-                    delete
-                  </button>
-                </div>
-              </div>
-            );
-            })}
+  function renderActivePanel() {
+    switch (activeSection) {
+      case "overview":
+        return renderOverviewPanel();
+      case "brand":
+        return renderBrandPanel();
+      case "policies":
+        return renderPoliciesPanel();
+      case "knowledge":
+        return renderKnowledgePanel();
+      case "catalog":
+        return renderCatalogPanel();
+      case "records":
+        return renderRecordsPanel();
+      default:
+        return renderOverviewPanel();
+    }
+  }
+
+  return (
+    <aside className="panel-view shell-profile">
+      <div className="profile-panel-layout">
+        <nav className="settings-nav profile-nav" aria-label="Profile sections">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`settings-nav-item${activeSection === item.id ? " is-active" : ""}`}
+              aria-current={activeSection === item.id ? "true" : undefined}
+              onClick={() => setActiveSection(item.id)}
+            >
+              <span className="settings-nav-label">{item.label}</span>
+              <span className="settings-nav-hint">{item.hint}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="profile-panel-body panel-body-scroll">
+          <div className="settings-panel profile-panel-content">
+            <div className="settings-panel-head">
+              <h3>{activeNav.label}</h3>
+              <p className="settings-panel-desc">{activeNav.hint}</p>
+            </div>
+            <div className="settings-panel-fields">{renderActivePanel()}</div>
           </div>
-        ))
-      )}
-
-      {records.length > 0 ? (
-        <button
-          className="panel-btn panel-btn-danger shell-profile-wipe"
-          onClick={() => {
-            store.wipe();
-            onChanged();
-          }}
-        >
-          Wipe all records
-        </button>
-      ) : null}
         </div>
       </div>
     </aside>

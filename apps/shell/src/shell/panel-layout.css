@@ -322,6 +322,25 @@
   color: var(--shell-danger);
 }
 
+.panel-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.panel-btn-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.panel-btn-icon.panel-btn-danger:hover:not(:disabled) {
+  border-color: rgb(248 113 113 / 0.55);
+  background: rgb(248 113 113 / 0.08);
+}
+
 .panel-input,
 .panel-textarea,
 .panel-select {
@@ -1087,9 +1106,38 @@
 
 .rooms-module-frame {
   width: 100%;
-  height: 140px;
+  height: 160px;
   border: 0;
   flex: none;
+  border-radius: var(--shell-radius-sm);
+}
+
+.rooms-scene-details {
+  flex: none;
+  border-top: 1px solid var(--shell-border);
+  background: var(--shell-sidebar-bg);
+  padding: 0 12px 8px;
+}
+
+.rooms-scene-details summary {
+  padding: 8px 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--shell-text-muted);
+  list-style: none;
+}
+
+.rooms-scene-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.rooms-scene-note {
+  margin: 0 4px 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--shell-text-subtle);
+  max-width: 52ch;
 }
 
 .rooms-scene {
@@ -1125,9 +1173,10 @@
 
 .rooms-thread-grid {
   display: grid;
-  grid-template-columns: minmax(140px, 180px) minmax(0, 1fr);
+  grid-template-columns: minmax(120px, 160px) minmax(0, 1fr);
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 .rooms-members {
@@ -1230,10 +1279,10 @@
 
 .rooms-messages {
   flex: 1;
-  min-height: 120px;
+  min-height: 0;
   overflow-y: auto;
-  padding: 8px 12px;
-  gap: 6px;
+  padding: 12px 16px;
+  gap: 8px;
 }
 
 .rooms-msg .shell-comms-msg-text p {
@@ -1260,15 +1309,12 @@
   display: none;
 }
 
-.rooms-view .panel-toolbar {
-  justify-content: flex-end;
-}
-
-.rooms-view .panel-toolbar-meta {
-  display: none;
-}
-
 .rooms-view .panel-master-detail {
+  min-height: 0;
+  flex: 1;
+}
+
+.rooms-detail {
   min-height: 0;
 }
 
