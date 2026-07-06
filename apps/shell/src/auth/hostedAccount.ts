@@ -283,3 +283,23 @@ export async function fetchHostedAgentConnection(): Promise<{
     handle: data.handle,
   };
 }
+
+export async function updateHostedLlmApiKey(llmApiKey: string): Promise<void> {
+  const token = await supabaseAccessToken();
+  if (!token) throw new Error("Sign in required");
+
+  const key = llmApiKey.trim();
+  if (!key) throw new Error("LLM API key is required");
+
+  const { CONTROL_PLANE_URL } = await import("../hostConfig.js");
+  const resp = await fetch(`${CONTROL_PLANE_URL.replace(/\/$/, "")}/account/llm-key`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ llmApiKey: key }),
+  });
+  const data = (await resp.json()) as { error?: string };
+  if (!resp.ok) throw new Error(data.error ?? `Update failed (${resp.status})`);
+}

@@ -107,6 +107,8 @@ import {
 import { AGUI_CONFIG_KEY, DEFAULT_AGUI_URL, agUiAuthHeaders, loadAgUiConfig, saveAgUiConfigForAgent } from "./agUiConfig.js";
 import { validateProductionAgUiUrl } from "./productionGuard.js";
 import { applyAtomSkin, ATOM_SKINS, type AtomSkinId } from "@qwixl/skin-default/tokens";
+import { FieldLabelWithHint, LlmApiKeyHintContent } from "./ui/FieldHint.js";
+import { updateHostedLlmApiKey } from "./auth/hostedAccount.js";
 import { ShellComposer } from "./shell/ShellComposer.js";
 import { ConfirmationChrome } from "./shell/ConfirmationChrome.js";
 import { AtomShell } from "./shell/AtomShell.js";
@@ -1560,6 +1562,32 @@ function SettingsDialog({
     Boolean(stripePublishableKey.trim());
   const agUiError = validateProductionAgUiUrl(agUiUrl);
   const agUiValid = !agUiError;
+  const isHostedAgent =
+    productionLocked && MANAGED_HOSTING && loadOwnerAgentKind(loadCommsAgentConfig()) === "hosted";
+  const [hostedLlmKey, setHostedLlmKey] = useState("");
+  const [hostedLlmBusy, setHostedLlmBusy] = useState(false);
+  const [hostedLlmNote, setHostedLlmNote] = useState<string | null>(null);
+  const [hostedLlmError, setHostedLlmError] = useState<string | null>(null);
+
+  async function saveHostedLlmKey() {
+    const key = hostedLlmKey.trim();
+    if (!key) {
+      setHostedLlmError("Enter your LLM API key.");
+      return;
+    }
+    setHostedLlmBusy(true);
+    setHostedLlmError(null);
+    setHostedLlmNote(null);
+    try {
+      await updateHostedLlmApiKey(key);
+      setHostedLlmKey("");
+      setHostedLlmNote("LLM API key updated. Your agent will restart briefly — try chat again in a moment.");
+    } catch (error) {
+      setHostedLlmError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setHostedLlmBusy(false);
+    }
+  }
 
   function saveLlmAndEnable() {
     onSaveCurator(curatorOn, curatorAutoAcceptOn);
@@ -1615,8 +1643,9 @@ function SettingsDialog({
           <h3>Chat agent</h3>
           {productionLocked ? (
             <p className="settings-note">
-              On this site, chat runs through a server-side agent — your API keys never enter the
-              browser. Set the agent URL below, or use the Composer tab for scripted demos.
+              {isHostedAgent
+                ? "Chat runs on your hosted agent server. Update your LLM API key below if chat fails or you need to rotate credentials."
+                : "On this site, chat runs through a server-side agent — your API keys never enter the browser. Set the agent URL below, or use the Composer tab for scripted demos."}
             </p>
           ) : (
             <>
@@ -1696,6 +1725,34 @@ function SettingsDialog({
           ) : null}
           {productionLocked ? (
             <>
+              {isHostedAgent ? (
+                <>
+                  <label className="atom-field">
+                    <FieldLabelWithHint label="LLM API key" hint={<LlmApiKeyHintContent />} />
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      value={hostedLlmKey}
+                      onChange={(e) => setHostedLlmKey(e.target.value)}
+                      placeholder="sk-…"
+                    />
+                  </label>
+                  {hostedLlmError ? (
+                    <p className="settings-note settings-error">{hostedLlmError}</p>
+                  ) : null}
+                  {hostedLlmNote ? <p className="settings-note">{hostedLlmNote}</p> : null}
+                  <div className="chrome-actions settings-section-actions">
+                    <button
+                      type="button"
+                      className="chrome-approve"
+                      disabled={hostedLlmBusy || !hostedLlmKey.trim()}
+                      onClick={() => void saveHostedLlmKey()}
+                    >
+                      {hostedLlmBusy ? "Updating…" : "Update LLM key"}
+                    </button>
+                  </div>
+                </>
+              ) : null}
               <label className="atom-field">
                 <span className="atom-field-label">Chat agent URL</span>
                 <input

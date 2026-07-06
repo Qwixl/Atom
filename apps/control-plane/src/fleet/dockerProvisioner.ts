@@ -81,6 +81,50 @@ async function docker(args: string[]): Promise<string> {
   return stdout.trim();
 }
 
+function dockerRunArgs(input: {
+  containerName: string;
+  hostPort: number;
+  adminToken: string;
+  agentUrl: string;
+  handle: string;
+  agentId: string;
+  llmApiKey?: string;
+}): string[] {
+  const runArgs = [
+    "run",
+    "-d",
+    "--name",
+    input.containerName,
+    "--label",
+    "atom.fleet=hosted-agent",
+    "--label",
+    `atom.agent.id=${input.agentId}`,
+    "-p",
+    `${input.hostPort}:${AGENT_CONTAINER_PORT}`,
+    "-v",
+    `${input.containerName}-data:/data`,
+    "-e",
+    `ATOM_ADMIN_TOKEN=${input.adminToken}`,
+    "-e",
+    `PUBLIC_BASE_URL=${input.agentUrl}`,
+    "-e",
+    `AGENT_NAME=Atom agent (${input.handle})`,
+    "-e",
+    `ATOM_SHELL_ORIGINS=${shellOrigins()}`,
+    "-e",
+    "HOST=0.0.0.0",
+    "-e",
+    `PORT=${AGENT_CONTAINER_PORT}`,
+    "-e",
+    "ATOM_DATA_DIR=/data",
+    agentImage(),
+  ];
+  if (input.llmApiKey?.trim()) {
+    runArgs.splice(runArgs.length - 1, 0, "-e", `LLM_API_KEY=${input.llmApiKey.trim()}`);
+  }
+  return runArgs;
+}
+
 export class DockerFleetProvisioner implements FleetProvisioner {
   readonly mode = "docker" as const;
 
@@ -97,39 +141,15 @@ export class DockerFleetProvisioner implements FleetProvisioner {
     const containerName = `atom-hosted-${input.handle}-${input.id.slice(0, 8)}`;
     const agentUrl = publicBaseUrl(hostPort).replace(/\/$/, "");
 
-    const runArgs = [
-      "run",
-      "-d",
-      "--name",
+    const runArgs = dockerRunArgs({
       containerName,
-      "--label",
-      "atom.fleet=hosted-agent",
-      "--label",
-      `atom.agent.id=${input.id}`,
-      "-p",
-      `${hostPort}:${AGENT_CONTAINER_PORT}`,
-      "-v",
-      `${containerName}-data:/data`,
-      "-e",
-      `ATOM_ADMIN_TOKEN=${adminToken}`,
-      "-e",
-      `PUBLIC_BASE_URL=${agentUrl}`,
-      "-e",
-      `AGENT_NAME=Atom agent (${input.handle})`,
-      "-e",
-      `ATOM_SHELL_ORIGINS=${shellOrigins()}`,
-      "-e",
-      "HOST=0.0.0.0",
-      "-e",
-      `PORT=${AGENT_CONTAINER_PORT}`,
-      "-e",
-      "ATOM_DATA_DIR=/data",
-      agentImage(),
-    ];
-
-    if (input.llmApiKey?.trim()) {
-      runArgs.splice(runArgs.length - 1, 0, "-e", `LLM_API_KEY=${input.llmApiKey.trim()}`);
-    }
+      hostPort,
+      adminToken,
+      agentUrl,
+      handle: input.handle,
+      agentId: input.id,
+      llmApiKey: input.llmApiKey,
+    });
 
     try {
       const containerId = await docker(runArgs);
@@ -175,6 +195,28 @@ export class DockerFleetProvisioner implements FleetProvisioner {
     if (!agent.containerName) return;
     await docker(["rm", "-f", agent.containerName]).catch(() => undefined);
     await docker(["volume", "rm", `${agent.containerName}-data`]).catch(() => undefined);
+  }
+
+  async updateLlmApiKey(agent: HostedAgentRecord, llmApiKey: string): Promise<void> {
+    const key = llmApiKey.trim();
+    if (!key) throw new Error("LLM API key is required");
+    if (!agent.containerName || agent.hostPort == null) {
+      throw new Error("Agent container metadata missing");
+    }
+    await docker(["rm", "-f", agent.containerName]).catch(() => undefined);
+    const containerId = await docker(
+      dockerRunArgs({
+        containerName: agent.containerName,
+        hostPort: agent.hostPort,
+        adminToken: agent.adminToken,
+        agentUrl: agent.agentUrl,
+        handle: agent.handle,
+        agentId: agent.id,
+        llmApiKey: key,
+      }),
+    );
+    agent.containerId = containerId;
+    await waitForAgentHealth(internalHealthUrl(agent.hostPort), agent.adminToken);
   }
 }
 
