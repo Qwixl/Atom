@@ -647,7 +647,7 @@ body {
 /* ---------- feed ---------- */
 
 .shell-feed {
-  flex: 1 1 0;
+  flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding: 28px 24px 24px;
@@ -1387,7 +1387,7 @@ body {
 .profile-panel-layout {
   display: flex;
   flex-direction: column;
-  flex: 1 1 0;
+  flex: 1;
   min-height: 0;
   overflow: hidden;
   width: 100%;
