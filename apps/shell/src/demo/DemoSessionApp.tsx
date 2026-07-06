@@ -91,7 +91,7 @@ export function DemoSessionApp() {
         </div>
       </AtomShell>
 
-      <DemoInstructionsModal dialogRef={instructionsRef} />
+      <DemoInstructionsModal ref={instructionsRef} />
     </>
   );
 }
