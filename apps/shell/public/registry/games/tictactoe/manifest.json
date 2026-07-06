@@ -1,0 +1,29 @@
+{
+  "id": "games/tictactoe",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/games-tictactoe/index.html",
+  "components": [
+    {
+      "name": "games/tictactoe",
+      "semanticRole": "input/game-board",
+      "events": [
+        {
+          "name": "tttStart"
+        },
+        {
+          "name": "tttMove"
+        }
+      ],
+      "agentHint": "Turn-based tic-tac-toe board; emits tttStart or tttMove for signed game objects."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "games"
+  ],
+  "bundleIntegrity": "sha256:32e7eaf71757c851715222b6403c8bdf9f622babddee99969f9fc8b15f166907"
+}

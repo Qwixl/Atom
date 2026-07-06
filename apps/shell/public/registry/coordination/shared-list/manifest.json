@@ -1,0 +1,26 @@
+{
+  "id": "coordination/shared-list",
+  "version": "0.1.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/coordination-shared-list/index.html",
+  "components": [
+    {
+      "name": "coordination/shared-list",
+      "semanticRole": "input/shared-list",
+      "events": [
+        {
+          "name": "listUpdated"
+        }
+      ],
+      "agentHint": "Collaborative checklist between two contacts (M-ECO-04 scaffold)."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "coordination"
+  ],
+  "bundleIntegrity": "sha256:64e498171653374e9e32703be7b7abb6172aa402062dbb2f238e40b87439728d"
+}
