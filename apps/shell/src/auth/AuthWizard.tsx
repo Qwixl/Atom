@@ -52,7 +52,10 @@ import {
 } from "./hostedSignupLock.js";
 import {
   clearPendingHostedAuth,
+  clearSignupAtProvision,
+  isSignupAtProvision,
   loadPendingHostedAuth,
+  markSignupAtProvision,
   savePendingHostedAuth,
 } from "./pendingHostedAuth.js";
 import {
@@ -173,6 +176,20 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
 
   useEffect(() => {
     if (!usesSupabaseHostedAuth()) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const resumeSetup = params.get("resume") === "1";
+    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    const isReload = nav?.type === "reload";
+    const reloadMidSetup = isReload && isSignupAtProvision();
+
+    if (!resumeSetup && !reloadMidSetup) {
+      clearPendingHostedAuth();
+      clearSignupAtProvision();
+      confirmHandledRef.current = false;
+      return;
+    }
+
     const pending = loadPendingHostedAuth();
     if (!pending) return;
 
@@ -180,20 +197,20 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
     if (pending.handle) setHandle(pending.handle);
     if (pending.llmApiKey) setLlmApiKey(pending.llmApiKey);
     if (pending.kind === "register") setHosting("hosted");
-    setStep("provisioning");
 
     void (async () => {
       const hasSession = await hasSupabaseSession();
       if (hasSession) {
-        setEmailConfirmedThanks(true);
         goTo("provisioning");
-        window.setTimeout(() => {
-          if (pending.kind === "login") {
-            void finishHostedSupabaseLogin();
-          } else {
-            void runHostedSupabaseProvisioning();
-          }
-        }, 800);
+        if (resumeSetup) {
+          window.setTimeout(() => {
+            if (pending.kind === "login") {
+              void finishHostedSupabaseLogin();
+            } else {
+              void runHostedSupabaseProvisioning();
+            }
+          }, 800);
+        }
       } else if (pending.kind === "register") {
         goTo("confirm-email");
       } else {
@@ -201,7 +218,6 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         goTo("confirm-email");
       }
     })();
-    // Resume only on mount when returning from email confirmation link.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -257,6 +273,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
   }, [step, mode]);
 
   function goTo(next: AuthStepId) {
+    if (next === "provisioning") markSignupAtProvision();
     setStep(next);
     setError(null);
   }
@@ -336,6 +353,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       });
       updateTask("connect", "done");
       clearPendingHostedAuth();
+      clearSignupAtProvision();
       window.location.replace("/app/");
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err);
@@ -370,6 +388,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       });
       updateTask("connect", "done");
       clearPendingHostedAuth();
+      clearSignupAtProvision();
       window.location.replace("/app/");
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err);
@@ -520,6 +539,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       }
 
       clearPendingHostedAuth();
+      clearSignupAtProvision();
       window.location.replace("/app/");
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err);

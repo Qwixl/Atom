@@ -43,7 +43,7 @@ export function EmailConfirmCallback({ mode }: EmailConfirmCallbackProps) {
       }
 
       if (loadPendingHostedAuth()) {
-        window.location.replace(`/app/?auth=${mode}`);
+        window.location.replace(`/app/?auth=${mode}&resume=1`);
         return;
       }
 
