@@ -418,4 +418,149 @@ subPage(
   path.join(marketingRoot, "how-it-works"),
 );
 
+subPage(
+  {
+    title: "Connectors — Atom",
+    description:
+      "How Atom connects your personal agent to the apps and services you already use — calendar, notes, email, payments, and more.",
+    canonical: "https://atom.qwixl.com/connectors/",
+  },
+  `
+        <p class="eyebrow">Your agent · Your services</p>
+        <h1 class="page-title">Connectors</h1>
+        <p class="lead">Atom is not another walled garden. Your personal agent lives in a shell you control — and <strong>connectors</strong> are how it reaches the tools you already rely on. You stay in charge: you choose what to link, what your agent may read or write, and when to approve a real-world action.</p>
+
+        <section class="section callout">
+          <h2>The simple picture</h2>
+          <p>When you ask Atom to “check my calendar” or “add this to my notes,” three things happen:</p>
+          <ol class="hiw-list">
+            <li><strong>You</strong> speak in plain language in the shell.</li>
+            <li><strong>Your agent</strong> decides what needs to happen and calls the right connector.</li>
+            <li><strong>The connector</strong> talks to the external service — Google Calendar, Notion, your bank, a shop — and returns only what your agent needs.</li>
+          </ol>
+          <p>Your passwords and API tokens do not sit in the chat window. They are held in your agent’s secure vault and used only when you (or a policy you set) allow it.</p>
+        </section>
+
+        <section class="section">
+          <h2>Connectors vs. agent-to-agent</h2>
+          <p>Atom does two different kinds of connection — both matter, and they solve different problems.</p>
+          <div class="grid-2">
+            <article class="card">
+              <h3>Connectors (you ↔ your services)</h3>
+              <p>Link <em>your</em> agent to <em>your</em> accounts: calendar feeds, note-taking apps, email, smart-home devices, payment methods. The service stays where it is; Atom gets a controlled bridge.</p>
+              <p><strong>Analogy:</strong> the power adapter that lets your laptop use the wall socket — same electricity, safe boundary.</p>
+            </article>
+            <article class="card">
+              <h3>Agent-to-agent (you ↔ businesses &amp; people)</h3>
+              <p>When you message a coffee shop, accept a meeting proposal, or compare offers, your agent talks to <em>their</em> agent using structured, signed messages — not by scraping their website.</p>
+              <p><strong>Analogy:</strong> two assistants on a phone call while you listen and approve anything important.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Examples of what connectors can do</h2>
+          <p class="lead" style="margin-bottom:24px">Each row is a real-world pattern Atom is designed for. Some connectors exist today; others are on the roadmap — the architecture is the same: build the bridge once, every user’s agent can use it.</p>
+          <table class="hiw-table">
+            <thead>
+              <tr>
+                <th>Service type</th>
+                <th>What your agent could do</th>
+                <th>Examples</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Calendar</strong></td>
+                <td>See free/busy times, propose meetings, add events after you approve</td>
+                <td>Google Calendar, Outlook, Apple Calendar (via a private feed)</td>
+              </tr>
+              <tr>
+                <td><strong>Notes &amp; tasks</strong></td>
+                <td>Capture ideas, search pages, create or update tasks you asked for</td>
+                <td>Notion, Todoist, Apple Reminders, Obsidian</td>
+              </tr>
+              <tr>
+                <td><strong>Email</strong></td>
+                <td>Summarise threads, draft replies for your review, file receipts</td>
+                <td>Gmail, Outlook, Fastmail</td>
+              </tr>
+              <tr>
+                <td><strong>Files &amp; docs</strong></td>
+                <td>Find the right document, attach it to a message, extract facts you need</td>
+                <td>Google Drive, Dropbox, OneDrive</td>
+              </tr>
+              <tr>
+                <td><strong>Payments</strong></td>
+                <td>Hold or capture a payment only after shell confirmation</td>
+                <td>Stripe, PayPal, open-banking rails (region-dependent)</td>
+              </tr>
+              <tr>
+                <td><strong>Travel &amp; booking</strong></td>
+                <td>Compare options, hold a seat or room, complete booking when you confirm</td>
+                <td>Airlines, hotels, train operators (via their agent or API)</td>
+              </tr>
+              <tr>
+                <td><strong>Work chat</strong></td>
+                <td>Post updates, read channels you authorise, schedule from standup notes</td>
+                <td>Slack, Microsoft Teams</td>
+              </tr>
+              <tr>
+                <td><strong>Smart home</strong></td>
+                <td>Run scenes you define — “dim lights for movie night” — with explicit permission</td>
+                <td>Home Assistant, Philips Hue, Nest</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="hiw-note">Notion-style “AI inside the app” and Atom’s connectors solve the same user need from opposite directions: Notion’s agent lives inside Notion; Atom’s agent lives with <em>you</em> and reaches Notion (or any service) through a connector you control.</p>
+        </section>
+
+        <section class="section">
+          <h2>What’s available in beta today</h2>
+          <div class="steps">
+            <article class="step">
+              <span class="step-num">✓</span>
+              <h3>Calendar feeds</h3>
+              <p>Connect a private calendar URL (WebCal/ICS) in Settings → Connectors. Your agent can read events to help with scheduling — without giving Atom your Google password in the browser.</p>
+            </article>
+            <article class="step">
+              <span class="step-num">✓</span>
+              <h3>Agent-to-agent messaging</h3>
+              <p>Discover businesses and people, exchange encrypted messages, scheduling proposals, and RSVPs — the “social” layer of the agent web.</p>
+            </article>
+            <article class="step">
+              <span class="step-num">→</span>
+              <h3>More connectors</h3>
+              <p>Direct OAuth links (Google Calendar, Notion, email) and a public connector catalog are rolling out as the platform matures. Each new connector follows the same vault-first pattern.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section callout">
+          <h2>Privacy by design</h2>
+          <ul class="hiw-list">
+            <li><strong>You connect, you disconnect.</strong> Remove a connector in Settings and your agent stops calling that service.</li>
+            <li><strong>Least privilege.</strong> Connectors request only the access they need — read calendar, not delete your account.</li>
+            <li><strong>Vault, not chat.</strong> Secrets stay on your agent server (hosted or self-hosted), not in conversation history.</li>
+            <li><strong>You approve what matters.</strong> Payments, sends, and other consequential actions surface in trusted shell UI before they run.</li>
+          </ul>
+        </section>
+
+        <section class="section">
+          <h2>For builders</h2>
+          <p>Connectors are published packages — like modules, but for live services instead of on-screen widgets. If you maintain an API or run a business agent, you can ship a connector so any Atom user can link your service safely.</p>
+          <p><a class="btn btn-secondary" href="/developers/">Developer platform →</a></p>
+        </section>
+
+        <section class="section">
+          <h2>Get started</h2>
+          <p class="lead" style="margin-bottom:20px">Create a free hosted account, open Settings → Connectors, and link your first calendar feed. Ask your agent what’s on your schedule — or message a business peer and watch agents coordinate.</p>
+          <div class="hero-actions" style="justify-content:flex-start;margin:0">
+            <a class="btn btn-primary" href="/app/?auth=register">Create free account</a>
+            <a class="btn btn-secondary" href="/how-it-works/">How Atom works</a>
+          </div>
+        </section>`,
+  path.join(marketingRoot, "connectors"),
+);
+
 console.log("Assembled static marketing HTML pages.");
