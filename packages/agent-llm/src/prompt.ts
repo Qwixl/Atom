@@ -206,5 +206,24 @@ flow or ask the owner to wait for live data. Instead:
 - Mention once (briefly) that results are illustrative.
 - Continue immediately with compositions: slot picker → confirmation in shell chrome → receipt.
 - Pre-fill every field from the owner profile; never re-ask for values already in the profile summary.
-- For scheduling/RSVP use \`kind: "confirmation"\` — not payment — unless the user explicitly authorizes a charge.`;
+- For scheduling/RSVP use \`kind: "confirmation"\` — not payment — unless the user explicitly authorizes a charge.
+
+## Coordination modules (when to surface inline UI)
+
+When the owner's intent matches, emit a **composition** using these registry modules — do not describe \
+pickers in text alone:
+
+| Intent | Component | Example user phrases |
+|---|---|---|
+| Schedule / meet / call / appointment | \`scheduling/meeting-picker\` | "schedule a meeting", "let's meet Thursday", "book a call" |
+| Group decision / poll | \`coordination/poll\` | "where should we eat", "which day works", "poll the team" |
+| Shared checklist / todos | \`coordination/shared-list\` | "shared grocery list", "packing list", "todo list with" |
+| Play a game | \`games/tictactoe\` | "play tic-tac-toe", "start a game" |
+
+Rules:
+- Pair a short \`text\` message with the module composition in the same turn.
+- Wrap the module in \`core/card\` with a clear \`title\` when helpful.
+- Set \`events\` on the module node so interactions route back (\`meetingProposed\`, \`pollCreated\`, \`listCreated\`, \`tttStart\`).
+- Pass useful \`props\` (e.g. \`defaultTitle\`, \`peerName\` from context).
+- Do **not** use fake slot lists in \`core/choice\` when \`scheduling/meeting-picker\` fits — use the module instead.`;
 }

@@ -7,11 +7,15 @@ import {
 import {
   COORDINATION_POLL_PURPOSE,
   COORDINATION_POLL_VOTE_PURPOSE,
+  COORDINATION_SHARED_LIST_PURPOSE,
+  COORDINATION_SHARED_LIST_UPDATE_PURPOSE,
   DEFAULT_COORDINATION_TTL_SECONDS,
   GAME_TTT_MOVE_PURPOSE,
   GAME_TTT_STATE_PURPOSE,
   POLL_REQUEST_SCHEMA,
   POLL_VOTE_SCHEMA,
+  SHARED_LIST_SCHEMA,
+  SHARED_LIST_UPDATE_SCHEMA,
   TTT_MOVE_SCHEMA,
   TTT_STATE_SCHEMA,
 } from "./constants.js";
@@ -49,6 +53,26 @@ export interface TttMovePayload {
   gameId: string;
   cell: number;
   mark: "X" | "O";
+  threadId?: string;
+}
+
+export interface SharedListItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface SharedListPayload {
+  listId: string;
+  title: string;
+  items: SharedListItem[];
+  threadId?: string;
+}
+
+export interface SharedListUpdatePayload {
+  listId: string;
+  title?: string;
+  items: SharedListItem[];
   threadId?: string;
 }
 
@@ -183,4 +207,84 @@ export async function verifyTttMove(object: DataObject): Promise<{ payload: TttM
     throw new Error("Not a tic-tac-toe move object");
   }
   return { payload: verified.payload as unknown as TttMovePayload };
+}
+
+function parseSharedListItems(raw: unknown): SharedListItem[] {
+  if (!Array.isArray(raw)) return [];
+  const items: SharedListItem[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const item = entry as SharedListItem;
+    if (typeof item.id !== "string" || typeof item.text !== "string") continue;
+    items.push({ id: item.id, text: item.text, done: item.done === true });
+  }
+  return items;
+}
+
+function assertSharedListItems(items: SharedListItem[]): void {
+  for (const item of items) {
+    assertNonEmptyString(item.id, "item.id");
+    assertNonEmptyString(item.text, "item.text");
+  }
+}
+
+export async function createSharedList(opts: {
+  identity: AgentKeyPair;
+  payload: SharedListPayload;
+  ttlSeconds?: number;
+}): Promise<DataObject> {
+  assertNonEmptyString(opts.payload.listId, "listId");
+  assertNonEmptyString(opts.payload.title, "title");
+  assertSharedListItems(opts.payload.items);
+  return signGroupObject(opts.identity, {
+    schema: SHARED_LIST_SCHEMA,
+    purpose: COORDINATION_SHARED_LIST_PURPOSE,
+    payload: opts.payload as unknown as Record<string, unknown>,
+    ttlSeconds: opts.ttlSeconds,
+  });
+}
+
+export async function createSharedListUpdate(opts: {
+  identity: AgentKeyPair;
+  payload: SharedListUpdatePayload;
+  ttlSeconds?: number;
+}): Promise<DataObject> {
+  assertNonEmptyString(opts.payload.listId, "listId");
+  assertSharedListItems(opts.payload.items);
+  return signGroupObject(opts.identity, {
+    schema: SHARED_LIST_UPDATE_SCHEMA,
+    purpose: COORDINATION_SHARED_LIST_UPDATE_PURPOSE,
+    payload: opts.payload as unknown as Record<string, unknown>,
+    ttlSeconds: opts.ttlSeconds,
+  });
+}
+
+export async function verifySharedList(object: DataObject): Promise<{ payload: SharedListPayload }> {
+  const verified = await verifyDataObject(object);
+  if (verified.governance.purpose !== COORDINATION_SHARED_LIST_PURPOSE) {
+    throw new Error("Not a shared list object");
+  }
+  const payload = verified.payload as unknown as SharedListPayload;
+  return {
+    payload: {
+      ...payload,
+      items: parseSharedListItems(payload.items),
+    },
+  };
+}
+
+export async function verifySharedListUpdate(
+  object: DataObject,
+): Promise<{ payload: SharedListUpdatePayload }> {
+  const verified = await verifyDataObject(object);
+  if (verified.governance.purpose !== COORDINATION_SHARED_LIST_UPDATE_PURPOSE) {
+    throw new Error("Not a shared list update object");
+  }
+  const payload = verified.payload as unknown as SharedListUpdatePayload;
+  return {
+    payload: {
+      ...payload,
+      items: parseSharedListItems(payload.items),
+    },
+  };
 }

@@ -57,6 +57,7 @@ export type { ConversationSnapshot, ConversationRuntimeOptions } from "./Convers
 
 
 export { registerCorePrimitives, CORE_PRIMITIVES } from "./core-primitives.js";
+export { registerEcosystemModules, ECOSYSTEM_MODULE_MANIFESTS } from "./ecosystemModules.js";
 
 
 

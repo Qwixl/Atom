@@ -1,8 +1,16 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-06T15:09:28.150Z",
+  "updatedAt": "2026-07-06T15:34:20.400Z",
   "revocationsUrl": "revocations.json",
   "modules": [
+    {
+      "id": "coordination/shared-list",
+      "version": "0.1.0",
+      "manifestUrl": "coordination/shared-list/manifest.json",
+      "integrity": "sha256:389a4f3129baaee67ed372be6f745b28844709ebc7f509c9b615d23a080f682a",
+      "bundleIntegrity": "sha256:64e498171653374e9e32703be7b7abb6172aa402062dbb2f238e40b87439728d",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
     {
       "id": "commerce/offer-comparison",
       "version": "1.0.0",
@@ -67,10 +75,10 @@
     },
     {
       "id": "coordination/shared-list",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "manifestUrl": "coordination/shared-list/manifest.json",
-      "integrity": "sha256:389a4f3129baaee67ed372be6f745b28844709ebc7f509c9b615d23a080f682a",
-      "bundleIntegrity": "sha256:64e498171653374e9e32703be7b7abb6172aa402062dbb2f238e40b87439728d",
+      "integrity": "sha256:c8e1c859ba40ea62eec5d3e43217a536c6dcd08f26d5d88a6119911b45913ef9",
+      "bundleIntegrity": "sha256:9f2f0e9c74a632836c171d6751fb5e0e4dd7867695a65bf3fa8d992236f92bae",
       "publisher": "did:key:z6Mkatomexamples01"
     },
     {

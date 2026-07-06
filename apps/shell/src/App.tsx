@@ -10,6 +10,7 @@ import {
   loadJsonFromStorage,
   loadStringFromStorage,
   registerCorePrimitives,
+  registerEcosystemModules,
   saveJsonToStorage,
   saveStringToStorage,
   type AgentSession,
@@ -56,6 +57,7 @@ import {
 } from "@qwixl/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
 import { ProfilePanel } from "./ProfilePanel.js";
+import { bridgeChatModuleEvent } from "./comms/moduleBridge.js";
 import { CommsPanel } from "./CommsPanel.js";
 import { DiscoverPanel } from "./DiscoverPanel.js";
 import { DiscoverChatResults, type DiscoverChatResult } from "./DiscoverChatResults.js";
@@ -234,6 +236,7 @@ export function App() {
   const catalog = useMemo(() => {
     const c = new Catalog();
     registerCorePrimitives(c);
+    registerEcosystemModules(c);
     return c;
   }, []);
 
@@ -1031,6 +1034,15 @@ export function App() {
   function handleUiEvent(event: UiEvent) {
     if (recordUiPreferenceFeedback(ownerStore, event) > 0) {
       setProfileRecords(ownerStore.list());
+    }
+    const payload =
+      event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
+        ? (event.payload as Record<string, unknown>)
+        : undefined;
+    if (bridgeChatModuleEvent(event.name, payload)) {
+      setPanel("comms");
+      if (commsContacts[0] && !commsFocusId) setCommsFocusId(commsContacts[0].id);
+      return;
     }
     conversationRef.current.setBusy(true);
     sessionRef.current.sendUiEvent(event);

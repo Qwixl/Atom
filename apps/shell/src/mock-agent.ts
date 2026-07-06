@@ -74,6 +74,10 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
       lower.includes("calendar")
     ) {
       this.runScheduleScenario();
+    } else if (lower.includes("poll") || lower.includes("where should we")) {
+      this.runPollScenario();
+    } else if (lower.includes("tic-tac-toe") || lower.includes("tictactoe") || lower.includes("play a game")) {
+      this.runTttScenario();
     } else if (lower.includes("spend") || lower.includes("budget")) {
       this.runSpendingScenario();
     } else {
@@ -90,6 +94,26 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
   }
 
   sendUiEvent(event: UiEvent): void {
+    if (event.name === "meetingProposed") {
+      this.later(400, () =>
+        this.emit({
+          type: "text",
+          text: "Opening Messages to send that proposal to your contact.",
+        }),
+      );
+      this.later(450, () => this.finishTurn());
+      return;
+    }
+    if (event.name === "pollCreated" || event.name === "tttStart") {
+      this.later(400, () =>
+        this.emit({
+          type: "text",
+          text: "Opening Messages to continue with your contact.",
+        }),
+      );
+      this.later(450, () => this.finishTurn());
+      return;
+    }
     if (event.name === "selected") {
       const optionId = (event.payload as { optionId?: string })?.optionId ?? "unknown";
       const label = (event.payload as { label?: string })?.label;
@@ -282,11 +306,91 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
       this.later(1000, () =>
         this.emit({
           type: "composition",
-          composition: this.scheduleSlots(surfaceId, slots, Boolean(this.webcalEventsProvider)),
+          composition: this.meetingPickerSurface(surfaceId),
         }),
       );
       this.later(1050, () => this.finishTurn());
     })();
+  }
+
+  private runPollScenario(): void {
+    const surfaceId = this.nextSurfaceId();
+    this.later(300, () =>
+      this.emit({ type: "text", text: "Set up a poll for your contact." }),
+    );
+    this.later(700, () =>
+      this.emit({
+        type: "composition",
+        composition: this.pollComposerSurface(surfaceId),
+      }),
+    );
+    this.later(750, () => this.finishTurn());
+  }
+
+  private runTttScenario(): void {
+    const surfaceId = this.nextSurfaceId();
+    this.later(300, () =>
+      this.emit({ type: "text", text: "Start a game — I'll open Messages when you're ready." }),
+    );
+    this.later(700, () =>
+      this.emit({
+        type: "composition",
+        composition: this.tttSurface(surfaceId),
+      }),
+    );
+    this.later(750, () => this.finishTurn());
+  }
+
+  private meetingPickerSurface(surfaceId: string): Composition {
+    return {
+      version: 1,
+      surfaceId,
+      intent: "Pick a meeting time",
+      root: {
+        id: "card",
+        component: "core/card",
+        semanticRole: "container/card",
+        props: { title: "Schedule a meeting", subtitle: "Choose a time to propose" },
+        children: [
+          {
+            id: "picker",
+            component: "scheduling/meeting-picker",
+            semanticRole: "input/datetime-picker",
+            events: ["meetingProposed"],
+            props: { defaultTitle: "Meeting" },
+          },
+        ],
+      },
+    };
+  }
+
+  private pollComposerSurface(surfaceId: string): Composition {
+    return {
+      version: 1,
+      surfaceId,
+      intent: "Create a poll",
+      root: {
+        id: "poll",
+        component: "coordination/poll",
+        semanticRole: "input/poll",
+        events: ["pollCreated"],
+        props: { mode: "compose" },
+      },
+    };
+  }
+
+  private tttSurface(surfaceId: string): Composition {
+    return {
+      version: 1,
+      surfaceId,
+      intent: "Play tic-tac-toe",
+      root: {
+        id: "game",
+        component: "games/tictactoe",
+        semanticRole: "input/game-board",
+        events: ["tttStart"],
+      },
+    };
   }
 
   private scheduleSlots(

@@ -216,4 +216,24 @@ export type CommsThreadItem =
       gameId: string;
       cell: number;
       mark: "X" | "O";
+    }
+  | {
+      kind: "shared-list";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      listId: string;
+      title: string;
+      items: Array<{ id: string; text: string; done: boolean }>;
+    }
+  | {
+      kind: "shared-list-update";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      listId: string;
+      title?: string;
+      items: Array<{ id: string; text: string; done: boolean }>;
     };

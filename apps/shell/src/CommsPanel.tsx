@@ -7,6 +7,8 @@ import { ThreadItemView, useRespondedProposalIds, useRespondedTransactionIds, th
 import { CommsAgentClient } from "./comms/client.js";
 import { CommsModuleEmbed } from "./comms/CommsModuleEmbed.js";
 import { mergeThread } from "./comms/coordinationThread.js";
+import { deriveSharedListStates } from "./comms/sharedListLogic.js";
+import { takeCommsModuleBridge } from "./comms/moduleBridge.js";
 import { looksLikeSchedulingIntent } from "./comms/schedulingIntent.js";
 import { applyTttMove, emptyTttBoard } from "./comms/tttLogic.js";
 import { loadThreadOutbound, saveThreadOutbound } from "./comms/threadStorage.js";
@@ -269,6 +271,12 @@ export function CommsPanel({
     return mergeThread(inbox, outbound, selected.did);
   }, [inbox, outbound, selected]);
 
+  const sharedListStates = useMemo(() => deriveSharedListStates(thread), [thread]);
+  const visibleThread = useMemo(
+    () => thread.filter((item) => item.kind !== "shared-list-update"),
+    [thread],
+  );
+
   useEffect(() => {
     saveThreadOutbound(outbound);
   }, [outbound]);
@@ -296,6 +304,20 @@ export function CommsPanel({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [thread.length, conversationPane]);
+
+  useEffect(() => {
+    if (!selected || demoMode) return;
+    const bridge = takeCommsModuleBridge();
+    if (!bridge) return;
+    setConversationPane("chat");
+    if (bridge.action === "meetingProposed") {
+      void sendSchedulingProposal(bridge.title, bridge.slots);
+    } else if (bridge.action === "pollCreated") {
+      void sendPoll(bridge.question, bridge.options);
+    } else if (bridge.action === "tttStart") {
+      void startTttGame(bridge.gameId);
+    }
+  }, [selected, selectedId, demoMode]);
 
   const demoStep = deriveDemoWalkthroughStep(demoPersona, thread);
   const demoPeer = DEMO_PERSONAS[demoPersona];
@@ -552,6 +574,76 @@ export function CommsPanel({
     }
   }
 
+  async function sendSharedList(title: string, items: Array<{ id: string; text: string; done: boolean }>) {
+    if (!selected || items.length === 0) return;
+    setBusy(true);
+    setActionNote(null);
+    const listId = crypto.randomUUID();
+    try {
+      const { objectId } = await client.sendSharedList({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        listId,
+        title,
+        items,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "shared-list",
+          id: objectId,
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          listId,
+          title,
+          items,
+        },
+      ]);
+      setInlineModuleId(null);
+      setConversationPane("chat");
+      setActionNote("List sent.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendSharedListUpdate(listId: string, items: Array<{ id: string; text: string; done: boolean }>) {
+    if (!selected) return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      await client.sendSharedListUpdate({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        listId,
+        items,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "shared-list-update",
+          id: crypto.randomUUID(),
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          listId,
+          items,
+        },
+      ]);
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function startTttGame(gameId: string) {
     if (!selected) return;
     setBusy(true);
@@ -677,6 +769,20 @@ export function CommsPanel({
     if (name === "tttStart") {
       const gameId = typeof payload.gameId === "string" ? payload.gameId : `ttt-${Date.now()}`;
       void startTttGame(gameId);
+      return;
+    }
+    if (name === "listCreated") {
+      const title = typeof payload.title === "string" ? payload.title : "Shared list";
+      const items = Array.isArray(payload.items)
+        ? payload.items.filter(
+            (entry): entry is { id: string; text: string; done: boolean } =>
+              !!entry &&
+              typeof entry === "object" &&
+              typeof (entry as { id?: string }).id === "string" &&
+              typeof (entry as { text?: string }).text === "string",
+          )
+        : [];
+      if (items.length > 0) void sendSharedList(title, items);
     }
   }
 
@@ -1514,6 +1620,17 @@ export function CommsPanel({
                           disabled={busy || selected.blocked || !sessionReady}
                           onClick={() => {
                             setConversationPane("chat");
+                            setInlineModuleId("coordination/shared-list");
+                          }}
+                        >
+                          Shared list
+                        </button>
+                        <button
+                          type="button"
+                          className="panel-btn"
+                          disabled={busy || selected.blocked || !sessionReady}
+                          onClick={() => {
+                            setConversationPane("chat");
                             setInlineModuleId("games/tictactoe");
                           }}
                         >
@@ -1571,7 +1688,7 @@ export function CommsPanel({
                         <p>Proposals and responses appear here after you send.</p>
                       </div>
                     ) : (
-                      thread.map((item) => (
+                      visibleThread.map((item) => (
                         <ThreadItemView
                           key={item.id}
                           item={item}
@@ -1598,6 +1715,12 @@ export function CommsPanel({
                           }
                           onPollVote={(pollId, optionId) => void respondPollVote(pollId, optionId)}
                           onTttCell={(gameId, cell, mark) => void playTttCell(gameId, cell, mark)}
+                          sharedListItems={
+                            item.kind === "shared-list"
+                              ? sharedListStates.get(item.listId)?.items
+                              : undefined
+                          }
+                          onSharedListChange={(listId, items) => void sendSharedListUpdate(listId, items)}
                         />
                       ))
                     )}
@@ -1638,7 +1761,7 @@ export function CommsPanel({
                     )}
                   </div>
                 ) : (
-                  thread.map((item) => (
+                  visibleThread.map((item) => (
                     <ThreadItemView
                       key={item.id}
                       item={item}
@@ -1665,6 +1788,12 @@ export function CommsPanel({
                       }
                       onPollVote={(pollId, optionId) => void respondPollVote(pollId, optionId)}
                       onTttCell={(gameId, cell, mark) => void playTttCell(gameId, cell, mark)}
+                      sharedListItems={
+                        item.kind === "shared-list"
+                          ? sharedListStates.get(item.listId)?.items
+                          : undefined
+                      }
+                      onSharedListChange={(listId, items) => void sendSharedListUpdate(listId, items)}
                     />
                   ))
                 )}
@@ -1714,7 +1843,11 @@ export function CommsPanel({
                       props={{
                         peerName: contactDisplayName(selected),
                         defaultTitle: "Meeting",
-                        mode: inlineModuleId === "coordination/poll" ? "compose" : undefined,
+                        mode:
+                          inlineModuleId === "coordination/poll" ||
+                          inlineModuleId === "coordination/shared-list"
+                            ? "compose"
+                            : undefined,
                       }}
                       onEvent={handleModuleEvent}
                     />

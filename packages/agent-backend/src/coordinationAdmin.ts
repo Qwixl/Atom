@@ -6,11 +6,14 @@ import {
   createRsvpResponse,
   createSchedulingProposal,
   createSchedulingResponse,
+  createSharedList,
+  createSharedListUpdate,
   createTttMove,
   createTttState,
   type RsvpAnswer,
   type SchedulingResponseKind,
   type SchedulingSlot,
+  type SharedListItem,
   type TttBoard,
 } from "@qwixl/a2a-transport";
 import type { AgentKeyPair } from "@qwixl/protocol";
@@ -196,6 +199,58 @@ export function registerCoordinationAdminRoutes(adminApp: Express, deps: Coordin
         payload: {
           pollId: body.pollId.trim(),
           optionId: body.optionId.trim(),
+          threadId: body.threadId?.trim() || undefined,
+        },
+      });
+      await sendCoordinationObject(deps, res, body, object);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/coordination/shared-list", async (req, res) => {
+    const body = req.body as PeerSendBody & {
+      listId?: string;
+      title?: string;
+      items?: SharedListItem[];
+    };
+    if (!body.listId?.trim() || !body.title?.trim() || !Array.isArray(body.items)) {
+      res.status(400).json({ error: "listId, title, and items required" });
+      return;
+    }
+    try {
+      const object = await createSharedList({
+        identity: deps.identity,
+        payload: {
+          listId: body.listId.trim(),
+          title: body.title.trim(),
+          items: body.items,
+          threadId: body.threadId?.trim() || undefined,
+        },
+      });
+      await sendCoordinationObject(deps, res, body, object);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/coordination/shared-list-update", async (req, res) => {
+    const body = req.body as PeerSendBody & {
+      listId?: string;
+      title?: string;
+      items?: SharedListItem[];
+    };
+    if (!body.listId?.trim() || !Array.isArray(body.items)) {
+      res.status(400).json({ error: "listId and items required" });
+      return;
+    }
+    try {
+      const object = await createSharedListUpdate({
+        identity: deps.identity,
+        payload: {
+          listId: body.listId.trim(),
+          title: body.title?.trim() || undefined,
+          items: body.items,
           threadId: body.threadId?.trim() || undefined,
         },
       });
