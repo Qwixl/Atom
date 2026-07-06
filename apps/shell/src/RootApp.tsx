@@ -8,6 +8,7 @@ import { DemoPeerPage } from "./marketing/DemoPeerPage.js";
 import { DemoSessionApp } from "./demo/DemoSessionApp.js";
 import { useSearchString } from "./navigation.js";
 import { isDemoSessionActive } from "./demo/demoSessionStorage.js";
+import "./auth/auth-wizard.css";
 
 function LiveAppGate() {
   const [state, setState] = useState<"checking" | "ready" | "redirect">("checking");
@@ -23,7 +24,18 @@ function LiveAppGate() {
     });
   }, []);
 
-  if (state === "checking" || state === "redirect") return null;
+  if (state === "checking" || state === "redirect") {
+    return (
+      <div className="chrome-overlay auth-modal-overlay atom-auth-modal" role="status" aria-live="polite">
+        <div className="auth-modal">
+          <div className="auth-modal-body">
+            <p className="auth-slide-desc">Loading Atom…</p>
+            <span className="auth-spinner" aria-hidden="true" />
+          </div>
+        </div>
+      </div>
+    );
+  }
   return <App />;
 }
 
