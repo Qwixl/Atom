@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { checkLiveAppAuth } from "./auth/authGate.js";
 import { App } from "./App.js";
 import { AuthWizard } from "./auth/AuthWizard.js";
+import { EmailConfirmCallback } from "./auth/EmailConfirmCallback.js";
+import { hasSupabaseAuthCallbackInUrl } from "./auth/emailConfirmBridge.js";
 import { DemoPeerPage } from "./marketing/DemoPeerPage.js";
 import { DemoSessionApp } from "./demo/DemoSessionApp.js";
 import { useSearchString } from "./navigation.js";
@@ -33,6 +35,9 @@ export function RootApp() {
   const demo = params.get("demo");
 
   if (auth === "login" || auth === "register") {
+    if (hasSupabaseAuthCallbackInUrl()) {
+      return <EmailConfirmCallback mode={auth} />;
+    }
     return (
       <AuthWizard
         mode={auth}
