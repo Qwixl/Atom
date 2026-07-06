@@ -14,6 +14,7 @@ import {
   signupHostedDevAccount,
 } from "./hostedAccount.js";
 import { completeAgentSetup } from "./completeSetup.js";
+import { loadFirstRunDone } from "../firstRunStorage.js";
 import { AuthStepper } from "./AuthStepper.js";
 import {
   authSteps,
@@ -177,29 +178,48 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
   useEffect(() => {
     if (!usesSupabaseHostedAuth()) return;
 
-    const params = new URLSearchParams(window.location.search);
-    const resumeSetup = params.get("resume") === "1";
-    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
-    const isReload = nav?.type === "reload";
-    const reloadMidSetup = isReload && isSignupAtProvision();
-
-    if (!resumeSetup && !reloadMidSetup) {
-      clearPendingHostedAuth();
-      clearSignupAtProvision();
-      confirmHandledRef.current = false;
-      return;
-    }
-
-    const pending = loadPendingHostedAuth();
-    if (!pending) return;
-
-    setEmail(pending.email);
-    if (pending.handle) setHandle(pending.handle);
-    if (pending.llmApiKey) setLlmApiKey(pending.llmApiKey);
-    if (pending.kind === "register") setHosting("hosted");
-
     void (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const resumeSetup = params.get("resume") === "1";
+      const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+      const isReload = nav?.type === "reload";
+      const reloadMidSetup = isReload && isSignupAtProvision();
       const hasSession = await hasSupabaseSession();
+      const pending = loadPendingHostedAuth();
+
+      if (hasSession && loadFirstRunDone()) {
+        window.location.replace("/app/");
+        return;
+      }
+
+      if (hasSession && !loadFirstRunDone() && mode === "register") {
+        if (pending) {
+          setEmail(pending.email);
+          if (pending.handle) setHandle(pending.handle);
+          if (pending.llmApiKey) setLlmApiKey(pending.llmApiKey);
+        }
+        setHosting("hosted");
+        goTo("provisioning");
+        void resumeHostedSupabaseSetup();
+        return;
+      }
+
+      if (!resumeSetup && !reloadMidSetup) {
+        if (!hasSession) {
+          clearPendingHostedAuth();
+          clearSignupAtProvision();
+          confirmHandledRef.current = false;
+        }
+        return;
+      }
+
+      if (!pending) return;
+
+      setEmail(pending.email);
+      if (pending.handle) setHandle(pending.handle);
+      if (pending.llmApiKey) setLlmApiKey(pending.llmApiKey);
+      if (pending.kind === "register") setHosting("hosted");
+
       if (hasSession) {
         goTo("provisioning");
         if (resumeSetup) {
@@ -207,7 +227,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
             if (pending.kind === "login") {
               void finishHostedSupabaseLogin();
             } else {
-              void runHostedSupabaseProvisioning();
+              void resumeHostedSupabaseSetup();
             }
           }, 800);
         }
@@ -219,7 +239,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     if (hosting !== "self-hosted" || !SHOW_DEV_WORKFLOWS) return;
@@ -314,6 +334,56 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
   function advanceTask(doneId: string, nextId?: string) {
     updateTask(doneId, "done");
     if (nextId) updateTask(nextId, "active");
+  }
+
+  async function resumeHostedSupabaseSetup(): Promise<void> {
+    if (!tryAcquireProvisioningLock()) {
+      setError("Setup is already in progress. Wait a moment, then click Try again.");
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setProvisionTasks([
+      { id: "auth", label: "Creating account", state: "done" },
+      { id: "agent", label: "Provisioning agent", state: "done" },
+      { id: "connect", label: "Connecting shell", state: "active" },
+    ]);
+
+    try {
+      if (!(await hasSupabaseSession())) {
+        throw new Error("Sign in required — confirm your email first.");
+      }
+
+      const connection = await fetchHostedAgentConnection();
+      const fields = resolveHostedSignupFields({ email, handle, llmApiKey });
+      await completeAgentSetup({
+        adminUrl: connection.adminUrl,
+        adminToken: connection.adminToken,
+        handle: connection.handle ?? (fields ? bareOwnerHandle(fields.handle) : undefined),
+        kind: "hosted",
+        skipConnectionProbe: true,
+      });
+      updateTask("connect", "done");
+      clearPendingHostedAuth();
+      clearSignupAtProvision();
+      window.location.replace("/app/");
+    } catch (connectErr) {
+      releaseProvisioningLock();
+      const fields = resolveHostedSignupFields({ email, handle, llmApiKey });
+      if (fields) {
+        await runHostedSupabaseProvisioning();
+        return;
+      }
+      const raw = connectErr instanceof Error ? connectErr.message : String(connectErr);
+      setError(friendlyHostedProvisionError(raw));
+      setProvisionTasks((prev) =>
+        prev.map((t) => (t.id === "connect" ? { ...t, state: "error" } : t)),
+      );
+      setBusy(false);
+    } finally {
+      releaseProvisioningLock();
+    }
   }
 
   async function runHostedSupabaseProvisioning(): Promise<void> {
@@ -934,7 +1004,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
                   if (mode === "login") {
                     void finishHostedSupabaseLogin();
                   } else if (usesSupabaseHostedAuth() && hosting === "hosted") {
-                    void runHostedSupabaseProvisioning();
+                    void resumeHostedSupabaseSetup();
                   } else {
                     goTo("profile");
                   }

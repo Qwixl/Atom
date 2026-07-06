@@ -30,15 +30,50 @@ function publicBaseUrl(port: number): string {
   return url;
 }
 
-function allocatePort(agents: Iterable<HostedAgentRecord>): number {
+function allocatePort(usedPorts: Set<number>): number {
+  for (let port = PORT_BASE; port <= PORT_MAX; port += 1) {
+    if (!usedPorts.has(port)) return port;
+  }
+  throw new Error("No fleet ports available — increase ATOM_FLEET_PORT_MAX");
+}
+
+function collectUsedPorts(agents: Iterable<HostedAgentRecord>): Set<number> {
   const used = new Set<number>();
   for (const agent of agents) {
     if (agent.hostPort) used.add(agent.hostPort);
   }
-  for (let port = PORT_BASE; port <= PORT_MAX; port += 1) {
-    if (!used.has(port)) return port;
+  return used;
+}
+
+/** Host ports bound by fleet containers (includes orphans not in the agent store). */
+async function dockerHostPortsInUse(): Promise<Set<number>> {
+  const used = new Set<number>();
+  try {
+    const stdout = await docker([
+      "ps",
+      "-a",
+      "--filter",
+      "label=atom.fleet=hosted-agent",
+      "--format",
+      "{{.Ports}}",
+    ]);
+    for (const line of stdout.split("\n")) {
+      for (const match of line.matchAll(/:(\d+)->\d+\/tcp/g)) {
+        used.add(Number(match[1]));
+      }
+    }
+  } catch {
+    /* best effort */
   }
-  throw new Error("No fleet ports available — increase ATOM_FLEET_PORT_MAX");
+  return used;
+}
+
+async function allocateHostPort(agents: Iterable<HostedAgentRecord>): Promise<number> {
+  const used = collectUsedPorts(agents);
+  for (const port of await dockerHostPortsInUse()) {
+    used.add(port);
+  }
+  return allocatePort(used);
 }
 
 async function docker(args: string[]): Promise<string> {
@@ -58,7 +93,7 @@ export class DockerFleetProvisioner implements FleetProvisioner {
     llmApiKey?: string;
   }): Promise<ProvisionOutcome> {
     const adminToken = randomBytes(32).toString("base64url");
-    const hostPort = allocatePort(this.agents.values());
+    const hostPort = await allocateHostPort(this.agents.values());
     const containerName = `atom-hosted-${input.handle}-${input.id.slice(0, 8)}`;
     const agentUrl = publicBaseUrl(hostPort).replace(/\/$/, "");
 
@@ -96,28 +131,33 @@ export class DockerFleetProvisioner implements FleetProvisioner {
       runArgs.splice(runArgs.length - 1, 0, "-e", `LLM_API_KEY=${input.llmApiKey.trim()}`);
     }
 
-    const containerId = await docker(runArgs);
-    await waitForAgentHealth(internalHealthUrl(hostPort), adminToken);
+    try {
+      const containerId = await docker(runArgs);
+      await waitForAgentHealth(internalHealthUrl(hostPort), adminToken);
 
-    const agent: HostedAgentRecord = {
-      id: input.id,
-      handle: input.handle,
-      email: input.email,
-      agentUrl,
-      adminToken,
-      status: "active",
-      createdAt: new Date().toISOString(),
-      fleetMode: "docker",
-      containerId,
-      containerName,
-      hostPort,
-    };
+      const agent: HostedAgentRecord = {
+        id: input.id,
+        handle: input.handle,
+        email: input.email,
+        agentUrl,
+        adminToken,
+        status: "active",
+        createdAt: new Date().toISOString(),
+        fleetMode: "docker",
+        containerId,
+        containerName,
+        hostPort,
+      };
 
-    return {
-      agent,
-      status: "provisioned",
-      message: "Your agent is running in an isolated container with its own encrypted volume.",
-    };
+      return {
+        agent,
+        status: "provisioned",
+        message: "Your agent is running in an isolated container with its own encrypted volume.",
+      };
+    } catch (error) {
+      await docker(["rm", "-f", containerName]).catch(() => undefined);
+      throw error;
+    }
   }
 
   async suspend(agent: HostedAgentRecord, _reason: string): Promise<void> {
