@@ -96,9 +96,9 @@ jobs:
           ssh "${SSH_USER}@${SSH_HOST}" <<'EOF'
           set -euo pipefail
           cd /opt/atom
-          git fetch origin
+          git fetch origin --prune
           git checkout main
-          git pull origin main
+          git reset --hard origin/main
           docker compose build control-plane
           docker compose up -d control-plane
           sleep 5
