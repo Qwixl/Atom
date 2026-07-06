@@ -30,4 +30,6 @@ export interface FleetProvisioner {
   suspend(agent: HostedAgentRecord, reason: string): Promise<void>;
   resume(agent: HostedAgentRecord): Promise<void>;
   destroy(agent: HostedAgentRecord): Promise<void>;
+  /** Recreate the agent container with a new LLM_API_KEY (preserves port, token, data). */
+  updateLlmApiKey(agent: HostedAgentRecord, llmApiKey: string): Promise<void>;
 }

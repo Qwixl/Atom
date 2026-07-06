@@ -36,7 +36,7 @@ async function requireUser(req: Request, res: Response) {
 async function loadHostedAgent(userId: string) {
   const { data, error } = await supabaseAdmin()
     .from("hosted_agents")
-    .select("id, handle, agent_url, status, status_message")
+    .select("id, handle, agent_url, status, status_message, control_plane_agent_id")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -265,6 +265,57 @@ export function registerAccountRoutes(
         adminToken,
         handle: publicHandle(agent.handle),
       });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.post("/account/llm-key", async (req, res) => {
+    if (!isSupabaseConfigured()) {
+      res.status(503).json({ error: "Account service not configured" });
+      return;
+    }
+    const fleet = deps.fleet();
+    if (!fleet) {
+      res.status(503).json({ error: "Control plane starting" });
+      return;
+    }
+    const user = await requireUser(req, res);
+    if (!user) return;
+
+    const llmKey = (req.body as { llmApiKey?: string }).llmApiKey?.trim();
+    if (!llmKey) {
+      res.status(400).json({ error: "LLM API key is required" });
+      return;
+    }
+
+    try {
+      const hosted = await loadHostedAgent(user.id);
+      if (!hosted?.control_plane_agent_id || hosted.status !== "active") {
+        res.status(409).json({ error: "Hosted agent not ready" });
+        return;
+      }
+
+      const { error: llmError } = await supabaseAdmin().from("user_llm_settings").upsert(
+        {
+          user_id: user.id,
+          provider: "openai",
+          api_key: llmKey,
+        },
+        { onConflict: "user_id" },
+      );
+      if (llmError) throw new Error(llmError.message);
+
+      const fleetAgent = deps.fleetAgents().get(hosted.control_plane_agent_id);
+      if (!fleetAgent) {
+        res.status(404).json({ error: "Hosted agent record not found on fleet host" });
+        return;
+      }
+
+      await fleet.updateLlmApiKey(fleetAgent, llmKey);
+      await deps.persistAgents();
+
+      res.json({ status: "updated" });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
