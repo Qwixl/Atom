@@ -161,9 +161,9 @@ export function RegistryCatalogList({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const registry = new ModuleRegistry({ indexUrl });
+    const registry = new ModuleRegistry({ indexUrl, cache: false });
     void registry
-      .loadIndex()
+      .loadIndex(true)
       .then(async (index) => {
         const ratingData = await fetchRegistryRatings(indexUrl, index.ratingsUrl);
         if (!cancelled) {
