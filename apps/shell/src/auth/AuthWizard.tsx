@@ -187,11 +187,6 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       const hasSession = await hasSupabaseSession();
       const pending = loadPendingHostedAuth();
 
-      if (hasSession && loadFirstRunDone()) {
-        window.location.replace("/app/");
-        return;
-      }
-
       if (hasSession && !loadFirstRunDone() && mode === "register") {
         if (pending) {
           setEmail(pending.email);
