@@ -3,6 +3,10 @@ import {
   COORDINATION_RESPONSE_PURPOSE,
   COORDINATION_RSVP_PURPOSE,
   COORDINATION_RSVP_RESPONSE_PURPOSE,
+  COORDINATION_POLL_PURPOSE,
+  COORDINATION_POLL_VOTE_PURPOSE,
+  GAME_TTT_STATE_PURPOSE,
+  GAME_TTT_MOVE_PURPOSE,
   ACTION_RESERVE_PURPOSE,
   ACTION_HOLD_PURPOSE,
   ACTION_CONFIRM_PURPOSE,
@@ -269,6 +273,70 @@ export function inboxEntryToThreadItem(
       intentId: String(payload.intentId ?? ""),
       reasonCode: String(payload.reasonCode ?? "other"),
       note: typeof payload.note === "string" ? payload.note : undefined,
+    };
+  }
+
+  if (purpose === COORDINATION_POLL_PURPOSE) {
+    const options = Array.isArray(payload.options)
+      ? payload.options
+          .filter(
+            (o): o is { id: string; label: string } =>
+              !!o &&
+              typeof o === "object" &&
+              typeof (o as { id?: string }).id === "string" &&
+              typeof (o as { label?: string }).label === "string",
+          )
+          .map((o) => ({ id: o.id, label: o.label }))
+      : [];
+    return {
+      kind: "poll-request",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      question: typeof payload.question === "string" ? payload.question : "Poll",
+      options,
+    };
+  }
+
+  if (purpose === COORDINATION_POLL_VOTE_PURPOSE) {
+    return {
+      kind: "poll-vote",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      pollId: String(payload.pollId ?? ""),
+      optionId: String(payload.optionId ?? ""),
+    };
+  }
+
+  if (purpose === GAME_TTT_STATE_PURPOSE) {
+    const board = Array.isArray(payload.board) ? [...payload.board] : Array(9).fill(null);
+    return {
+      kind: "ttt-state",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      gameId: String(payload.gameId ?? ""),
+      board: board.slice(0, 9) as Array<"X" | "O" | null>,
+      turn: payload.turn === "O" ? "O" : "X",
+      status: payload.status === "won" || payload.status === "draw" ? payload.status : "active",
+      winner: payload.winner === "X" || payload.winner === "O" ? payload.winner : undefined,
+    };
+  }
+
+  if (purpose === GAME_TTT_MOVE_PURPOSE) {
+    return {
+      kind: "ttt-move",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      gameId: String(payload.gameId ?? ""),
+      cell: typeof payload.cell === "number" ? payload.cell : -1,
+      mark: payload.mark === "O" ? "O" : "X",
     };
   }
 

@@ -14,6 +14,8 @@ export function CoordinationCard({
   onConfirmTransaction,
   onDeclineTransaction,
   onAcceptOffer,
+  onPollVote,
+  onTttCell,
 }: {
   item: CommsThreadItem;
   busy: boolean;
@@ -29,6 +31,8 @@ export function CoordinationCard({
     label: string,
     amount: MonetaryAmount,
   ) => void;
+  onPollVote?: (pollId: string, optionId: string) => void;
+  onTttCell?: (gameId: string, cell: number, mark: "X" | "O") => void;
 }) {
   const directionClass = item.direction === "in" ? "in" : "out";
 
@@ -282,6 +286,93 @@ export function CoordinationCard({
     );
   }
 
+  if (item.kind === "poll-request") {
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
+        <div className="shell-comms-coord-head">
+          <strong>Poll</strong>
+          <span>{item.question}</span>
+        </div>
+        <ul className="shell-comms-coord-slots">
+          {item.options.map((option) => (
+            <li key={option.id}>
+              <span>{option.label}</span>
+              {showActions ? (
+                <button
+                  type="button"
+                  className="chrome-approve"
+                  disabled={busy}
+                  onClick={() => onPollVote?.(item.id, option.id)}
+                >
+                  Vote
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
+  if (item.kind === "poll-vote") {
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
+        <div className="shell-comms-coord-head">
+          <strong>Poll vote</strong>
+          <span>{item.optionId}</span>
+        </div>
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
+  if (item.kind === "ttt-move") {
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
+        <div className="shell-comms-coord-head">
+          <strong>Move</strong>
+          <span>
+            {item.mark} → cell {item.cell + 1}
+          </span>
+        </div>
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
+  if (item.kind === "ttt-state") {
+    const state = item;
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
+        <div className="shell-comms-coord-head">
+          <strong>Tic-tac-toe</strong>
+          <span>
+            {state.status === "active"
+              ? `${state.turn}'s turn`
+              : state.status === "won"
+                ? `${state.winner} wins`
+                : "Draw"}
+          </span>
+        </div>
+        <div className="shell-comms-ttt-board">
+          {state.board.map((mark, index) => (
+            <button
+              key={index}
+              type="button"
+              className="shell-comms-ttt-cell"
+              disabled={!showActions || !!mark || state.status !== "active"}
+              onClick={() => onTttCell?.(state.gameId, index, state.turn)}
+            >
+              {mark ?? ""}
+            </button>
+          ))}
+        </div>
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
   return null;
 }
 
@@ -295,6 +386,8 @@ export function ThreadItemView({
   onConfirmTransaction,
   onDeclineTransaction,
   onAcceptOffer,
+  onPollVote,
+  onTttCell,
 }: {
   item: CommsThreadItem;
   busy: boolean;
@@ -310,6 +403,8 @@ export function ThreadItemView({
     label: string,
     amount: MonetaryAmount,
   ) => void;
+  onPollVote?: (pollId: string, optionId: string) => void;
+  onTttCell?: (gameId: string, cell: number, mark: "X" | "O") => void;
 }) {
   if (item.kind === "message") {
     const suspicious = item.direction === "in" && detectInstructionLikeContent(item.text);
@@ -338,6 +433,8 @@ export function ThreadItemView({
       onConfirmTransaction={onConfirmTransaction}
       onDeclineTransaction={onDeclineTransaction}
       onAcceptOffer={onAcceptOffer}
+      onPollVote={onPollVote}
+      onTttCell={onTttCell}
     />
   );
 }
@@ -367,6 +464,9 @@ export function useRespondedProposalIds(thread: CommsThreadItem[]): Set<string> 
       if (item.kind === "rsvp-response" && item.direction === "out") {
         ids.add(item.rsvpId);
       }
+      if (item.kind === "poll-vote" && item.direction === "out") {
+        ids.add(item.pollId);
+      }
     }
     return ids;
   }, [thread]);
@@ -378,9 +478,14 @@ export function threadItemNeedsActions(
   respondedTxnIds: Set<string>,
   respondedOfferIds: Set<string>,
 ): boolean {
+  if (item.kind === "ttt-state") {
+    if (item.status !== "active") return false;
+    return item.direction === "out" ? item.turn === "X" : item.turn === "O";
+  }
   if (item.direction !== "in") return false;
   if (item.kind === "scheduling-proposal") return !respondedIds.has(item.id);
   if (item.kind === "rsvp-request") return !respondedIds.has(item.id);
+  if (item.kind === "poll-request") return !respondedIds.has(item.id);
   if (item.kind === "transaction-hold") return !respondedTxnIds.has(item.transactionId);
   if (item.kind === "commerce-offer") return !respondedOfferIds.has(item.offerId);
   return false;

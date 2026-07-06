@@ -1,0 +1,27 @@
+{
+  "id": "scheduling/meeting-picker",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/scheduling-meeting-picker/index.html",
+  "components": [
+    {
+      "name": "scheduling/meeting-picker",
+      "semanticRole": "input/datetime-picker",
+      "events": [
+        {
+          "name": "meetingProposed"
+        }
+      ],
+      "agentHint": "Inline date/time picker for proposing a 1:1 meeting; emits meetingProposed with title and slots."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "scheduling",
+    "coordination"
+  ],
+  "bundleIntegrity": "sha256:85632c657a81c262c6f39c08145b955911a8a8b819be0428d318df9a10d7ba4d"
+}

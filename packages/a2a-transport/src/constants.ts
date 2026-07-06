@@ -50,6 +50,24 @@ export const RSVP_RESPONSE_SCHEMA = "https://atom.qwixl.dev/schema/RsvpResponse"
 export const COORDINATION_RECEIPT_PURPOSE = "coordination:receipt";
 export const COORDINATION_RECEIPT_SCHEMA = "https://atom.qwixl.dev/schema/CoordinationReceipt";
 
+/** M-ECO-02 — group poll (organizer → invitees). */
+export const COORDINATION_POLL_PURPOSE = "coordination:poll";
+export const POLL_REQUEST_SCHEMA = "https://atom.qwixl.dev/schema/PollRequest";
+
+/** M-ECO-02 — poll vote (invitee → organizer). */
+export const COORDINATION_POLL_VOTE_PURPOSE = "coordination:poll-vote";
+export const POLL_VOTE_SCHEMA = "https://atom.qwixl.dev/schema/PollVote";
+
+/** M-ECO-03 — tic-tac-toe game state (either player). */
+export const GAME_TTT_STATE_PURPOSE = "game:tictactoe-state";
+export const TTT_STATE_SCHEMA = "https://atom.qwixl.dev/schema/TicTacToeState";
+
+/** M-ECO-03 — tic-tac-toe move (either player). */
+export const GAME_TTT_MOVE_PURPOSE = "game:tictactoe-move";
+export const TTT_MOVE_SCHEMA = "https://atom.qwixl.dev/schema/TicTacToeMove";
+
+export const GAME_PURPOSES = [GAME_TTT_STATE_PURPOSE, GAME_TTT_MOVE_PURPOSE] as const;
+
 /** All M8 coordination purposes (receiver allowlists). */
 export const COORDINATION_PURPOSES = [
   COORDINATION_PROPOSAL_PURPOSE,
@@ -57,6 +75,8 @@ export const COORDINATION_PURPOSES = [
   COORDINATION_RSVP_PURPOSE,
   COORDINATION_RSVP_RESPONSE_PURPOSE,
   COORDINATION_RECEIPT_PURPOSE,
+  COORDINATION_POLL_PURPOSE,
+  COORDINATION_POLL_VOTE_PURPOSE,
 ] as const;
 
 /** M9 transaction-flow — soft reserve after owner confirm (no ring-fence). */

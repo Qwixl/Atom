@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { verifyContactInvite } from "@qwixl/a2a-transport";
 import type { OwnerRecord, OwnerStore } from "@qwixl/owner-store";
 import type { ActionReserveRefKind, MonetaryAmount, RsvpAnswer, SchedulingSlot } from "@qwixl/a2a-transport";
-import type { AttestationEntry } from "@qwixl/shell-core";
+import type { AttestationEntry, Catalog, ModuleRegistry } from "@qwixl/shell-core";
 import { ThreadItemView, useRespondedProposalIds, useRespondedTransactionIds, threadItemNeedsActions } from "./comms/CoordinationCard.js";
 import { CommsAgentClient } from "./comms/client.js";
+import { CommsModuleEmbed } from "./comms/CommsModuleEmbed.js";
 import { mergeThread } from "./comms/coordinationThread.js";
-import { ScheduleMeetingDialog } from "./comms/ScheduleMeetingDialog.js";
+import { looksLikeSchedulingIntent } from "./comms/schedulingIntent.js";
+import { applyTttMove, emptyTttBoard } from "./comms/tttLogic.js";
 import { loadThreadOutbound, saveThreadOutbound } from "./comms/threadStorage.js";
 import { persistCommerceReceiptsFromInbox } from "./comms/persistReceipts.js";
 import { DEFAULT_COMMS_AGENT_URL, loadCommsAgentConfig, saveCommsAgentConfig, saveContacts } from "./comms/storage.js";
@@ -90,6 +92,9 @@ export function CommsPanel({
   demoSession = false,
   demoSessionRole = "alice",
   onDemoSessionRoleChange,
+  catalog,
+  registry,
+  modulesEnabled = true,
 }: {
   contacts: AgentContact[];
   ownerRecords: OwnerRecord[];
@@ -115,6 +120,9 @@ export function CommsPanel({
   demoSession?: boolean;
   demoSessionRole?: DemoSessionRole;
   onDemoSessionRoleChange?: (role: DemoSessionRole) => void;
+  catalog?: Catalog;
+  registry?: ModuleRegistry;
+  modulesEnabled?: boolean;
 }) {
   const contactsDialogRef = useRef<HTMLDialogElement>(null);
   const initialConfig = agentConfigOverride ?? loadCommsAgentConfig();
@@ -146,7 +154,8 @@ export function CommsPanel({
     () => !demoMode && !ATOM_BROWSER_MODE && !IS_PRODUCTION_HOST && contacts.length === 0,
   );
   const [conversationPane, setConversationPane] = useState<"chat" | "contact">("chat");
-  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [inlineModuleId, setInlineModuleId] = useState<string | null>(null);
+  const [scheduleDismissedFor, setScheduleDismissedFor] = useState<string | null>(null);
   const [contactSearch, setContactSearch] = useState("");
 
   useEffect(() => {
@@ -266,8 +275,23 @@ export function CommsPanel({
 
   useEffect(() => {
     setConversationPane("chat");
-    setScheduleOpen(false);
+    setInlineModuleId(null);
+    setScheduleDismissedFor(null);
   }, [selectedId]);
+
+  const lastThreadMessage = useMemo(() => {
+    for (let i = thread.length - 1; i >= 0; i--) {
+      const item = thread[i];
+      if (item?.kind === "message") return item;
+    }
+    return null;
+  }, [thread]);
+  const lastThreadMessageId = lastThreadMessage?.id ?? null;
+  const schedulingSuggested =
+    !demoMode &&
+    lastThreadMessage != null &&
+    lastThreadMessageId !== scheduleDismissedFor &&
+    looksLikeSchedulingIntent(lastThreadMessage.text);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -449,7 +473,7 @@ export function CommsPanel({
           slots,
         },
       ]);
-      setScheduleOpen(false);
+      setInlineModuleId(null);
       setConversationPane("chat");
       setActionNote("Meeting proposal sent.");
       await refreshInbox();
@@ -459,6 +483,204 @@ export function CommsPanel({
       setBusy(false);
     }
   }
+
+  async function sendPoll(question: string, options: Array<{ id: string; label: string }>) {
+    if (!selected || options.length < 2) return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      const { objectId } = await client.sendPoll({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        question,
+        options,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "poll-request",
+          id: objectId,
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          question,
+          options,
+        },
+      ]);
+      setInlineModuleId(null);
+      setConversationPane("chat");
+      setActionNote("Poll sent.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function respondPollVote(pollId: string, optionId: string) {
+    if (!selected) return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      await client.sendPollVote({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        pollId,
+        optionId,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "poll-vote",
+          id: crypto.randomUUID(),
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          pollId,
+          optionId,
+        },
+      ]);
+      setActionNote("Vote sent.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function startTttGame(gameId: string) {
+    if (!selected) return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      const board = emptyTttBoard();
+      const { objectId } = await client.sendTttState({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        gameId,
+        board,
+        turn: "X",
+        status: "active",
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "ttt-state",
+          id: objectId,
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          gameId,
+          board,
+          turn: "X",
+          status: "active",
+        },
+      ]);
+      setInlineModuleId(null);
+      setConversationPane("chat");
+      setActionNote("Game started.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function playTttCell(gameId: string, cell: number, mark: "X" | "O") {
+    if (!selected) return;
+    const stateItem = [...thread]
+      .reverse()
+      .find(
+        (item): item is Extract<CommsThreadItem, { kind: "ttt-state" }> =>
+          item.kind === "ttt-state" && item.gameId === gameId,
+      );
+    if (!stateItem || stateItem.status !== "active") return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      const next = applyTttMove(stateItem.board, cell, mark);
+      await client.sendTttMove({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        gameId,
+        cell,
+        mark,
+        encrypt: sessionReady,
+      });
+      const { objectId } = await client.sendTttState({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        gameId,
+        board: next.board,
+        turn: next.turn,
+        status: next.status,
+        winner: next.winner,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "ttt-move",
+          id: crypto.randomUUID(),
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          gameId,
+          cell,
+          mark,
+        },
+        {
+          kind: "ttt-state",
+          id: objectId,
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          gameId,
+          board: next.board,
+          turn: next.turn,
+          status: next.status,
+          winner: next.winner,
+        },
+      ]);
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleModuleEvent(name: string, payload: Record<string, unknown>) {
+    if (name === "meetingProposed") {
+      const title = typeof payload.title === "string" ? payload.title : "Meeting";
+      const slots = Array.isArray(payload.slots) ? (payload.slots as SchedulingSlot[]) : [];
+      void sendSchedulingProposal(title, slots);
+      return;
+    }
+    if (name === "pollCreated") {
+      const question = typeof payload.question === "string" ? payload.question : "";
+      const options = Array.isArray(payload.options)
+        ? payload.options.filter(
+            (o): o is { id: string; label: string } =>
+              !!o && typeof o === "object" && typeof (o as { id?: string }).id === "string",
+          )
+        : [];
+      void sendPoll(question, options);
+      return;
+    }
+    if (name === "tttStart") {
+      const gameId = typeof payload.gameId === "string" ? payload.gameId : `ttt-${Date.now()}`;
+      void startTttGame(gameId);
+    }
+  }
+
+  const modulesReady = modulesEnabled && catalog && registry;
 
   async function mintActionReserve(opts: {
     refId: string;
@@ -1273,6 +1495,32 @@ export function CommsPanel({
                     >
                       Remove
                     </button>
+                    {modulesReady ? (
+                      <>
+                        <button
+                          type="button"
+                          className="panel-btn"
+                          disabled={busy || selected.blocked || !sessionReady}
+                          onClick={() => {
+                            setConversationPane("chat");
+                            setInlineModuleId("coordination/poll");
+                          }}
+                        >
+                          Start poll
+                        </button>
+                        <button
+                          type="button"
+                          className="panel-btn"
+                          disabled={busy || selected.blocked || !sessionReady}
+                          onClick={() => {
+                            setConversationPane("chat");
+                            setInlineModuleId("games/tictactoe");
+                          }}
+                        >
+                          Play tic-tac-toe
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                   {ownerCategories.length > 0 ? (
                     <section className="comms-contact-section">
@@ -1348,6 +1596,8 @@ export function CommsPanel({
                           onAcceptOffer={(offerId, intentId, label, amount) =>
                             void acceptCommerceOffer(offerId, intentId, label, amount)
                           }
+                          onPollVote={(pollId, optionId) => void respondPollVote(pollId, optionId)}
+                          onTttCell={(gameId, cell, mark) => void playTttCell(gameId, cell, mark)}
                         />
                       ))
                     )}
@@ -1413,6 +1663,8 @@ export function CommsPanel({
                       onAcceptOffer={(offerId, intentId, label, amount) =>
                         void acceptCommerceOffer(offerId, intentId, label, amount)
                       }
+                      onPollVote={(pollId, optionId) => void respondPollVote(pollId, optionId)}
+                      onTttCell={(gameId, cell, mark) => void playTttCell(gameId, cell, mark)}
                     />
                   ))
                 )}
@@ -1423,23 +1675,51 @@ export function CommsPanel({
 
               {!demoMode ? (
               <>
-                <button
-                  type="button"
-                  className="comms-schedule-fab"
-                  aria-label="Schedule meeting"
-                  title="Schedule meeting"
-                  disabled={busy || selected.blocked || !sessionReady}
-                  onClick={() => setScheduleOpen(true)}
-                >
-                  <span aria-hidden="true">+</span>
-                </button>
-                <ScheduleMeetingDialog
-                  open={scheduleOpen}
-                  peerName={contactDisplayName(selected)}
-                  busy={busy}
-                  onClose={() => setScheduleOpen(false)}
-                  onSend={(title, slots) => sendSchedulingProposal(title, slots)}
-                />
+                {schedulingSuggested && !inlineModuleId ? (
+                  <div className="comms-schedule-suggest">
+                    <span>Arranging to meet?</span>
+                    <button
+                      type="button"
+                      className="panel-btn"
+                      disabled={busy || selected.blocked || !sessionReady || !modulesReady}
+                      onClick={() => setInlineModuleId("scheduling/meeting-picker")}
+                    >
+                      Pick a time
+                    </button>
+                    <button
+                      type="button"
+                      className="comms-schedule-card-close"
+                      aria-label="Dismiss scheduling suggestion"
+                      onClick={() => setScheduleDismissedFor(lastThreadMessageId)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : null}
+                {modulesReady && inlineModuleId ? (
+                  <div className="comms-inline-module">
+                    <button
+                      type="button"
+                      className="comms-schedule-card-close comms-inline-module-close"
+                      aria-label="Close module"
+                      onClick={() => setInlineModuleId(null)}
+                    >
+                      ×
+                    </button>
+                    <CommsModuleEmbed
+                      moduleId={inlineModuleId}
+                      catalog={catalog}
+                      registry={registry}
+                      minHeight={inlineModuleId === "games/tictactoe" ? 180 : 72}
+                      props={{
+                        peerName: contactDisplayName(selected),
+                        defaultTitle: "Meeting",
+                        mode: inlineModuleId === "coordination/poll" ? "compose" : undefined,
+                      }}
+                      onEvent={handleModuleEvent}
+                    />
+                  </div>
+                ) : null}
               <footer className="comms-compose">
                 <textarea
                   className="panel-textarea"

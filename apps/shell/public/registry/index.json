@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-05T12:24:29.297Z",
+  "updatedAt": "2026-07-06T15:09:28.150Z",
   "revocationsUrl": "revocations.json",
   "modules": [
     {
@@ -34,6 +34,14 @@
       "publisher": "did:key:z6Mkatomexamples01"
     },
     {
+      "id": "commerce/split-bill",
+      "version": "0.1.0",
+      "manifestUrl": "commerce/split-bill/manifest.json",
+      "integrity": "sha256:d2472ee8f876ccd05cbd8e72de9b1e5ae8897ade112edf61fba10fe5f9c44fd9",
+      "bundleIntegrity": "sha256:5c472b2375511e6ce9da37d3850b81a1bbd30debe6732fd9ab210d0e39591161",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
       "id": "community/coffee-shop",
       "version": "1.0.0",
       "manifestUrl": "community/coffee-shop/manifest.json",
@@ -47,6 +55,22 @@
       "manifestUrl": "connectors/webcal/manifest.json",
       "integrity": "sha256:5dcfc6f65a0cfc7b354871e34b15fa9eb95eef296473cb5d3445c0759887d2c8",
       "bundleIntegrity": "sha256:00f24e50256a69aa4f56f0dd70217037a05d65f332012dfc65842d154d9b7d46",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "coordination/poll",
+      "version": "1.0.0",
+      "manifestUrl": "coordination/poll/manifest.json",
+      "integrity": "sha256:74deb6d08537f64466fa6b21ce0cf4c66bfb1b4a582bdf708b5cb320e59d0ade",
+      "bundleIntegrity": "sha256:4d6ff625bd3bd93aee97466d824975463e52aa9353c2f80b65584e04de0bb925",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "coordination/shared-list",
+      "version": "0.1.0",
+      "manifestUrl": "coordination/shared-list/manifest.json",
+      "integrity": "sha256:389a4f3129baaee67ed372be6f745b28844709ebc7f509c9b615d23a080f682a",
+      "bundleIntegrity": "sha256:64e498171653374e9e32703be7b7abb6172aa402062dbb2f238e40b87439728d",
       "publisher": "did:key:z6Mkatomexamples01"
     },
     {
@@ -66,6 +90,22 @@
       "publisher": "did:key:z6Mkatomexamples01"
     },
     {
+      "id": "games/battleships",
+      "version": "0.1.0",
+      "manifestUrl": "games/battleships/manifest.json",
+      "integrity": "sha256:ad26c2813f7ee6451831e4023d0a7b9a993e8a74d90a5365d419dc2ea1832d11",
+      "bundleIntegrity": "sha256:6864deff2765650d7e7690d427afeb1cdcad0b30b80a73cf0aa24299ad8cf2d7",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "games/tictactoe",
+      "version": "1.0.0",
+      "manifestUrl": "games/tictactoe/manifest.json",
+      "integrity": "sha256:2790ec624fdda9bf8264bd099d782f4274a16f0e8d66163681a7b55270d34f88",
+      "bundleIntegrity": "sha256:32e7eaf71757c851715222b6403c8bdf9f622babddee99969f9fc8b15f166907",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
       "id": "media/audio-player",
       "version": "1.0.0",
       "manifestUrl": "media/audio-player/manifest.json",
@@ -79,6 +119,14 @@
       "manifestUrl": "scheduling/availability-grid/manifest.json",
       "integrity": "sha256:848dec25c176634e8c2c9615bb99e3f5e08b7e3f025326d48a12f5a05514e73a",
       "bundleIntegrity": "sha256:fd7c3e7ae49ec73ca60712287aed1966cbc93d6656ea11f6f6d840d6223390b7",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "scheduling/meeting-picker",
+      "version": "1.0.0",
+      "manifestUrl": "scheduling/meeting-picker/manifest.json",
+      "integrity": "sha256:2538355abc0d6c4e53c8390fb25637fe8a89c2cc4a34f4a2a8c1925547b4f7d3",
+      "bundleIntegrity": "sha256:85632c657a81c262c6f39c08145b955911a8a8b819be0428d318df9a10d7ba4d",
       "publisher": "did:key:z6Mkatomexamples01"
     },
     {

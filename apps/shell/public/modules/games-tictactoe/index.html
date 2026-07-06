@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tic-tac-toe</title>
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body { margin: 0; padding: 10px 12px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
+    .board { display: grid; grid-template-columns: repeat(3, 64px); gap: 6px; width: fit-content; }
+    button.cell {
+      width: 64px; height: 64px; font-size: 28px; font-weight: 600;
+      border: 1px solid var(--atom-color-border, #ccc); border-radius: 8px;
+      background: var(--atom-color-bg-raised, #fafafa); cursor: pointer; color: inherit;
+    }
+    button.cell:disabled { cursor: default; opacity: 0.85; }
+    .meta { margin-top: 8px; font-size: 12px; color: var(--atom-color-text-dim, #666); }
+    .start { margin-top: 8px; padding: 8px 14px; border: none; border-radius: 6px; background: var(--atom-color-accent, #111); color: var(--atom-color-bg, #fff); cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="board" id="board"></div>
+  <p class="meta" id="meta">Start a game or wait for your opponent.</p>
+  <button type="button" class="start" id="start">New game</button>
+  <script>
+    let shellOrigin = null;
+    let board = Array(9).fill(null);
+    let turn = "X";
+    let status = "idle";
+    let gameId = null;
+    let myMark = "X";
+    let readOnly = false;
+    function emit(name, payload) {
+      if (shellOrigin) window.parent.postMessage({ type:"event", name, payload }, shellOrigin);
+    }
+    function checkWinner(b) {
+      const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+      for (const [a,c,d] of lines) {
+        if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+      }
+      if (b.every(Boolean)) return "draw";
+      return null;
+    }
+    function render() {
+      const grid = document.getElementById("board");
+      grid.innerHTML = "";
+      for (let i = 0; i < 9; i++) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "cell";
+        btn.textContent = board[i] || "";
+        const canPlay = !readOnly && status === "active" && !board[i] && turn === myMark;
+        btn.disabled = !canPlay;
+        if (canPlay) btn.addEventListener("click", () => emit("tttMove", { gameId, cell: i, mark: myMark }));
+        grid.appendChild(btn);
+      }
+      const meta = document.getElementById("meta");
+      if (status === "idle") meta.textContent = "Start a game or wait for your opponent.";
+      else if (status === "won") meta.textContent = "Game over — " + (board.includes("X") ? "Winner!" : "");
+      else if (status === "draw") meta.textContent = "Draw.";
+      else meta.textContent = turn === myMark ? "Your turn (" + myMark + ")" : "Waiting for opponent (" + turn + ")";
+      document.getElementById("start").hidden = status === "active";
+    }
+    document.getElementById("start").addEventListener("click", () => {
+      gameId = "ttt-" + Date.now();
+      board = Array(9).fill(null);
+      turn = "X";
+      status = "active";
+      myMark = "X";
+      readOnly = false;
+      emit("tttStart", { gameId, board, turn, status: "active" });
+      render();
+    });
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "init") return;
+      shellOrigin = event.origin;
+      const props = data.props || {};
+      if (props.board) {
+        board = [...props.board];
+        turn = props.turn || "X";
+        status = props.status || "active";
+        gameId = props.gameId;
+        myMark = props.myMark || (props.direction === "in" ? "O" : "X");
+        readOnly = props.readOnly || status !== "active";
+        render();
+      }
+    });
+    render();
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>

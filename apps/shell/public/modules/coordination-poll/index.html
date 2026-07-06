@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Poll</title>
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body { margin: 0; padding: 10px 12px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
+    label { display: block; font-size: 12px; margin-bottom: 4px; color: var(--atom-color-text-dim, #666); }
+    input { width: 100%; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--atom-color-border, #ccc); border-radius: 6px; font: inherit; }
+    .opts { display: grid; gap: 6px; margin-bottom: 8px; }
+    button { padding: 8px 14px; border: none; border-radius: 6px; background: var(--atom-color-accent, #111); color: var(--atom-color-bg, #fff); cursor: pointer; font: inherit; }
+    button:disabled { opacity: 0.45; }
+    .vote-btn { background: transparent; color: inherit; border: 1px solid var(--atom-color-border, #ccc); text-align: left; }
+    .vote-btn:hover { border-color: var(--atom-color-accent, #111); }
+  </style>
+</head>
+<body>
+  <div id="compose">
+    <label>Question</label>
+    <input id="question" type="text" placeholder="Where should we eat?" />
+    <div class="opts" id="opts"></div>
+    <button type="button" id="addOpt">Add option</button>
+    <button type="button" id="sendPoll" style="margin-left:8px">Send poll</button>
+  </div>
+  <div id="vote" hidden>
+    <strong id="voteQ"></strong>
+    <div class="opts" id="voteOpts"></div>
+  </div>
+  <script>
+    let shellOrigin = null;
+    let mode = "compose";
+    function emit(name, payload) {
+      if (shellOrigin) window.parent.postMessage({ type:"event", name, payload }, shellOrigin);
+    }
+    function addOptInput(value) {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.placeholder = "Option";
+      input.value = value || "";
+      document.getElementById("opts").appendChild(input);
+    }
+    document.getElementById("addOpt").addEventListener("click", () => addOptInput(""));
+    document.getElementById("sendPoll").addEventListener("click", () => {
+      const question = document.getElementById("question").value.trim();
+      const inputs = [...document.querySelectorAll("#opts input")];
+      const options = inputs.map((el, i) => ({ id: "opt-" + i, label: el.value.trim() })).filter((o) => o.label);
+      if (!question || options.length < 2) return;
+      emit("pollCreated", { question, options });
+    });
+    function renderVote(props) {
+      mode = "vote";
+      document.getElementById("compose").hidden = true;
+      document.getElementById("vote").hidden = false;
+      document.getElementById("voteQ").textContent = props.question || "Poll";
+      const wrap = document.getElementById("voteOpts");
+      wrap.innerHTML = "";
+      for (const opt of props.options || []) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "vote-btn";
+        btn.textContent = opt.label;
+        btn.addEventListener("click", () => emit("pollVote", { pollId: props.pollId, optionId: opt.id }));
+        wrap.appendChild(btn);
+      }
+    }
+    addOptInput("Option A");
+    addOptInput("Option B");
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "init") return;
+      shellOrigin = event.origin;
+      const props = data.props || {};
+      if (props.mode === "vote") renderVote(props);
+      else if (props.defaultQuestion) document.getElementById("question").value = props.defaultQuestion;
+    });
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>

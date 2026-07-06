@@ -6,6 +6,7 @@ import {
   COMMS_MESSAGE_PURPOSE,
   COMMS_RECEIPT_PURPOSE,
   COORDINATION_PURPOSES,
+  GAME_PURPOSES,
   createContactInvite,
   decodeEncryptedObjectPayload,
   ACTION_PURPOSES,
@@ -180,6 +181,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     COMMS_MESSAGE_PURPOSE,
     COMMS_RECEIPT_PURPOSE,
     ...COORDINATION_PURPOSES,
+    ...GAME_PURPOSES,
     ...ACTION_PURPOSES,
     ...TRANSACTION_PURPOSES,
     ...QUALIFY_PURPOSES,
@@ -189,6 +191,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   const mlsPurposes = [
     COMMS_MESSAGE_PURPOSE,
     ...COORDINATION_PURPOSES,
+    ...GAME_PURPOSES,
     ...ACTION_PURPOSES,
     ...TRANSACTION_PURPOSES,
     ...QUALIFY_PURPOSES,

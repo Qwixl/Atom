@@ -1,12 +1,17 @@
 import type { Express, Response } from "express";
 import {
+  createPollRequest,
+  createPollVote,
   createRsvpRequest,
   createRsvpResponse,
   createSchedulingProposal,
   createSchedulingResponse,
+  createTttMove,
+  createTttState,
   type RsvpAnswer,
   type SchedulingResponseKind,
   type SchedulingSlot,
+  type TttBoard,
 } from "@qwixl/a2a-transport";
 import type { AgentKeyPair } from "@qwixl/protocol";
 import { deliverSignedObject } from "./deliverObject.js";
@@ -146,6 +151,107 @@ export function registerCoordinationAdminRoutes(adminApp: Express, deps: Coordin
         payload: {
           rsvpId: body.rsvpId.trim(),
           response: body.response,
+          threadId: body.threadId?.trim() || undefined,
+        },
+      });
+      await sendCoordinationObject(deps, res, body, object);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/coordination/poll", async (req, res) => {
+    const body = req.body as PeerSendBody & {
+      question?: string;
+      options?: Array<{ id: string; label: string }>;
+    };
+    if (!body.question?.trim() || !Array.isArray(body.options) || body.options.length < 2) {
+      res.status(400).json({ error: "question and at least two options required" });
+      return;
+    }
+    try {
+      const object = await createPollRequest({
+        identity: deps.identity,
+        payload: {
+          question: body.question.trim(),
+          options: body.options,
+          threadId: body.threadId?.trim() || undefined,
+        },
+      });
+      await sendCoordinationObject(deps, res, body, object);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/coordination/poll-vote", async (req, res) => {
+    const body = req.body as PeerSendBody & { pollId?: string; optionId?: string };
+    if (!body.pollId?.trim() || !body.optionId?.trim()) {
+      res.status(400).json({ error: "pollId and optionId required" });
+      return;
+    }
+    try {
+      const object = await createPollVote({
+        identity: deps.identity,
+        payload: {
+          pollId: body.pollId.trim(),
+          optionId: body.optionId.trim(),
+          threadId: body.threadId?.trim() || undefined,
+        },
+      });
+      await sendCoordinationObject(deps, res, body, object);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/coordination/ttt-state", async (req, res) => {
+    const body = req.body as PeerSendBody & {
+      gameId?: string;
+      board?: TttBoard;
+      turn?: "X" | "O";
+      status?: "active" | "won" | "draw";
+      winner?: "X" | "O";
+    };
+    if (!body.gameId?.trim() || !Array.isArray(body.board) || body.board.length !== 9) {
+      res.status(400).json({ error: "gameId and board[9] required" });
+      return;
+    }
+    try {
+      const object = await createTttState({
+        identity: deps.identity,
+        payload: {
+          gameId: body.gameId.trim(),
+          board: body.board,
+          turn: body.turn === "O" ? "O" : "X",
+          status: body.status === "won" || body.status === "draw" ? body.status : "active",
+          winner: body.winner === "X" || body.winner === "O" ? body.winner : undefined,
+          threadId: body.threadId?.trim() || undefined,
+        },
+      });
+      await sendCoordinationObject(deps, res, body, object);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/coordination/ttt-move", async (req, res) => {
+    const body = req.body as PeerSendBody & {
+      gameId?: string;
+      cell?: number;
+      mark?: "X" | "O";
+    };
+    if (!body.gameId?.trim() || typeof body.cell !== "number") {
+      res.status(400).json({ error: "gameId and cell required" });
+      return;
+    }
+    try {
+      const object = await createTttMove({
+        identity: deps.identity,
+        payload: {
+          gameId: body.gameId.trim(),
+          cell: body.cell,
+          mark: body.mark === "O" ? "O" : "X",
           threadId: body.threadId?.trim() || undefined,
         },
       });

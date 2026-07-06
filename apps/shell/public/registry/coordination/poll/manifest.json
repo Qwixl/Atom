@@ -1,0 +1,29 @@
+{
+  "id": "coordination/poll",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/coordination-poll/index.html",
+  "components": [
+    {
+      "name": "coordination/poll",
+      "semanticRole": "input/poll",
+      "events": [
+        {
+          "name": "pollCreated"
+        },
+        {
+          "name": "pollVote"
+        }
+      ],
+      "agentHint": "Create or vote on a group poll; emits pollCreated or pollVote."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "coordination"
+  ],
+  "bundleIntegrity": "sha256:4d6ff625bd3bd93aee97466d824975463e52aa9353c2f80b65584e04de0bb925"
+}

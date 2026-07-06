@@ -28,6 +28,10 @@ export interface ConversationRuntimeOptions {
   onTurnComplete?: () => void;
   /** Assistant/user text appended to the feed (for curator transcript, etc.). */
   onTranscriptLine?: (role: "user" | "assistant", text: string) => void;
+  /** Previously persisted feed items to restore on startup (text turns only). */
+  restoreFeed?: FeedItem[];
+  /** Called after every feed change so hosts can persist history. */
+  onFeedChange?: (feed: readonly FeedItem[]) => void;
 }
 
 /**
@@ -42,7 +46,17 @@ export class ConversationRuntime {
   private idCounter = 0;
   private snapshot: ConversationSnapshot = { feed: [], busy: false, pending: null };
 
-  constructor(private readonly options: ConversationRuntimeOptions) {}
+  constructor(private readonly options: ConversationRuntimeOptions) {
+    const restored = options.restoreFeed;
+    if (restored?.length) {
+      this.feed = [...restored];
+      for (const item of restored) {
+        const numeric = Number(/^item-(\d+)$/.exec(item.id)?.[1]);
+        if (Number.isFinite(numeric) && numeric > this.idCounter) this.idCounter = numeric;
+      }
+      this.snapshot = { feed: this.feed, busy: false, pending: null };
+    }
+  }
 
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
@@ -149,6 +163,7 @@ export class ConversationRuntime {
 
   private notify(): void {
     this.snapshot = { feed: this.feed, busy: this.busy, pending: this.pending };
+    this.options.onFeedChange?.(this.feed);
     for (const listener of this.listeners) listener();
   }
 }

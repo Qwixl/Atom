@@ -15,6 +15,7 @@ import {
   type AgentSession,
   type AttestationEntry,
   type ConsequentialAction,
+  type FeedItem,
   type RegistryRevocation,
   type RegistryTrustPolicy,
   type UiEvent,
@@ -195,6 +196,39 @@ const conversationMemoryPersistence = createJsonPersistence<MemoryChunk[]>({
   key: "atom-conversation-memory",
   validate: (value): value is MemoryChunk[] => Array.isArray(value),
 });
+
+type ChatFeedTextItem = { kind: "user" | "agent-text"; id: string; text: string };
+
+const chatFeedPersistence = createJsonPersistence<ChatFeedTextItem[]>({
+  key: "atom-chat-feed",
+  validate: (value): value is ChatFeedTextItem[] => Array.isArray(value),
+});
+
+const CHAT_FEED_MAX_ITEMS = 200;
+
+const COMMS_LAST_READ_KEY = "atom-comms-last-read";
+
+/** Persist only text turns; module surfaces are session-scoped and not serializable. */
+function persistableChatFeed(feed: readonly FeedItem[]): ChatFeedTextItem[] {
+  return feed
+    .filter(
+      (item): item is Extract<FeedItem, { kind: "user" | "agent-text" }> =>
+        item.kind === "user" || item.kind === "agent-text",
+    )
+    .map(({ kind, id, text }) => ({ kind, id, text }))
+    .slice(-CHAT_FEED_MAX_ITEMS);
+}
+
+function restoredChatFeed(): FeedItem[] {
+  const stored = chatFeedPersistence.load();
+  if (!stored) return [];
+  return stored.filter(
+    (item) =>
+      (item.kind === "user" || item.kind === "agent-text") &&
+      typeof item.id === "string" &&
+      typeof item.text === "string",
+  );
+}
 
 export function App() {
   const catalog = useMemo(() => {
@@ -532,6 +566,39 @@ export function App() {
     });
   }, [commsContacts, agentConnectionReady]);
 
+  const [commsUnreadCount, setCommsUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (IS_DEMO_MODE || !agentConnectionReady) return;
+    if (panel === "comms") {
+      saveStringToStorage(COMMS_LAST_READ_KEY, new Date().toISOString());
+      setCommsUnreadCount(0);
+      return;
+    }
+    let cancelled = false;
+    const poll = async () => {
+      const config = loadCommsAgentConfig();
+      if (!config.adminToken?.trim()) return;
+      try {
+        const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+        const entries = await client.inbox();
+        if (cancelled) return;
+        const lastRead = loadStringFromStorage(COMMS_LAST_READ_KEY) ?? "";
+        setCommsUnreadCount(
+          entries.filter((entry) => !lastRead || entry.receivedAt > lastRead).length,
+        );
+      } catch {
+        /* unread badge is best-effort; status errors surface in the panel */
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 15_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [agentConnectionReady, panel]);
+
   const [profileRecords, setProfileRecords] = useState<OwnerRecord[]>(ownerStore.list());
   const [profileProposals, setProfileProposals] = useState<RecordProposal[]>(
     ownerStore.listProposals(),
@@ -752,6 +819,8 @@ export function App() {
     () =>
       new ConversationRuntime({
         catalog,
+        restoreFeed: restoredChatFeed(),
+        onFeedChange: (feed) => chatFeedPersistence.save(persistableChatFeed(feed)),
         beforeResolveComposition: async (composition) => {
           if (!modulesActiveRef.current) return;
           setRegistryErrorRef.current(null);
@@ -1171,7 +1240,7 @@ export function App() {
           ) : undefined
         }
         badges={{
-          ...(commsContacts.length > 0 ? { comms: { count: commsContacts.length } } : {}),
+          ...(commsUnreadCount > 0 ? { comms: { count: commsUnreadCount } } : {}),
           ...(profileNavBadge ? { profile: profileNavBadge } : {}),
           ...(attestations.length > 0 ? { log: { count: attestations.length } } : {}),
         }}
@@ -1328,6 +1397,9 @@ export function App() {
             }}
             onRequestConfirmation={requestCommsConfirmation}
             attestationEntries={attestations}
+            catalog={catalog}
+            registry={registry}
+            modulesEnabled={modulesActive}
           />
           </div>
         ) : null}

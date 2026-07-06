@@ -1,0 +1,26 @@
+{
+  "id": "games/battleships",
+  "version": "0.1.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/games-battleships/index.html",
+  "components": [
+    {
+      "name": "games/battleships",
+      "semanticRole": "input/game-board",
+      "events": [
+        {
+          "name": "battleshipsShot"
+        }
+      ],
+      "agentHint": "P2P battleships with hidden ship commitments (M-ECO-06 scaffold)."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "games"
+  ],
+  "bundleIntegrity": "sha256:6864deff2765650d7e7690d427afeb1cdcad0b30b80a73cf0aa24299ad8cf2d7"
+}
