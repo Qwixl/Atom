@@ -76,6 +76,8 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
       this.runScheduleScenario();
     } else if (lower.includes("poll") || lower.includes("where should we")) {
       this.runPollScenario();
+    } else if (lower.includes("split") && lower.includes("bill")) {
+      this.runSplitBillScenario();
     } else if (lower.includes("tic-tac-toe") || lower.includes("tictactoe") || lower.includes("play a game")) {
       this.runTttScenario();
     } else if (lower.includes("spend") || lower.includes("budget")) {
@@ -104,7 +106,7 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
       this.later(450, () => this.finishTurn());
       return;
     }
-    if (event.name === "pollCreated" || event.name === "tttStart") {
+    if (event.name === "pollCreated" || event.name === "tttStart" || event.name === "splitProposed") {
       this.later(400, () =>
         this.emit({
           type: "text",
@@ -341,6 +343,20 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
     this.later(750, () => this.finishTurn());
   }
 
+  private runSplitBillScenario(): void {
+    const surfaceId = this.nextSurfaceId();
+    this.later(300, () =>
+      this.emit({ type: "text", text: "Split a bill with your contact." }),
+    );
+    this.later(700, () =>
+      this.emit({
+        type: "composition",
+        composition: this.splitBillSurface(surfaceId),
+      }),
+    );
+    this.later(750, () => this.finishTurn());
+  }
+
   private meetingPickerSurface(surfaceId: string): Composition {
     return {
       version: 1,
@@ -375,6 +391,21 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
         semanticRole: "input/poll",
         events: ["pollCreated"],
         props: { mode: "compose" },
+      },
+    };
+  }
+
+  private splitBillSurface(surfaceId: string): Composition {
+    return {
+      version: 1,
+      surfaceId,
+      intent: "Split a bill",
+      root: {
+        id: "split",
+        component: "commerce/split-bill",
+        semanticRole: "input/split-bill",
+        events: ["splitProposed"],
+        props: { defaultLabel: "Dinner" },
       },
     };
   }

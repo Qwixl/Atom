@@ -63,6 +63,8 @@ export {
   COMMERCE_DECLINE_PURPOSE,
   COMMERCE_DECLINE_SCHEMA,
   COMMERCE_PURPOSES,
+  COMMERCE_SPLIT_PROPOSAL_PURPOSE,
+  COMMERCE_SPLIT_PROPOSAL_SCHEMA,
   DEFAULT_COMMERCE_TTL_SECONDS,
   DEFAULT_ACTION_RESERVE_TTL_SECONDS,
   DEFAULT_ACTION_HOLD_TTL_SECONDS,
@@ -168,11 +170,14 @@ export {
   verifyCommerceOffer,
   createCommerceDecline,
   verifyCommerceDecline,
+  createSplitProposal,
+  verifySplitProposal,
   type CommerceDeclinePayload,
   type CommerceIntentConstraints,
   type CommerceIntentPayload,
   type CommerceOfferPayload,
   type CommercePurpose,
+  type SplitProposalPayload,
 } from "./commerce.js";
 export { buildAtomAgentCard, type AtomAgentCardOptions, type AtomBusinessProfile } from "./agentCard.js";
 

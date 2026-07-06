@@ -5,6 +5,14 @@ export const COMMS_MODULE_BRIDGE_KEY = "atom-comms-module-bridge";
 export type CommsModuleBridge =
   | { action: "meetingProposed"; title: string; slots: SchedulingSlot[] }
   | { action: "pollCreated"; question: string; options: Array<{ id: string; label: string }> }
+  | {
+      action: "splitProposed";
+      label: string;
+      totalMinor: number;
+      currency: string;
+      splitCount: number;
+      shareMinor: number;
+    }
   | { action: "tttStart"; gameId: string };
 
 export function queueCommsModuleBridge(payload: CommsModuleBridge): void {
@@ -46,6 +54,23 @@ export function bridgeChatModuleEvent(
       : [];
     if (!question || options.length < 2) return false;
     queueCommsModuleBridge({ action: "pollCreated", question, options });
+    return true;
+  }
+  if (name === "splitProposed") {
+    const label = typeof payload?.label === "string" ? payload.label : "Split bill";
+    const totalMinor = typeof payload?.totalMinor === "number" ? payload.totalMinor : 0;
+    const currency = typeof payload?.currency === "string" ? payload.currency : "USD";
+    const splitCount = typeof payload?.splitCount === "number" ? payload.splitCount : 2;
+    const shareMinor = typeof payload?.shareMinor === "number" ? payload.shareMinor : 0;
+    if (totalMinor <= 0 || shareMinor <= 0) return false;
+    queueCommsModuleBridge({
+      action: "splitProposed",
+      label,
+      totalMinor,
+      currency,
+      splitCount,
+      shareMinor,
+    });
     return true;
   }
   if (name === "tttStart") {
