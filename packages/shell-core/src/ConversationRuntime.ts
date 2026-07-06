@@ -130,6 +130,11 @@ export class ConversationRuntime {
     this.notify();
   }
 
+  /** Mount or replace the active surface from a composition (shell-owned modules). */
+  async showComposition(composition: Composition): Promise<void> {
+    await this.handleAgentOutput({ type: "composition", composition });
+  }
+
   async handleAgentOutput(output: AgentOutput): Promise<void> {
     const id = this.nextId();
     switch (output.type) {

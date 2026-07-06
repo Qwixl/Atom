@@ -224,7 +224,7 @@ Rules:
 - Pair a short \`text\` message with the module composition in the same turn.
 - Wrap the module in \`core/card\` with a clear \`title\` when helpful.
 - Set \`events\` on the module node so interactions route back (\`meetingProposed\`, \`pollCreated\`, \`listCreated\`, \`tttStart\`).
-- For \`games/tictactoe\` in Chat, the shell handles \`tttMove\` locally — emit the module once with an empty board; do not rebuild the grid in text or mutate cell indices yourself.
+- For \`games/tictactoe\` in Chat, the shell mounts the module and handles \`tttMove\` locally. Reply with one short sentence only — **never** draw ASCII grids or numbered cell maps in text.
 - Pass useful \`props\` (e.g. \`defaultTitle\`, \`peerName\` from context).
 - Do **not** use fake slot lists in \`core/choice\` when \`scheduling/meeting-picker\` fits — use the module instead.`;
 }

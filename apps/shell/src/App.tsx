@@ -58,7 +58,7 @@ import {
 import { MockAgentSession } from "./mock-agent.js";
 import { ProfilePanel } from "./ProfilePanel.js";
 import { bridgeChatModuleEvent } from "./comms/moduleBridge.js";
-import { handleChatTttUiEvent } from "./chat/tttChat.js";
+import { handleChatTttUiEvent, looksLikeTttIntent, openChatTttBoard } from "./chat/tttChat.js";
 import { CommsPanel } from "./CommsPanel.js";
 import { DiscoverPanel } from "./DiscoverPanel.js";
 import { DiscoverChatResults, type DiscoverChatResult } from "./DiscoverChatResults.js";
@@ -990,6 +990,17 @@ export function App() {
           conversationRef.current.setBusy(false);
         }
       })();
+      return;
+    }
+    if (looksLikeTttIntent(trimmed) && modulesActiveRef.current) {
+      turnTranscript.current = [];
+      conversationRef.current.appendUser(trimmed);
+      setInput("");
+      void openChatTttBoard({
+        runtime: conversationRef.current,
+        catalog: catalogRef.current,
+        registry: registryRef.current,
+      });
       return;
     }
     turnTranscript.current = [];
