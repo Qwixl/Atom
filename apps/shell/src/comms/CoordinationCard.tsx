@@ -18,6 +18,7 @@ export function CoordinationCard({
   onPollVote,
   onPaySplitShare,
   onTttCell,
+  onBsFire,
   sharedListItems,
   onSharedListChange,
 }: {
@@ -42,6 +43,7 @@ export function CoordinationCard({
     amount: MonetaryAmount,
   ) => void;
   onTttCell?: (gameId: string, cell: number, mark: "X" | "O") => void;
+  onBsFire?: (gameId: string, cell: number) => void;
   sharedListItems?: SharedListItem[];
   onSharedListChange?: (listId: string, items: SharedListItem[]) => void;
 }) {
@@ -416,6 +418,58 @@ export function CoordinationCard({
     );
   }
 
+  if (item.kind === "bs-shot") {
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
+        <div className="shell-comms-coord-head">
+          <strong>Shot</strong>
+          <span>
+            {item.shooter} → cell {item.cell + 1}
+          </span>
+        </div>
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
+  if (item.kind === "bs-state") {
+    const state = item;
+    const setupLabel =
+      state.phase === "setup"
+        ? `Setup — A ${state.commitA ? "ready" : "placing"} · B ${state.commitB ? "ready" : "placing"}`
+        : state.phase === "won"
+          ? `${state.winner} wins`
+          : `${state.turn}'s turn`;
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
+        <div className="shell-comms-coord-head">
+          <strong>Battleships</strong>
+          <span>{setupLabel}</span>
+        </div>
+        {state.phase === "battle" && showActions && onBsFire ? (
+          <div className="shell-comms-bs-board">
+            {Array.from({ length: 36 }, (_, index) => {
+              const shot = state.shots.find((entry) => entry.cell === index);
+              const fired = state.shots.some((entry) => entry.cell === index);
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  className={`shell-comms-bs-cell${shot?.hit ? " shell-comms-bs-cell-hit" : shot ? " shell-comms-bs-cell-miss" : ""}`}
+                  disabled={busy || fired}
+                  onClick={() => onBsFire(state.gameId, index)}
+                >
+                  {shot ? (shot.hit ? "×" : "·") : ""}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
   if (item.kind === "shared-list") {
     const items = sharedListItems ?? item.items;
     return (
@@ -464,6 +518,7 @@ export function ThreadItemView({
   onPollVote,
   onPaySplitShare,
   onTttCell,
+  onBsFire,
   sharedListItems,
   onSharedListChange,
 }: {
@@ -488,6 +543,7 @@ export function ThreadItemView({
     amount: MonetaryAmount,
   ) => void;
   onTttCell?: (gameId: string, cell: number, mark: "X" | "O") => void;
+  onBsFire?: (gameId: string, cell: number) => void;
   sharedListItems?: SharedListItem[];
   onSharedListChange?: (listId: string, items: SharedListItem[]) => void;
 }) {
@@ -521,6 +577,7 @@ export function ThreadItemView({
       onPollVote={onPollVote}
       onPaySplitShare={onPaySplitShare}
       onTttCell={onTttCell}
+      onBsFire={onBsFire}
       sharedListItems={sharedListItems}
       onSharedListChange={onSharedListChange}
     />
@@ -569,6 +626,10 @@ export function threadItemNeedsActions(
   if (item.kind === "ttt-state") {
     if (item.status !== "active") return false;
     return item.direction === "out" ? item.turn === "X" : item.turn === "O";
+  }
+  if (item.kind === "bs-state") {
+    if (item.phase !== "battle") return false;
+    return item.direction === "out" ? item.turn === "A" : item.turn === "B";
   }
   if (item.direction !== "in") return false;
   if (item.kind === "scheduling-proposal") return !respondedIds.has(item.id);

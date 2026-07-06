@@ -60,6 +60,25 @@ export const ECOSYSTEM_MODULE_MANIFESTS: ModuleManifest[] = [
     tier: "system",
   },
   {
+    id: "games/battleships",
+    version: "1.0.0",
+    publisher: "did:key:z6Mkatomexamples01",
+    targets: ["web"],
+    bundleUrl: "/modules/games-battleships/index.html",
+    components: [
+      {
+        name: "games/battleships",
+        semanticRole: "input/game-board",
+        events: [{ name: "bsStart" }, { name: "bsCommit" }],
+        agentHint:
+          "Battleships with hidden ship commitments. 6×6 grid, 3 ships of 2 cells. Emits bsStart or bsCommit; battle shots fire from the thread card.",
+      },
+    ],
+    capabilities: [],
+    categories: ["games"],
+    tier: "system",
+  },
+  {
     id: "coordination/shared-list",
     version: "1.0.0",
     publisher: "did:key:z6Mkatomexamples01",

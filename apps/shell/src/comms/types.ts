@@ -9,6 +9,15 @@ import type {
 export type TttMark = "X" | "O" | null;
 export type TttBoard = TttMark[];
 
+export type BsPlayer = "A" | "B";
+export type BsPhase = "setup" | "battle" | "won";
+
+export interface BsShot {
+  cell: number;
+  shooter: BsPlayer;
+  hit: boolean;
+}
+
 export interface AgentContact {
   id: string;
   did: string;
@@ -216,6 +225,30 @@ export type CommsThreadItem =
       gameId: string;
       cell: number;
       mark: "X" | "O";
+    }
+  | {
+      kind: "bs-state";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      gameId: string;
+      phase: BsPhase;
+      turn: BsPlayer;
+      commitA?: string;
+      commitB?: string;
+      shots: BsShot[];
+      winner?: BsPlayer;
+    }
+  | {
+      kind: "bs-shot";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      gameId: string;
+      cell: number;
+      shooter: BsPlayer;
     }
   | {
       kind: "shared-list";

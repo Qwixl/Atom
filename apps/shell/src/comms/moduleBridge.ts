@@ -13,7 +13,9 @@ export type CommsModuleBridge =
       splitCount: number;
       shareMinor: number;
     }
-  | { action: "tttStart"; gameId: string };
+  | { action: "tttStart"; gameId: string }
+  | { action: "bsStart"; gameId: string }
+  | { action: "bsCommit"; gameId: string; cells: number[] };
 
 export function queueCommsModuleBridge(payload: CommsModuleBridge): void {
   if (typeof sessionStorage === "undefined") return;
@@ -76,6 +78,20 @@ export function bridgeChatModuleEvent(
   if (name === "tttStart") {
     const gameId = typeof payload?.gameId === "string" ? payload.gameId : `ttt-${Date.now()}`;
     queueCommsModuleBridge({ action: "tttStart", gameId });
+    return true;
+  }
+  if (name === "bsStart") {
+    const gameId = typeof payload?.gameId === "string" ? payload.gameId : `bs-${Date.now()}`;
+    queueCommsModuleBridge({ action: "bsStart", gameId });
+    return true;
+  }
+  if (name === "bsCommit") {
+    const gameId = typeof payload?.gameId === "string" ? payload.gameId : "";
+    const cells = Array.isArray(payload?.cells)
+      ? payload.cells.filter((cell): cell is number => typeof cell === "number")
+      : [];
+    if (!gameId || cells.length === 0) return false;
+    queueCommsModuleBridge({ action: "bsCommit", gameId, cells });
     return true;
   }
   return false;

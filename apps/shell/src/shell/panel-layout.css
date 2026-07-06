@@ -931,6 +931,38 @@
   opacity: 0.85;
 }
 
+.shell-comms-bs-board {
+  display: grid;
+  grid-template-columns: repeat(6, 28px);
+  gap: 3px;
+  margin-top: 8px;
+}
+
+.shell-comms-bs-cell {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--shell-border);
+  border-radius: 4px;
+  background: var(--shell-raised-bg);
+  cursor: pointer;
+  padding: 0;
+}
+
+.shell-comms-bs-cell:disabled {
+  cursor: default;
+  opacity: 0.9;
+}
+
+.shell-comms-bs-cell-hit {
+  background: color-mix(in srgb, var(--shell-danger, #c00) 25%, var(--shell-raised-bg));
+}
+
+.shell-comms-bs-cell-miss {
+  background: color-mix(in srgb, var(--shell-muted, #888) 20%, var(--shell-raised-bg));
+}
+
 .shell-comms-shared-list {
   list-style: none;
   margin: 0;

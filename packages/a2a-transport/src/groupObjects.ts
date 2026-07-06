@@ -10,8 +10,12 @@ import {
   COORDINATION_SHARED_LIST_PURPOSE,
   COORDINATION_SHARED_LIST_UPDATE_PURPOSE,
   DEFAULT_COORDINATION_TTL_SECONDS,
+  GAME_BS_SHOT_PURPOSE,
+  GAME_BS_STATE_PURPOSE,
   GAME_TTT_MOVE_PURPOSE,
   GAME_TTT_STATE_PURPOSE,
+  BS_SHOT_SCHEMA,
+  BS_STATE_SCHEMA,
   POLL_REQUEST_SCHEMA,
   POLL_VOTE_SCHEMA,
   SHARED_LIST_SCHEMA,
@@ -53,6 +57,34 @@ export interface TttMovePayload {
   gameId: string;
   cell: number;
   mark: "X" | "O";
+  threadId?: string;
+}
+
+export type BsPlayer = "A" | "B";
+export type BsPhase = "setup" | "battle" | "won";
+
+export interface BsShot {
+  cell: number;
+  shooter: BsPlayer;
+  hit: boolean;
+}
+
+export interface BattleshipsStatePayload {
+  gameId: string;
+  phase: BsPhase;
+  turn: BsPlayer;
+  commitA?: string;
+  commitB?: string;
+  shots: BsShot[];
+  winner?: BsPlayer;
+  threadId?: string;
+}
+
+export interface BattleshipsShotPayload {
+  gameId: string;
+  cell: number;
+  shooter: BsPlayer;
+  hit: boolean;
   threadId?: string;
 }
 
@@ -177,6 +209,61 @@ export async function createTttMove(opts: {
   });
 }
 
+function parseBsShots(raw: unknown): BsShot[] {
+  if (!Array.isArray(raw)) return [];
+  const shots: BsShot[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const shot = entry as BsShot;
+    if (typeof shot.cell !== "number") continue;
+    if (shot.shooter !== "A" && shot.shooter !== "B") continue;
+    if (typeof shot.hit !== "boolean") continue;
+    shots.push({ cell: shot.cell, shooter: shot.shooter, hit: shot.hit });
+  }
+  return shots;
+}
+
+export async function createBattleshipsState(opts: {
+  identity: AgentKeyPair;
+  payload: BattleshipsStatePayload;
+  ttlSeconds?: number;
+}): Promise<DataObject> {
+  assertNonEmptyString(opts.payload.gameId, "gameId");
+  if (opts.payload.phase !== "setup" && opts.payload.phase !== "battle" && opts.payload.phase !== "won") {
+    throw new Error("Battleships phase must be setup, battle, or won");
+  }
+  if (opts.payload.turn !== "A" && opts.payload.turn !== "B") {
+    throw new Error("Battleships turn must be A or B");
+  }
+  parseBsShots(opts.payload.shots);
+  return signGroupObject(opts.identity, {
+    schema: BS_STATE_SCHEMA,
+    purpose: GAME_BS_STATE_PURPOSE,
+    payload: opts.payload as unknown as Record<string, unknown>,
+    ttlSeconds: opts.ttlSeconds,
+  });
+}
+
+export async function createBattleshipsShot(opts: {
+  identity: AgentKeyPair;
+  payload: BattleshipsShotPayload;
+  ttlSeconds?: number;
+}): Promise<DataObject> {
+  assertNonEmptyString(opts.payload.gameId, "gameId");
+  if (opts.payload.cell < 0 || opts.payload.cell > 35) {
+    throw new Error("Battleships cell must be 0–35");
+  }
+  if (opts.payload.shooter !== "A" && opts.payload.shooter !== "B") {
+    throw new Error("Battleships shooter must be A or B");
+  }
+  return signGroupObject(opts.identity, {
+    schema: BS_SHOT_SCHEMA,
+    purpose: GAME_BS_SHOT_PURPOSE,
+    payload: opts.payload as unknown as Record<string, unknown>,
+    ttlSeconds: opts.ttlSeconds,
+  });
+}
+
 export async function verifyPollRequest(object: DataObject): Promise<{ payload: PollRequestPayload }> {
   const verified = await verifyDataObject(object);
   if (verified.governance.purpose !== COORDINATION_POLL_PURPOSE) {
@@ -207,6 +294,26 @@ export async function verifyTttMove(object: DataObject): Promise<{ payload: TttM
     throw new Error("Not a tic-tac-toe move object");
   }
   return { payload: verified.payload as unknown as TttMovePayload };
+}
+
+export async function verifyBattleshipsState(
+  object: DataObject,
+): Promise<{ payload: BattleshipsStatePayload }> {
+  const verified = await verifyDataObject(object);
+  if (verified.governance.purpose !== GAME_BS_STATE_PURPOSE) {
+    throw new Error("Not a battleships state object");
+  }
+  return { payload: verified.payload as unknown as BattleshipsStatePayload };
+}
+
+export async function verifyBattleshipsShot(
+  object: DataObject,
+): Promise<{ payload: BattleshipsShotPayload }> {
+  const verified = await verifyDataObject(object);
+  if (verified.governance.purpose !== GAME_BS_SHOT_PURPOSE) {
+    throw new Error("Not a battleships shot object");
+  }
+  return { payload: verified.payload as unknown as BattleshipsShotPayload };
 }
 
 function parseSharedListItems(raw: unknown): SharedListItem[] {
