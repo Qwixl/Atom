@@ -3,6 +3,7 @@ import type { MonetaryAmount, RsvpAnswer, SchedulingSlot } from "@qwixl/a2a-tran
 import { detectInstructionLikeContent } from "@qwixl/agent-llm";
 import type { CommsThreadItem } from "./types.js";
 import { formatMonetaryAmount, formatRsvpResponse, formatSchedulingResponse } from "./coordinationThread.js";
+import type { SharedListItem } from "./sharedListLogic.js";
 
 export function CoordinationCard({
   item,
@@ -16,6 +17,8 @@ export function CoordinationCard({
   onAcceptOffer,
   onPollVote,
   onTttCell,
+  sharedListItems,
+  onSharedListChange,
 }: {
   item: CommsThreadItem;
   busy: boolean;
@@ -33,6 +36,8 @@ export function CoordinationCard({
   ) => void;
   onPollVote?: (pollId: string, optionId: string) => void;
   onTttCell?: (gameId: string, cell: number, mark: "X" | "O") => void;
+  sharedListItems?: SharedListItem[];
+  onSharedListChange?: (listId: string, items: SharedListItem[]) => void;
 }) {
   const directionClass = item.direction === "in" ? "in" : "out";
 
@@ -373,6 +378,38 @@ export function CoordinationCard({
     );
   }
 
+  if (item.kind === "shared-list") {
+    const items = sharedListItems ?? item.items;
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
+        <div className="shell-comms-coord-head">
+          <strong>{item.title}</strong>
+        </div>
+        <ul className="shell-comms-shared-list">
+          {items.map((entry) => (
+            <li key={entry.id}>
+              <label className="atom-field atom-field-checkbox">
+                <input
+                  type="checkbox"
+                  checked={entry.done}
+                  disabled={busy || !showActions}
+                  onChange={() => {
+                    const next = items.map((row) =>
+                      row.id === entry.id ? { ...row, done: !row.done } : row,
+                    );
+                    onSharedListChange?.(item.listId, next);
+                  }}
+                />
+                <span className={entry.done ? "shell-comms-list-done" : undefined}>{entry.text}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
   return null;
 }
 
@@ -388,6 +425,8 @@ export function ThreadItemView({
   onAcceptOffer,
   onPollVote,
   onTttCell,
+  sharedListItems,
+  onSharedListChange,
 }: {
   item: CommsThreadItem;
   busy: boolean;
@@ -405,6 +444,8 @@ export function ThreadItemView({
   ) => void;
   onPollVote?: (pollId: string, optionId: string) => void;
   onTttCell?: (gameId: string, cell: number, mark: "X" | "O") => void;
+  sharedListItems?: SharedListItem[];
+  onSharedListChange?: (listId: string, items: SharedListItem[]) => void;
 }) {
   if (item.kind === "message") {
     const suspicious = item.direction === "in" && detectInstructionLikeContent(item.text);
@@ -435,6 +476,8 @@ export function ThreadItemView({
       onAcceptOffer={onAcceptOffer}
       onPollVote={onPollVote}
       onTttCell={onTttCell}
+      sharedListItems={sharedListItems}
+      onSharedListChange={onSharedListChange}
     />
   );
 }
@@ -486,6 +529,7 @@ export function threadItemNeedsActions(
   if (item.kind === "scheduling-proposal") return !respondedIds.has(item.id);
   if (item.kind === "rsvp-request") return !respondedIds.has(item.id);
   if (item.kind === "poll-request") return !respondedIds.has(item.id);
+  if (item.kind === "shared-list") return true;
   if (item.kind === "transaction-hold") return !respondedTxnIds.has(item.transactionId);
   if (item.kind === "commerce-offer") return !respondedOfferIds.has(item.offerId);
   return false;

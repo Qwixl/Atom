@@ -1,6 +1,6 @@
 {
   "id": "coordination/shared-list",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "did:key:z6Mkatomexamples01",
   "targets": [
     "web"
@@ -12,15 +12,18 @@
       "semanticRole": "input/shared-list",
       "events": [
         {
+          "name": "listCreated"
+        },
+        {
           "name": "listUpdated"
         }
       ],
-      "agentHint": "Collaborative checklist between two contacts (M-ECO-04 scaffold)."
+      "agentHint": "Collaborative checklist between two contacts. Use for groceries, todos, packing lists."
     }
   ],
   "capabilities": [],
   "categories": [
     "coordination"
   ],
-  "bundleIntegrity": "sha256:64e498171653374e9e32703be7b7abb6172aa402062dbb2f238e40b87439728d"
+  "bundleIntegrity": "sha256:9f2f0e9c74a632836c171d6751fb5e0e4dd7867695a65bf3fa8d992236f92bae"
 }
