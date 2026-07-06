@@ -20,6 +20,11 @@ export interface VerifyOptions {
   requireIntegrity?: boolean;
   /** When true, verify Sigstore bundle digest match for manifests with signatureUrl. */
   verifySignatures?: boolean;
+  /** Run bundle malware heuristics after integrity checks (M-TS-02). */
+  scanBundles?: boolean;
+  /** Treat external script/fetch patterns as errors (default: warnings only). */
+  scanStrictExternal?: boolean;
+  maxBundleBytes?: number;
 }
 
 const TEXT_HASH_EXTENSIONS = new Set([".html", ".json", ".js", ".css", ".mjs", ".ts"]);
@@ -113,6 +118,25 @@ export async function verifyRegistry(options: VerifyOptions): Promise<void> {
   }
 
   console.log(`Verified ${index.modules.length} module(s) in ${options.registryDir}`);
+
+  if (options.scanBundles) {
+    const { scanRegistryBundles, formatBundleScanReport } = await import("./bundleScan.js");
+    const scanIssues = await scanRegistryBundles({
+      registryDir: options.registryDir,
+      bundleBase: options.bundleBase,
+      maxBytes: options.maxBundleBytes,
+      strictExternal: options.scanStrictExternal,
+    });
+    const scanErrors = scanIssues.filter((i) => i.severity === "error");
+    const scanWarnings = scanIssues.filter((i) => i.severity === "warning");
+    if (scanWarnings.length > 0) {
+      console.warn(`Bundle scan warnings:\n${formatBundleScanReport(scanWarnings)}`);
+    }
+    if (scanErrors.length > 0) {
+      throw new Error(`Bundle scan failed:\n${formatBundleScanReport(scanErrors)}`);
+    }
+    console.log(`Bundle scan passed (${index.modules.length} module(s))`);
+  }
 }
 
 async function verifyEntry(
@@ -177,6 +201,10 @@ async function verifyEntry(
 
   if (entry.publisher && entry.publisher !== manifest.publisher) {
     errors.push(`${entry.id}: index publisher mismatch`);
+  }
+
+  if (entry.tier && manifest.tier && entry.tier !== manifest.tier) {
+    errors.push(`${entry.id}: index/manifest tier mismatch`);
   }
 
   const indexPricing = normalizeModulePricing(entry.pricing);

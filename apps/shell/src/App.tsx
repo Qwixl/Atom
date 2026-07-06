@@ -756,6 +756,13 @@ export function App() {
     };
   }, [modulesActive, registry, catalog, registryUrl]);
 
+  useEffect(() => {
+    if (!modulesActive) return;
+    void registry.ensureSystemModules(catalog).catch((error) => {
+      setRegistryError(error instanceof Error ? error.message : String(error));
+    });
+  }, [modulesActive, registry, catalog, registryUrl]);
+
   /** Promote persisted non-guarded curator proposals into open profile records. */
   useEffect(() => {
     if (!curatorAutoAcceptOpen) return;
@@ -1719,6 +1726,7 @@ function SettingsDialog({
   const [hostedLlmBusy, setHostedLlmBusy] = useState(false);
   const [hostedLlmNote, setHostedLlmNote] = useState<string | null>(null);
   const [hostedLlmError, setHostedLlmError] = useState<string | null>(null);
+  const [moduleCatalogNote, setModuleCatalogNote] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<
     "agent" | "security" | "connectors" | "appearance" | "modules" | "payments" | "developer"
   >("agent");
@@ -2040,7 +2048,11 @@ function SettingsDialog({
       return (
         <>
           <p className="settings-note">Browse modules from the trusted catalog for this site.</p>
-          <RegistryCatalogList indexUrl={PRODUCTION_REGISTRY_URL} />
+          {moduleCatalogNote ? <p className="settings-note">{moduleCatalogNote}</p> : null}
+          <RegistryCatalogList
+            indexUrl={PRODUCTION_REGISTRY_URL}
+            onStatus={setModuleCatalogNote}
+          />
         </>
       );
     }
@@ -2098,7 +2110,11 @@ function SettingsDialog({
         )}
         <div className="settings-registry-store">
           <span className="atom-field-label">Module store catalog</span>
-          <RegistryCatalogList indexUrl={registryIndexUrl.trim() || registryInitial} />
+          {moduleCatalogNote ? <p className="settings-note">{moduleCatalogNote}</p> : null}
+          <RegistryCatalogList
+            indexUrl={registryIndexUrl.trim() || registryInitial}
+            onStatus={setModuleCatalogNote}
+          />
         </div>
       </>
     );

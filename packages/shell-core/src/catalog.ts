@@ -37,6 +37,8 @@ export interface ModuleManifest {
   categories?: string[];
   /** Optional store listing price (M8). Omitted = free. */
   pricing?: ModulePricing;
+  /** `system` = first-party core module: always installed, not rated, not user-uninstallable. */
+  tier?: "system" | "community";
   /** When present, this module is a connector settings surface (OAuth via agent vault). */
   connector?: ModuleConnectorSpec;
 }
@@ -109,7 +111,14 @@ export class Catalog {
     }
   }
 
+  isSystemModule(moduleId: string): boolean {
+    return this.modules.get(moduleId)?.tier === "system";
+  }
+
   uninstallModule(moduleId: string): void {
+    if (this.isSystemModule(moduleId)) {
+      throw new Error(`System module ${moduleId} cannot be uninstalled`);
+    }
     this.modules.delete(moduleId);
     for (const [name, entry] of this.entries) {
       if (entry.spec.moduleId === moduleId) this.entries.delete(name);

@@ -16,13 +16,28 @@ export interface RegistryModuleEntry {
   signatureUrl?: string;
   /** Store listing price for discovery before manifest fetch. Must match manifest when both set. */
   pricing?: ModulePricing;
+  /** `system` modules are core platform defaults — pinned, not rated. */
+  tier?: "system" | "community";
 }
 export interface RegistryIndex {
   registryVersion: 1;
   modules: RegistryModuleEntry[];
   /** Relative or absolute URL to revocations list. */
   revocationsUrl?: string;
+  /** Relative or absolute URL to community module ratings aggregate. */
+  ratingsUrl?: string;
   updatedAt?: string;
+}
+
+export interface ModuleRatingSummary {
+  average: number;
+  count: number;
+}
+
+export interface RegistryRatings {
+  ratingsVersion: 1;
+  updatedAt?: string;
+  modules: Record<string, ModuleRatingSummary>;
 }
 
 export interface RegistryCacheSnapshot {

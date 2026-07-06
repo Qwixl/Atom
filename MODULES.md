@@ -35,6 +35,7 @@ Creates:
 - `bundleUrl` is relative to your static host root (e.g. `/modules/acme-widget/index.html`).
 - `components[].events` lists every outbound postMessage event name.
 - Run `atom-registry publish` to compute `bundleIntegrity`, copy `pricing` to `index.json`, and update the index entry.
+- **`tier: "system"`** — first-party core modules (coordination defaults). Always installed on reference registry; excluded from ratings; not user-uninstallable. Community modules compete on ratings in `ratings.json`.
 
 ## Paid listings (M8 store)
 
@@ -71,6 +72,26 @@ See [API-v1.md](./API-v1.md#module-sandbox-web-v1) for the full sandbox contract
 | `atom-registry hash <file>` | sha256 integrity string |
 | `atom-registry verify` | Check index + manifest + bundle hashes |
 | `atom-registry publish` | Update integrity fields + index entry |
+| `atom-registry publish-all` | Recompute hashes for every manifest under a registry tree (monorepo helper) |
+
+## Monorepo: `publish-all`
+
+In this repo, after editing any module under `apps/shell/public/registry/`:
+
+```bash
+pnpm registry:publish-all
+pnpm registry:verify
+```
+
+`publish-all` walks every `manifest.json`, writes `bundleIntegrity` into the manifest, and **upserts** the matching `id@version` row in `index.json`. It does **not** remove older semver rows.
+
+When you **supersede** a module in place (same `manifest.json` path, bumped `version` in the manifest):
+
+1. Run `publish-all` (or `publish` for that module only).
+2. **Remove** stale index entries whose `version` no longer matches the manifest on disk — otherwise CI fails with `manifest integrity mismatch` (two index rows pointing at one manifest file).
+3. Open a PR; CI runs `registry:verify --require-integrity --signatures`.
+
+External developers hosting their own registry only run `publish` on their module; they never need `publish-all` unless they maintain a multi-module index themselves.
 
 ## Example module
 

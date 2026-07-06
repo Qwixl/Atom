@@ -450,6 +450,50 @@ body {
   color: #c0392b;
 }
 
+.settings-registry-meta {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.module-rating-display {
+  letter-spacing: 1px;
+  color: var(--accent);
+}
+
+.module-rating-input {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.module-rating-star {
+  border: none;
+  background: transparent;
+  padding: 0 2px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.module-rating-star-on {
+  color: var(--accent);
+}
+
+.settings-registry-feedback {
+  margin-top: 4px;
+}
+
+.settings-registry-feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
 .settings-section {
   border-top: 1px solid var(--border);
   padding-top: 12px;

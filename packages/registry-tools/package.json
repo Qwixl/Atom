@@ -26,7 +26,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
     "scaffold": "node dist/cli.js scaffold",
-    "verify": "node dist/cli.js verify --require-integrity --signatures",
+    "verify": "node dist/cli.js verify --require-integrity --signatures --scan-bundles",
     "test": "vitest run",
     "publish-module": "node dist/cli.js publish",
     "publish-all": "node dist/cli.js publish-all"

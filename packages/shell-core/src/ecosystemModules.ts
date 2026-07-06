@@ -19,6 +19,7 @@ export const ECOSYSTEM_MODULE_MANIFESTS: ModuleManifest[] = [
     ],
     capabilities: [],
     categories: ["scheduling", "coordination"],
+    tier: "system",
   },
   {
     id: "coordination/poll",
@@ -37,6 +38,7 @@ export const ECOSYSTEM_MODULE_MANIFESTS: ModuleManifest[] = [
     ],
     capabilities: [],
     categories: ["coordination"],
+    tier: "system",
   },
   {
     id: "games/tictactoe",
@@ -55,6 +57,7 @@ export const ECOSYSTEM_MODULE_MANIFESTS: ModuleManifest[] = [
     ],
     capabilities: [],
     categories: ["games"],
+    tier: "system",
   },
   {
     id: "coordination/shared-list",
@@ -73,6 +76,7 @@ export const ECOSYSTEM_MODULE_MANIFESTS: ModuleManifest[] = [
     ],
     capabilities: [],
     categories: ["coordination"],
+    tier: "system",
   },
 ];
 
