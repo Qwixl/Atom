@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
 import type { FleetProvisioner, HostedAgentRecord, ProvisionOutcome } from "./types.js";
 import { assertProductionAgentPublicUrl } from "./publicUrl.js";
+import { reservedCommunityHostPort, resolveCommunityHostPublicUrl } from "./communityHost.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -31,7 +32,9 @@ function publicBaseUrl(port: number): string {
 }
 
 function allocatePort(usedPorts: Set<number>): number {
+  const reserved = reservedCommunityHostPort();
   for (let port = PORT_BASE; port <= PORT_MAX; port += 1) {
+    if (port === reserved) continue;
     if (!usedPorts.has(port)) return port;
   }
   throw new Error("No fleet ports available — increase ATOM_FLEET_PORT_MAX");
@@ -121,6 +124,10 @@ function dockerRunArgs(input: {
   ];
   if (input.llmApiKey?.trim()) {
     runArgs.splice(runArgs.length - 1, 0, "-e", `LLM_API_KEY=${input.llmApiKey.trim()}`);
+  }
+  const communityUrl = resolveCommunityHostPublicUrl();
+  if (communityUrl) {
+    runArgs.splice(runArgs.length - 1, 0, "-e", `ATOM_COMMUNITY_HOST_URL=${communityUrl}`);
   }
   return runArgs;
 }

@@ -1,11 +1,13 @@
 {
   "indexVersion": 1,
-  "updatedAt": "2026-07-05T07:00:00.000Z",
+  "updatedAt": "2026-07-06T08:00:00.000Z",
   "revocationsUrl": "revocations.json",
   "businesses": [
     {
       "kind": "community",
       "businessDomain": "coffee-shop.agents.qwixl.dev",
+      "hostUrl": "https://5305.agents.atom.qwixl.com",
+      "agentCardUrl": "https://5305.agents.atom.qwixl.com/a2a/jsonrpc",
       "verificationTier": 1,
       "tierLabel": "Qwixl-operated community host",
       "categories": ["community", "social"],
