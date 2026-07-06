@@ -25,11 +25,13 @@ function usage(): never {
 Usage:
   atom-registry scaffold --id <namespace/name> --out <dir> [--publisher <did>]
   atom-registry hash <file>
-  atom-registry verify [--registry-dir <dir>] [--bundle-base <dir>] [--require-integrity] [--signatures]
+  atom-registry verify [--registry-dir <dir>] [--bundle-base <dir>] [--require-integrity] [--signatures] [--scan-bundles] [--scan-strict-external]
   atom-registry publish [--registry-dir <dir>] [--module-dir <dir>] [--bundle-base <dir>]
   atom-registry publish-all [--registry-dir <dir>] [--bundle-base <dir>]
 
   --signatures  Full Sigstore verification (Rekor + x509 chain) via sigstore-js, in addition to digest match.
+  --scan-bundles  Heuristic bundle scan after integrity checks (eval, size cap, external scripts).
+  --scan-strict-external  Treat external script/fetch as errors instead of warnings.
 
 Defaults:
   registry-dir  ${defaultRegistryDir}
@@ -79,6 +81,8 @@ async function main(): Promise<void> {
       bundleBase: path.resolve(bundleBase),
       requireIntegrity: args.includes("--require-integrity"),
       verifySignatures: args.includes("--signatures"),
+      scanBundles: args.includes("--scan-bundles"),
+      scanStrictExternal: args.includes("--scan-strict-external"),
     });
     return;
   }

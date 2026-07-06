@@ -1,0 +1,9 @@
+{
+  "ratingsVersion": 1,
+  "updatedAt": "2026-07-06T17:00:00.000Z",
+  "modules": {
+    "commerce/offer-comparison": { "average": 4.6, "count": 42 },
+    "community/coffee-shop": { "average": 4.8, "count": 128 },
+    "travel/seat-map": { "average": 4.4, "count": 19 }
+  }
+}

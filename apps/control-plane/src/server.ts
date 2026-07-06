@@ -59,6 +59,7 @@ let fleet: FleetProvisioner | null = null;
 
 const signupRateLimit = createRateLimiter(15 * 60 * 1000, 5);
 const handleCheckRateLimit = createRateLimiter(60 * 1000, 30);
+const moduleFeedbackRateLimit = createRateLimiter(60 * 1000, 10);
 const provisionSecret = process.env.ATOM_PROVISION_SECRET?.trim();
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -254,6 +255,31 @@ app.post("/report-abuse", (req, res) => {
   }
   console.log(`[abuse-report] target=${target} reason=${reason || "(none)"}`);
   res.json({ received: true, target, status: "queued" });
+});
+
+app.post("/module-feedback", moduleFeedbackRateLimit, (req, res) => {
+  const body = req.body as {
+    moduleId?: string;
+    version?: string;
+    rating?: number;
+    comment?: string;
+  };
+  const moduleId = String(body.moduleId ?? "").trim();
+  const version = String(body.version ?? "").trim();
+  const rating = typeof body.rating === "number" ? body.rating : Number(body.rating);
+  const comment = String(body.comment ?? "").trim();
+  if (!moduleId || !version) {
+    res.status(400).json({ error: "moduleId and version required" });
+    return;
+  }
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+    res.status(400).json({ error: "rating must be 1–5" });
+    return;
+  }
+  console.log(
+    `[module-feedback] ${moduleId}@${version} rating=${rating} comment=${comment || "(none)"}`,
+  );
+  res.json({ received: true, moduleId, version, rating, status: "queued" });
 });
 
 const port = Number(process.env.PORT ?? 5300);

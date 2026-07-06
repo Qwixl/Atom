@@ -2,6 +2,7 @@
   "registryVersion": 1,
   "updatedAt": "2026-07-06T15:34:20.400Z",
   "revocationsUrl": "revocations.json",
+  "ratingsUrl": "ratings.json",
   "modules": [
     {
       "id": "commerce/offer-comparison",
@@ -55,7 +56,8 @@
       "manifestUrl": "connectors/webcal/manifest.json",
       "integrity": "sha256:5dcfc6f65a0cfc7b354871e34b15fa9eb95eef296473cb5d3445c0759887d2c8",
       "bundleIntegrity": "sha256:00f24e50256a69aa4f56f0dd70217037a05d65f332012dfc65842d154d9b7d46",
-      "publisher": "did:key:z6Mkatomexamples01"
+      "publisher": "did:key:z6Mkatomexamples01",
+      "tier": "system"
     },
     {
       "id": "coordination/poll",
@@ -63,7 +65,8 @@
       "manifestUrl": "coordination/poll/manifest.json",
       "integrity": "sha256:74deb6d08537f64466fa6b21ce0cf4c66bfb1b4a582bdf708b5cb320e59d0ade",
       "bundleIntegrity": "sha256:4d6ff625bd3bd93aee97466d824975463e52aa9353c2f80b65584e04de0bb925",
-      "publisher": "did:key:z6Mkatomexamples01"
+      "publisher": "did:key:z6Mkatomexamples01",
+      "tier": "system"
     },
     {
       "id": "coordination/shared-list",
@@ -71,7 +74,8 @@
       "manifestUrl": "coordination/shared-list/manifest.json",
       "integrity": "sha256:c8e1c859ba40ea62eec5d3e43217a536c6dcd08f26d5d88a6119911b45913ef9",
       "bundleIntegrity": "sha256:9f2f0e9c74a632836c171d6751fb5e0e4dd7867695a65bf3fa8d992236f92bae",
-      "publisher": "did:key:z6Mkatomexamples01"
+      "publisher": "did:key:z6Mkatomexamples01",
+      "tier": "system"
     },
     {
       "id": "core-examples/contact-card",
@@ -103,7 +107,8 @@
       "manifestUrl": "games/tictactoe/manifest.json",
       "integrity": "sha256:2790ec624fdda9bf8264bd099d782f4274a16f0e8d66163681a7b55270d34f88",
       "bundleIntegrity": "sha256:32e7eaf71757c851715222b6403c8bdf9f622babddee99969f9fc8b15f166907",
-      "publisher": "did:key:z6Mkatomexamples01"
+      "publisher": "did:key:z6Mkatomexamples01",
+      "tier": "system"
     },
     {
       "id": "media/audio-player",
@@ -127,7 +132,8 @@
       "manifestUrl": "scheduling/meeting-picker/manifest.json",
       "integrity": "sha256:2538355abc0d6c4e53c8390fb25637fe8a89c2cc4a34f4a2a8c1925547b4f7d3",
       "bundleIntegrity": "sha256:85632c657a81c262c6f39c08145b955911a8a8b819be0428d318df9a10d7ba4d",
-      "publisher": "did:key:z6Mkatomexamples01"
+      "publisher": "did:key:z6Mkatomexamples01",
+      "tier": "system"
     },
     {
       "id": "travel/seat-map",

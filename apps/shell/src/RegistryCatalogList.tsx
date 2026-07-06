@@ -1,8 +1,159 @@
 import { useEffect, useState } from "react";
-import { ModuleRegistry, modulePriceLabel, type RegistryModuleEntry } from "@qwixl/shell-core";
+import {
+  ModuleRegistry,
+  fetchRegistryRatings,
+  formatStarRating,
+  modulePriceLabel,
+  type ModuleRatingSummary,
+  type RegistryModuleEntry,
+  type RegistryRatings,
+} from "@qwixl/shell-core";
+import { submitModuleFeedback } from "./moduleFeedback.js";
 
-export function RegistryCatalogList({ indexUrl }: { indexUrl: string }) {
+function StarInput({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (rating: number) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <span className="module-rating-input" role="radiogroup" aria-label="Your rating">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          className={star <= value ? "module-rating-star module-rating-star-on" : "module-rating-star"}
+          disabled={disabled}
+          aria-label={`${star} star${star === 1 ? "" : "s"}`}
+          onClick={() => onChange(star)}
+        >
+          ★
+        </button>
+      ))}
+    </span>
+  );
+}
+
+function ModuleCatalogRow({
+  entry,
+  rating,
+  onFeedbackSent,
+}: {
+  entry: RegistryModuleEntry;
+  rating?: ModuleRatingSummary;
+  onFeedbackSent: (note: string) => void;
+}) {
+  const isSystem = entry.tier === "system";
+  const [expanded, setExpanded] = useState(false);
+  const [userRating, setUserRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function sendFeedback() {
+    if (userRating < 1) return;
+    setBusy(true);
+    try {
+      await submitModuleFeedback({
+        moduleId: entry.id,
+        version: entry.version,
+        rating: userRating,
+        comment,
+      });
+      setComment("");
+      setExpanded(false);
+      onFeedbackSent("Thanks — your feedback was received.");
+    } catch (error) {
+      onFeedbackSent(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <li className="settings-registry-catalog-item">
+      <div className="settings-registry-catalog-main">
+        <code>
+          {entry.id}@{entry.version}
+        </code>
+        <span className="settings-registry-price">
+          {isSystem ? "Core" : modulePriceLabel(entry.pricing)}
+        </span>
+      </div>
+      {isSystem ? (
+        <p className="settings-registry-meta">Included with Atom — always available, not rated.</p>
+      ) : rating ? (
+        <p className="settings-registry-meta">
+          <span className="module-rating-display" aria-label={`${rating.average} out of 5 stars`}>
+            {formatStarRating(rating.average)}
+          </span>
+          <span>
+            {rating.average.toFixed(1)} ({rating.count} rating{rating.count === 1 ? "" : "s"})
+          </span>
+        </p>
+      ) : (
+        <p className="settings-registry-meta">No ratings yet.</p>
+      )}
+      {entry.publisher ? (
+        <span className="settings-registry-publisher">{entry.publisher}</span>
+      ) : null}
+      {entry.pricing?.model === "paid" && entry.pricing.purchaseUrl ? (
+        <a
+          className="settings-registry-purchase"
+          href={entry.pricing.purchaseUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Purchase (external)
+        </a>
+      ) : null}
+      {!isSystem ? (
+        <div className="settings-registry-feedback">
+          <button
+            type="button"
+            className="panel-btn panel-btn-ghost"
+            onClick={() => setExpanded((current) => !current)}
+          >
+            {expanded ? "Cancel" : "Rate & feedback"}
+          </button>
+          {expanded ? (
+            <div className="settings-registry-feedback-form">
+              <StarInput value={userRating} onChange={setUserRating} disabled={busy} />
+              <textarea
+                className="panel-textarea"
+                rows={2}
+                placeholder="Optional comment…"
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+                disabled={busy}
+              />
+              <button
+                type="button"
+                className="panel-btn"
+                disabled={busy || userRating < 1}
+                onClick={() => void sendFeedback()}
+              >
+                Submit
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+export function RegistryCatalogList({
+  indexUrl,
+  onStatus,
+}: {
+  indexUrl: string;
+  onStatus?: (note: string) => void;
+}) {
   const [modules, setModules] = useState<RegistryModuleEntry[]>([]);
+  const [ratings, setRatings] = useState<RegistryRatings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -13,9 +164,11 @@ export function RegistryCatalogList({ indexUrl }: { indexUrl: string }) {
     const registry = new ModuleRegistry({ indexUrl });
     void registry
       .loadIndex()
-      .then((index) => {
+      .then(async (index) => {
+        const ratingData = await fetchRegistryRatings(indexUrl, index.ratingsUrl);
         if (!cancelled) {
           setModules([...index.modules].sort((a, b) => a.id.localeCompare(b.id)));
+          setRatings(ratingData);
           setLoading(false);
         }
       })
@@ -23,6 +176,7 @@ export function RegistryCatalogList({ indexUrl }: { indexUrl: string }) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : String(err));
           setModules([]);
+          setRatings(null);
           setLoading(false);
         }
       });
@@ -44,27 +198,12 @@ export function RegistryCatalogList({ indexUrl }: { indexUrl: string }) {
   return (
     <ul className="settings-registry-catalog">
       {modules.map((entry) => (
-        <li key={`${entry.id}@${entry.version}`} className="settings-registry-catalog-item">
-          <div className="settings-registry-catalog-main">
-            <code>
-              {entry.id}@{entry.version}
-            </code>
-            <span className="settings-registry-price">{modulePriceLabel(entry.pricing)}</span>
-          </div>
-          {entry.publisher ? (
-            <span className="settings-registry-publisher">{entry.publisher}</span>
-          ) : null}
-          {entry.pricing?.model === "paid" && entry.pricing.purchaseUrl ? (
-            <a
-              className="settings-registry-purchase"
-              href={entry.pricing.purchaseUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Purchase (external)
-            </a>
-          ) : null}
-        </li>
+        <ModuleCatalogRow
+          key={`${entry.id}@${entry.version}`}
+          entry={entry}
+          rating={ratings?.modules[entry.id]}
+          onFeedbackSent={(note) => onStatus?.(note)}
+        />
       ))}
     </ul>
   );

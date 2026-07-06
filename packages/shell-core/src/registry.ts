@@ -24,9 +24,12 @@ export type {
   RegistryModuleEntry,
   RegistryCacheSnapshot,
   RegistryCacheStore,
+  ModuleRatingSummary,
+  RegistryRatings,
 } from "./registry/types.js";
 export type { RegistryTrustPolicy, RegistryRevocation, RegistryRevocations } from "./registry/trust.js";
 export { LocalStorageRegistryCache, manifestCacheKey } from "./registry/cache.js";
+export { fetchRegistryRatings, formatStarRating } from "./registry/ratings.js";
 export { validateModuleManifest } from "./registry/manifest.js";
 export { formatIntegrity, parseIntegrity, sha256Hex, integrityMatches } from "./registry/hash.js";
 export { assertTrustPolicy, isRevoked } from "./registry/trust.js";
@@ -257,6 +260,16 @@ export class ModuleRegistry {
     }
   }
 
+  /** Install all `tier: system` entries from the registry index (core platform modules). */
+  async ensureSystemModules(catalog: Catalog): Promise<void> {
+    const index = await this.loadIndex();
+    await Promise.all(
+      index.modules
+        .filter((entry) => entry.tier === "system")
+        .map((entry) => this.ensureModule(catalog, `${entry.id}@${entry.version}`)),
+    );
+  }
+
   /**
    * Reload revocations and uninstall any installed modules that appear on the
    * revocation list. Returns entries that were evicted.
@@ -354,6 +367,10 @@ export class ModuleRegistry {
         await this.verifyBundleBytes(manifest.bundleUrl, manifestUrl, manifest.bundleIntegrity);
       }
 
+      if (entry.tier) {
+        manifest.tier = entry.tier;
+      }
+
       catalog.installModule(manifest);
       this.installed.add(moduleId);
     } catch (error) {
@@ -414,10 +431,11 @@ export class ModuleRegistry {
   }
 
   uninstallAll(catalog: Catalog): void {
-    for (const moduleId of this.installed) {
+    for (const moduleId of [...this.installed]) {
+      if (catalog.isSystemModule(moduleId)) continue;
       catalog.uninstallModule(moduleId);
+      this.installed.delete(moduleId);
     }
-    this.installed.clear();
   }
 }
 

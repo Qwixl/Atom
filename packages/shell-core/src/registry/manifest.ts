@@ -27,6 +27,9 @@ export function validateModuleManifest(raw: unknown): ModuleManifest {
   if (m.signatureUrl !== undefined && typeof m.signatureUrl !== "string") {
     throw new Error("manifest.signatureUrl must be a string when present");
   }
+  if (m.tier !== undefined && m.tier !== "system" && m.tier !== "community") {
+    throw new Error('manifest.tier must be "system" or "community" when present');
+  }
   const pricing = validateModulePricing(m.pricing, String(m.id));
   const manifest = raw as ModuleManifest;
   if (pricing !== undefined) {
