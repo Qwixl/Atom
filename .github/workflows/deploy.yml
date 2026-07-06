@@ -2,12 +2,18 @@ name: Deploy
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   deploy-shell-atom:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -39,6 +45,7 @@ jobs:
           vercel-args: "--prod"
 
   deploy-atom-registry:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -64,3 +71,35 @@ jobs:
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_ATOM_REGISTRY }}
           vercel-version: latest
           vercel-args: "--prod"
+
+  deploy-control-plane:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Load SSH key
+        uses: webfactory/ssh-agent@b66ed4b238d7222170e98dae966ee6332b0c69ec # v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.CONTROL_PLANE_SSH_PRIVATE_KEY }}
+
+      - name: Trust control plane host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.CONTROL_PLANE_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Pull and restart control plane
+        env:
+          SSH_HOST: ${{ secrets.CONTROL_PLANE_SSH_HOST }}
+          SSH_USER: ${{ secrets.CONTROL_PLANE_SSH_USER }}
+        run: |
+          ssh "${SSH_USER}@${SSH_HOST}" <<'EOF'
+          set -euo pipefail
+          cd /opt/atom
+          git fetch origin
+          git checkout main
+          git pull origin main
+          docker compose build control-plane
+          docker compose up -d control-plane
+          curl -sf http://127.0.0.1:5300/health
+          EOF
