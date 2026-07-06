@@ -3,6 +3,11 @@ import {
   bootstrapHostedAccount,
   fetchHostedAgentConnection,
   getSupabaseClient,
+  hasSupabaseSession,
+  isEmailNotConfirmedError,
+  registerSupabaseAccount,
+  resendSignupConfirmation,
+  signInSupabaseAccount,
   signupHostedDevAccount,
 } from "./hostedAccount.js";
 import { completeAgentSetup } from "./completeSetup.js";
@@ -33,6 +38,16 @@ import {
 import { probeLocalDevAgentBase } from "../devAgentProbe.js";
 import { defaultCommsAgentUrl, loadCommsAgentConfig } from "../comms/storage.js";
 import { FieldLabelWithHint, LlmApiKeyHintContent } from "../ui/FieldHint.js";
+import {
+  clearPendingHostedAuth,
+  loadPendingHostedAuth,
+  savePendingHostedAuth,
+} from "./pendingHostedAuth.js";
+import {
+  PASSWORD_REQUIREMENTS_HINT,
+  validatePasswordMatch,
+  validatePasswordStrength,
+} from "./passwordValidation.js";
 import "./auth-wizard.css";
 
 type AuthWizardProps = {
@@ -47,14 +62,26 @@ type ProvisionTask = {
 };
 
 export function AuthWizard({ mode, onClose }: AuthWizardProps) {
-  const steps = useMemo(() => authSteps(mode), [mode]);
-  const [step, setStep] = useState<AuthStepId>(() => authSteps(mode)[0] ?? "credentials");
-
   const [hosting, setHosting] = useState<HostingType>(() =>
     isHostedSignupAvailable() ? "hosted" : "self-hosted",
   );
+  const [loginNeedsConfirm, setLoginNeedsConfirm] = useState(false);
+
+  const supabaseHostedRegister =
+    mode === "register" && hosting === "hosted" && usesSupabaseHostedAuth();
+
+  const steps = useMemo(
+    () =>
+      loginNeedsConfirm && mode === "login"
+        ? (["credentials", "confirm-email", "provisioning"] as AuthStepId[])
+        : authSteps(mode, { supabaseHostedRegister }),
+    [mode, supabaseHostedRegister, loginNeedsConfirm],
+  );
+
+  const [step, setStep] = useState<AuthStepId>(() => steps[0] ?? "credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [handle, setHandle] = useState("");
   const [llmApiKey, setLlmApiKey] = useState("");
   const [adminUrl, setAdminUrl] = useState(() => {
@@ -68,6 +95,8 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [provisionTasks, setProvisionTasks] = useState<ProvisionTask[]>([]);
+  const [emailConfirmedThanks, setEmailConfirmedThanks] = useState(false);
+  const [resendNote, setResendNote] = useState<string | null>(null);
 
   const labels = useMemo(
     () =>
@@ -115,11 +144,83 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
   }, [handle, hosting]);
 
   useEffect(() => {
+    if (!usesSupabaseHostedAuth()) return;
+    const pending = loadPendingHostedAuth();
+    if (!pending) return;
+
+    setEmail(pending.email);
+    if (pending.handle) setHandle(pending.handle);
+    if (pending.llmApiKey) setLlmApiKey(pending.llmApiKey);
+    if (pending.kind === "register") setHosting("hosted");
+
+    void (async () => {
+      const hasSession = await hasSupabaseSession();
+      if (hasSession) {
+        setEmailConfirmedThanks(true);
+        goTo("provisioning");
+        window.setTimeout(() => {
+          if (pending.kind === "login") {
+            void finishHostedSupabaseLogin();
+          } else {
+            void runHostedSupabaseProvisioning();
+          }
+        }, 1800);
+      } else if (pending.kind === "register") {
+        goTo("confirm-email");
+      } else {
+        setLoginNeedsConfirm(true);
+        goTo("confirm-email");
+      }
+    })();
+    // Resume only on mount when returning from email confirmation link.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (hosting !== "self-hosted" || !SHOW_DEV_WORKFLOWS) return;
     void probeLocalDevAgentBase().then((url) => {
       if (url) setAdminUrl(url);
     });
   }, [hosting]);
+
+  useEffect(() => {
+    if (step !== "confirm-email" || emailConfirmedThanks || !usesSupabaseHostedAuth()) return;
+
+    let cancelled = false;
+    let thanksTimer: number | undefined;
+
+    const continueAfterConfirm = async () => {
+      if (cancelled || !(await hasSupabaseSession())) return;
+      setEmailConfirmedThanks(true);
+      setError(null);
+      thanksTimer = window.setTimeout(() => {
+        if (cancelled) return;
+        goTo("provisioning");
+        if (mode === "login") {
+          void finishHostedSupabaseLogin();
+        } else {
+          void runHostedSupabaseProvisioning();
+        }
+      }, 1800);
+    };
+
+    const supabase = getSupabaseClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) void continueAfterConfirm();
+    });
+
+    const interval = window.setInterval(() => void continueAfterConfirm(), 2500);
+    void continueAfterConfirm();
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+      clearInterval(interval);
+      if (thanksTimer !== undefined) window.clearTimeout(thanksTimer);
+    };
+  }, [step, emailConfirmedThanks, mode]);
 
   function goTo(next: AuthStepId) {
     setStep(next);
@@ -138,37 +239,146 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
     if (prev) goTo(prev);
   }
 
+  function initProvisionTasks(): ProvisionTask[] {
+    if (ATOM_BROWSER_MODE || (mode === "register" && hosting === "self-hosted")) {
+      return [
+        { id: "agent", label: "Validating agent connection", state: "active" },
+        { id: "connect", label: "Connecting shell", state: "pending" },
+      ];
+    }
+    if (mode === "login") {
+      return [{ id: "connect", label: "Connecting to your agent", state: "active" }];
+    }
+    return [
+      { id: "auth", label: "Creating account", state: "active" },
+      { id: "agent", label: "Provisioning agent", state: "pending" },
+      { id: "connect", label: "Connecting shell", state: "pending" },
+    ];
+  }
+
+  function updateTask(id: string, state: ProvisionTask["state"]) {
+    setProvisionTasks((prev) => prev.map((t) => (t.id === id ? { ...t, state } : t)));
+  }
+
+  function advanceTask(doneId: string, nextId?: string) {
+    updateTask(doneId, "done");
+    if (nextId) updateTask(nextId, "active");
+  }
+
+  async function runHostedSupabaseProvisioning(): Promise<void> {
+    setBusy(true);
+    setError(null);
+    setProvisionTasks(initProvisionTasks());
+
+    try {
+      if (!(await hasSupabaseSession())) {
+        throw new Error("Sign in required — confirm your email first.");
+      }
+      advanceTask("auth", "agent");
+      await bootstrapHostedAccount({
+        handle: bareOwnerHandle(handle),
+        accountType: "user",
+        llmApiKey: llmApiKey.trim(),
+      });
+      advanceTask("agent", "connect");
+      const connection = await fetchHostedAgentConnection();
+      await completeAgentSetup({
+        adminUrl: connection.adminUrl,
+        adminToken: connection.adminToken,
+        handle: connection.handle ?? bareOwnerHandle(handle),
+        kind: "hosted",
+      });
+      updateTask("connect", "done");
+      clearPendingHostedAuth();
+      window.location.replace("/app/");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      setProvisionTasks((prev) =>
+        prev.map((t) => (t.state === "active" ? { ...t, state: "error" } : t)),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function finishHostedSupabaseLogin(): Promise<void> {
+    setBusy(true);
+    setError(null);
+    setProvisionTasks([{ id: "connect", label: "Connecting to your agent", state: "active" }]);
+
+    try {
+      const connection = await fetchHostedAgentConnection();
+      await completeAgentSetup({
+        adminUrl: connection.adminUrl,
+        adminToken: connection.adminToken,
+        handle: connection.handle,
+        kind: "hosted",
+      });
+      updateTask("connect", "done");
+      clearPendingHostedAuth();
+      window.location.replace("/app/");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      setProvisionTasks((prev) =>
+        prev.map((t) => (t.state === "active" ? { ...t, state: "error" } : t)),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitProfileStep(): Promise<void> {
+    if (!validateProfile()) return;
+
+    if (usesSupabaseHostedAuth() && hosting === "hosted" && mode === "register") {
+      setBusy(true);
+      setError(null);
+      try {
+        const { needsEmailConfirmation } = await registerSupabaseAccount(email, password);
+        setEmailConfirmedThanks(false);
+        if (needsEmailConfirmation) {
+          savePendingHostedAuth({
+            kind: "register",
+            email: email.trim(),
+            handle,
+            llmApiKey,
+          });
+          goTo("confirm-email");
+        } else {
+          goTo("provisioning");
+          await runHostedSupabaseProvisioning();
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    goTo("provisioning");
+    await runProvisioning();
+  }
+
+  async function resendConfirmationEmail(): Promise<void> {
+    setResendNote(null);
+    setError(null);
+    try {
+      const pending = loadPendingHostedAuth();
+      const authKind = pending?.kind ?? (mode === "login" ? "login" : "register");
+      await resendSignupConfirmation(email, authKind);
+      setResendNote("Confirmation email sent — check your inbox.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   async function runProvisioning(): Promise<void> {
     setBusy(true);
     setError(null);
-    const tasks: ProvisionTask[] = (() => {
-      if (ATOM_BROWSER_MODE || (mode === "register" && hosting === "self-hosted")) {
-        return [
-          { id: "agent", label: "Validating agent connection", state: "active" },
-          { id: "connect", label: "Connecting shell", state: "pending" },
-        ];
-      }
-      if (mode === "login") {
-        return [{ id: "connect", label: "Connecting to your agent", state: "active" }];
-      }
-      return [
-        { id: "auth", label: "Creating account", state: "active" },
-        { id: "agent", label: "Provisioning agent", state: "pending" },
-        { id: "connect", label: "Connecting shell", state: "pending" },
-      ];
-    })();
-    setProvisionTasks(tasks);
-
-    const updateTask = (id: string, state: ProvisionTask["state"]) => {
-      setProvisionTasks((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, state } : t)),
-      );
-    };
-
-    const advanceTask = (doneId: string, nextId?: string) => {
-      updateTask(doneId, "done");
-      if (nextId) updateTask(nextId, "active");
-    };
+    setProvisionTasks(initProvisionTasks());
 
     try {
       const useHostedFlow =
@@ -193,52 +403,33 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
           });
           updateTask("connect", "done");
         } else {
-        if (!isHostedSignupAvailable()) {
-          throw new Error(
-            "Account signup is temporarily unavailable. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local, or choose Self hosted.",
-          );
-        }
-        const supabase = getSupabaseClient();
+          if (!isHostedSignupAvailable()) {
+            throw new Error(
+              "Account signup is temporarily unavailable. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local, or choose Self hosted.",
+            );
+          }
 
-        if (mode === "register") {
-          const { error: signUpError } = await supabase.auth.signUp({
-            email: email.trim(),
-            password,
-          });
-          if (signUpError) throw signUpError;
+          if (mode === "login") {
+            try {
+              await signInSupabaseAccount(email, password);
+            } catch (err) {
+              if (isEmailNotConfirmedError(err)) {
+                setLoginNeedsConfirm(true);
+                setEmailConfirmedThanks(false);
+                savePendingHostedAuth({ kind: "login", email: email.trim() });
+                setBusy(false);
+                setProvisionTasks([]);
+                goTo("confirm-email");
+                return;
+              }
+              throw err;
+            }
+            await finishHostedSupabaseLogin();
+            return;
+          }
 
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: email.trim(),
-            password,
-          });
-          if (signInError) throw signInError;
-
-          advanceTask("auth", "agent");
-
-          await bootstrapHostedAccount({
-            handle: bareOwnerHandle(handle),
-            accountType: "user",
-            llmApiKey: llmApiKey.trim(),
-          });
-          advanceTask("agent", "connect");
-        } else {
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: email.trim(),
-            password,
-          });
-          if (signInError) throw signInError;
-        }
-
-        const connection = await fetchHostedAgentConnection();
-        if (mode === "register") advanceTask("connect", undefined);
-        else updateTask("connect", "done");
-
-        await completeAgentSetup({
-          adminUrl: connection.adminUrl,
-          adminToken: connection.adminToken,
-          handle: connection.handle ?? bareOwnerHandle(handle),
-          kind: "hosted",
-        });
+          await runHostedSupabaseProvisioning();
+          return;
         }
       } else {
         if (!adminUrl.trim() || !adminToken.trim()) {
@@ -254,6 +445,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         updateTask("connect", "done");
       }
 
+      clearPendingHostedAuth();
       window.location.replace("/app/");
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -274,9 +466,23 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       setError("Enter a valid email address.");
       return false;
     }
-    if (usesSupabaseHostedAuth() && password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return false;
+    if (usesSupabaseHostedAuth() || mode === "login") {
+      if (!password) {
+        setError("Enter your password.");
+        return false;
+      }
+      if (mode === "register") {
+        const strengthError = validatePasswordStrength(password);
+        if (strengthError) {
+          setError(strengthError);
+          return false;
+        }
+        const matchError = validatePasswordMatch(password, confirmPassword);
+        if (matchError) {
+          setError(matchError);
+          return false;
+        }
+      }
     }
     if (mode === "register" && hosting === "hosted" && !isHostedSignupAvailable()) {
       setError(
@@ -332,9 +538,8 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       return;
     }
     if (step === "profile") {
-      if (!validateProfile()) return;
-      goTo("provisioning");
-      void runProvisioning();
+      void submitProfileStep();
+      return;
     }
   }
 
@@ -405,15 +610,31 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
               />
             </label>
             {usesSupabaseHostedAuth() || mode === "login" ? (
-              <label className="atom-field">
-                <span className="atom-field-label">Password</span>
-                <input
-                  type="password"
-                  autoComplete={mode === "register" ? "new-password" : "current-password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </label>
+              <>
+                <label className="atom-field">
+                  <span className="atom-field-label">Password</span>
+                  <input
+                    type="password"
+                    autoComplete={mode === "register" ? "new-password" : "current-password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </label>
+                {mode === "register" ? (
+                  <>
+                    <label className="atom-field">
+                      <span className="atom-field-label">Confirm password</span>
+                      <input
+                        type="password"
+                        autoComplete="new-password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                      />
+                    </label>
+                    <p className="atom-note">{PASSWORD_REQUIREMENTS_HINT}</p>
+                  </>
+                ) : null}
+              </>
             ) : null}
           </>
         );
@@ -480,6 +701,28 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
                 ) : null}
               </>
             )}
+          </>
+        );
+      case "confirm-email":
+        return emailConfirmedThanks ? (
+          <>
+            <h3 className="auth-slide-title">Email confirmed</h3>
+            <p className="auth-slide-desc auth-confirm-thanks">
+              Thanks — your email is verified. Setting up your account now…
+            </p>
+            <span className="auth-spinner" aria-hidden="true" />
+          </>
+        ) : (
+          <>
+            <h3 className="auth-slide-title">Check your email</h3>
+            <p className="auth-slide-desc">
+              We sent a confirmation link to <strong>{email}</strong>. Open it to continue — this
+              page will pick up automatically once you confirm.
+            </p>
+            <p className="atom-note">
+              The link returns you here. You can leave this tab open while you check your inbox.
+            </p>
+            {resendNote ? <p className="atom-note">{resendNote}</p> : null}
           </>
         );
       case "provisioning":
@@ -549,7 +792,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
 
           {error ? <p className="atom-note atom-note-error">{error}</p> : null}
 
-          {step !== "provisioning" ? (
+          {step !== "provisioning" && step !== "confirm-email" ? (
             <div className="auth-actions">
               <button
                 type="button"
@@ -569,7 +812,25 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
                 </button>
               ) : null}
             </div>
-          ) : error && !busy ? (
+          ) : step === "confirm-email" && !emailConfirmedThanks ? (
+            <div className="auth-actions">
+              <button
+                type="button"
+                className="atom-btn atom-btn-primary"
+                disabled={busy}
+                onClick={() => void resendConfirmationEmail()}
+              >
+                Resend email
+              </button>
+              {slideIndex > 0 ? (
+                <button type="button" className="atom-btn atom-btn-secondary" onClick={goBack}>
+                  Back
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {step === "provisioning" && error && !busy ? (
             <div className="auth-actions">
               <button
                 type="button"

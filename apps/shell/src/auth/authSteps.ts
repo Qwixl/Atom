@@ -1,12 +1,22 @@
-export type AuthStepId = "hosting" | "credentials" | "profile" | "provisioning";
+export type AuthStepId =
+  | "hosting"
+  | "credentials"
+  | "profile"
+  | "confirm-email"
+  | "provisioning";
 
 export type AuthWizardMode = "register" | "login";
 
 export type HostingType = "hosted" | "self-hosted";
 
-export function authSteps(mode: AuthWizardMode): AuthStepId[] {
+export function authSteps(mode: AuthWizardMode, options?: { supabaseHostedRegister?: boolean }): AuthStepId[] {
   if (mode === "login") return ["credentials", "provisioning"];
-  return ["hosting", "credentials", "profile", "provisioning"];
+  const steps: AuthStepId[] = ["hosting", "credentials", "profile"];
+  if (options?.supabaseHostedRegister) {
+    steps.push("confirm-email");
+  }
+  steps.push("provisioning");
+  return steps;
 }
 
 export function stepLabel(step: AuthStepId): string {
@@ -17,6 +27,8 @@ export function stepLabel(step: AuthStepId): string {
       return "Account";
     case "profile":
       return "Profile";
+    case "confirm-email":
+      return "Verify";
     case "provisioning":
       return "Setup";
   }
