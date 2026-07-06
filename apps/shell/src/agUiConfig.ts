@@ -24,3 +24,10 @@ export function loadAgUiConfig(): AgUiAgentConfig {
   if (IS_PRODUCTION_HOST) return { url: "" };
   return { url: DEFAULT_AGUI_URL };
 }
+
+/** Bearer auth for POST /agent (same admin token as comms API). */
+export function agUiAuthHeaders(adminToken?: string): Record<string, string> | undefined {
+  const token = adminToken?.trim();
+  if (!token) return undefined;
+  return { Authorization: `Bearer ${token}` };
+}
