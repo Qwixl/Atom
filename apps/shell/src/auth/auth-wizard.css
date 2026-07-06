@@ -225,6 +225,14 @@
   }
 }
 
+.auth-confirm-thanks {
+  color: var(--shell-text);
+}
+
+.auth-slide .auth-spinner {
+  margin-top: 12px;
+}
+
 @media (max-width: 480px) {
   .auth-modal-header,
   .auth-modal-body {

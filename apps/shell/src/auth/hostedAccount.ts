@@ -25,6 +25,66 @@ export async function supabaseAccessToken(): Promise<string | null> {
   return data.session?.access_token ?? null;
 }
 
+export function supabaseEmailRedirectUrl(auth: "register" | "login" = "register"): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://atom.qwixl.com";
+  return `${origin}/app/?auth=${auth}`;
+}
+
+export function isEmailNotConfirmedError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /email not confirmed|not confirmed/i.test(message);
+}
+
+/** Sign up; returns whether the user must confirm email before a session exists. */
+export async function registerSupabaseAccount(
+  email: string,
+  password: string,
+): Promise<{ needsEmailConfirmation: boolean }> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.signUp({
+    email: email.trim(),
+    password,
+    options: { emailRedirectTo: supabaseEmailRedirectUrl() },
+  });
+  if (error) throw error;
+  if (data.session) return { needsEmailConfirmation: false };
+  if (data.user && !data.session) return { needsEmailConfirmation: true };
+
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email: email.trim(),
+    password,
+  });
+  if (!signInError) return { needsEmailConfirmation: false };
+  if (isEmailNotConfirmedError(signInError)) return { needsEmailConfirmation: true };
+  throw signInError;
+}
+
+export async function signInSupabaseAccount(email: string, password: string): Promise<void> {
+  const { error } = await getSupabaseClient().auth.signInWithPassword({
+    email: email.trim(),
+    password,
+  });
+  if (error) throw error;
+}
+
+export async function resendSignupConfirmation(
+  email: string,
+  auth: "register" | "login" = "register",
+): Promise<void> {
+  const { error } = await getSupabaseClient().auth.resend({
+    type: "signup",
+    email: email.trim(),
+    options: { emailRedirectTo: supabaseEmailRedirectUrl(auth) },
+  });
+  if (error) throw error;
+}
+
+export async function hasSupabaseSession(): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false;
+  const { data } = await getSupabaseClient().auth.getSession();
+  return Boolean(data.session);
+}
+
 export type AtomAccountType = "user" | "business" | "developer";
 
 export interface BootstrapHostedAccountInput {
