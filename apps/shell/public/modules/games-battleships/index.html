@@ -1,5 +1,145 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><title>Battleships</title>
-<style>body{font-family:system-ui,sans-serif;margin:0;padding:12px;color:#111}</style>
-</head><body><p>Battleships module (M-ECO-06) — commitment/reveal game; coming soon.</p>
-<script>window.parent.postMessage({type:"ready"},"*");</script></body></html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Battleships</title>
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body { margin: 0; padding: 10px 12px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
+    .board { display: grid; grid-template-columns: repeat(6, 36px); gap: 4px; width: fit-content; }
+    button.cell {
+      width: 36px; height: 36px; font-size: 11px; font-weight: 600;
+      border: 1px solid var(--atom-color-border, #ccc); border-radius: 6px;
+      background: var(--atom-color-bg-raised, #fafafa); cursor: pointer; color: inherit; padding: 0;
+    }
+    button.cell.ship { background: color-mix(in srgb, var(--atom-color-accent, #111) 18%, var(--atom-color-bg-raised, #fafafa)); }
+    button.cell:disabled { cursor: default; opacity: 0.85; }
+    .meta { margin-top: 8px; font-size: 12px; color: var(--atom-color-text-dim, #666); max-width: 240px; }
+    .actions { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn { padding: 8px 14px; border: none; border-radius: 6px; background: var(--atom-color-accent, #111); color: var(--atom-color-bg, #fff); cursor: pointer; font-size: 13px; }
+    .btn:disabled { opacity: 0.5; cursor: default; }
+    .btn-secondary { background: transparent; color: inherit; border: 1px solid var(--atom-color-border, #ccc); }
+  </style>
+</head>
+<body>
+  <div class="board" id="board"></div>
+  <p class="meta" id="meta">Start a game or place your ships when invited.</p>
+  <div class="actions">
+    <button type="button" class="btn" id="start">New game</button>
+    <button type="button" class="btn btn-secondary" id="commit" hidden>Commit ships</button>
+  </div>
+  <script>
+    const GRID = 6;
+    const SHIP_CELLS = 6;
+    let shellOrigin = null;
+    let gameId = null;
+    let phase = "idle";
+    let myPlayer = "A";
+    let selected = new Set();
+    let readOnly = false;
+
+    function emit(name, payload) {
+      if (shellOrigin) window.parent.postMessage({ type: "event", name, payload }, shellOrigin);
+    }
+
+    function areAdjacent(a, b) {
+      const rowA = Math.floor(a / GRID), colA = a % GRID;
+      const rowB = Math.floor(b / GRID), colB = b % GRID;
+      return (rowA === rowB && Math.abs(colA - colB) === 1) || (colA === colB && Math.abs(rowA - rowB) === 1);
+    }
+
+    function validPlacement(cells) {
+      if (cells.length !== SHIP_CELLS) return false;
+      const uniq = new Set(cells);
+      if (uniq.size !== cells.length) return false;
+      for (const c of cells) if (c < 0 || c >= GRID * GRID) return false;
+      function partition(rest) {
+        if (rest.length === 0) return true;
+        const [first, ...others] = rest;
+        for (const second of others) {
+          if (!areAdjacent(first, second)) continue;
+          const next = others.filter((x) => x !== second);
+          if (partition(next)) return true;
+        }
+        return false;
+      }
+      return partition([...cells]);
+    }
+
+    function render() {
+      const grid = document.getElementById("board");
+      grid.innerHTML = "";
+      for (let i = 0; i < GRID * GRID; i++) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "cell" + (selected.has(i) ? " ship" : "");
+        const canPick = !readOnly && phase === "setup" && selected.size < SHIP_CELLS || (phase === "setup" && selected.has(i));
+        btn.disabled = readOnly || phase !== "setup";
+        if (phase === "setup" && !readOnly) {
+          btn.addEventListener("click", () => {
+            if (selected.has(i)) selected.delete(i);
+            else if (selected.size < SHIP_CELLS) selected.add(i);
+            render();
+          });
+        }
+        grid.appendChild(btn);
+      }
+      const meta = document.getElementById("meta");
+      const commitBtn = document.getElementById("commit");
+      const startBtn = document.getElementById("start");
+      if (phase === "idle") {
+        meta.textContent = "Start a game or wait for an invite, then place ships.";
+        commitBtn.hidden = true;
+        startBtn.hidden = false;
+      } else if (phase === "setup") {
+        meta.textContent = "Place " + SHIP_CELLS + " ship cells (3 ships × 2 adjacent cells). Selected: " + selected.size + "/" + SHIP_CELLS + ".";
+        commitBtn.hidden = readOnly;
+        startBtn.hidden = true;
+        commitBtn.disabled = !validPlacement([...selected]);
+      } else if (phase === "battle") {
+        meta.textContent = "Battle in progress — fire from the thread card.";
+        commitBtn.hidden = true;
+        startBtn.hidden = true;
+      } else if (phase === "won") {
+        meta.textContent = "Game over.";
+        commitBtn.hidden = true;
+        startBtn.hidden = true;
+      }
+    }
+
+    document.getElementById("start").addEventListener("click", () => {
+      gameId = "bs-" + Date.now();
+      phase = "setup";
+      myPlayer = "A";
+      selected = new Set();
+      readOnly = false;
+      emit("bsStart", { gameId });
+      render();
+    });
+
+    document.getElementById("commit").addEventListener("click", () => {
+      const cells = [...selected].sort((a, b) => a - b);
+      if (!gameId || !validPlacement(cells)) return;
+      emit("bsCommit", { gameId, cells });
+      readOnly = true;
+      render();
+    });
+
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "init") return;
+      shellOrigin = event.origin;
+      const props = data.props || {};
+      if (props.gameId) gameId = props.gameId;
+      if (props.phase) phase = props.phase;
+      if (props.myPlayer === "B") myPlayer = "B";
+      if (props.readOnly) readOnly = true;
+      render();
+    });
+
+    render();
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>

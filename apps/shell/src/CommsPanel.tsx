@@ -11,6 +11,20 @@ import { deriveSharedListStates } from "./comms/sharedListLogic.js";
 import { takeCommsModuleBridge } from "./comms/moduleBridge.js";
 import { looksLikeSchedulingIntent } from "./comms/schedulingIntent.js";
 import { applyTttMove, emptyTttBoard } from "./comms/tttLogic.js";
+import {
+  allShipsSunk,
+  evaluateShot,
+  hasCommitted,
+  latestBsState,
+  loadLocalShips,
+  myPlayerFromThread,
+  nextTurnAfterShot,
+  saveLocalShips,
+  shipCommitHash,
+  shotAlreadyFired,
+  validateShipPlacement,
+} from "./comms/bsLogic.js";
+import type { BsPlayer } from "./comms/types.js";
 import { loadThreadOutbound, saveThreadOutbound } from "./comms/threadStorage.js";
 import { persistCommerceReceiptsFromInbox } from "./comms/persistReceipts.js";
 import { DEFAULT_COMMS_AGENT_URL, loadCommsAgentConfig, saveCommsAgentConfig, saveContacts } from "./comms/storage.js";
@@ -148,6 +162,7 @@ export function CommsPanel({
   const [showPurchaseIntent, setShowPurchaseIntent] = useState(false);
   const [acceptedOfferIds, setAcceptedOfferIds] = useState<Set<string>>(() => new Set());
   const persistedReceiptIds = useRef(new Set<string>());
+  const processedBsShotsRef = useRef(new Set<string>());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showSetup, setShowSetup] = useState(
     () => !demoMode && !ATOM_BROWSER_MODE && !IS_PRODUCTION_HOST && contacts.length === 0,
@@ -277,6 +292,24 @@ export function CommsPanel({
     [thread],
   );
 
+  const bsInlineProps = useMemo(() => {
+    const state = [...thread]
+      .reverse()
+      .find(
+        (item): item is Extract<CommsThreadItem, { kind: "bs-state" }> =>
+          item.kind === "bs-state" && item.phase === "setup",
+      );
+    if (!state) return {};
+    const myPlayer = myPlayerFromThread(state.gameId, thread);
+    const needCommit = state.turn === myPlayer && !hasCommitted(state, myPlayer);
+    return {
+      gameId: state.gameId,
+      phase: state.phase,
+      myPlayer,
+      readOnly: !needCommit,
+    };
+  }, [thread]);
+
   useEffect(() => {
     saveThreadOutbound(outbound);
   }, [outbound]);
@@ -324,6 +357,10 @@ export function CommsPanel({
       );
     } else if (bridge.action === "tttStart") {
       void startTttGame(bridge.gameId);
+    } else if (bridge.action === "bsStart") {
+      void startBsGame(bridge.gameId);
+    } else if (bridge.action === "bsCommit") {
+      void commitBsShips(bridge.gameId, bridge.cells);
     }
   }, [selected, selectedId, demoMode]);
 
@@ -850,6 +887,228 @@ export function CommsPanel({
     }
   }
 
+  async function startBsGame(gameId: string) {
+    if (!selected) return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      const { objectId } = await client.sendBsState({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        gameId,
+        phase: "setup",
+        turn: "A",
+        shots: [],
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "bs-state",
+          id: objectId,
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          gameId,
+          phase: "setup",
+          turn: "A",
+          shots: [],
+        },
+      ]);
+      setInlineModuleId(null);
+      setConversationPane("chat");
+      setActionNote("Battleships game started — place your ships.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function commitBsShips(gameId: string, cells: number[]) {
+    if (!selected) return;
+    if (!validateShipPlacement(cells)) {
+      setActionNote("Place three ships (two cells each, adjacent horizontally or vertically).");
+      return;
+    }
+    const myPlayer = myPlayerFromThread(gameId, thread);
+    saveLocalShips(gameId, myPlayer, cells);
+    const stateItem = latestBsState(gameId, thread);
+    if (!stateItem || stateItem.phase !== "setup") {
+      setActionNote("No battleships setup in progress.");
+      return;
+    }
+    if (stateItem.turn !== myPlayer) {
+      setActionNote("Wait for your opponent before committing.");
+      return;
+    }
+    if (hasCommitted(stateItem, myPlayer)) {
+      setActionNote("You already committed your ships.");
+      return;
+    }
+    setBusy(true);
+    setActionNote(null);
+    try {
+      const hash = await shipCommitHash(gameId, myPlayer, cells);
+      const commitA = myPlayer === "A" ? hash : stateItem.commitA;
+      const commitB = myPlayer === "B" ? hash : stateItem.commitB;
+      const bothReady = !!commitA && !!commitB;
+      const phase = bothReady ? "battle" : "setup";
+      const turn: BsPlayer = bothReady ? "A" : myPlayer === "A" ? "B" : "A";
+      const { objectId } = await client.sendBsState({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        gameId,
+        phase,
+        turn,
+        commitA,
+        commitB,
+        shots: stateItem.shots,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "bs-state",
+          id: objectId,
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          gameId,
+          phase,
+          turn,
+          commitA,
+          commitB,
+          shots: stateItem.shots,
+        },
+      ]);
+      setInlineModuleId(null);
+      setActionNote(bothReady ? "Battle begins!" : "Ships committed — waiting for opponent.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function fireBsShot(gameId: string, cell: number) {
+    if (!selected) return;
+    const stateItem = latestBsState(gameId, thread);
+    if (!stateItem || stateItem.phase !== "battle") return;
+    const myPlayer = myPlayerFromThread(gameId, thread);
+    if (stateItem.turn !== myPlayer) return;
+    if (shotAlreadyFired(stateItem.shots, cell, myPlayer)) return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      await client.sendBsShot({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        gameId,
+        cell,
+        shooter: myPlayer,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "bs-shot",
+          id: crypto.randomUUID(),
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          gameId,
+          cell,
+          shooter: myPlayer,
+        },
+      ]);
+      setActionNote("Shot fired.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function respondToBsShot(
+    shot: Extract<CommsThreadItem, { kind: "bs-shot" }>,
+    stateItem: Extract<CommsThreadItem, { kind: "bs-state" }>,
+    myPlayer: BsPlayer,
+    ships: number[],
+  ) {
+    if (!selected) return;
+    const hit = evaluateShot(ships, shot.cell);
+    const shots = [...stateItem.shots, { cell: shot.cell, shooter: shot.shooter, hit }];
+    const iWin = allShipsSunk(ships, shots, myPlayer);
+    const phase = iWin ? "won" : "battle";
+    const winner = iWin ? shot.shooter : undefined;
+    const turn = iWin ? shot.shooter : nextTurnAfterShot(shot.shooter, hit);
+    setBusy(true);
+    try {
+      const { objectId } = await client.sendBsState({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        gameId: shot.gameId,
+        phase,
+        turn,
+        commitA: stateItem.commitA,
+        commitB: stateItem.commitB,
+        shots,
+        winner,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "bs-state",
+          id: objectId,
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          gameId: shot.gameId,
+          phase,
+          turn,
+          commitA: stateItem.commitA,
+          commitB: stateItem.commitB,
+          shots,
+          winner,
+        },
+      ]);
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!selected || demoMode || busy) return;
+    for (const item of thread) {
+      if (item.kind !== "bs-shot" || item.direction !== "in") continue;
+      if (processedBsShotsRef.current.has(item.id)) continue;
+      const stateItem = latestBsState(item.gameId, thread);
+      if (!stateItem || stateItem.phase === "won") continue;
+      const answered = stateItem.shots.some(
+        (shot) => shot.cell === item.cell && shot.shooter === item.shooter,
+      );
+      if (answered) {
+        processedBsShotsRef.current.add(item.id);
+        continue;
+      }
+      const myPlayer = myPlayerFromThread(item.gameId, thread);
+      const opponent = myPlayer === "A" ? "B" : "A";
+      if (item.shooter !== opponent) continue;
+      const ships = loadLocalShips(item.gameId, myPlayer);
+      if (!ships) continue;
+      processedBsShotsRef.current.add(item.id);
+      void respondToBsShot(item, stateItem, myPlayer, ships);
+    }
+  }, [thread, selected, demoMode, busy]);
+
   function handleModuleEvent(name: string, payload: Record<string, unknown>) {
     if (name === "meetingProposed") {
       const title = typeof payload.title === "string" ? payload.title : "Meeting";
@@ -882,6 +1141,19 @@ export function CommsPanel({
     if (name === "tttStart") {
       const gameId = typeof payload.gameId === "string" ? payload.gameId : `ttt-${Date.now()}`;
       void startTttGame(gameId);
+      return;
+    }
+    if (name === "bsStart") {
+      const gameId = typeof payload.gameId === "string" ? payload.gameId : `bs-${Date.now()}`;
+      void startBsGame(gameId);
+      return;
+    }
+    if (name === "bsCommit") {
+      const gameId = typeof payload.gameId === "string" ? payload.gameId : "";
+      const cells = Array.isArray(payload.cells)
+        ? payload.cells.filter((cell): cell is number => typeof cell === "number")
+        : [];
+      if (gameId && cells.length > 0) void commitBsShips(gameId, cells);
       return;
     }
     if (name === "listCreated") {
@@ -1760,6 +2032,17 @@ export function CommsPanel({
                         >
                           Play tic-tac-toe
                         </button>
+                        <button
+                          type="button"
+                          className="panel-btn"
+                          disabled={busy || selected.blocked || !sessionReady}
+                          onClick={() => {
+                            setConversationPane("chat");
+                            setInlineModuleId("games/battleships");
+                          }}
+                        >
+                          Play battleships
+                        </button>
                       </>
                     ) : null}
                   </div>
@@ -1842,6 +2125,7 @@ export function CommsPanel({
                             void paySplitShare(splitId, label, amount)
                           }
                           onTttCell={(gameId, cell, mark) => void playTttCell(gameId, cell, mark)}
+                          onBsFire={(gameId, cell) => void fireBsShot(gameId, cell)}
                           sharedListItems={
                             item.kind === "shared-list"
                               ? sharedListStates.get(item.listId)?.items
@@ -1918,6 +2202,7 @@ export function CommsPanel({
                         void paySplitShare(splitId, label, amount)
                       }
                       onTttCell={(gameId, cell, mark) => void playTttCell(gameId, cell, mark)}
+                      onBsFire={(gameId, cell) => void fireBsShot(gameId, cell)}
                       sharedListItems={
                         item.kind === "shared-list"
                           ? sharedListStates.get(item.listId)?.items
@@ -1969,7 +2254,13 @@ export function CommsPanel({
                       moduleId={inlineModuleId}
                       catalog={catalog}
                       registry={registry}
-                      minHeight={inlineModuleId === "games/tictactoe" ? 180 : 72}
+                      minHeight={
+                        inlineModuleId === "games/tictactoe"
+                          ? 180
+                          : inlineModuleId === "games/battleships"
+                            ? 280
+                            : 72
+                      }
                       props={{
                         peerName: contactDisplayName(selected),
                         defaultTitle: "Meeting",
@@ -1979,6 +2270,7 @@ export function CommsPanel({
                           inlineModuleId === "commerce/split-bill"
                             ? "compose"
                             : undefined,
+                        ...(inlineModuleId === "games/battleships" ? bsInlineProps : {}),
                       }}
                       onEvent={handleModuleEvent}
                     />

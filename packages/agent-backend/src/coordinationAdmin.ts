@@ -11,11 +11,16 @@ import {
   createSplitProposal,
   createTttMove,
   createTttState,
+  createBattleshipsState,
+  createBattleshipsShot,
   type RsvpAnswer,
   type SchedulingResponseKind,
   type SchedulingSlot,
   type SharedListItem,
   type TttBoard,
+  type BsPlayer,
+  type BsPhase,
+  type BsShot,
 } from "@qwixl/a2a-transport";
 import type { AgentKeyPair } from "@qwixl/protocol";
 import { deliverSignedObject } from "./deliverObject.js";
@@ -308,6 +313,68 @@ export function registerCoordinationAdminRoutes(adminApp: Express, deps: Coordin
           gameId: body.gameId.trim(),
           cell: body.cell,
           mark: body.mark === "O" ? "O" : "X",
+          threadId: body.threadId?.trim() || undefined,
+        },
+      });
+      await sendCoordinationObject(deps, res, body, object);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/coordination/bs-state", async (req, res) => {
+    const body = req.body as PeerSendBody & {
+      gameId?: string;
+      phase?: BsPhase;
+      turn?: BsPlayer;
+      commitA?: string;
+      commitB?: string;
+      shots?: BsShot[];
+      winner?: BsPlayer;
+    };
+    if (!body.gameId?.trim()) {
+      res.status(400).json({ error: "gameId required" });
+      return;
+    }
+    try {
+      const object = await createBattleshipsState({
+        identity: deps.identity,
+        payload: {
+          gameId: body.gameId.trim(),
+          phase: body.phase === "battle" || body.phase === "won" ? body.phase : "setup",
+          turn: body.turn === "B" ? "B" : "A",
+          commitA: body.commitA?.trim() || undefined,
+          commitB: body.commitB?.trim() || undefined,
+          shots: Array.isArray(body.shots) ? body.shots : [],
+          winner: body.winner === "A" || body.winner === "B" ? body.winner : undefined,
+          threadId: body.threadId?.trim() || undefined,
+        },
+      });
+      await sendCoordinationObject(deps, res, body, object);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/coordination/bs-shot", async (req, res) => {
+    const body = req.body as PeerSendBody & {
+      gameId?: string;
+      cell?: number;
+      shooter?: BsPlayer;
+      hit?: boolean;
+    };
+    if (!body.gameId?.trim() || typeof body.cell !== "number") {
+      res.status(400).json({ error: "gameId and cell required" });
+      return;
+    }
+    try {
+      const object = await createBattleshipsShot({
+        identity: deps.identity,
+        payload: {
+          gameId: body.gameId.trim(),
+          cell: body.cell,
+          shooter: body.shooter === "B" ? "B" : "A",
+          hit: body.hit === true,
           threadId: body.threadId?.trim() || undefined,
         },
       });

@@ -66,6 +66,14 @@ export const TTT_STATE_SCHEMA = "https://atom.qwixl.dev/schema/TicTacToeState";
 export const GAME_TTT_MOVE_PURPOSE = "game:tictactoe-move";
 export const TTT_MOVE_SCHEMA = "https://atom.qwixl.dev/schema/TicTacToeMove";
 
+/** M-ECO-06 — battleships game state (either player). */
+export const GAME_BS_STATE_PURPOSE = "game:battleships-state";
+export const BS_STATE_SCHEMA = "https://atom.qwixl.dev/schema/BattleshipsState";
+
+/** M-ECO-06 — battleships shot (either player). */
+export const GAME_BS_SHOT_PURPOSE = "game:battleships-shot";
+export const BS_SHOT_SCHEMA = "https://atom.qwixl.dev/schema/BattleshipsShot";
+
 /** M-ECO-04 — shared checklist (either contact). */
 export const COORDINATION_SHARED_LIST_PURPOSE = "coordination:shared-list";
 export const SHARED_LIST_SCHEMA = "https://atom.qwixl.dev/schema/SharedList";
@@ -74,7 +82,12 @@ export const SHARED_LIST_SCHEMA = "https://atom.qwixl.dev/schema/SharedList";
 export const COORDINATION_SHARED_LIST_UPDATE_PURPOSE = "coordination:shared-list-update";
 export const SHARED_LIST_UPDATE_SCHEMA = "https://atom.qwixl.dev/schema/SharedListUpdate";
 
-export const GAME_PURPOSES = [GAME_TTT_STATE_PURPOSE, GAME_TTT_MOVE_PURPOSE] as const;
+export const GAME_PURPOSES = [
+  GAME_TTT_STATE_PURPOSE,
+  GAME_TTT_MOVE_PURPOSE,
+  GAME_BS_STATE_PURPOSE,
+  GAME_BS_SHOT_PURPOSE,
+] as const;
 
 /** All M8 coordination purposes (receiver allowlists). */
 export const COORDINATION_PURPOSES = [

@@ -1,6 +1,6 @@
 {
   "id": "games/battleships",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "did:key:z6Mkatomexamples01",
   "targets": [
     "web"
@@ -12,15 +12,19 @@
       "semanticRole": "input/game-board",
       "events": [
         {
-          "name": "battleshipsShot"
+          "name": "bsStart"
+        },
+        {
+          "name": "bsCommit"
         }
       ],
-      "agentHint": "P2P battleships with hidden ship commitments (M-ECO-06 scaffold)."
+      "agentHint": "6×6 battleships with hashed ship commitments. Emits bsStart or bsCommit; battle shots fire from the thread card."
     }
   ],
   "capabilities": [],
   "categories": [
     "games"
   ],
-  "bundleIntegrity": "sha256:6864deff2765650d7e7690d427afeb1cdcad0b30b80a73cf0aa24299ad8cf2d7"
+  "tier": "system",
+  "bundleIntegrity": "sha256:042cb0b8e27d40460f980e63c726ed96393da4f3c3916c6375dc22cdc6451352"
 }

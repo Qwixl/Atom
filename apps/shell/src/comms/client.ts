@@ -423,6 +423,63 @@ export class CommsAgentClient {
     );
   }
 
+  async sendBsState(opts: {
+    peerUrl: string;
+    peerDid: string;
+    gameId: string;
+    phase: "setup" | "battle" | "won";
+    turn: "A" | "B";
+    commitA?: string;
+    commitB?: string;
+    shots: Array<{ cell: number; shooter: "A" | "B"; hit: boolean }>;
+    winner?: "A" | "B";
+    encrypt?: boolean;
+  }): Promise<{ objectId: string }> {
+    const result = await postJson<{ sent?: { objectId?: string } }>(
+      this.base(),
+      "/coordination/bs-state",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        gameId: opts.gameId,
+        phase: opts.phase,
+        turn: opts.turn,
+        commitA: opts.commitA,
+        commitB: opts.commitB,
+        shots: opts.shots,
+        winner: opts.winner,
+        encrypt: opts.encrypt ?? true,
+      },
+      this.adminToken,
+    );
+    return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
+  }
+
+  async sendBsShot(opts: {
+    peerUrl: string;
+    peerDid: string;
+    gameId: string;
+    cell: number;
+    shooter: "A" | "B";
+    hit?: boolean;
+    encrypt?: boolean;
+  }): Promise<void> {
+    await postJson(
+      this.base(),
+      "/coordination/bs-shot",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        gameId: opts.gameId,
+        cell: opts.cell,
+        shooter: opts.shooter,
+        hit: opts.hit,
+        encrypt: opts.encrypt ?? true,
+      },
+      this.adminToken,
+    );
+  }
+
   async connectorStatus(connectorId: string): Promise<{
     connectorId: string;
     provider: string;

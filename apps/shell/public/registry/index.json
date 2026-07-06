@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-06T18:02:16.910Z",
+  "updatedAt": "2026-07-06T19:14:50.588Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
@@ -86,14 +86,6 @@
       "publisher": "did:key:z6Mkatomexamples01"
     },
     {
-      "id": "games/battleships",
-      "version": "0.1.0",
-      "manifestUrl": "games/battleships/manifest.json",
-      "integrity": "sha256:ad26c2813f7ee6451831e4023d0a7b9a993e8a74d90a5365d419dc2ea1832d11",
-      "bundleIntegrity": "sha256:6864deff2765650d7e7690d427afeb1cdcad0b30b80a73cf0aa24299ad8cf2d7",
-      "publisher": "did:key:z6Mkatomexamples01"
-    },
-    {
       "id": "games/tictactoe",
       "version": "1.0.0",
       "manifestUrl": "games/tictactoe/manifest.json",
@@ -142,6 +134,15 @@
       "integrity": "sha256:80775d7f4ae942711a8f7f26b453ab80fb38273e1b508b5ee5d77145b256f1c8",
       "bundleIntegrity": "sha256:9a97efa43e6b73e5af10a35b5cea6d3cdf7a3c64d318bed8a6ab4a57facbf801",
       "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "games/battleships",
+      "version": "1.0.0",
+      "manifestUrl": "games/battleships/manifest.json",
+      "integrity": "sha256:80d6dd891f74a3257ef7fb62ec83569ac2946c20491c05706264468da38d8bd3",
+      "bundleIntegrity": "sha256:042cb0b8e27d40460f980e63c726ed96393da4f3c3916c6375dc22cdc6451352",
+      "publisher": "did:key:z6Mkatomexamples01",
+      "tier": "system"
     }
   ]
 }
