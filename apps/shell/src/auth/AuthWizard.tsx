@@ -3,6 +3,7 @@ import {
   bootstrapHostedAccount,
   clearStaleSupabaseSession,
   fetchHostedAgentConnection,
+  fetchHostedAccountStatus,
   friendlyHostedProvisionError,
   getSupabaseClient,
   hasSupabaseSession,
@@ -12,7 +13,9 @@ import {
   resendSignupConfirmation,
   signInSupabaseAccount,
   signupHostedDevAccount,
+  type AtomAccountType,
 } from "./hostedAccount.js";
+import { saveAccountType } from "../accountType.js";
 import { completeAgentSetup } from "./completeSetup.js";
 import { loadFirstRunDone } from "../firstRunStorage.js";
 import { AuthStepper } from "./AuthStepper.js";
@@ -82,6 +85,13 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
     isHostedSignupAvailable() ? "hosted" : "self-hosted",
   );
   const [loginNeedsConfirm, setLoginNeedsConfirm] = useState(false);
+  const [accountType, setAccountType] = useState<AtomAccountType>("user");
+
+  const ACCOUNT_TYPES: { id: AtomAccountType; label: string; hint: string }[] = [
+    { id: "user", label: "Personal", hint: "Everyday use — chat, messages, rooms" },
+    { id: "business", label: "Business", hint: "Brand, catalog, and business agent" },
+    { id: "developer", label: "Developer", hint: "Build modules and connectors" },
+  ];
 
   const supabaseHostedRegister =
     mode === "register" && hosting === "hosted" && usesSupabaseHostedAuth();
@@ -404,7 +414,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       advanceTask("auth", "agent");
       await bootstrapHostedAccount({
         handle: bareOwnerHandle(fields.handle),
-        accountType: "user",
+        accountType,
         llmApiKey: fields.llmApiKey,
       });
       advanceTask("agent", "connect");
@@ -416,6 +426,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         kind: "hosted",
         skipConnectionProbe: true,
       });
+      saveAccountType(accountType);
       updateTask("connect", "done");
       clearPendingHostedAuth();
       clearSignupAtProvision();
@@ -451,6 +462,12 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         kind: "hosted",
         skipConnectionProbe: true,
       });
+      try {
+        const status = await fetchHostedAccountStatus();
+        if (status.accountType) saveAccountType(status.accountType);
+      } catch {
+        /* optional */
+      }
       updateTask("connect", "done");
       clearPendingHostedAuth();
       clearSignupAtProvision();
@@ -817,6 +834,29 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
               />
             </label>
             {handleStatus ? <p className="atom-note">{handleStatus}</p> : null}
+
+            {hosting === "hosted" && usesSupabaseHostedAuth() ? (
+              <fieldset className="atom-field">
+                <legend className="atom-field-label">Account type</legend>
+                <div className="atom-radio-group">
+                  {ACCOUNT_TYPES.map((type) => (
+                    <label
+                      key={type.id}
+                      className={`atom-radio-card${accountType === type.id ? " is-selected" : ""}`}
+                    >
+                      <input
+                        type="radio"
+                        name="accountType"
+                        checked={accountType === type.id}
+                        onChange={() => setAccountType(type.id)}
+                      />
+                      <span className="atom-radio-card-title">{type.label}</span>
+                      <span className="atom-radio-card-hint">{type.hint}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ) : null}
 
             {hosting === "hosted" ? (
               <label className="atom-field">
