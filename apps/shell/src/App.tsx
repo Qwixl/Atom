@@ -62,6 +62,7 @@ import { connectDiscoverEntry, joinDiscoverRoom } from "./discoverActions.js";
 import { extractDiscoverTerms, isDiscoverQuery } from "./discoverQuery.js";
 import { loadDiscoverIndexes } from "./discoverIndexStorage.js";
 import { RoomsPanel } from "./RoomsPanel.js";
+import { tryReconnectHostedAgent } from "./auth/completeSetup.js";
 import { loadFirstRunDone, markFirstRunDone, resetFirstRunDone } from "./firstRunStorage.js";
 import { navigate } from "./navigation.js";
 import { DemoBootstrap } from "./DemoBootstrap.js";
@@ -318,6 +319,21 @@ export function App() {
           setAgentBootstrapPending(false);
           return;
         }
+        if (MANAGED_HOSTING && loadOwnerAgentKind(stored) === "hosted") {
+          if (await tryReconnectHostedAgent()) {
+            await refreshCommsConfigCache();
+            finishConnected();
+            setAgentBootstrapPending(false);
+            return;
+          }
+        }
+      } else if (MANAGED_HOSTING) {
+        if (await tryReconnectHostedAgent()) {
+          await refreshCommsConfigCache();
+          finishConnected();
+          setAgentBootstrapPending(false);
+          return;
+        }
       }
 
       // Local dev: never block the shell with a signup wizard. Configure once in Comms → Setup.
@@ -329,6 +345,7 @@ export function App() {
       }
 
       setAgentConnectionReady(false);
+      resetFirstRunDone();
       navigate("/app/?auth=register", true);
       setAgentBootstrapPending(false);
     })();
