@@ -30,7 +30,13 @@ function formatRange(start: string, end: string): string {
   }
 }
 
-export function WebCalSettingsPanel({ vaultUnlocked = true }: { vaultUnlocked?: boolean }) {
+export function WebCalSettingsPanel({
+  vaultUnlocked = true,
+  embedded = false,
+}: {
+  vaultUnlocked?: boolean;
+  embedded?: boolean;
+}) {
   const { config, client } = useAgentConfig(vaultUnlocked);
   const [feedUrl, setFeedUrl] = useState("");
   const [feedLabel, setFeedLabel] = useState("");
@@ -102,13 +108,17 @@ export function WebCalSettingsPanel({ vaultUnlocked = true }: { vaultUnlocked?: 
     }
   }
 
-  return (
-    <section className="settings-section webcal-settings">
-      <h3>WebCal</h3>
-      <p className="settings-note">
-        Paste your private calendar subscription link (from Google, Apple, or Outlook). It is stored
-        encrypted on your agent — not in this browser.
-      </p>
+  const body = (
+    <>
+      {!embedded ? (
+        <>
+          <h3>WebCal</h3>
+          <p className="settings-note">
+            Paste your private calendar subscription link (from Google, Apple, or Outlook). It is stored
+            encrypted on your agent — not in this browser.
+          </p>
+        </>
+      ) : null}
       {!config.adminToken ? (
         <p className="settings-note webcal-settings-warn">
           Connect your agent first to save calendar feeds.
@@ -175,6 +185,12 @@ export function WebCalSettingsPanel({ vaultUnlocked = true }: { vaultUnlocked?: 
         </div>
       ) : null}
       {note ? <p className="settings-note webcal-settings-note">{note}</p> : null}
-    </section>
+    </>
   );
+
+  if (embedded) {
+    return <div className="settings-panel-fields webcal-settings">{body}</div>;
+  }
+
+  return <section className="settings-section webcal-settings">{body}</section>;
 }

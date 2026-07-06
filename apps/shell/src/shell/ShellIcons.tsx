@@ -79,7 +79,8 @@ export function IconSettings(props: IconProps) {
   return (
     <IconBase {...props}>
       <circle cx="12" cy="12" r="3" />
-      <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+      <path d="M12 2v2m0 16v2M2 12h2m16 0h2" />
+      <path d="m4.93 4.93 1.41 1.41m11.32 11.32 1.41 1.41M4.93 19.07l1.41-1.41m11.32-11.32 1.41-1.41" />
     </IconBase>
   );
 }
