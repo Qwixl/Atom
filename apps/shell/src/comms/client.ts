@@ -295,6 +295,53 @@ export class CommsAgentClient {
     );
   }
 
+  async sendSharedList(opts: {
+    peerUrl: string;
+    peerDid: string;
+    listId: string;
+    title: string;
+    items: Array<{ id: string; text: string; done: boolean }>;
+    encrypt?: boolean;
+  }): Promise<{ objectId: string }> {
+    const result = await postJson<{ sent?: { objectId?: string } }>(
+      this.base(),
+      "/coordination/shared-list",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        listId: opts.listId,
+        title: opts.title,
+        items: opts.items,
+        encrypt: opts.encrypt ?? true,
+      },
+      this.adminToken,
+    );
+    return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
+  }
+
+  async sendSharedListUpdate(opts: {
+    peerUrl: string;
+    peerDid: string;
+    listId: string;
+    title?: string;
+    items: Array<{ id: string; text: string; done: boolean }>;
+    encrypt?: boolean;
+  }): Promise<void> {
+    await postJson(
+      this.base(),
+      "/coordination/shared-list-update",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        listId: opts.listId,
+        title: opts.title,
+        items: opts.items,
+        encrypt: opts.encrypt ?? true,
+      },
+      this.adminToken,
+    );
+  }
+
   async sendTttState(opts: {
     peerUrl: string;
     peerDid: string;

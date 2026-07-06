@@ -4,6 +4,7 @@ import {
   Catalog,
   parseAgentProtocolMessage,
   registerCorePrimitives,
+  registerEcosystemModules,
   type AgentOutput,
 } from "@qwixl/shell-core";
 import { v4 as uuid } from "uuid";
@@ -141,6 +142,7 @@ export async function* runLlmAgUiEvents(
 ): AsyncGenerator<BaseEvent> {
   const catalog = new Catalog();
   registerCorePrimitives(catalog);
+  registerEcosystemModules(catalog);
   const history = inputToChatMessages(input);
   if (history.length === 0 && lastUserContent(input)) {
     history.push({ role: "user", content: lastUserContent(input) });

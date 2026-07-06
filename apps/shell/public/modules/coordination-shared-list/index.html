@@ -1,5 +1,65 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><title>Shared list</title>
-<style>body{font-family:system-ui,sans-serif;margin:0;padding:12px;color:#111}input,button{font:inherit;padding:8px}</style>
-</head><body><p>Shared list module (M-ECO-04) — coming soon.</p>
-<script>window.parent.postMessage({type:"ready"},"*");</script></body></html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shared list</title>
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body { margin: 0; padding: 10px 12px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
+    label { display: block; font-size: 12px; margin-bottom: 4px; color: var(--atom-color-text-dim, #666); }
+    input[type="text"] { width: 100%; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--atom-color-border, #ccc); border-radius: 6px; font: inherit; }
+    .items { display: grid; gap: 6px; margin-bottom: 8px; }
+    .item-row { display: flex; gap: 8px; align-items: center; }
+    .item-row input[type="text"] { margin: 0; flex: 1; }
+    button { padding: 8px 14px; border: none; border-radius: 6px; background: var(--atom-color-accent, #111); color: var(--atom-color-bg, #fff); cursor: pointer; font: inherit; }
+    button.secondary { background: transparent; color: inherit; border: 1px solid var(--atom-color-border, #ccc); }
+    button:disabled { opacity: 0.45; }
+  </style>
+</head>
+<body>
+  <div id="compose">
+    <label>List title</label>
+    <input id="title" type="text" placeholder="Groceries" />
+    <div class="items" id="items"></div>
+    <button type="button" class="secondary" id="addItem">Add item</button>
+    <button type="button" id="sendList" style="margin-left:8px">Send list</button>
+  </div>
+  <script>
+    let shellOrigin = null;
+    function emit(name, payload) {
+      if (shellOrigin) window.parent.postMessage({ type: "event", name, payload }, shellOrigin);
+    }
+    function addItemInput(value) {
+      const row = document.createElement("div");
+      row.className = "item-row";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.placeholder = "Item";
+      input.value = value || "";
+      row.appendChild(input);
+      document.getElementById("items").appendChild(row);
+    }
+    document.getElementById("addItem").addEventListener("click", () => addItemInput(""));
+    document.getElementById("sendList").addEventListener("click", () => {
+      const title = document.getElementById("title").value.trim() || "Shared list";
+      const inputs = [...document.querySelectorAll("#items input")];
+      const items = inputs
+        .map((el, i) => ({ id: "item-" + i, text: el.value.trim(), done: false }))
+        .filter((item) => item.text);
+      if (items.length === 0) return;
+      emit("listCreated", { title, items });
+    });
+    addItemInput("");
+    addItemInput("");
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "init") return;
+      shellOrigin = event.origin;
+      const props = data.props || {};
+      if (props.defaultTitle) document.getElementById("title").value = props.defaultTitle;
+    });
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>

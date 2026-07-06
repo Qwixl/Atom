@@ -66,6 +66,14 @@ export const TTT_STATE_SCHEMA = "https://atom.qwixl.dev/schema/TicTacToeState";
 export const GAME_TTT_MOVE_PURPOSE = "game:tictactoe-move";
 export const TTT_MOVE_SCHEMA = "https://atom.qwixl.dev/schema/TicTacToeMove";
 
+/** M-ECO-04 — shared checklist (either contact). */
+export const COORDINATION_SHARED_LIST_PURPOSE = "coordination:shared-list";
+export const SHARED_LIST_SCHEMA = "https://atom.qwixl.dev/schema/SharedList";
+
+/** M-ECO-04 — shared checklist update (either contact). */
+export const COORDINATION_SHARED_LIST_UPDATE_PURPOSE = "coordination:shared-list-update";
+export const SHARED_LIST_UPDATE_SCHEMA = "https://atom.qwixl.dev/schema/SharedListUpdate";
+
 export const GAME_PURPOSES = [GAME_TTT_STATE_PURPOSE, GAME_TTT_MOVE_PURPOSE] as const;
 
 /** All M8 coordination purposes (receiver allowlists). */
@@ -77,6 +85,8 @@ export const COORDINATION_PURPOSES = [
   COORDINATION_RECEIPT_PURPOSE,
   COORDINATION_POLL_PURPOSE,
   COORDINATION_POLL_VOTE_PURPOSE,
+  COORDINATION_SHARED_LIST_PURPOSE,
+  COORDINATION_SHARED_LIST_UPDATE_PURPOSE,
 ] as const;
 
 /** M9 transaction-flow — soft reserve after owner confirm (no ring-fence). */

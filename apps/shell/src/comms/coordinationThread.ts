@@ -5,6 +5,8 @@ import {
   COORDINATION_RSVP_RESPONSE_PURPOSE,
   COORDINATION_POLL_PURPOSE,
   COORDINATION_POLL_VOTE_PURPOSE,
+  COORDINATION_SHARED_LIST_PURPOSE,
+  COORDINATION_SHARED_LIST_UPDATE_PURPOSE,
   GAME_TTT_STATE_PURPOSE,
   GAME_TTT_MOVE_PURPOSE,
   ACTION_RESERVE_PURPOSE,
@@ -340,7 +342,47 @@ export function inboxEntryToThreadItem(
     };
   }
 
+  if (purpose === COORDINATION_SHARED_LIST_PURPOSE) {
+    const items = parseSharedListItems(payload.items);
+    return {
+      kind: "shared-list",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      listId: String(payload.listId ?? id),
+      title: typeof payload.title === "string" ? payload.title : "Shared list",
+      items,
+    };
+  }
+
+  if (purpose === COORDINATION_SHARED_LIST_UPDATE_PURPOSE) {
+    const items = parseSharedListItems(payload.items);
+    return {
+      kind: "shared-list-update",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      listId: String(payload.listId ?? ""),
+      title: typeof payload.title === "string" ? payload.title : undefined,
+      items,
+    };
+  }
+
   return null;
+}
+
+function parseSharedListItems(raw: unknown): Array<{ id: string; text: string; done: boolean }> {
+  if (!Array.isArray(raw)) return [];
+  const items: Array<{ id: string; text: string; done: boolean }> = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const item = entry as { id?: string; text?: string; done?: boolean };
+    if (typeof item.id !== "string" || typeof item.text !== "string") continue;
+    items.push({ id: item.id, text: item.text, done: item.done === true });
+  }
+  return items;
 }
 
 /** Derive a locale time label from a wire slot id (e.g. slot-2026-07-07T09:00:00.000Z). */
