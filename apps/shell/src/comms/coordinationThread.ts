@@ -9,6 +9,8 @@ import {
   COORDINATION_SHARED_LIST_UPDATE_PURPOSE,
   GAME_TTT_STATE_PURPOSE,
   GAME_TTT_MOVE_PURPOSE,
+  GAME_BS_STATE_PURPOSE,
+  GAME_BS_SHOT_PURPOSE,
   ACTION_RESERVE_PURPOSE,
   ACTION_HOLD_PURPOSE,
   ACTION_CONFIRM_PURPOSE,
@@ -369,6 +371,38 @@ export function inboxEntryToThreadItem(
     };
   }
 
+  if (purpose === GAME_BS_STATE_PURPOSE) {
+    const shots = parseBsShots(payload.shots);
+    return {
+      kind: "bs-state",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      gameId: String(payload.gameId ?? ""),
+      phase:
+        payload.phase === "battle" || payload.phase === "won" ? payload.phase : "setup",
+      turn: payload.turn === "B" ? "B" : "A",
+      commitA: typeof payload.commitA === "string" ? payload.commitA : undefined,
+      commitB: typeof payload.commitB === "string" ? payload.commitB : undefined,
+      shots,
+      winner: payload.winner === "A" || payload.winner === "B" ? payload.winner : undefined,
+    };
+  }
+
+  if (purpose === GAME_BS_SHOT_PURPOSE) {
+    return {
+      kind: "bs-shot",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      gameId: String(payload.gameId ?? ""),
+      cell: typeof payload.cell === "number" ? payload.cell : -1,
+      shooter: payload.shooter === "B" ? "B" : "A",
+    };
+  }
+
   if (purpose === COORDINATION_SHARED_LIST_PURPOSE) {
     const items = parseSharedListItems(payload.items);
     return {
@@ -398,6 +432,22 @@ export function inboxEntryToThreadItem(
   }
 
   return null;
+}
+
+function parseBsShots(raw: unknown): Array<{ cell: number; shooter: "A" | "B"; hit: boolean }> {
+  if (!Array.isArray(raw)) return [];
+  const shots: Array<{ cell: number; shooter: "A" | "B"; hit: boolean }> = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const shot = entry as { cell?: number; shooter?: string; hit?: boolean };
+    if (typeof shot.cell !== "number") continue;
+    shots.push({
+      cell: shot.cell,
+      shooter: shot.shooter === "B" ? "B" : "A",
+      hit: shot.hit === true,
+    });
+  }
+  return shots;
 }
 
 function parseSharedListItems(raw: unknown): Array<{ id: string; text: string; done: boolean }> {
