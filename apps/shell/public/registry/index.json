@@ -4,14 +4,6 @@
   "revocationsUrl": "revocations.json",
   "modules": [
     {
-      "id": "coordination/shared-list",
-      "version": "0.1.0",
-      "manifestUrl": "coordination/shared-list/manifest.json",
-      "integrity": "sha256:389a4f3129baaee67ed372be6f745b28844709ebc7f509c9b615d23a080f682a",
-      "bundleIntegrity": "sha256:64e498171653374e9e32703be7b7abb6172aa402062dbb2f238e40b87439728d",
-      "publisher": "did:key:z6Mkatomexamples01"
-    },
-    {
       "id": "commerce/offer-comparison",
       "version": "1.0.0",
       "manifestUrl": "commerce/offer-comparison/manifest.json",
