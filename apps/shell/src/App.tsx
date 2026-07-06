@@ -104,6 +104,7 @@ import {
   PRODUCTION_REGISTRY_URL,
   SHOW_DEV_WORKFLOWS,
 } from "./hostConfig.js";
+import { AGUI_CONFIG_KEY, DEFAULT_AGUI_URL, loadAgUiConfig, saveAgUiConfigForAgent } from "./agUiConfig.js";
 import { validateProductionAgUiUrl } from "./productionGuard.js";
 import { applyAtomSkin, ATOM_SKINS, type AtomSkinId } from "@qwixl/skin-default/tokens";
 import { ShellComposer } from "./shell/ShellComposer.js";
@@ -122,23 +123,14 @@ const SUGGESTIONS = [
   "RSVP to the design review",
   "What time works for our standup?",
 ];
-const AGUI_CONFIG_KEY = "atom-agui-config";
 const REGISTRY_URL_KEY = "atom-registry-url";
 const REGISTRY_TRUST_KEY = "atom-registry-trust";
 const CURATOR_ENABLED_KEY = "atom-curator-enabled";
 const CURATOR_AUTO_ACCEPT_KEY = "atom-curator-auto-accept-open";
 const SKIN_STORAGE_KEY = "atom-shell-skin";
 const PROVIDER_KEY = "atom-provider";
-const DEFAULT_AGUI_URL = "http://localhost:5201/agent";
 const DEFAULT_REGISTRY_URL = "/registry/index.json";
 const REVOCATION_REFRESH_MS = 5 * 60 * 1000;
-
-function loadAgUiConfig(): AgUiAgentConfig {
-  const parsed = loadJsonFromStorage<{ url?: string }>(AGUI_CONFIG_KEY);
-  if (parsed?.url?.trim()) return { url: parsed.url.trim() };
-  if (IS_PRODUCTION_HOST) return { url: "" };
-  return { url: DEFAULT_AGUI_URL };
-}
 
 function loadRegistryUrl(): string {
   if (IS_PRODUCTION_HOST) return PRODUCTION_REGISTRY_URL;
@@ -269,7 +261,10 @@ export function App() {
       return;
     }
     void (async () => {
-      const finishConnected = () => {
+      const finishConnected = (adminUrl?: string) => {
+        if (adminUrl?.trim()) {
+          setAgUiConfig(saveAgUiConfigForAgent(adminUrl));
+        }
         setAgentConnectionReady(true);
         markFirstRunDone();
         if (isVaultInitialized() && !isVaultUnlocked()) {
@@ -279,7 +274,7 @@ export function App() {
 
       if ((await reconcileAgentConnection()) === "ok") {
         await refreshCommsConfigCache();
-        finishConnected();
+        finishConnected((await loadCommsAgentConfigSecure()).adminUrl);
         setAgentBootstrapPending(false);
         return;
       }
@@ -290,7 +285,7 @@ export function App() {
           await saveCommsAgentConfigSecure(browserConfig);
           if ((await probeAgentConnection(browserConfig)) === "ok") {
             await refreshCommsConfigCache();
-            finishConnected();
+            finishConnected(browserConfig.adminUrl);
             setAgentBootstrapPending(false);
             return;
           }
@@ -315,14 +310,14 @@ export function App() {
         const status = await probeAgentConnection(stored);
         if (status === "ok") {
           await refreshCommsConfigCache();
-          finishConnected();
+          finishConnected(stored.adminUrl);
           setAgentBootstrapPending(false);
           return;
         }
         if (MANAGED_HOSTING && loadOwnerAgentKind(stored) === "hosted") {
           if (await tryReconnectHostedAgent()) {
             await refreshCommsConfigCache();
-            finishConnected();
+            finishConnected((await loadCommsAgentConfigSecure()).adminUrl);
             setAgentBootstrapPending(false);
             return;
           }
@@ -330,7 +325,7 @@ export function App() {
       } else if (MANAGED_HOSTING) {
         if (await tryReconnectHostedAgent()) {
           await refreshCommsConfigCache();
-          finishConnected();
+          finishConnected((await loadCommsAgentConfigSecure()).adminUrl);
           setAgentBootstrapPending(false);
           return;
         }

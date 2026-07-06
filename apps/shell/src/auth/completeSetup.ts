@@ -1,3 +1,4 @@
+import { saveAgUiConfigForAgent } from "../agUiConfig.js";
 import { saveValidatedAgentConnection } from "../comms/agentConnection.js";
 import { saveCommsAgentConfigSecure, saveOwnerAgentKind, type OwnerAgentKind } from "../comms/storage.js";
 import { markFirstRunDone } from "../firstRunStorage.js";
@@ -25,6 +26,7 @@ export async function completeAgentSetup(input: {
   });
   saveOwnerAgentKind(input.kind);
   if (input.handle) saveOwnerHandle(input.handle);
+  saveAgUiConfigForAgent(input.adminUrl);
   markFirstRunDone();
 }
 
