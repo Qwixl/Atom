@@ -1326,6 +1326,7 @@ export function App() {
             store={ownerStore}
             records={profileRecords}
             proposals={profileProposals}
+            showBusinessSections={!IS_PRODUCTION_HOST}
             onChanged={() => {
               setProfileRecords(ownerStore.list());
               setProfileProposals(ownerStore.listProposals());
@@ -1335,7 +1336,8 @@ export function App() {
         ) : null}
 
         {panel === "log" ? (
-          <div className="panel-view shell-panel-view">
+          <div className="shell-panel-view">
+          <div className="panel-view">
           <div className="panel-body panel-body-scroll">
             <div className="panel-content-wide">
             <p className="panel-section-note">
@@ -1368,6 +1370,7 @@ export function App() {
               </div>
             )}
             </div>
+          </div>
           </div>
           </div>
         ) : null}

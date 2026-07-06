@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BUSINESS_BRAND_CATEGORY,
   BUSINESS_CATALOG_CATEGORY,
@@ -34,11 +34,14 @@ export function ProfilePanel({
   records,
   proposals,
   onChanged,
+  showBusinessSections = false,
 }: {
   store: OwnerStore;
   records: OwnerRecord[];
   proposals: RecordProposal[];
   onChanged: () => void;
+  /** Brand voice, policies, knowledge, and catalog — business agents only. */
+  showBusinessSections?: boolean;
 }) {
   const [category, setCategory] = useState("preferences");
   const [label, setLabel] = useState("");
@@ -251,20 +254,29 @@ export function ProfilePanel({
 
   const [activeSection, setActiveSection] = useState<ProfileSection>("overview");
 
-  const navItems = useMemo(
-    () =>
-      [
-        { id: "overview" as const, label: "Overview", hint: "Privacy and curator proposals" },
-        { id: "brand" as const, label: "Brand voice", hint: "Tone and personality" },
-        { id: "policies" as const, label: "Policies", hint: "House rules and guidelines" },
-        { id: "knowledge" as const, label: "Knowledge", hint: "FAQs and reference docs" },
-        { id: "catalog" as const, label: "Catalog", hint: "Sellable items" },
-        { id: "records" as const, label: "Records", hint: "Preferences and custom data" },
-      ] satisfies Array<{ id: ProfileSection; label: string; hint: string }>,
-    [],
-  );
+  const navItems = useMemo(() => {
+    const items: Array<{ id: ProfileSection; label: string; hint: string }> = [
+      { id: "overview", label: "Overview", hint: "Privacy and curator proposals" },
+    ];
+    if (showBusinessSections) {
+      items.push(
+        { id: "brand", label: "Brand voice", hint: "Tone and personality" },
+        { id: "policies", label: "Policies", hint: "House rules and guidelines" },
+        { id: "knowledge", label: "Knowledge", hint: "FAQs and reference docs" },
+        { id: "catalog", label: "Catalog", hint: "Sellable items" },
+      );
+    }
+    items.push({ id: "records", label: "Records", hint: "Preferences and custom data" });
+    return items;
+  }, [showBusinessSections]);
 
   const activeNav = navItems.find((item) => item.id === activeSection) ?? navItems[0]!;
+
+  useEffect(() => {
+    if (!navItems.some((item) => item.id === activeSection)) {
+      setActiveSection("overview");
+    }
+  }, [activeSection, navItems]);
 
   function renderOverviewPanel() {
     return (
