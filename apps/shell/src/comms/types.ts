@@ -70,7 +70,10 @@ export type CommsThreadItem =
       peerDid: string;
       proposalId: string;
       response: SchedulingResponseKind;
+      /** Agent wire id; not shown in human UI when slotLabel is available. */
       slotId?: string;
+      /** Human-facing time label resolved from proposal or slot id. */
+      slotLabel?: string;
     }
   | {
       kind: "rsvp-request";
