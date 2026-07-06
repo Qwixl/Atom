@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 import { useId } from "react";
 
 function InfoIcon() {
@@ -23,7 +23,11 @@ export function FieldHint({ children }: { children: ReactNode }) {
       >
         <InfoIcon />
       </button>
-      <div id={id} popover="auto" className="atom-field-hint-popover">
+      <div
+        id={id}
+        className="atom-field-hint-popover"
+        {...({ popover: "auto" } as HTMLAttributes<HTMLDivElement>)}
+      >
         {children}
       </div>
     </>
