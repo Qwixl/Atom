@@ -111,6 +111,9 @@ export async function registerSupabaseAccount(
           "Too many signup emails sent recently. Check your inbox for an existing confirmation link, or wait a few minutes before trying again.",
         );
       }
+      if (isUserAlreadyRegisteredError(error)) {
+        throw new Error("An account with this email already exists. Try logging in instead.");
+      }
     }
     throw error;
   }
