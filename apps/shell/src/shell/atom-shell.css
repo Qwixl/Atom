@@ -140,23 +140,20 @@
 }
 
 .atom-app-content {
+  --atom-chat-max: 720px;
+  --atom-shell-max: 1120px;
   width: 100%;
-  max-width: min(1120px, 100%);
-  flex: 1;
+  max-width: min(var(--atom-shell-max), 100%);
+  flex: 1 1 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  align-self: stretch;
   box-sizing: border-box;
 }
 
-.atom-app-content > .shell-feed,
-.atom-app-content > .shell-panel-view,
-.atom-app-content > .panel-view {
-  flex: 1;
-  min-height: 0;
-}
-
 .atom-app-body {
+  flex: 1 1 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -164,22 +161,31 @@
 }
 
 .atom-app-stage {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
 }
 
-.atom-app-stage > .shell-feed,
-.atom-app-stage > .shell-panel-view,
-.atom-app-stage > .panel-view,
-.atom-app-content > .shell-feed,
-.atom-app-content > .shell-panel-view,
-.atom-app-content > .panel-view {
+/* Chat — centered column, full remaining height */
+.atom-app .shell-feed {
+  flex: 1 1 0;
+  min-height: 0;
   width: 100%;
-  max-width: 100%;
+  max-width: min(var(--atom-chat-max), 100%);
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+/* Section panels — full shell width, full height */
+.atom-app .shell-panel-view,
+.atom-app-content > .panel-view {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
   box-sizing: border-box;
 }
 
@@ -189,12 +195,14 @@
   background: var(--shell-raised-bg);
   display: flex;
   justify-content: center;
+  width: 100%;
 }
 
-.atom-app-composer > * {
+.atom-app-composer > .shell-composer {
   width: 100%;
-  max-width: min(1120px, 100%);
+  max-width: min(var(--atom-chat-max, 720px), 100%);
   box-sizing: border-box;
+  border-top: none;
 }
 
 /* Bottom dock — mobile primary navigation */
