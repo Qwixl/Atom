@@ -6,6 +6,9 @@ import type {
   MonetaryAmount,
 } from "@qwixl/a2a-transport";
 
+export type TttMark = "X" | "O" | null;
+export type TttBoard = TttMark[];
+
 export interface AgentContact {
   id: string;
   did: string;
@@ -173,4 +176,44 @@ export type CommsThreadItem =
       intentId: string;
       reasonCode: string;
       note?: string;
+    }
+  | {
+      kind: "poll-request";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      question: string;
+      options: Array<{ id: string; label: string }>;
+    }
+  | {
+      kind: "poll-vote";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      pollId: string;
+      optionId: string;
+    }
+  | {
+      kind: "ttt-state";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      gameId: string;
+      board: TttBoard;
+      turn: "X" | "O";
+      status: "active" | "won" | "draw";
+      winner?: "X" | "O";
+    }
+  | {
+      kind: "ttt-move";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      gameId: string;
+      cell: number;
+      mark: "X" | "O";
     };

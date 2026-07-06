@@ -1,0 +1,26 @@
+{
+  "id": "commerce/split-bill",
+  "version": "0.1.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/commerce-split-bill/index.html",
+  "components": [
+    {
+      "name": "commerce/split-bill",
+      "semanticRole": "input/split-bill",
+      "events": [
+        {
+          "name": "splitProposed"
+        }
+      ],
+      "agentHint": "Propose splitting a bill between contacts (M-ECO-05 scaffold)."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "commerce"
+  ],
+  "bundleIntegrity": "sha256:5c472b2375511e6ce9da37d3850b81a1bbd30debe6732fd9ab210d0e39591161"
+}

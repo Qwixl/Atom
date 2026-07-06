@@ -252,6 +252,100 @@ export class CommsAgentClient {
     );
   }
 
+  async sendPoll(opts: {
+    peerUrl: string;
+    peerDid: string;
+    question: string;
+    options: Array<{ id: string; label: string }>;
+    encrypt?: boolean;
+  }): Promise<{ objectId: string }> {
+    const result = await postJson<{ sent?: { objectId?: string } }>(
+      this.base(),
+      "/coordination/poll",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        question: opts.question,
+        options: opts.options,
+        encrypt: opts.encrypt ?? true,
+      },
+      this.adminToken,
+    );
+    return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
+  }
+
+  async sendPollVote(opts: {
+    peerUrl: string;
+    peerDid: string;
+    pollId: string;
+    optionId: string;
+    encrypt?: boolean;
+  }): Promise<void> {
+    await postJson(
+      this.base(),
+      "/coordination/poll-vote",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        pollId: opts.pollId,
+        optionId: opts.optionId,
+        encrypt: opts.encrypt ?? true,
+      },
+      this.adminToken,
+    );
+  }
+
+  async sendTttState(opts: {
+    peerUrl: string;
+    peerDid: string;
+    gameId: string;
+    board: Array<"X" | "O" | null>;
+    turn: "X" | "O";
+    status: "active" | "won" | "draw";
+    winner?: "X" | "O";
+    encrypt?: boolean;
+  }): Promise<{ objectId: string }> {
+    const result = await postJson<{ sent?: { objectId?: string } }>(
+      this.base(),
+      "/coordination/ttt-state",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        gameId: opts.gameId,
+        board: opts.board,
+        turn: opts.turn,
+        status: opts.status,
+        winner: opts.winner,
+        encrypt: opts.encrypt ?? true,
+      },
+      this.adminToken,
+    );
+    return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
+  }
+
+  async sendTttMove(opts: {
+    peerUrl: string;
+    peerDid: string;
+    gameId: string;
+    cell: number;
+    mark: "X" | "O";
+    encrypt?: boolean;
+  }): Promise<void> {
+    await postJson(
+      this.base(),
+      "/coordination/ttt-move",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        gameId: opts.gameId,
+        cell: opts.cell,
+        mark: opts.mark,
+        encrypt: opts.encrypt ?? true,
+      },
+      this.adminToken,
+    );
+  }
+
   async connectorStatus(connectorId: string): Promise<{
     connectorId: string;
     provider: string;
