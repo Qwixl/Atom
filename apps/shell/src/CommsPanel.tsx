@@ -5,7 +5,9 @@ import type { ActionReserveRefKind, MonetaryAmount, RsvpAnswer, SchedulingSlot }
 import type { AttestationEntry } from "@qwixl/shell-core";
 import { ThreadItemView, useRespondedProposalIds, useRespondedTransactionIds, threadItemNeedsActions } from "./comms/CoordinationCard.js";
 import { CommsAgentClient } from "./comms/client.js";
-import { defaultStandupSlots, mergeThread } from "./comms/coordinationThread.js";
+import { mergeThread } from "./comms/coordinationThread.js";
+import { ScheduleMeetingDialog } from "./comms/ScheduleMeetingDialog.js";
+import { loadThreadOutbound, saveThreadOutbound } from "./comms/threadStorage.js";
 import { persistCommerceReceiptsFromInbox } from "./comms/persistReceipts.js";
 import { DEFAULT_COMMS_AGENT_URL, loadCommsAgentConfig, saveCommsAgentConfig, saveContacts } from "./comms/storage.js";
 import { isAgentAuthError } from "./comms/agentErrors.js";
@@ -131,17 +133,20 @@ export function CommsPanel({
   const [busy, setBusy] = useState(false);
   const [actionNote, setActionNote] = useState<string | null>(null);
   const [myInviteToken, setMyInviteToken] = useState<string | null>(null);
-  const [outbound, setOutbound] = useState<CommsThreadItem[]>([]);
+  const [outbound, setOutbound] = useState<CommsThreadItem[]>(() => loadThreadOutbound());
   const [intentQuery, setIntentQuery] = useState("");
+  const [showPurchaseIntent, setShowPurchaseIntent] = useState(false);
   const [acceptedOfferIds, setAcceptedOfferIds] = useState<Set<string>>(() => new Set());
   const persistedReceiptIds = useRef(new Set<string>());
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showSetup, setShowSetup] = useState(
     () => !demoMode && !ATOM_BROWSER_MODE && !IS_PRODUCTION_HOST && contacts.length === 0,
   );
   const [showAddContact, setShowAddContact] = useState(
     () => !demoMode && !ATOM_BROWSER_MODE && !IS_PRODUCTION_HOST && contacts.length === 0,
   );
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [conversationPane, setConversationPane] = useState<"chat" | "contact">("chat");
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
 
   useEffect(() => {
@@ -254,6 +259,19 @@ export function CommsPanel({
     if (!selected) return [];
     return mergeThread(inbox, outbound, selected.did);
   }, [inbox, outbound, selected]);
+
+  useEffect(() => {
+    saveThreadOutbound(outbound);
+  }, [outbound]);
+
+  useEffect(() => {
+    setConversationPane("chat");
+    setScheduleOpen(false);
+  }, [selectedId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [thread.length, conversationPane]);
 
   const demoStep = deriveDemoWalkthroughStep(demoPersona, thread);
   const demoPeer = DEMO_PERSONAS[demoPersona];
@@ -407,16 +425,15 @@ export function CommsPanel({
     }
   }
 
-  async function sendStandupProposal() {
-    if (!selected) return;
+  async function sendSchedulingProposal(title: string, slots: SchedulingSlot[]) {
+    if (!selected || slots.length === 0) return;
     setBusy(true);
     setActionNote(null);
     try {
-      const slots = defaultStandupSlots();
       const { objectId } = await client.sendSchedulingProposal({
         peerUrl: selected.endpoint,
         peerDid: selected.did,
-        title: "Team standup",
+        title,
         slots,
         encrypt: sessionReady,
       });
@@ -428,47 +445,13 @@ export function CommsPanel({
           direction: "out",
           at: new Date().toISOString(),
           peerDid: selected.did,
-          title: "Team standup",
+          title,
           slots,
         },
       ]);
-      setActionNote(sessionReady ? "Scheduling proposal sent (MLS)." : "Proposal sent (plain).");
-      await refreshInbox();
-    } catch (error) {
-      setActionNote(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function sendDesignReviewRsvp() {
-    if (!selected) return;
-    setBusy(true);
-    setActionNote(null);
-    try {
-      const eventAt = "2026-07-10T15:00:00.000Z";
-      const { objectId } = await client.sendRsvpRequest({
-        peerUrl: selected.endpoint,
-        peerDid: selected.did,
-        eventTitle: "Design review",
-        eventAt,
-        location: "Room 4",
-        encrypt: sessionReady,
-      });
-      setOutbound((current) => [
-        ...current,
-        {
-          kind: "rsvp-request",
-          id: objectId,
-          direction: "out",
-          at: new Date().toISOString(),
-          peerDid: selected.did,
-          eventTitle: "Design review",
-          eventAt,
-          location: "Room 4",
-        },
-      ]);
-      setActionNote(sessionReady ? "RSVP request sent (MLS)." : "RSVP request sent (plain).");
+      setScheduleOpen(false);
+      setConversationPane("chat");
+      setActionNote("Meeting proposal sent.");
       await refreshInbox();
     } catch (error) {
       setActionNote(error instanceof Error ? error.message : String(error));
@@ -1239,67 +1222,61 @@ export function CommsPanel({
                     Contacts
                   </button>
                   ) : null}
-                  {!demoMode ? (
-                    <>
-                      <button
-                        type="button"
-                        className={`panel-btn${showAdvanced ? " is-active" : ""}`}
-                        onClick={() => setShowAdvanced((open) => !open)}
-                      >
-                        {showAdvanced ? "Hide tools" : "Tools"}
-                      </button>
-                      <button
-                        type="button"
-                        className="panel-btn"
-                        onClick={() => updateContactPolicy({ muted: !selected.muted })}
-                      >
-                        {selected.muted ? "Unmute" : "Mute"}
-                      </button>
-                      <button
-                        type="button"
-                        className="panel-btn"
-                        onClick={() => updateContactPolicy({ blocked: !selected.blocked })}
-                      >
-                        {selected.blocked ? "Unblock" : "Block"}
-                      </button>
-                      <button
-                        type="button"
-                        className="panel-btn panel-btn-danger comms-peer-remove"
-                        aria-label={`Remove ${selected.name}`}
-                        onClick={() => removeContact(selected.id)}
-                      >
-                        Remove
-                      </button>
-                    </>
-                  ) : null}
                 </div>
               </header>
 
-              {!demoMode && showAdvanced ? (
-                <div className="comms-advanced">
-                  <details className="comms-advanced-block" open>
-                    <summary>Send coordination objects</summary>
-                    <p className="comms-hint">
-                      Scheduling and RSVPs need a secure connection with this contact first.
-                    </p>
-                    <div className="comms-inline-actions">
-                      <button type="button" className="panel-btn" disabled={busy} onClick={() => void sendStandupProposal()}>
-                        Propose standup slots
-                      </button>
-                      <button type="button" className="panel-btn" disabled={busy} onClick={() => void sendDesignReviewRsvp()}>
-                        Send design review RSVP
-                      </button>
-                    </div>
-                  </details>
-                  <details className="comms-advanced-block">
-                    <summary>Disclosure policy</summary>
-                    <p className="comms-hint">
-                      Categories pre-approved for this contact. Guarded records outside this list still
-                      require shell chrome every time.
-                    </p>
-                    {ownerCategories.length === 0 ? (
-                      <p className="comms-empty-inline">Add owner profile records to configure categories.</p>
-                    ) : (
+              {!demoMode ? (
+                <div className="comms-pane-tabs" role="tablist" aria-label="Conversation">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={conversationPane === "chat"}
+                    className={`comms-pane-tab${conversationPane === "chat" ? " is-active" : ""}`}
+                    onClick={() => setConversationPane("chat")}
+                  >
+                    Chat
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={conversationPane === "contact"}
+                    className={`comms-pane-tab${conversationPane === "contact" ? " is-active" : ""}`}
+                    onClick={() => setConversationPane("contact")}
+                  >
+                    Contact
+                  </button>
+                </div>
+              ) : null}
+
+              {conversationPane === "contact" && !demoMode ? (
+                <div className="comms-contact-pane">
+                  <div className="comms-contact-actions">
+                    <button
+                      type="button"
+                      className="panel-btn"
+                      onClick={() => updateContactPolicy({ muted: !selected.muted })}
+                    >
+                      {selected.muted ? "Unmute" : "Mute"}
+                    </button>
+                    <button
+                      type="button"
+                      className="panel-btn"
+                      onClick={() => updateContactPolicy({ blocked: !selected.blocked })}
+                    >
+                      {selected.blocked ? "Unblock" : "Block"}
+                    </button>
+                    <button
+                      type="button"
+                      className="panel-btn panel-btn-danger comms-peer-remove"
+                      aria-label={`Remove ${selected.name}`}
+                      onClick={() => removeContact(selected.id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  {ownerCategories.length > 0 ? (
+                    <section className="comms-contact-section">
+                      <h3 className="comms-contact-section-title">Disclosure</h3>
                       <ul className="comms-disclosure-list">
                         {ownerCategories.map((category) => {
                           const checked = selected.standingDisclosure?.includes(category) ?? false;
@@ -1317,7 +1294,7 @@ export function CommsPanel({
                                 <span>
                                   {category}
                                   {hasGuarded ? (
-                                    <span className="comms-disclosure-guarded"> guarded records</span>
+                                    <span className="comms-disclosure-guarded"> guarded</span>
                                   ) : null}
                                 </span>
                               </label>
@@ -1325,11 +1302,13 @@ export function CommsPanel({
                           );
                         })}
                       </ul>
-                    )}
-                  </details>
+                    </section>
+                  ) : null}
                 </div>
               ) : null}
 
+              {(demoMode || conversationPane === "chat") ? (
+              <>
               {showDemoSplit ? (
                 <div className="comms-thread-area comms-thread-area--split">
                   <DemoProposalComposer
@@ -1356,10 +1335,6 @@ export function CommsPanel({
                             acceptedOfferIds,
                           )}
                           onAcceptSlot={(proposalId, slot) => {
-                            const proposal = thread.find(
-                              (item): item is Extract<CommsThreadItem, { kind: "scheduling-proposal" }> =>
-                                item.kind === "scheduling-proposal" && item.id === proposalId,
-                            );
                             void respondScheduling(proposalId, "accept", slot);
                           }}
                           onDeclineProposal={(proposalId) => void respondScheduling(proposalId, "decline")}
@@ -1376,6 +1351,7 @@ export function CommsPanel({
                         />
                       ))
                     )}
+                    <div ref={messagesEndRef} aria-hidden="true" />
                   </div>
                 </div>
               ) : (
@@ -1407,7 +1383,7 @@ export function CommsPanel({
                     ) : (
                       <>
                         <strong>No messages yet</strong>
-                        <p>Send a message below, or use Tools to send scheduling objects.</p>
+                        <p>Send a message below.</p>
                       </>
                     )}
                   </div>
@@ -1424,10 +1400,6 @@ export function CommsPanel({
                         acceptedOfferIds,
                       )}
                       onAcceptSlot={(proposalId, slot) => {
-                        const proposal = thread.find(
-                          (item): item is Extract<CommsThreadItem, { kind: "scheduling-proposal" }> =>
-                            item.kind === "scheduling-proposal" && item.id === proposalId,
-                        );
                         void respondScheduling(proposalId, "accept", slot);
                       }}
                       onDeclineProposal={(proposalId) => void respondScheduling(proposalId, "decline")}
@@ -1444,11 +1416,30 @@ export function CommsPanel({
                     />
                   ))
                 )}
+                <div ref={messagesEndRef} aria-hidden="true" />
               </div>
               </div>
               )}
 
               {!demoMode ? (
+              <>
+                <button
+                  type="button"
+                  className="comms-schedule-fab"
+                  aria-label="Schedule meeting"
+                  title="Schedule meeting"
+                  disabled={busy || selected.blocked || !sessionReady}
+                  onClick={() => setScheduleOpen(true)}
+                >
+                  <span aria-hidden="true">+</span>
+                </button>
+                <ScheduleMeetingDialog
+                  open={scheduleOpen}
+                  peerName={contactDisplayName(selected)}
+                  busy={busy}
+                  onClose={() => setScheduleOpen(false)}
+                  onSend={(title, slots) => sendSchedulingProposal(title, slots)}
+                />
               <footer className="comms-compose">
                 <textarea
                   className="panel-textarea"
@@ -1465,21 +1456,14 @@ export function CommsPanel({
                     }
                   }}
                 />
-                <div className="comms-compose-row">
-                  <input
-                    className="panel-input"
-                    value={intentQuery}
-                    onChange={(e) => setIntentQuery(e.target.value)}
-                    placeholder="Purchase intent (catalog query)…"
-                    aria-label="Purchase intent query"
-                  />
+                <div className="comms-compose-actions">
                   <button
                     type="button"
-                    className="panel-btn"
-                    disabled={busy || !intentQuery.trim()}
-                    onClick={() => void sendPurchaseIntent()}
+                    className={`comms-compose-toggle${showPurchaseIntent ? " is-active" : ""}`}
+                    aria-expanded={showPurchaseIntent}
+                    onClick={() => setShowPurchaseIntent((open) => !open)}
                   >
-                    Send intent
+                    Purchase
                   </button>
                   <button
                     type="button"
@@ -1490,7 +1474,29 @@ export function CommsPanel({
                     Send
                   </button>
                 </div>
+                {showPurchaseIntent ? (
+                  <div className="comms-compose-row">
+                    <input
+                      className="panel-input"
+                      value={intentQuery}
+                      onChange={(e) => setIntentQuery(e.target.value)}
+                      placeholder="Catalog query…"
+                      aria-label="Purchase intent query"
+                    />
+                    <button
+                      type="button"
+                      className="panel-btn"
+                      disabled={busy || !intentQuery.trim()}
+                      onClick={() => void sendPurchaseIntent()}
+                    >
+                      Send intent
+                    </button>
+                  </div>
+                ) : null}
               </footer>
+              </>
+              ) : null}
+              </>
               ) : null}
             </>
           ) : (

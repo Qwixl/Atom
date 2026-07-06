@@ -1182,13 +1182,15 @@ export function App() {
                 Registry error
               </span>
             ) : null}
-            <span className="atom-app-status">
-              <span
-                className={`atom-status-dot${vaultUnlocked ? " atom-status-dot--active" : ""}`}
-                aria-hidden="true"
-              />
-              {vaultUnlocked ? "Vault unlocked" : "Vault locked"}
-            </span>
+            {isVaultInitialized() ? (
+              <span className="atom-app-status">
+                <span
+                  className={`atom-status-dot${vaultUnlocked ? " atom-status-dot--active" : ""}`}
+                  aria-hidden="true"
+                />
+                {vaultUnlocked ? "Vault unlocked" : "Vault locked"}
+              </span>
+            ) : null}
             {showModulesToggle ? (
               <button
                 type="button"
