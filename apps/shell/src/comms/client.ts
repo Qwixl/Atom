@@ -295,6 +295,36 @@ export class CommsAgentClient {
     );
   }
 
+  async sendSplitBill(opts: {
+    peerUrl: string;
+    peerDid: string;
+    splitId: string;
+    label: string;
+    totalMinor: number;
+    currency: string;
+    splitCount: number;
+    shareMinor: number;
+    encrypt?: boolean;
+  }): Promise<{ objectId: string }> {
+    const result = await postJson<{ sent?: { objectId?: string } }>(
+      this.base(),
+      "/commerce/split-bill",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        splitId: opts.splitId,
+        label: opts.label,
+        totalMinor: opts.totalMinor,
+        currency: opts.currency,
+        splitCount: opts.splitCount,
+        shareMinor: opts.shareMinor,
+        encrypt: opts.encrypt ?? true,
+      },
+      this.adminToken,
+    );
+    return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
+  }
+
   async sendSharedList(opts: {
     peerUrl: string;
     peerDid: string;

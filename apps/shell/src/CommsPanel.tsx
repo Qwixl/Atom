@@ -314,6 +314,14 @@ export function CommsPanel({
       void sendSchedulingProposal(bridge.title, bridge.slots);
     } else if (bridge.action === "pollCreated") {
       void sendPoll(bridge.question, bridge.options);
+    } else if (bridge.action === "splitProposed") {
+      void sendSplitBill(
+        bridge.label,
+        bridge.totalMinor,
+        bridge.currency,
+        bridge.splitCount,
+        bridge.shareMinor,
+      );
     } else if (bridge.action === "tttStart") {
       void startTttGame(bridge.gameId);
     }
@@ -574,6 +582,100 @@ export function CommsPanel({
     }
   }
 
+  async function sendSplitBill(
+    label: string,
+    totalMinor: number,
+    currency: string,
+    splitCount: number,
+    shareMinor: number,
+  ) {
+    if (!selected || totalMinor <= 0 || shareMinor <= 0 || splitCount < 2) return;
+    setBusy(true);
+    setActionNote(null);
+    const splitId = crypto.randomUUID();
+    try {
+      const { objectId } = await client.sendSplitBill({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        splitId,
+        label,
+        totalMinor,
+        currency,
+        splitCount,
+        shareMinor,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "split-proposal",
+          id: objectId,
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          splitId,
+          label,
+          totalMinor,
+          currency,
+          splitCount,
+          shareMinor,
+        },
+      ]);
+      setInlineModuleId(null);
+      setConversationPane("chat");
+      setActionNote("Split bill sent.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function paySplitShare(splitId: string, label: string, amount: MonetaryAmount) {
+    if (!selected) return;
+    const paymentMethodId = stripePaymentMethodId?.trim() || "pm_card_visa";
+    const transactionId = `txn-split-${splitId}`;
+    const action: ConsequentialAction = {
+      id: crypto.randomUUID(),
+      kind: "confirmation",
+      title: "Pay your share",
+      terms: {
+        contact: selected.name,
+        splitId,
+        label,
+        amount: `${(amount.amountMinor / 100).toFixed(2)} ${amount.currency}`,
+        action: "Place authorization hold for your split (M11)",
+      },
+      confirmLabel: "Pay share",
+      declineLabel: "Cancel",
+    };
+    const confirmation = await onRequestConfirmation(action);
+    if (confirmation.decision !== "approved") return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      await client.offerTransaction({
+        transactionId,
+        attestationRef: confirmation.attestationRef,
+        paymentMethodId,
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        amountMinor: amount.amountMinor,
+        currency: amount.currency,
+        label,
+        subjectId: splitId,
+        encrypt: sessionReady,
+      });
+      setActionNote("Share paid — payment hold placed.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function sendSharedList(title: string, items: Array<{ id: string; text: string; done: boolean }>) {
     if (!selected || items.length === 0) return;
     setBusy(true);
@@ -764,6 +866,17 @@ export function CommsPanel({
           )
         : [];
       void sendPoll(question, options);
+      return;
+    }
+    if (name === "splitProposed") {
+      const label = typeof payload.label === "string" ? payload.label : "Split bill";
+      const totalMinor = typeof payload.totalMinor === "number" ? payload.totalMinor : 0;
+      const currency = typeof payload.currency === "string" ? payload.currency : "USD";
+      const splitCount = typeof payload.splitCount === "number" ? payload.splitCount : 2;
+      const shareMinor = typeof payload.shareMinor === "number" ? payload.shareMinor : 0;
+      if (totalMinor > 0 && shareMinor > 0) {
+        void sendSplitBill(label, totalMinor, currency, splitCount, shareMinor);
+      }
       return;
     }
     if (name === "tttStart") {
@@ -1631,6 +1744,17 @@ export function CommsPanel({
                           disabled={busy || selected.blocked || !sessionReady}
                           onClick={() => {
                             setConversationPane("chat");
+                            setInlineModuleId("commerce/split-bill");
+                          }}
+                        >
+                          Split bill
+                        </button>
+                        <button
+                          type="button"
+                          className="panel-btn"
+                          disabled={busy || selected.blocked || !sessionReady}
+                          onClick={() => {
+                            setConversationPane("chat");
                             setInlineModuleId("games/tictactoe");
                           }}
                         >
@@ -1714,6 +1838,9 @@ export function CommsPanel({
                             void acceptCommerceOffer(offerId, intentId, label, amount)
                           }
                           onPollVote={(pollId, optionId) => void respondPollVote(pollId, optionId)}
+                          onPaySplitShare={(splitId, label, amount) =>
+                            void paySplitShare(splitId, label, amount)
+                          }
                           onTttCell={(gameId, cell, mark) => void playTttCell(gameId, cell, mark)}
                           sharedListItems={
                             item.kind === "shared-list"
@@ -1787,6 +1914,9 @@ export function CommsPanel({
                         void acceptCommerceOffer(offerId, intentId, label, amount)
                       }
                       onPollVote={(pollId, optionId) => void respondPollVote(pollId, optionId)}
+                      onPaySplitShare={(splitId, label, amount) =>
+                        void paySplitShare(splitId, label, amount)
+                      }
                       onTttCell={(gameId, cell, mark) => void playTttCell(gameId, cell, mark)}
                       sharedListItems={
                         item.kind === "shared-list"
@@ -1845,7 +1975,8 @@ export function CommsPanel({
                         defaultTitle: "Meeting",
                         mode:
                           inlineModuleId === "coordination/poll" ||
-                          inlineModuleId === "coordination/shared-list"
+                          inlineModuleId === "coordination/shared-list" ||
+                          inlineModuleId === "commerce/split-bill"
                             ? "compose"
                             : undefined,
                       }}

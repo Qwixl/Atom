@@ -12,6 +12,8 @@ import {
   COMMERCE_OFFER_PURPOSE,
   COMMERCE_OFFER_SCHEMA,
   COMMERCE_PURPOSES,
+  COMMERCE_SPLIT_PROPOSAL_PURPOSE,
+  COMMERCE_SPLIT_PROPOSAL_SCHEMA,
   DEFAULT_COMMERCE_TTL_SECONDS,
 } from "./constants.js";
 import type { MonetaryAmount } from "./transactions.js";
@@ -65,6 +67,17 @@ export interface CommerceDeclinePayload {
   intentId: string;
   reasonCode: "no-match" | "unavailable" | "policy" | "other";
   note?: string;
+  peerDid?: string;
+}
+
+export interface SplitProposalPayload {
+  splitId: string;
+  label: string;
+  totalMinor: number;
+  currency: string;
+  splitCount: number;
+  shareMinor: number;
+  threadId?: string;
   peerDid?: string;
 }
 
@@ -240,4 +253,56 @@ export async function verifyCommerceDecline(input: unknown): Promise<{
   assertNonEmptyString(object.payload.intentId, "intentId");
   assertDeclineReason(object.payload.reasonCode);
   return { object, payload: object.payload as unknown as CommerceDeclinePayload };
+}
+
+export async function createSplitProposal(opts: {
+  identity: AgentKeyPair;
+  payload: SplitProposalPayload;
+  ttlSeconds?: number;
+}): Promise<DataObject> {
+  assertNonEmptyString(opts.payload.splitId, "splitId");
+  assertNonEmptyString(opts.payload.label, "label");
+  if (
+    typeof opts.payload.totalMinor !== "number" ||
+    !Number.isInteger(opts.payload.totalMinor) ||
+    opts.payload.totalMinor <= 0
+  ) {
+    throw new Error("Split proposal totalMinor must be a positive integer");
+  }
+  if (typeof opts.payload.currency !== "string" || !/^[A-Z]{3}$/.test(opts.payload.currency)) {
+    throw new Error("Split proposal currency must be an ISO 4217 code");
+  }
+  if (
+    typeof opts.payload.splitCount !== "number" ||
+    !Number.isInteger(opts.payload.splitCount) ||
+    opts.payload.splitCount < 2
+  ) {
+    throw new Error("Split proposal splitCount must be at least 2");
+  }
+  if (
+    typeof opts.payload.shareMinor !== "number" ||
+    !Number.isInteger(opts.payload.shareMinor) ||
+    opts.payload.shareMinor <= 0
+  ) {
+    throw new Error("Split proposal shareMinor must be a positive integer");
+  }
+  return signCommerceObject(opts.identity, {
+    schema: COMMERCE_SPLIT_PROPOSAL_SCHEMA,
+    purpose: COMMERCE_SPLIT_PROPOSAL_PURPOSE,
+    payload: opts.payload as unknown as Record<string, unknown>,
+    ttlSeconds: opts.ttlSeconds,
+  });
+}
+
+export async function verifySplitProposal(input: unknown): Promise<{
+  object: DataObject;
+  payload: SplitProposalPayload;
+}> {
+  const object = await verifyCommerceObject(input, {
+    purpose: COMMERCE_SPLIT_PROPOSAL_PURPOSE,
+    schema: COMMERCE_SPLIT_PROPOSAL_SCHEMA,
+  });
+  assertNonEmptyString(object.payload.splitId, "splitId");
+  assertNonEmptyString(object.payload.label, "label");
+  return { object, payload: object.payload as unknown as SplitProposalPayload };
 }
