@@ -19,6 +19,7 @@ export function CoordinationCard({
   onPaySplitShare,
   onTttCell,
   onBsFire,
+  onDownloadIcs,
   sharedListItems,
   onSharedListChange,
 }: {
@@ -44,6 +45,7 @@ export function CoordinationCard({
   ) => void;
   onTttCell?: (gameId: string, cell: number, mark: "X" | "O") => void;
   onBsFire?: (gameId: string, cell: number) => void;
+  onDownloadIcs?: (item: Extract<CommsThreadItem, { kind: "scheduling-response" }>) => void;
   sharedListItems?: SharedListItem[];
   onSharedListChange?: (listId: string, items: SharedListItem[]) => void;
 }) {
@@ -99,6 +101,16 @@ export function CoordinationCard({
             })}
           </span>
         </div>
+        {item.response === "accept" && onDownloadIcs ? (
+          <button
+            type="button"
+            className="panel-btn shell-comms-ics-btn"
+            disabled={busy}
+            onClick={() => onDownloadIcs(item)}
+          >
+            Add to calendar (.ics)
+          </button>
+        ) : null}
         <time>{new Date(item.at).toLocaleTimeString()}</time>
       </div>
     );
@@ -519,6 +531,7 @@ export function ThreadItemView({
   onPaySplitShare,
   onTttCell,
   onBsFire,
+  onDownloadIcs,
   sharedListItems,
   onSharedListChange,
 }: {
@@ -544,6 +557,7 @@ export function ThreadItemView({
   ) => void;
   onTttCell?: (gameId: string, cell: number, mark: "X" | "O") => void;
   onBsFire?: (gameId: string, cell: number) => void;
+  onDownloadIcs?: (item: Extract<CommsThreadItem, { kind: "scheduling-response" }>) => void;
   sharedListItems?: SharedListItem[];
   onSharedListChange?: (listId: string, items: SharedListItem[]) => void;
 }) {
@@ -578,6 +592,7 @@ export function ThreadItemView({
       onPaySplitShare={onPaySplitShare}
       onTttCell={onTttCell}
       onBsFire={onBsFire}
+      onDownloadIcs={onDownloadIcs}
       sharedListItems={sharedListItems}
       onSharedListChange={onSharedListChange}
     />

@@ -83,6 +83,10 @@ import {
 } from "./demoPersonas.js";
 import { CustodySecurityPanel } from "./custody/CustodySecurityPanel.js";
 import { WebCalSettingsPanel } from "./connectors/WebCalSettingsPanel.js";
+import {
+  ConnectorModuleHost,
+  WEBCAL_CONNECTOR_MODULE_ID,
+} from "./connectors/ConnectorModuleHost.js";
 import { requireCustodyApproval } from "./custody/approvalGate.js";
 import {
   loadAttestations,
@@ -1643,6 +1647,9 @@ export function App() {
             }
             setPaymentConnections(upsertPaymentConnection(connection));
           }}
+          catalog={catalog}
+          registry={registry}
+          modulesActive={modulesActive}
         />
       ) : null}
     </>
@@ -1670,6 +1677,9 @@ function SettingsDialog({
   onSaveAgUi,
   onSaveRegistry,
   onSaveCurator,
+  catalog,
+  registry,
+  modulesActive,
 }: {
   llmConnectionInitial: LlmConnectionConfig | null;
   savedLlmKeyHint: string | null;
@@ -1691,6 +1701,9 @@ function SettingsDialog({
   onSaveAgUi: (config: AgUiAgentConfig) => void;
   onSaveRegistry: (url: string, trust: RegistryTrustPolicy) => void;
   onSaveCurator: (enabled: boolean, autoAcceptOpen: boolean) => void;
+  catalog: Catalog;
+  registry: ModuleRegistry;
+  modulesActive: boolean;
 }) {
   const [baseUrl, setBaseUrl] = useState(
     llmConnectionInitial?.baseUrl ?? "https://api.openai.com/v1",
@@ -1966,7 +1979,16 @@ function SettingsDialog({
           Paste your private calendar subscription link (from Google, Apple, or Outlook). It is stored
           encrypted on your agent — not in this browser.
         </p>
-        <WebCalSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
+        {modulesActive && catalog && registry ? (
+          <ConnectorModuleHost
+            moduleId={WEBCAL_CONNECTOR_MODULE_ID}
+            catalog={catalog}
+            registry={registry}
+            modulesEnabled={modulesActive}
+          />
+        ) : (
+          <WebCalSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
+        )}
       </>
     );
   }

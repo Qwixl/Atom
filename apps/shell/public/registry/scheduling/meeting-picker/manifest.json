@@ -15,7 +15,7 @@
           "name": "meetingProposed"
         }
       ],
-      "agentHint": "Inline date/time picker for proposing a 1:1 meeting; emits meetingProposed with title and slots."
+      "agentHint": "Inline date/time picker for proposing a 1:1 meeting. Props: { defaultTitle?, peerName?, busyEvents? }. Warns on WebCal conflicts. Emits meetingProposed with title and slots."
     }
   ],
   "capabilities": [],
@@ -23,5 +23,6 @@
     "scheduling",
     "coordination"
   ],
-  "bundleIntegrity": "sha256:85632c657a81c262c6f39c08145b955911a8a8b819be0428d318df9a10d7ba4d"
+  "tier": "system",
+  "bundleIntegrity": "sha256:83aadcdc5f557103d6385f471c437859880f3e09664725efe48fbf1a2d9a8429"
 }

@@ -24,6 +24,11 @@ import {
   shotAlreadyFired,
   validateShipPlacement,
 } from "./comms/bsLogic.js";
+import {
+  exportAcceptedSchedulingToIcs,
+  loadWebcalBusyEvents,
+  type WebcalBusyEvent,
+} from "./comms/icalExport.js";
 import type { BsPlayer } from "./comms/types.js";
 import { loadThreadOutbound, saveThreadOutbound } from "./comms/threadStorage.js";
 import { persistCommerceReceiptsFromInbox } from "./comms/persistReceipts.js";
@@ -174,6 +179,7 @@ export function CommsPanel({
   const [inlineModuleId, setInlineModuleId] = useState<string | null>(null);
   const [scheduleDismissedFor, setScheduleDismissedFor] = useState<string | null>(null);
   const [contactSearch, setContactSearch] = useState("");
+  const [webcalBusyEvents, setWebcalBusyEvents] = useState<WebcalBusyEvent[]>([]);
 
   useEffect(() => {
     if (focusContactId && contacts.some((c) => c.id === focusContactId)) {
@@ -280,6 +286,20 @@ export function CommsPanel({
     const timer = window.setInterval(() => void refreshInbox(), pollMs);
     return () => window.clearInterval(timer);
   }, [demoMode, refreshInbox]);
+
+  useEffect(() => {
+    if (demoMode) {
+      setWebcalBusyEvents([]);
+      return;
+    }
+    let cancelled = false;
+    void loadWebcalBusyEvents(client).then((events) => {
+      if (!cancelled) setWebcalBusyEvents(events);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [client, demoMode, conversationPane, inlineModuleId]);
 
   const thread = useMemo(() => {
     if (!selected) return [];
@@ -1108,6 +1128,12 @@ export function CommsPanel({
       void respondToBsShot(item, stateItem, myPlayer, ships);
     }
   }, [thread, selected, demoMode, busy]);
+
+  function downloadSchedulingIcs(item: Extract<CommsThreadItem, { kind: "scheduling-response" }>) {
+    if (!exportAcceptedSchedulingToIcs(thread, item)) {
+      setActionNote("Could not export a calendar file for this meeting.");
+    }
+  }
 
   function handleModuleEvent(name: string, payload: Record<string, unknown>) {
     if (name === "meetingProposed") {
@@ -2126,6 +2152,7 @@ export function CommsPanel({
                           }
                           onTttCell={(gameId, cell, mark) => void playTttCell(gameId, cell, mark)}
                           onBsFire={(gameId, cell) => void fireBsShot(gameId, cell)}
+                          onDownloadIcs={(item) => downloadSchedulingIcs(item)}
                           sharedListItems={
                             item.kind === "shared-list"
                               ? sharedListStates.get(item.listId)?.items
@@ -2203,6 +2230,7 @@ export function CommsPanel({
                       }
                       onTttCell={(gameId, cell, mark) => void playTttCell(gameId, cell, mark)}
                       onBsFire={(gameId, cell) => void fireBsShot(gameId, cell)}
+                      onDownloadIcs={(item) => downloadSchedulingIcs(item)}
                       sharedListItems={
                         item.kind === "shared-list"
                           ? sharedListStates.get(item.listId)?.items
@@ -2271,6 +2299,9 @@ export function CommsPanel({
                             ? "compose"
                             : undefined,
                         ...(inlineModuleId === "games/battleships" ? bsInlineProps : {}),
+                        ...(inlineModuleId === "scheduling/meeting-picker"
+                          ? { busyEvents: webcalBusyEvents }
+                          : {}),
                       }}
                       onEvent={handleModuleEvent}
                     />

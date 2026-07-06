@@ -114,8 +114,8 @@
       "id": "scheduling/meeting-picker",
       "version": "1.0.0",
       "manifestUrl": "scheduling/meeting-picker/manifest.json",
-      "integrity": "sha256:2538355abc0d6c4e53c8390fb25637fe8a89c2cc4a34f4a2a8c1925547b4f7d3",
-      "bundleIntegrity": "sha256:85632c657a81c262c6f39c08145b955911a8a8b819be0428d318df9a10d7ba4d",
+      "integrity": "sha256:539a7a9c3b3f7c48daca8b33b6d4910cbf8b39804d505e8ae5e5dad2b2e90e5e",
+      "bundleIntegrity": "sha256:83aadcdc5f557103d6385f471c437859880f3e09664725efe48fbf1a2d9a8429",
       "publisher": "did:key:z6Mkatomexamples01",
       "tier": "system"
     },
