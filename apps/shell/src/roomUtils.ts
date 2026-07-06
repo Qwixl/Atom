@@ -1,6 +1,7 @@
 /** Map registry module id (e.g. `community/coffee-shop`) to shell bundle path. */
 export function moduleBundleUrl(moduleId: string): string {
   const slug = moduleId.trim().replace(/\//g, "-");
+  // Module bundles are static assets at site root (/modules/…), not under the /app/ SPA base.
   return `/modules/${slug}/index.html`;
 }
 
