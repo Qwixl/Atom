@@ -14,11 +14,39 @@ export const ECOSYSTEM_MODULE_MANIFESTS: ModuleManifest[] = [
         semanticRole: "input/datetime-picker",
         events: [{ name: "meetingProposed" }],
         agentHint:
-          "Inline date/time picker for proposing a 1:1 meeting. Use when the owner wants to schedule, meet, book, or arrange a call. Props: { defaultTitle?, peerName? }. Emits meetingProposed with { title, slots }.",
+          "Inline date/time picker for proposing a 1:1 meeting. Use when the owner wants to schedule, meet, book, or arrange a call. Props: { defaultTitle?, peerName?, busyEvents? }. Emits meetingProposed with { title, slots }.",
       },
     ],
     capabilities: [],
     categories: ["scheduling", "coordination"],
+    tier: "system",
+  },
+  {
+    id: "connectors/webcal",
+    version: "1.0.0",
+    publisher: "did:key:z6Mkatomexamples01",
+    targets: ["web"],
+    bundleUrl: "/modules/connectors-webcal/index.html",
+    connector: {
+      agentId: "webcal",
+      provider: "webcal",
+      label: "WebCal",
+      operations: [
+        { id: "getStatus", permission: "read", description: "Feed configuration status." },
+        { id: "listEvents", permission: "read", description: "List events in a time range." },
+      ],
+    },
+    components: [
+      {
+        name: "connectors/webcal",
+        semanticRole: "settings/connector",
+        events: [{ name: "setFeedRequested" }, { name: "removeFeedRequested" }, { name: "refreshRequested" }],
+        agentHint:
+          "WebCal connector settings: owner pastes a private ICS feed URL; agent vault stores it for read-only listEvents.",
+      },
+    ],
+    capabilities: [],
+    categories: ["connectors", "scheduling"],
     tier: "system",
   },
   {

@@ -963,6 +963,12 @@
   background: color-mix(in srgb, var(--shell-muted, #888) 20%, var(--shell-raised-bg));
 }
 
+.shell-comms-ics-btn {
+  margin-top: 8px;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
 .shell-comms-shared-list {
   list-style: none;
   margin: 0;

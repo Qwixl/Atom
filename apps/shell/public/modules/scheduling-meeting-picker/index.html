@@ -19,6 +19,8 @@
       background: var(--atom-color-accent, #111); color: var(--atom-color-bg, #fff); cursor: pointer;
     }
     button.send:disabled { opacity: 0.45; cursor: not-allowed; }
+    .warn { margin-top: 8px; font-size: 12px; color: #b45309; }
+    .busy-note { margin-top: 4px; font-size: 11px; color: var(--atom-color-text-dim, #666); }
   </style>
 </head>
 <body>
@@ -34,8 +36,11 @@
     </select>
     <button type="button" class="send" id="send">Send proposal</button>
   </div>
+  <p class="warn" id="conflict" hidden>That time overlaps an event on your calendar.</p>
+  <p class="busy-note" id="busyNote" hidden></p>
   <script>
     let shellOrigin = null;
+    let busyEvents = [];
     const themeKeys = ["colorBg","colorBgRaised","colorText","colorTextDim","colorAccent","colorBorder","radiusSm","fontSans"];
     const cssMap = { colorBg:"--atom-color-bg", colorBgRaised:"--atom-color-bg-raised", colorText:"--atom-color-text", colorTextDim:"--atom-color-text-dim", colorAccent:"--atom-color-accent", colorBorder:"--atom-color-border", radiusSm:"--atom-radius-sm", fontSans:"--atom-font-sans" };
     function applyTheme(theme) {
@@ -55,6 +60,32 @@
       const label = start.toLocaleString(undefined, { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" });
       return { id: "slot-" + start.toISOString(), label, start: start.toISOString(), end: end.toISOString() };
     }
+    function overlaps(slot, events) {
+      if (!slot || !Array.isArray(events)) return false;
+      const slotStart = new Date(slot.start).getTime();
+      const slotEnd = new Date(slot.end).getTime();
+      for (const ev of events) {
+        const eventStart = new Date(ev.start).getTime();
+        const eventEnd = new Date(ev.end).getTime();
+        if (eventStart < slotEnd && eventEnd > slotStart) return true;
+      }
+      return false;
+    }
+    function updateConflict() {
+      const startLocal = document.getElementById("start").value;
+      const durationMin = Number(document.getElementById("duration").value);
+      const title = document.getElementById("title").value.trim() || "Meeting";
+      const slot = slotFromInputs(title, startLocal, durationMin);
+      const conflict = overlaps(slot, busyEvents);
+      document.getElementById("conflict").hidden = !conflict;
+      const note = document.getElementById("busyNote");
+      if (busyEvents.length > 0) {
+        note.hidden = false;
+        note.textContent = busyEvents.length + " upcoming calendar event(s) loaded from your WebCal feed.";
+      } else {
+        note.hidden = true;
+      }
+    }
     function emit(name, payload) {
       if (shellOrigin) window.parent.postMessage({ type:"event", name, payload }, shellOrigin);
     }
@@ -66,15 +97,19 @@
       if (!slot) return;
       emit("meetingProposed", { title, slots: [slot] });
     });
+    document.getElementById("start").addEventListener("change", updateConflict);
+    document.getElementById("duration").addEventListener("change", updateConflict);
     window.addEventListener("message", (event) => {
       const data = event.data;
       if (!data || data.type !== "init") return;
       shellOrigin = event.origin;
       applyTheme(data.theme);
       const props = data.props || {};
+      busyEvents = Array.isArray(props.busyEvents) ? props.busyEvents : [];
       document.getElementById("title").value = props.defaultTitle || "Meeting";
       document.getElementById("start").value = props.defaultStart || defaultStart();
       if (props.peerName) document.getElementById("title").placeholder = "Meeting with " + props.peerName;
+      updateConflict();
     });
     window.parent.postMessage({ type: "ready" }, "*");
   </script>
