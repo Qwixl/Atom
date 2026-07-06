@@ -82,6 +82,8 @@ export function RoomsPanel({
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sceneOpen, setSceneOpen] = useState(false);
+  const [mobilePane, setMobilePane] = useState<"chat" | "members">("chat");
+  const [mobileListOpen, setMobileListOpen] = useState(false);
   const pollRef = useRef<number | null>(null);
   const memberPollRef = useRef<number | null>(null);
   const lastSeqRef = useRef(0);
@@ -378,7 +380,9 @@ export function RoomsPanel({
   }
 
   return (
-    <aside className="panel-view rooms-view">
+    <aside
+      className={`panel-view rooms-view${selectedId ? " rooms-has-selection" : ""}${mobileListOpen ? " rooms-list-open" : ""}`}
+    >
       {status ? (
         <div className="comms-status-error">
           <p>{status}</p>
@@ -419,7 +423,11 @@ export function RoomsPanel({
                   <button
                     type="button"
                     className={`panel-row comms-contact${selectedId === room.roomId ? " is-selected" : ""}`}
-                    onClick={() => setSelectedId(room.roomId)}
+                    onClick={() => {
+                      setSelectedId(room.roomId);
+                      setMobileListOpen(false);
+                      setMobilePane("chat");
+                    }}
                   >
                     <span className="panel-avatar comms-contact-avatar" aria-hidden="true">
                       {room.name.slice(0, 1).toUpperCase()}
@@ -438,12 +446,23 @@ export function RoomsPanel({
           {selected ? (
             <>
               <header className="panel-detail-head rooms-chat-head">
-                <div className="panel-detail-identity comms-peer-identity">
-                  <strong className="panel-detail-title comms-peer-name">{selected.name}</strong>
-                  <span className="panel-detail-subtitle comms-peer-status">
-                    {members.length > 0 ? `${members.length} here · ` : ""}
-                    {selected.topic ?? selected.roomId}
-                  </span>
+                <div className="rooms-mobile-head-start">
+                  <button
+                    type="button"
+                    className="rooms-mobile-back panel-btn panel-btn-icon"
+                    aria-label="Back to room list"
+                    title="Rooms"
+                    onClick={() => setMobileListOpen(true)}
+                  >
+                    ←
+                  </button>
+                  <div className="panel-detail-identity comms-peer-identity">
+                    <strong className="panel-detail-title comms-peer-name">{selected.name}</strong>
+                    <span className="panel-detail-subtitle comms-peer-status">
+                      {members.length > 0 ? `${members.length} here · ` : ""}
+                      {selected.topic ?? selected.roomId}
+                    </span>
+                  </div>
                 </div>
                 <div className="rooms-head-actions">
                   <label className="rooms-attendance">
@@ -483,7 +502,28 @@ export function RoomsPanel({
                 </div>
               </header>
 
-              <div className="rooms-thread-grid">
+              <div className="rooms-mobile-tabs" role="tablist" aria-label="Room panels">
+                <button
+                  type="button"
+                  role="tab"
+                  className={`rooms-mobile-tab${mobilePane === "chat" ? " is-active" : ""}`}
+                  aria-selected={mobilePane === "chat"}
+                  onClick={() => setMobilePane("chat")}
+                >
+                  Chat
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  className={`rooms-mobile-tab${mobilePane === "members" ? " is-active" : ""}`}
+                  aria-selected={mobilePane === "members"}
+                  onClick={() => setMobilePane("members")}
+                >
+                  Members ({members.length})
+                </button>
+              </div>
+
+              <div className={`rooms-thread-grid rooms-pane-${mobilePane}`}>
                 <aside className="rooms-members" aria-label="Room members">
                   <div className="rooms-members-head">Members</div>
                   <ul className="rooms-members-list">
