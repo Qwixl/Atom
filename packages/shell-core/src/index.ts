@@ -90,6 +90,10 @@ export {
 
   collectComponentReferences,
 
+  fetchRegistryRatings,
+
+  formatStarRating,
+
   versionMatches,
 
   computeModuleIntegrity,
@@ -147,6 +151,10 @@ export type {
   RegistryCacheSnapshot,
 
   RegistryCacheStore,
+
+  ModuleRatingSummary,
+
+  RegistryRatings,
 
   ModulePricing,
 
