@@ -101,5 +101,6 @@ jobs:
           git pull origin main
           docker compose build control-plane
           docker compose up -d control-plane
+          sleep 5
           curl -sf http://127.0.0.1:5300/health
           EOF
