@@ -1,5 +1,6 @@
 import { resolveModuleBundleOrigin } from "@qwixl/shell-core";
 import { readAtomThemeTokens } from "@qwixl/skin-default/tokens";
+import { resolveModuleBundleUrl } from "./resolveModuleBundleUrl.js";
 
 /** v1 module sandbox: scripts only — never allow-same-origin (parent storage isolation). */
 export const MODULE_IFRAME_SANDBOX = "allow-scripts";
@@ -11,8 +12,9 @@ export interface ModuleBridge {
 }
 
 export function createModuleBridge(bundleUrl: string): ModuleBridge {
+  const resolvedUrl = resolveModuleBundleUrl(bundleUrl);
   const shellOrigin = window.location.origin;
-  const bundleOrigin = resolveModuleBundleOrigin(bundleUrl, shellOrigin);
+  const bundleOrigin = resolveModuleBundleOrigin(resolvedUrl, shellOrigin);
   const crossOrigin = bundleOrigin !== shellOrigin;
 
   return {
@@ -32,3 +34,5 @@ export function createModuleBridge(bundleUrl: string): ModuleBridge {
     },
   };
 }
+
+export { resolveModuleBundleUrl } from "./resolveModuleBundleUrl.js";

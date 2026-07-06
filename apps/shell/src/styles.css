@@ -797,6 +797,15 @@ body {
   overflow: hidden;
 }
 
+.feed-surface--module {
+  padding: 10px;
+}
+
+.feed-surface--module .comms-module-iframe {
+  border-radius: var(--shell-radius-sm);
+  background: var(--shell-raised-bg);
+}
+
 .feed-surface-degraded {
   display: inline-block;
   font-size: 11px;
