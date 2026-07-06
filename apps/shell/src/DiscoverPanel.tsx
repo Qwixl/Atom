@@ -10,7 +10,8 @@ import {
 } from "@qwixl/business-index";
 
 import { CommsAgentClient, type ResolvedDiscoverTarget } from "./comms/client.js";
-import { connectDiscoverEntry, joinDiscoverRoom, entryTitle, filterAvailableDiscoverEntriesForClient } from "./discoverActions.js";
+import { connectDiscoverEntry, joinDiscoverRoom, entryTitle, filterAvailableDiscoverEntriesForClient, isDiscoverEntryJoined } from "./discoverActions.js";
+import { ownerHandleForRooms } from "./ownerHandle.js";
 import { isAgentAuthError } from "./comms/agentErrors.js";
 import { useAgentConfig } from "./comms/useAgentConfig.js";
 import type { AgentContact } from "./comms/types.js";
@@ -74,6 +75,20 @@ export function DiscoverPanel({
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [indexMatches, setIndexMatches] = useState(0);
+  const [joinedRoomIds, setJoinedRoomIds] = useState<Set<string>>(() => new Set());
+
+  const refreshJoinedRooms = useCallback(async () => {
+    if (!connectionActive) {
+      setJoinedRoomIds(new Set());
+      return;
+    }
+    try {
+      const body = await client.listRooms();
+      setJoinedRoomIds(new Set((body.joined ?? []).map((entry) => entry.roomId)));
+    } catch {
+      setJoinedRoomIds(new Set());
+    }
+  }, [client, connectionActive]);
 
   const loadResults = useCallback(async () => {
     if (!connectionActive) {
@@ -136,6 +151,10 @@ export function DiscoverPanel({
     void loadResults();
   }, [loadResults]);
 
+  useEffect(() => {
+    void refreshJoinedRooms();
+  }, [refreshJoinedRooms]);
+
   async function connectEntry(entry: DiscoverResult): Promise<void> {
     setLoading(true);
     setStatus(null);
@@ -159,7 +178,12 @@ export function DiscoverPanel({
     setLoading(true);
     setStatus(null);
     try {
-      const roomId = await joinDiscoverRoom({ client, entry });
+      const roomId = await joinDiscoverRoom({
+        client,
+        entry,
+        memberName: ownerHandleForRooms(),
+      });
+      await refreshJoinedRooms();
       onJoinedRoom?.(roomId);
       onActivity?.(`Joined ${entryTitle(entry)}`);
     } catch (error) {
@@ -233,7 +257,8 @@ export function DiscoverPanel({
                     {subtitle ? <p className="discover-row-meta">{subtitle}</p> : null}
                   </div>
                   <div className="discover-row-actions">
-                    {(entry.kind === "community" || (entry.roomIds?.length ?? 0) > 0) && (
+                    {(entry.kind === "community" || (entry.roomIds?.length ?? 0) > 0) &&
+                    !isDiscoverEntryJoined(entry, joinedRoomIds) ? (
                       <button
                         type="button"
                         className="panel-btn"
@@ -242,7 +267,7 @@ export function DiscoverPanel({
                       >
                         Join room
                       </button>
-                    )}
+                    ) : null}
                     <button
                       type="button"
                       className="panel-btn discover-dm-btn"

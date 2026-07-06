@@ -6,7 +6,8 @@ import { isAgentAuthError, formatDiscoverHostError } from "./comms/agentErrors.j
 import { useAgentConfig } from "./comms/useAgentConfig.js";
 import type { AgentContact } from "./comms/types.js";
 import { loadRoomAttendance, saveRoomAttendance, type RoomAttendanceMode } from "./roomAttendance.js";
-import { formatRoomActivity, moduleBundleUrl } from "./roomUtils.js";
+import { formatRoomActivity, moduleBundleUrl, COFFEE_SHOP_ROOM_ID } from "./roomUtils.js";
+import { formatRoomMemberLabel, formatRoomSenderLabel, loadOwnerHandle, ownerHandleForRooms } from "./ownerHandle.js";
 
 interface RoomDescriptorWire {
   roomId: string;
@@ -45,12 +46,12 @@ interface RoomsPanelProps {
   onRequestReconnect?: () => void;
 }
 
-function shortDid(did: string): string {
-  return did.length > 16 ? `${did.slice(0, 10)}…` : did;
-}
-
-function memberLabel(member: RoomMemberWire): string {
-  return member.name?.trim() || shortDid(member.did);
+function memberLabel(
+  member: RoomMemberWire,
+  localDid: string | null,
+  ownerHandle: string | undefined,
+): string {
+  return formatRoomMemberLabel(member, localDid, ownerHandle);
 }
 
 export function RoomsPanel({
@@ -85,8 +86,10 @@ export function RoomsPanel({
   const moduleFrameRef = useRef<HTMLIFrameElement | null>(null);
 
   const contacts = contactsProp ?? loadContacts();
+  const ownerHandle = useMemo(() => loadOwnerHandle(), []);
 
   const joinedIds = useMemo(() => new Set(joined.map((entry) => entry.roomId)), [joined]);
+  const hasJoinedCoffeeShop = joinedIds.has(COFFEE_SHOP_ROOM_ID);
 
   const allRooms = useMemo(() => {
     const map = new Map<string, RoomDescriptorWire>();
@@ -184,9 +187,12 @@ export function RoomsPanel({
   useEffect(() => {
     if (initialRoomId) {
       setSelectedId(initialRoomId);
-      void refreshRooms();
+      return;
     }
-  }, [initialRoomId, refreshRooms]);
+    if (selectedId) return;
+    if (allRooms.length === 0) return;
+    setSelectedId(allRooms[0]!.roomId);
+  }, [allRooms, initialRoomId, selectedId]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -274,7 +280,7 @@ export function RoomsPanel({
     setLoading(true);
     setStatus(null);
     try {
-      const roomId = await quickJoinCoffeeShop(client);
+      const roomId = await quickJoinCoffeeShop(client, ownerHandleForRooms());
       await refreshRooms();
       setSelectedId(roomId);
       onActivity?.("Joined Qwixl Coffee Shop");
@@ -324,7 +330,7 @@ export function RoomsPanel({
     const next: AgentContact = existing ?? {
       id: member.did,
       did: member.did,
-      name: memberLabel(member),
+      name: memberLabel(member, localDid, ownerHandle),
       endpoint: member.endpoint ?? "",
       connectedAt: new Date().toISOString(),
       kind: "community",
@@ -351,7 +357,7 @@ export function RoomsPanel({
       const contact: AgentContact = existing ?? {
         id: member.did,
         did: member.did,
-        name: memberLabel(member),
+        name: memberLabel(member, localDid, ownerHandle),
         endpoint: member.endpoint.trim(),
         connectedAt: new Date().toISOString(),
         kind: "community",
@@ -361,7 +367,7 @@ export function RoomsPanel({
       saveContacts(list);
       onContactsChange?.(list);
       setMemberMenuDid(null);
-      onActivity?.(`Connected with ${memberLabel(member)}`);
+      onActivity?.(`Connected with ${memberLabel(member, localDid, ownerHandle)}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
@@ -504,7 +510,7 @@ export function RoomsPanel({
                               }
                             >
                               <span className="rooms-member-name">
-                                {memberLabel(member)}
+                                {memberLabel(member, localDid, ownerHandle)}
                                 {isSelf ? " (you)" : ""}
                               </span>
                               {contact?.blocked ? (
@@ -557,7 +563,9 @@ export function RoomsPanel({
                       messages.map((msg) => (
                         <div key={msg.seq} className="shell-comms-msg shell-comms-msg-in rooms-msg">
                           <div className="shell-comms-msg-text">
-                            <strong>{shortDid(msg.senderDid)}</strong>
+                            <strong>
+                              {formatRoomSenderLabel(msg.senderDid, members, localDid, ownerHandle)}
+                            </strong>
                             {msg.kind === "activity" ? (
                               <span> · {formatRoomActivity(msg.activityKind)}</span>
                             ) : (
@@ -601,22 +609,24 @@ export function RoomsPanel({
           ) : (
             <div className="panel-empty comms-no-selection rooms-empty-detail">
               <strong>Select a room</strong>
-              <p>Join the Coffee Shop from the list, Discover, or the button below.</p>
-              <div className="rooms-empty-actions">
-                <button
-                  type="button"
-                  className="panel-btn panel-btn-primary"
-                  disabled={loading}
-                  onClick={() => void joinCoffeeShop()}
-                >
-                  Join Coffee Shop
-                </button>
-                {onOpenDiscover ? (
-                  <button type="button" className="panel-btn" onClick={onOpenDiscover}>
-                    Open Discover
+              <p>Choose a room from the list on the left.</p>
+              {!hasJoinedCoffeeShop ? (
+                <div className="rooms-empty-actions">
+                  <button
+                    type="button"
+                    className="panel-btn panel-btn-primary"
+                    disabled={loading}
+                    onClick={() => void joinCoffeeShop()}
+                  >
+                    Join Coffee Shop
                   </button>
-                ) : null}
-              </div>
+                  {onOpenDiscover ? (
+                    <button type="button" className="panel-btn" onClick={onOpenDiscover}>
+                      Open Discover
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           )}
         </section>
