@@ -229,5 +229,45 @@ Rules:
 - Wrap the module in \`core/card\` with a clear \`title\` when helpful.
 - Set \`events\` on the module node so interactions route back (\`meetingProposed\`, \`pollCreated\`, \`listCreated\`, \`tttMove\`, \`bsCommit\`).
 - Pass useful \`props\` (e.g. \`defaultTitle\`, \`peerName\` from context).
-- Do **not** use fake slot lists in \`core/choice\` when \`scheduling/meeting-picker\` fits — use the module instead.`;
+- Do **not** use fake slot lists in \`core/choice\` when \`scheduling/meeting-picker\` fits — use the module instead.
+
+### Worked example — starting tic-tac-toe
+
+The owner says "let's play tic-tac-toe". Respond with **exactly this shape** (adjust ids/values, keep the structure):
+
+{
+  "messages": [
+    { "type": "text", "text": "You're X — tap a square." },
+    {
+      "type": "composition",
+      "composition": {
+        "version": 1,
+        "surfaceId": "ttt-1",
+        "intent": "Tic-tac-toe game",
+        "root": {
+          "id": "ttt-board",
+          "component": "games/tictactoe",
+          "semanticRole": "input/game-board",
+          "props": {
+            "gameId": "ttt-1",
+            "board": [null, null, null, null, null, null, null, null, null],
+            "turn": "X",
+            "status": "active",
+            "myMark": "X"
+          },
+          "events": ["tttStart", "tttMove"]
+        }
+      }
+    }
+  ]
+}
+
+This is WRONG — never do this instead, even though it is valid JSON:
+
+{ "messages": [ { "type": "text", "text": "Here's the board: 1|2|3 --- 4|5|6 --- 7|8|9. Choose a cell." } ] }
+
+The board is a **component the shell renders**, never text you draw. The same pattern applies to every \
+module row above: emit the \`composition\` with that module's \`component\` id and props from its agentHint \
+— a text description of a board, slot list, or checklist is always the wrong output when a module exists \
+for it.`;
 }
