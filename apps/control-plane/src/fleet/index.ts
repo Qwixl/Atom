@@ -51,6 +51,10 @@ class DevStubProvisioner implements FleetProvisioner {
   async destroy(_agent: HostedAgentRecord): Promise<void> {
     /* dev stub */
   }
+
+  async updateLlmApiKey(_agent: HostedAgentRecord, _llmApiKey: string): Promise<void> {
+    /* dev stub — LLM key lives on the shared stub agent process */
+  }
 }
 
 class UnconfiguredProvisioner implements FleetProvisioner {
@@ -76,6 +80,10 @@ class UnconfiguredProvisioner implements FleetProvisioner {
   }
 
   async destroy(): Promise<void> {
+    throw new Error("Fleet not configured");
+  }
+
+  async updateLlmApiKey(): Promise<void> {
     throw new Error("Fleet not configured");
   }
 }
