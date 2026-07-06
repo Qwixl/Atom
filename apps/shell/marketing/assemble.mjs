@@ -16,7 +16,12 @@ function page(meta, body, outPath) {
   const depth = outPath.split("/").length - 1;
   const prefix = depth > 0 ? "../".repeat(depth) : "./";
   const css = depth > 0 ? `${prefix}css/site.css` : "/css/site.css";
-  const js = footer.replace("/js/site.js", depth > 0 ? `${prefix}js/site.js` : "/js/site.js");
+  const js = footer
+    .replace("/js/site.js", depth > 0 ? `${prefix}js/site.js` : "/js/site.js")
+    .replace(
+      "/js/auth-callback-redirect.js",
+      depth > 0 ? `${prefix}js/auth-callback-redirect.js` : "/js/auth-callback-redirect.js",
+    );
   const hdr = header
     .replace('href="/', `href="${prefix === "./" ? "/" : prefix}`)
     .replaceAll('href="/', `href="${prefix === "./" ? "/" : prefix}`);

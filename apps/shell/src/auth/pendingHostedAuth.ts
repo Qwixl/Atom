@@ -9,7 +9,7 @@ export type PendingHostedAuth = {
 
 export function savePendingHostedAuth(data: PendingHostedAuth): void {
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch {
     /* quota / private mode */
   }
@@ -17,7 +17,7 @@ export function savePendingHostedAuth(data: PendingHostedAuth): void {
 
 export function loadPendingHostedAuth(): PendingHostedAuth | null {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as PendingHostedAuth;
   } catch {
@@ -27,7 +27,7 @@ export function loadPendingHostedAuth(): PendingHostedAuth | null {
 
 export function clearPendingHostedAuth(): void {
   try {
-    sessionStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
   } catch {
     /* ignore */
   }
