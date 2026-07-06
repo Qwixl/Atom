@@ -1,13 +1,13 @@
 :root {
-  --text-muted: var(--atom-color-text-dim, #7d8da3);
-  --on-accent: #061018;
-  --warn-soft: rgba(230, 179, 77, 0.12);
-  --chrome: #7c5cff;
-  --radius: var(--atom-radius-md, 10px);
-  --radius-sm: var(--atom-radius-sm, 8px);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
-  --font-mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
-  font-family: var(--atom-font-sans, "Segoe UI", system-ui, -apple-system, sans-serif);
+  --text-muted: var(--atom-color-text-dim, #666666);
+  --on-accent: #ffffff;
+  --warn-soft: rgba(217, 119, 6, 0.12);
+  --chrome: #000000;
+  --radius: var(--atom-radius-md, 8px);
+  --radius-sm: var(--atom-radius-sm, 6px);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --font-mono: var(--shell-font-mono);
+  font-family: var(--shell-font);
 }
 
 * {
@@ -53,13 +53,13 @@ body {
 .settings-dialog {
   background: var(--bg-raised);
   border: 1px solid var(--border-strong);
-  border-radius: 14px;
+  border-radius: var(--shell-radius-lg);
   width: min(480px, calc(100vw - 40px));
   max-height: calc(100vh - 40px);
   margin: auto;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--shell-shadow-sm);
   overflow: hidden;
 }
 
@@ -845,10 +845,10 @@ body {
 }
 
 .atom-button {
-  background: var(--accent);
-  color: #0b1220;
+  background: var(--shell-cta-bg);
+  color: var(--shell-cta-text);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--shell-radius-sm);
   padding: 9px 18px;
   font-weight: 600;
   cursor: pointer;

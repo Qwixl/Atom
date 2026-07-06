@@ -62,8 +62,8 @@ import { connectDiscoverEntry, joinDiscoverRoom } from "./discoverActions.js";
 import { extractDiscoverTerms, isDiscoverQuery } from "./discoverQuery.js";
 import { loadDiscoverIndexes } from "./discoverIndexStorage.js";
 import { RoomsPanel } from "./RoomsPanel.js";
-import { FirstRunWizard } from "./FirstRunWizard.js";
 import { loadFirstRunDone, markFirstRunDone, resetFirstRunDone } from "./firstRunStorage.js";
+import { navigate } from "./navigation.js";
 import { DemoBootstrap } from "./DemoBootstrap.js";
 import { PersonalDemoWalkthrough } from "./PersonalDemoWalkthrough.js";
 import { buildGoogleCalendarAddUrl } from "./calendarAddLink.js";
@@ -107,8 +107,8 @@ import { validateProductionAgUiUrl } from "./productionGuard.js";
 import { applyAtomSkin, ATOM_SKINS, type AtomSkinId } from "@qwixl/skin-default/tokens";
 import { ShellComposer } from "./shell/ShellComposer.js";
 import { ConfirmationChrome } from "./shell/ConfirmationChrome.js";
-import { ShellMainHeader } from "./shell/ShellMainHeader.js";
-import { ShellSidebar, type ShellNavPanel } from "./shell/ShellSidebar.js";
+import { AtomShell } from "./shell/AtomShell.js";
+import type { ShellNavPanel } from "./shell/ShellSidebar.js";
 
 type Provider = "mock" | "llm" | "ag-ui";
 type SidePanel = ShellNavPanel;
@@ -251,7 +251,6 @@ export function App() {
     [],
   );
 
-  const [firstRunOpen, setFirstRunOpen] = useState(false);
   const [agentConnectionReady, setAgentConnectionReady] = useState(false);
   const [agentBootstrapPending, setAgentBootstrapPending] = useState(!IS_DEMO_MODE);
   const [vaultUnlocked, setVaultUnlocked] = useState(() => !isVaultInitialized() || isVaultUnlocked());
@@ -272,7 +271,6 @@ export function App() {
       const finishConnected = () => {
         setAgentConnectionReady(true);
         markFirstRunDone();
-        setFirstRunOpen(false);
         if (isVaultInitialized() && !isVaultUnlocked()) {
           setVaultUnlocked(false);
         }
@@ -307,7 +305,7 @@ export function App() {
         clearCommsAgentConfig();
         resetFirstRunDone();
         setAgentConnectionReady(false);
-        setFirstRunOpen(true);
+        navigate("/app/?auth=register", true);
         setAgentBootstrapPending(false);
         return;
       }
@@ -325,15 +323,13 @@ export function App() {
       // Local dev: never block the shell with a signup wizard. Configure once in Comms → Setup.
       if (SHOW_DEV_WORKFLOWS) {
         markFirstRunDone();
-        setFirstRunOpen(false);
         setAgentConnectionReady(false);
         setAgentBootstrapPending(false);
         return;
       }
 
-      // Production: hosted signup when nothing is connected yet.
       setAgentConnectionReady(false);
-      setFirstRunOpen(true);
+      navigate("/app/?auth=register", true);
       setAgentBootstrapPending(false);
     })();
   }, []);
@@ -350,7 +346,7 @@ export function App() {
       resetFirstRunDone();
     }
     setAgentConnectionReady(false);
-    setFirstRunOpen(true);
+    navigate("/app/?auth=login", true);
   }, []);
 
   useEffect(() => {
@@ -391,7 +387,7 @@ export function App() {
         if (/unauthorized|401/i.test(message)) {
           clearCommsAdminToken();
           setAgentConnectionReady(false);
-          setFirstRunOpen(true);
+          navigate("/app/?auth=login", true);
           return;
         }
         console.warn("[custody] backend hydrate failed", error);
@@ -468,7 +464,14 @@ export function App() {
   } | null>(null);
   const [custodyError, setCustodyError] = useState<string | null>(null);
   const [panel, setPanel] = useState<SidePanel>(() => "none");
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof sessionStorage === "undefined") return;
+    if (sessionStorage.getItem("atom-open-comms") === "1") {
+      sessionStorage.removeItem("atom-open-comms");
+      setPanel("comms");
+    }
+  }, []);
   const [roomsFocusId, setRoomsFocusId] = useState<string | null>(null);
   const [commsFocusId, setCommsFocusId] = useState<string | null>(null);
   const [chatDiscoverResults, setChatDiscoverResults] = useState<DiscoverChatResult[] | null>(null);
@@ -1086,58 +1089,54 @@ export function App() {
   }
 
   return (
-    <div className={`shell${IS_DEMO_MODE ? " shell--demo" : ""}`}>
-      <div className="shell-frame">
-        {!IS_DEMO_MODE ? (
-          <ShellSidebar
-            panel={panel}
-            onNavigate={navigatePanel}
-            onOpenSettings={() => {
-              setSettingsIntent(null);
-              setSettingsOpen(true);
-            }}
-            commsCount={commsContacts.length}
-            profileBadge={profileNavBadge}
-            logCount={attestations.length}
-            mobileOpen={mobileNavOpen}
-            onMobileClose={() => setMobileNavOpen(false)}
-          />
-        ) : null}
-
-        <div className="shell-main">
-          {!IS_DEMO_MODE ? (
-            <ShellMainHeader
-              panel={panel}
-              ownerAgentSummary={ownerAgentSummary}
-              vaultUnlocked={vaultUnlocked}
-              registryError={registryError}
-              modulesEnabled={modulesEnabled}
-              onToggleModules={() => setModulesEnabled((current) => !current)}
-              provider={provider}
-              onSwitchProvider={switchProvider}
-              allowBrowserLlm={ALLOW_BROWSER_LLM}
-              settingsIntent={settingsIntent}
-              onOpenMobileNav={() => setMobileNavOpen(true)}
-              showChatProviderControls={panel === "none"}
+    <>
+      <AtomShell
+        section={panel}
+        onNavigate={navigatePanel}
+        onOpenSettings={() => {
+          setSettingsIntent(null);
+          setSettingsOpen(true);
+        }}
+        badges={{
+          ...(commsContacts.length > 0 ? { comms: { count: commsContacts.length } } : {}),
+          ...(profileNavBadge ? { profile: profileNavBadge } : {}),
+          ...(attestations.length > 0 ? { log: { count: attestations.length } } : {}),
+        }}
+        status={
+          <>
+            {registryError ? (
+              <span className="atom-app-status" title={registryError}>
+                Registry error
+              </span>
+            ) : null}
+            <span className="atom-app-status">
+              <span
+                className={`atom-status-dot${vaultUnlocked ? " atom-status-dot--active" : ""}`}
+                aria-hidden="true"
+              />
+              {vaultUnlocked ? "Vault unlocked" : "Vault locked"}
+            </span>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              aria-pressed={modulesEnabled}
+              onClick={() => setModulesEnabled((current) => !current)}
+            >
+              Modules {modulesEnabled ? "on" : "off"}
+            </button>
+          </>
+        }
+        composer={
+          showMainComposer ? (
+            <ShellComposer
+              value={input}
+              busy={busy}
+              onChange={setInput}
+              onSubmit={submitMessage}
             />
-          ) : (
-            <header className="shell-main-header">
-              <div className="shell-main-header-start">
-                <div className="shell-main-header-titles">
-                  <h1 className="shell-main-header-title">Atom</h1>
-                  <p className="shell-main-header-subtitle">Personal demo</p>
-                </div>
-              </div>
-            </header>
-          )}
-
-          <div
-            className={`shell-main-body${
-              !IS_DEMO_MODE && (panel === "comms" || panel === "discover" || panel === "rooms")
-                ? " shell-main-body--comms"
-                : ""
-            }${IS_DEMO_MODE && demoReady ? " shell-main-body--personal-demo" : ""}`}
-          >
+          ) : undefined
+        }
+      >
         {IS_DEMO_MODE && demoReady && panel !== "log" ? (
           <PersonalDemoWalkthrough
             agentReady={demoReady}
@@ -1240,7 +1239,7 @@ export function App() {
             onRequestReconnect={() => {
               resetFirstRunDone();
               clearCommsAgentConfig();
-              setFirstRunOpen(true);
+              navigate("/app/?auth=login", true);
             }}
             onContactsChanged={() => {
               setCommsFocusId(null);
@@ -1266,7 +1265,7 @@ export function App() {
             onRequestReconnect={() => {
               resetFirstRunDone();
               clearCommsAgentConfig();
-              setFirstRunOpen(true);
+              navigate("/app/?auth=login", true);
             }}
             onContactsChange={setCommsContacts}
             onJoinedRoom={(roomId) => {
@@ -1292,7 +1291,7 @@ export function App() {
             onRequestReconnect={() => {
               resetFirstRunDone();
               clearCommsAgentConfig();
-              setFirstRunOpen(true);
+              navigate("/app/?auth=login", true);
             }}
             onContactsChange={setCommsContacts}
             onOpenDiscover={() => setPanel("discover")}
@@ -1354,18 +1353,7 @@ export function App() {
           </div>
           </div>
         ) : null}
-          </div>
-
-          {showMainComposer ? (
-            <ShellComposer
-              value={input}
-              busy={busy}
-              onChange={setInput}
-              onSubmit={submitMessage}
-            />
-          ) : null}
-        </div>
-      </div>
+      </AtomShell>
 
       {chromePending ? (
         <ConfirmationChrome
@@ -1400,26 +1388,10 @@ export function App() {
         <p className="demo-bootstrap-error">{demoBootstrapError}</p>
       ) : null}
 
-      {!IS_DEMO_MODE && !firstRunOpen && agentConnectionReady && !vaultUnlocked ? (
+      {!IS_DEMO_MODE && agentConnectionReady && !vaultUnlocked ? (
         <VaultUnlockGate
           onUnlocked={() => {
             void refreshCommsConfigCache().then(() => setVaultUnlocked(true));
-          }}
-        />
-      ) : null}
-
-      {!IS_DEMO_MODE && firstRunOpen && !ATOM_BROWSER_MODE && !SHOW_DEV_WORKFLOWS ? (
-        <FirstRunWizard
-          onDone={() => {
-            void refreshCommsConfigCache().then(() => {
-              setFirstRunOpen(false);
-              setAgentConnectionReady(true);
-              if (!isVaultInitialized()) setVaultUnlocked(true);
-            });
-          }}
-          onOpenComms={() => {
-            setPanel("comms");
-            setFirstRunOpen(false);
           }}
         />
       ) : null}
@@ -1501,7 +1473,7 @@ export function App() {
           }}
         />
       ) : null}
-    </div>
+    </>
   );
 }
 

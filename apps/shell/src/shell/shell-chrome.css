@@ -179,8 +179,8 @@
 }
 
 .shell-segmented button.is-active {
-  color: var(--shell-accent-text);
-  background: var(--shell-accent);
+  color: var(--shell-cta-text);
+  background: var(--shell-cta-bg);
 }
 
 .shell-segmented button:focus-visible {

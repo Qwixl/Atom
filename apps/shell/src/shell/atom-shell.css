@@ -1,0 +1,364 @@
+/**
+ * Atom app shell — single-stage layout (no persistent sidebar / master-detail chrome).
+ * Uses native HTML5 dialog for mobile section menu.
+ */
+
+.atom-app {
+  --atom-header-h: 56px;
+  --atom-dock-h: 56px;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  background: var(--shell-main-bg);
+  color: var(--shell-text);
+}
+
+.atom-app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: var(--atom-header-h);
+}
+
+.atom-app-tabs {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+}
+
+.atom-app-header-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.atom-app-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--shell-text-muted);
+}
+
+.atom-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--shell-border-strong);
+}
+
+.atom-status-dot--active {
+  background: var(--shell-status-active);
+}
+
+.atom-nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--shell-radius-sm);
+  background: transparent;
+  color: var(--shell-text-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.atom-nav-item:hover:not(:disabled) {
+  background: var(--shell-hover-bg);
+  color: var(--shell-text);
+}
+
+.atom-nav-item.is-active {
+  background: var(--shell-inset-bg);
+  color: var(--shell-text);
+  box-shadow: inset 0 -2px 0 var(--shell-text);
+}
+
+.atom-nav-item.is-locked {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.atom-nav-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.atom-nav-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--shell-radius-full);
+  background: var(--shell-inset-bg);
+  border: 1px solid var(--shell-border-strong);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.atom-nav-badge--warn {
+  border-color: var(--shell-warn);
+  color: var(--shell-warn);
+}
+
+.atom-app-settings-label {
+  display: none;
+}
+
+.atom-app-menu-trigger {
+  display: inline-flex;
+}
+
+.atom-demo-banner {
+  display: none;
+}
+
+.atom-app-header.site-header {
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.atom-app-body {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.atom-app-stage {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.atom-app-composer {
+  flex: none;
+  border-top: 1px solid var(--shell-border);
+  background: var(--shell-raised-bg);
+}
+
+/* Bottom dock — mobile primary navigation */
+
+.atom-app-dock {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--shell-border);
+  background: var(--shell-raised-bg);
+}
+
+.atom-dock-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border: none;
+  border-radius: var(--shell-radius-sm);
+  background: transparent;
+  color: var(--shell-text-muted);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.atom-dock-item.is-active {
+  color: var(--shell-text);
+  background: var(--shell-hover-bg);
+}
+
+.atom-dock-item.is-locked {
+  opacity: 0.35;
+}
+
+/* Section menu dialog */
+
+.atom-menu-dialog {
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--shell-border);
+  border-radius: var(--shell-radius-lg);
+  background: var(--shell-raised-bg);
+  color: var(--shell-text);
+  width: min(360px, 92vw);
+  max-height: min(80dvh, 520px);
+}
+
+.atom-menu-dialog::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+
+.atom-menu-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--shell-border);
+  margin: 0;
+}
+
+.atom-menu-dialog-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+}
+
+.atom-menu-dialog-nav .atom-nav-item {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+/* Comms workspace — single pane, contacts in dialog */
+
+.comms-workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.comms-workspace .comms-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.comms-workspace .comms-sidebar {
+  display: none;
+}
+
+.comms-workspace .comms-conversation {
+  flex: 1;
+  min-height: 0;
+}
+
+.comms-contacts-dialog {
+  margin: 0;
+  padding: 0;
+  border: none;
+  width: min(400px, 100%);
+  max-width: none;
+  max-height: 85dvh;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  border-radius: var(--shell-radius-lg) var(--shell-radius-lg) 0 0;
+  background: var(--shell-raised-bg);
+  color: var(--shell-text);
+}
+
+.comms-contacts-dialog::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+
+.comms-contacts-dialog-inner {
+  display: flex;
+  flex-direction: column;
+  max-height: 85dvh;
+}
+
+.comms-contacts-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--shell-border);
+}
+
+.comms-contacts-dialog .panel-list-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.comms-peer-bar {
+  gap: 12px;
+}
+
+.comms-open-contacts {
+  flex-shrink: 0;
+}
+
+/* Kill legacy shell chrome inside atom-app */
+
+.atom-app .shell-frame,
+.atom-app .shell-sidebar,
+.atom-app .shell-main-header {
+  display: none;
+}
+
+.atom-app .panel-view,
+.atom-app .comms-view {
+  flex: 1;
+  min-height: 0;
+  border: none;
+  background: transparent;
+}
+
+.atom-app .panel-toolbar {
+  padding: 10px 16px;
+}
+
+@media (min-width: 960px) {
+  .atom-app {
+    grid-template-rows: auto auto 1fr;
+  }
+
+  .atom-app-tabs {
+    display: flex;
+  }
+
+  .atom-app-dock,
+  .atom-app-menu-trigger {
+    display: none;
+  }
+
+  .atom-app-settings-label {
+    display: inline;
+  }
+
+  .comms-contacts-dialog {
+    margin: auto;
+    width: min(420px, 92vw);
+    max-height: min(70dvh, 640px);
+    position: relative;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    border-radius: var(--shell-radius-lg);
+    border: 1px solid var(--shell-border);
+  }
+}
+
+@media (min-width: 1200px) {
+  .comms-workspace .comms-sidebar {
+    display: flex;
+    flex-direction: column;
+    width: min(320px, 28vw);
+    border-right: 1px solid var(--shell-border);
+    flex-shrink: 0;
+  }
+
+  .comms-workspace .comms-main {
+    flex-direction: row;
+  }
+
+  .comms-workspace .comms-open-contacts {
+    display: none;
+  }
+}

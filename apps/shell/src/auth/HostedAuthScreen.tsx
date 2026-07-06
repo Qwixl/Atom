@@ -13,6 +13,7 @@ import {
 import { bareOwnerHandle, normalizeOwnerHandle, validateOwnerHandle } from "../ownerHandle.js";
 import { saveOwnerHandle } from "../ownerHandle.js";
 import { markFirstRunDone } from "../firstRunStorage.js";
+import { FieldLabelWithHint, LlmApiKeyHintContent } from "../ui/FieldHint.js";
 
 type AuthMode = "signup" | "login";
 
@@ -179,7 +180,7 @@ export function HostedAuthScreen({
           </label>
 
           <label className="field">
-            <span>LLM API key</span>
+            <FieldLabelWithHint label="LLM API key" hint={<LlmApiKeyHintContent />} />
             <input
               type="password"
               autoComplete="off"

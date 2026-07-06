@@ -1,0 +1,201 @@
+/**
+ * App shell — unified with static marketing site (monochrome + black CTAs + orange status dots).
+ */
+
+.shell {
+  --shell-accent: var(--shell-status-active, #e87722);
+}
+
+/* Brand */
+
+.shell-sidebar-brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.shell-sidebar-brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--shell-radius-sm, 6px);
+  background: var(--shell-cta-bg);
+  color: var(--shell-cta-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Active nav — black bar + optional orange dot, not orange wash */
+
+.shell-sidebar-nav-item.is-active::before {
+  background: var(--shell-text);
+}
+
+.shell-sidebar-nav-item.is-active {
+  background: var(--shell-inset-bg);
+}
+
+.shell-sidebar-nav-item {
+  gap: 8px;
+}
+
+.shell-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.shell-status-dot--active {
+  background: var(--shell-status-active, #e87722);
+}
+
+.shell-sidebar-badge {
+  background: var(--shell-inset-bg);
+  color: var(--shell-text);
+  border: 1px solid var(--shell-border-strong);
+}
+
+/* Primary actions — black / white, not orange */
+
+.shell-btn-primary,
+.panel-btn-primary,
+.shell-composer .shell-btn-primary,
+.chrome-approve,
+.atom-button {
+  background: var(--shell-cta-bg) !important;
+  color: var(--shell-cta-text) !important;
+  border-color: var(--shell-cta-bg) !important;
+}
+
+.shell-btn-primary:hover:not(:disabled),
+.panel-btn-primary:hover:not(:disabled),
+.chrome-approve:hover:not(:disabled),
+.atom-button:hover:not(:disabled) {
+  background: var(--shell-cta-hover) !important;
+  border-color: var(--shell-cta-hover) !important;
+}
+
+/* Selection states */
+
+.panel-row.is-selected {
+  border-color: var(--shell-text);
+  background: var(--shell-inset-bg);
+}
+
+.panel-btn.is-active {
+  border-color: var(--shell-text);
+  background: var(--shell-inset-bg);
+  color: var(--shell-text);
+}
+
+.panel-avatar {
+  color: var(--shell-text);
+  background: var(--shell-inset-bg);
+  border-color: var(--shell-border-strong);
+}
+
+.shell-profile-record.proposal {
+  border-left-color: var(--shell-text);
+}
+
+/* Meta status — orange dot only for active/live */
+
+.shell-meta-dot-good {
+  background: var(--shell-status-active, #e87722);
+}
+
+/* HTML5 dialog — mobile navigation */
+
+.shell-nav-dialog {
+  margin: 0;
+  padding: 0;
+  border: none;
+  max-width: none;
+  max-height: none;
+  width: min(300px, 92vw);
+  height: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  background: var(--shell-sidebar-bg);
+  color: var(--shell-text);
+}
+
+.shell-nav-dialog::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+
+.shell-nav-dialog-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 14px 10px 12px;
+}
+
+.shell-nav-dialog-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--shell-border-strong);
+  border-radius: var(--shell-radius-sm);
+  background: transparent;
+  color: var(--shell-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.shell-sidebar--desktop {
+  display: flex;
+}
+
+.shell-nav-dialog {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .shell-sidebar--desktop {
+    display: none;
+  }
+
+  .shell-nav-dialog[open] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .shell-frame {
+    flex-direction: column;
+  }
+
+  .panel-master-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-list {
+    border-right: none;
+    border-bottom: 1px solid var(--shell-border);
+    max-height: 40vh;
+  }
+}
+
+@media (min-width: 901px) {
+  .shell-nav-dialog {
+    display: none !important;
+  }
+}
+
+/* Focus rings */
+
+.shell-sidebar-nav-item:focus-visible,
+.shell-btn:focus-visible,
+.panel-btn:focus-visible,
+.panel-row:focus-visible {
+  outline: 2px solid var(--shell-text);
+  outline-offset: 2px;
+}
