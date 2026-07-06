@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import { ThemeToggle } from "../theme/ThemeToggle.js";
 import type { ShellNavPanel } from "./ShellSidebar.js";
 import {
@@ -90,7 +89,6 @@ export function AtomShell({
   variant = "default",
   children,
 }: AtomShellProps) {
-  const menuDialogRef = useRef<HTMLDialogElement>(null);
   const locked = new Set(lockedSections);
 
   const items: NavItem[] = NAV.map((entry) => ({
@@ -103,16 +101,10 @@ export function AtomShell({
   function selectSection(id: ShellNavPanel) {
     if (locked.has(id)) return;
     onNavigate(id);
-    menuDialogRef.current?.close();
   }
 
-  useEffect(() => {
-    const dialog = menuDialogRef.current;
-    if (!dialog) return;
-    const onClose = () => {};
-    dialog.addEventListener("close", onClose);
-    return () => dialog.removeEventListener("close", onClose);
-  }, []);
+  const logItem = items.find((item) => item.id === "log");
+  const logLocked = logItem?.locked ?? false;
 
   return (
     <div className={`atom-app${variant === "demo" ? " atom-app--demo" : ""}`}>
@@ -147,11 +139,14 @@ export function AtomShell({
           </button>
           <button
             type="button"
-            className="btn btn-ghost atom-app-menu-trigger"
-            aria-haspopup="dialog"
-            onClick={() => menuDialogRef.current?.showModal()}
+            className={`btn btn-ghost atom-app-log-trigger panel-btn-icon${section === "log" ? " is-active" : ""}`}
+            aria-label="Log"
+            title="Log"
+            aria-current={section === "log" ? "page" : undefined}
+            disabled={logLocked}
+            onClick={() => selectSection("log")}
           >
-            Menu
+            <IconLog className="atom-nav-icon" />
           </button>
         </div>
         </div>
@@ -184,20 +179,6 @@ export function AtomShell({
           );
         })}
       </nav>
-
-      <dialog ref={menuDialogRef} className="atom-menu-dialog">
-        <form method="dialog" className="atom-menu-dialog-head">
-          <strong>Sections</strong>
-          <button type="submit" className="btn btn-ghost">
-            Close
-          </button>
-        </form>
-        <nav className="atom-menu-dialog-nav">
-          {items.map((item) => (
-            <NavButton key={item.id} item={item} active={section === item.id} onSelect={selectSection} />
-          ))}
-        </nav>
-      </dialog>
     </div>
   );
 }

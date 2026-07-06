@@ -655,6 +655,7 @@ body {
   flex-direction: column;
   gap: 14px;
   width: 100%;
+  align-self: center;
 }
 
 .shell-empty {

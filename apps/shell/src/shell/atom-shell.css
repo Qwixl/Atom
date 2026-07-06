@@ -118,8 +118,14 @@
   display: none;
 }
 
-.atom-app-menu-trigger {
+.atom-app-menu-trigger,
+.atom-app-log-trigger {
   display: inline-flex;
+}
+
+.atom-app-log-trigger.is-active {
+  background: var(--shell-inset-bg);
+  color: var(--shell-text);
 }
 
 .atom-demo-banner {
@@ -187,6 +193,7 @@
 .atom-app-content > .shell-feed {
   max-width: var(--atom-chat-max);
   overflow-y: auto;
+  align-self: center;
 }
 
 .atom-app .shell-panel-view {
@@ -384,7 +391,7 @@
   }
 
   .atom-app-dock,
-  .atom-app-menu-trigger {
+  .atom-app-log-trigger {
     display: none;
   }
 

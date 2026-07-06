@@ -78,8 +78,8 @@ export function IconLog(props: IconProps) {
 export function IconSettings(props: IconProps) {
   return (
     <IconBase {...props}>
+      <path d="M10 4h4l1 3h3l-2 3 1 3-3-1-3 1 1 3-3 1 3h-3l-1 3h-4l-1-3H6l2-3-1-3 3 1 3-1-1-3 3-1-3-1 1-3 3 1h3l1-3z" />
       <circle cx="12" cy="12" r="3" />
-      <path d="M12 1v2m0 18v2M4 5l1 1m14-14 1 1M1 12h2m18 0h2M5 19l1-1m12 0 1 1M19 5l-1 1M7 7l1-1m8 8 1 1M7 17l1 1m8-8 1-1" />
     </IconBase>
   );
 }
