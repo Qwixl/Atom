@@ -97,15 +97,6 @@
   flex-shrink: 0;
 }
 
-.atom-icon-settings {
-  display: block;
-  object-fit: contain;
-}
-
-html[data-theme="dark"] .atom-icon-settings {
-  filter: invert(1);
-}
-
 .atom-app-logout {
   font-size: 13px;
 }
