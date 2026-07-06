@@ -296,8 +296,20 @@ body {
   padding: 12px 24px 18px;
   border-top: 1px solid var(--border);
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-dialog-footer-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.settings-logout {
+  margin-right: auto;
 }
 
 .settings-intent-note {

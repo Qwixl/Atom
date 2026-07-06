@@ -64,6 +64,7 @@ import { extractDiscoverTerms, isDiscoverQuery } from "./discoverQuery.js";
 import { loadDiscoverIndexes } from "./discoverIndexStorage.js";
 import { RoomsPanel } from "./RoomsPanel.js";
 import { tryReconnectHostedAgent } from "./auth/completeSetup.js";
+import { loadAccountType, saveAccountType, clearAccountType } from "./accountType.js";
 import { loadFirstRunDone, markFirstRunDone, resetFirstRunDone } from "./firstRunStorage.js";
 import { navigate } from "./navigation.js";
 import { DemoBootstrap } from "./DemoBootstrap.js";
@@ -91,7 +92,7 @@ import {
 import { loadCommsAgentConfig, loadCommsAgentConfigSecure, saveCommsAgentConfigSecure, clearCommsAdminToken, clearCommsAgentConfig, loadOwnerAgentKind, refreshCommsConfigCache, purgeStaleLocalAgentConfig, isLocalAgentUrl } from "./comms/storage.js";
 import { probeAgentConnection, reconcileAgentConnection } from "./comms/agentConnection.js";
 import { loadBrowserAgentConfig } from "./browserAgentConfig.js";
-import { isVaultInitialized, isVaultUnlocked } from "./custody/dataVault.js";
+import { isVaultInitialized, isVaultUnlocked, lockVault } from "./custody/dataVault.js";
 import { VaultUnlockGate } from "./custody/VaultUnlockGate.js";
 import { RegistryCatalogList } from "./RegistryCatalogList.js";
 import { loadContacts } from "./comms/storage.js";
@@ -104,12 +105,13 @@ import {
   PRODUCTION_REGISTRY_TRUST,
   PRODUCTION_REGISTRY_URL,
   SHOW_DEV_WORKFLOWS,
+  usesSupabaseHostedAuth,
 } from "./hostConfig.js";
 import { AGUI_CONFIG_KEY, DEFAULT_AGUI_URL, agUiAuthHeaders, loadAgUiConfig, saveAgUiConfigForAgent } from "./agUiConfig.js";
 import { validateProductionAgUiUrl } from "./productionGuard.js";
 import { applyAtomSkin, ATOM_SKINS, type AtomSkinId } from "@qwixl/skin-default/tokens";
 import { FieldLabelWithHint, LlmApiKeyHintContent } from "./ui/FieldHint.js";
-import { updateHostedLlmApiKey } from "./auth/hostedAccount.js";
+import { updateHostedLlmApiKey, signOutSupabase, fetchHostedAccountStatus } from "./auth/hostedAccount.js";
 import { ShellComposer } from "./shell/ShellComposer.js";
 import { ConfirmationChrome } from "./shell/ConfirmationChrome.js";
 import { AtomShell } from "./shell/AtomShell.js";
@@ -364,6 +366,17 @@ export function App() {
     navigate("/app/?auth=login", true);
   }, []);
 
+  const handleLogout = useCallback(async () => {
+    lockVault();
+    clearCommsAgentConfig();
+    clearAccountType();
+    resetFirstRunDone();
+    if (usesSupabaseHostedAuth()) {
+      await signOutSupabase();
+    }
+    window.location.href = "/app/?auth=login";
+  }, []);
+
   useEffect(() => {
     if (!agentConnectionReady || !vaultUnlocked) return;
     void (async () => {
@@ -514,6 +527,9 @@ export function App() {
     loadCuratorAutoAcceptOpen(),
   );
   const [modulesEnabled, setModulesEnabled] = useState(true);
+  const [accountType, setAccountType] = useState(() => loadAccountType());
+  const showModulesToggle = SHOW_DEV_WORKFLOWS || accountType === "developer";
+  const modulesActive = showModulesToggle ? modulesEnabled : true;
   const [registryUrl, setRegistryUrl] = useState(() => loadRegistryUrl());
   const [registryTrust, setRegistryTrust] = useState(() => loadRegistryTrust());
   const [registryError, setRegistryError] = useState<string | null>(null);
@@ -599,10 +615,24 @@ export function App() {
   }, [demoReady, refreshDemoWebcalState]);
 
   useEffect(() => {
-    if (!modulesEnabled) {
+    if (!MANAGED_HOSTING || !usesSupabaseHostedAuth()) return;
+    void fetchHostedAccountStatus()
+      .then((status) => {
+        if (status.accountType) {
+          saveAccountType(status.accountType);
+          setAccountType(status.accountType);
+        }
+      })
+      .catch(() => {
+        /* keep cached account type */
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!modulesActive) {
       registry.uninstallAll(catalog);
     }
-  }, [modulesEnabled, catalog, registry]);
+  }, [modulesActive, catalog, registry]);
 
   useEffect(() => {
     let cancelled = false;
@@ -615,7 +645,7 @@ export function App() {
   }, [registry, registryUrl]);
 
   useEffect(() => {
-    if (!modulesEnabled) return;
+    if (!modulesActive) return;
     let cancelled = false;
 
     const syncRevocations = async () => {
@@ -640,7 +670,7 @@ export function App() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [modulesEnabled, registry, catalog, registryUrl]);
+  }, [modulesActive, registry, catalog, registryUrl]);
 
   /** Promote persisted non-guarded curator proposals into open profile records. */
   useEffect(() => {
@@ -679,8 +709,8 @@ export function App() {
 
   const prevSessionRef = useRef<ShellSession | null>(null);
 
-  const modulesEnabledRef = useRef(modulesEnabled);
-  modulesEnabledRef.current = modulesEnabled;
+  const modulesActiveRef = useRef(modulesActive);
+  modulesActiveRef.current = modulesActive;
   const registryRef = useRef(registry);
   registryRef.current = registry;
   const catalogRef = useRef(catalog);
@@ -709,7 +739,7 @@ export function App() {
       new ConversationRuntime({
         catalog,
         beforeResolveComposition: async (composition) => {
-          if (!modulesEnabledRef.current) return;
+          if (!modulesActiveRef.current) return;
           setRegistryErrorRef.current(null);
           await registryRef.current.ensureModules(catalogRef.current, composition);
         },
@@ -1115,6 +1145,17 @@ export function App() {
           setSettingsIntent(null);
           setSettingsOpen(true);
         }}
+        headerActions={
+          usesSupabaseHostedAuth() ? (
+            <button
+              type="button"
+              className="btn btn-ghost atom-app-logout hide-mobile"
+              onClick={() => void handleLogout()}
+            >
+              Log out
+            </button>
+          ) : undefined
+        }
         badges={{
           ...(commsContacts.length > 0 ? { comms: { count: commsContacts.length } } : {}),
           ...(profileNavBadge ? { profile: profileNavBadge } : {}),
@@ -1134,14 +1175,16 @@ export function App() {
               />
               {vaultUnlocked ? "Vault unlocked" : "Vault locked"}
             </span>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              aria-pressed={modulesEnabled}
-              onClick={() => setModulesEnabled((current) => !current)}
-            >
-              Modules {modulesEnabled ? "on" : "off"}
-            </button>
+            {showModulesToggle ? (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                aria-pressed={modulesEnabled}
+                onClick={() => setModulesEnabled((current) => !current)}
+              >
+                Modules {modulesEnabled ? "on" : "off"}
+              </button>
+            ) : null}
           </>
         }
         composer={
@@ -1433,6 +1476,7 @@ export function App() {
           vaultUnlocked={vaultUnlocked}
           intent={settingsIntent}
           onClose={closeSettings}
+          onLogout={usesSupabaseHostedAuth() ? () => void handleLogout() : undefined}
           onSaveLlm={(connection, apiKey) => {
             if (apiKey !== undefined) {
               secretStore.set(connection.secretRef, apiKey);
@@ -1513,6 +1557,7 @@ function SettingsDialog({
   vaultUnlocked,
   intent,
   onClose,
+  onLogout,
   onSaveLlm,
   onSaveStripePayment,
   onSaveAgUi,
@@ -1533,6 +1578,7 @@ function SettingsDialog({
   vaultUnlocked: boolean;
   intent: Provider | null;
   onClose: () => void;
+  onLogout?: () => void;
   onSaveLlm: (connection: LlmConnectionConfig, apiKey?: string) => void;
   onSaveStripePayment: (connection: PaymentConnectionConfig, secretKey?: string) => void;
   onSaveAgUi: (config: AgUiAgentConfig) => void;
@@ -2044,6 +2090,12 @@ function SettingsDialog({
           </div>
         </div>
         <div className="settings-dialog-footer">
+          {onLogout ? (
+            <button type="button" className="chrome-decline settings-logout" onClick={onLogout}>
+              Log out
+            </button>
+          ) : null}
+          <div className="settings-dialog-footer-end">
           {intent === "llm" && !productionLocked ? (
             <button
               type="button"
@@ -2057,6 +2109,7 @@ function SettingsDialog({
           <button type="button" className="chrome-decline" onClick={onClose}>
             Close
           </button>
+          </div>
         </div>
       </div>
     </div>

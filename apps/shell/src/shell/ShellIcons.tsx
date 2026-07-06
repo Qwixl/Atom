@@ -76,11 +76,20 @@ export function IconLog(props: IconProps) {
 }
 
 export function IconSettings(props: IconProps) {
+  const className = props.className
+    ? `${props.className} atom-icon-settings`
+    : "atom-icon-settings";
   return (
-    <IconBase {...props}>
-      <path d="M10 4h4l1 3h3l-2 3 1 3-3-1-3 1 1 3-3 1 3h-3l-1 3h-4l-1-3H6l2-3-1-3 3 1 3-1-1-3 3-1-3-1 1-3 3 1h3l1-3z" />
-      <circle cx="12" cy="12" r="3" />
-    </IconBase>
+    <img
+      src="/icons/settings-cog.png"
+      className={className}
+      width={18}
+      height={18}
+      alt=""
+      aria-hidden={props.label ? undefined : true}
+      aria-label={props.label}
+      role={props.label ? "img" : undefined}
+    />
   );
 }
 
