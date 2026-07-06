@@ -24,6 +24,15 @@ export function formatAgentError(error: unknown): string {
   return message.length > 160 ? "Something went wrong talking to your agent." : message;
 }
 
+/** Short message when Coffee Shop / discover host resolution fails. */
+export function formatDiscoverHostError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/could not locate a running agent/i.test(message)) {
+    return "The Coffee Shop host is not running yet. Try again in a few minutes.";
+  }
+  return formatAgentError(error);
+}
+
 export function isAgentAuthError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /unauthorized|401/i.test(message);

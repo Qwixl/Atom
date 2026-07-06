@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CommsAgentClient } from "./comms/client.js";
 import { quickJoinCoffeeShop } from "./discoverActions.js";
 import { loadCommsAgentConfig, loadContacts, saveContacts } from "./comms/storage.js";
-import { isAgentAuthError } from "./comms/agentErrors.js";
+import { isAgentAuthError, formatDiscoverHostError } from "./comms/agentErrors.js";
 import { useAgentConfig } from "./comms/useAgentConfig.js";
 import type { AgentContact } from "./comms/types.js";
 import { loadRoomAttendance, saveRoomAttendance, type RoomAttendanceMode } from "./roomAttendance.js";
@@ -279,7 +279,7 @@ export function RoomsPanel({
       setSelectedId(roomId);
       onActivity?.("Joined Qwixl Coffee Shop");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
+      setStatus(formatDiscoverHostError(error));
     } finally {
       setLoading(false);
     }

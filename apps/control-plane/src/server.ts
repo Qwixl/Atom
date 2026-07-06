@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import {
   createFleetProvisioner,
   devStubCredentials,
+  ensureCommunityHost,
   handleFromEmail,
   newAgentId,
 } from "./fleet/index.js";
@@ -75,6 +76,7 @@ async function init(): Promise<void> {
   fleet = await createFleetProvisioner(agents);
   if (fleet.mode === "docker") {
     requireProductionFleetTemplate();
+    await ensureCommunityHost(dataDir);
   }
 }
 

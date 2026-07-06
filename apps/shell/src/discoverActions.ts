@@ -18,6 +18,56 @@ export function entryTitle(entry: BusinessIndexEntry): string {
   return entry.handle?.trim() || entry.displayName;
 }
 
+/** Resolve a discover entry via index hostUrl when present, else delegate to the user's agent. */
+export async function resolveDiscoverEntryForClient(
+  client: CommsAgentClient,
+  entry: BusinessIndexEntry,
+): Promise<ResolvedDiscoverTarget> {
+  const hostUrl = entry.hostUrl?.trim();
+  if (hostUrl) {
+    try {
+      const resp = await fetch(`${hostUrl.replace(/\/$/, "")}/discover/capabilities`);
+      if (resp.ok) {
+        const cap = (await resp.json()) as {
+          did?: string;
+          publicBaseUrl?: string;
+          agentCardUrl?: string;
+        };
+        if (cap.did?.trim() && cap.publicBaseUrl?.trim()) {
+          return {
+            did: cap.did.trim(),
+            adminBase: cap.publicBaseUrl.replace(/\/$/, ""),
+            agentCardUrl:
+              cap.agentCardUrl?.trim() ||
+              `${cap.publicBaseUrl.replace(/\/$/, "")}/a2a/jsonrpc`,
+            resolvedVia: "index-url",
+          };
+        }
+      }
+    } catch {
+      /* fall through to agent-side resolve */
+    }
+  }
+  return client.resolveDiscoverEntry(entry);
+}
+
+export async function filterAvailableDiscoverEntriesForClient(
+  client: CommsAgentClient,
+  entries: BusinessIndexEntry[],
+): Promise<Array<{ entry: BusinessIndexEntry; resolved: ResolvedDiscoverTarget }>> {
+  const settled = await Promise.all(
+    entries.map(async (entry) => {
+      try {
+        const resolved = await resolveDiscoverEntryForClient(client, entry);
+        return { entry, resolved };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return settled.filter((row): row is { entry: BusinessIndexEntry; resolved: ResolvedDiscoverTarget } => row !== null);
+}
+
 export async function connectDiscoverEntry(opts: {
   client: CommsAgentClient;
   entry: DiscoverActionEntry;
@@ -66,7 +116,7 @@ export async function quickJoinCoffeeShop(client: CommsAgentClient): Promise<str
   if (!entry) {
     throw new Error("Coffee Shop is not listed in the community index.");
   }
-  const resolved = await client.resolveDiscoverEntry(entry);
+  const resolved = await resolveDiscoverEntryForClient(client, entry);
   return joinDiscoverRoom({ client, entry: { ...entry, resolved } });
 }
 
