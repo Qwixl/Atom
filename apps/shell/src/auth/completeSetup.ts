@@ -8,11 +8,15 @@ export async function completeAgentSetup(input: {
   adminToken?: string;
   handle?: string;
   kind: OwnerAgentKind;
+  /** Hosted signup: control plane already validated the agent; skip browser health probe. */
+  skipConnectionProbe?: boolean;
 }): Promise<void> {
-  await saveValidatedAgentConnection({
-    adminUrl: input.adminUrl,
-    adminToken: input.adminToken,
-  });
+  if (!input.skipConnectionProbe) {
+    await saveValidatedAgentConnection({
+      adminUrl: input.adminUrl,
+      adminToken: input.adminToken,
+    });
+  }
   await saveCommsAgentConfigSecure({
     adminUrl: input.adminUrl,
     adminToken: input.adminToken,
