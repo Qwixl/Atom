@@ -73,8 +73,8 @@ export function LlmApiKeyHintContent() {
         <a href="https://ollama.com" target="_blank" rel="noreferrer">
           Ollama
         </a>
-        , LM Studio, or vLLM on your machine and point a self-hosted agent at{" "}
-        <code>http://localhost:11434/v1</code> (Ollama). Prompts and replies stay on your hardware.
+        , LM Studio, or vLLM on your machine (Ollama uses port <code>11434</code>, path{" "}
+        <code>/v1</code>). Prompts and replies stay on your hardware.
       </p>
       <p>
         On hosted signup, the key is stored on your provisioned agent server — not in the browser.{" "}
