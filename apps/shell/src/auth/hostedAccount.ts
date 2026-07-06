@@ -251,6 +251,34 @@ export async function bootstrapHostedAccount(input: BootstrapHostedAccountInput)
   if (!resp.ok) throw new Error(data.error ?? `Signup failed (${resp.status})`);
 }
 
+export async function fetchHostedAccountStatus(): Promise<{
+  accountType?: AtomAccountType;
+  handle?: string;
+  onboardingComplete?: boolean;
+}> {
+  const token = await supabaseAccessToken();
+  if (!token) throw new Error("Sign in required");
+
+  const { CONTROL_PLANE_URL } = await import("../hostConfig.js");
+  const resp = await fetch(`${CONTROL_PLANE_URL.replace(/\/$/, "")}/account/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = (await resp.json()) as {
+    profile?: {
+      accountType?: AtomAccountType;
+      handle?: string;
+      onboardingComplete?: boolean;
+    };
+    error?: string;
+  };
+  if (!resp.ok) throw new Error(data.error ?? `Status failed (${resp.status})`);
+  return {
+    accountType: data.profile?.accountType,
+    handle: data.profile?.handle,
+    onboardingComplete: data.profile?.onboardingComplete,
+  };
+}
+
 export async function fetchHostedAgentConnection(): Promise<{
   adminUrl: string;
   adminToken: string;
