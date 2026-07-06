@@ -69,7 +69,7 @@ for (const file of walk(shellSrc)) {
     if (DEV_CLI_RE.test(line) && !lineAllowedForDevCli(line, rel, text)) {
       errors.push(`${rel}:${i + 1}: pnpm dev* copy`);
     }
-    if (PLAN_ID_RE.test(line) && !/^\s*(\/\/|\/\*|\*)/.test(line)) {
+    if (PLAN_ID_RE.test(line) && !/^\s*(\/\/|\/\*|\*)/.test(line) && !line.includes('path d="')) {
       errors.push(`${rel}:${i + 1}: internal plan id (M## / D##)`);
     }
   }

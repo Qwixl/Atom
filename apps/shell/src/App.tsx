@@ -450,6 +450,20 @@ export function App() {
   }, [stripePayment, secretStore]);
   const [agUiConfig, setAgUiConfig] = useState<AgUiAgentConfig>(() => loadAgUiConfig());
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!agentConnectionReady || IS_DEMO_MODE) return;
+    const config = loadCommsAgentConfig();
+    if (!config.adminUrl?.trim()) return;
+    if (!agUiConfig.url.trim()) {
+      setAgUiConfig(saveAgUiConfigForAgent(config.adminUrl));
+    }
+    if (MANAGED_HOSTING && provider !== "ag-ui") {
+      saveStringToStorage(PROVIDER_KEY, "ag-ui");
+      setProvider("ag-ui");
+    }
+  }, [agentConnectionReady, agUiConfig.url, provider]);
+
   const ownerAgentSummary = useMemo(() => {
     if (agentBootstrapPending) return "Starting…";
     if (!agentConnectionReady) {
@@ -1235,7 +1249,7 @@ export function App() {
                   integrations yet, so content is illustrative.
                 </p>
               ) : null}
-              {provider === "ag-ui" ? (
+              {provider === "ag-ui" && !agUiConfig.url.trim() ? (
                 <p className="shell-empty-note">
                   {IS_PRODUCTION_HOST
                     ? "Set your chat agent URL in Settings to start a conversation."
