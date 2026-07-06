@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { loadCommsAgentConfig } from "../comms/storage.js";
 import { fetchCustodyStatus, registerPasskey, type CustodyStatus } from "./client.js";
 
-export function CustodySecurityPanel() {
+export function CustodySecurityPanel({ embedded = false }: { embedded?: boolean }) {
   const [status, setStatus] = useState<CustodyStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -38,13 +38,17 @@ export function CustodySecurityPanel() {
     }
   }
 
-  return (
-    <section className="settings-section">
-      <h3>Connector custody</h3>
-      <p className="settings-hint">
-        Calendar and provider credentials stay in your agent vault — never in browser storage.
-        Consequential approvals require a hardware-backed passkey.
-      </p>
+  const body = (
+    <>
+      {!embedded ? (
+        <>
+          <h3>Connector custody</h3>
+          <p className="settings-hint">
+            Calendar and provider credentials stay in your agent vault — never in browser storage.
+            Consequential approvals require a hardware-backed passkey.
+          </p>
+        </>
+      ) : null}
       <dl className="settings-kv">
         <dt>Vault</dt>
         <dd>{status?.vaultReady ? "ready" : "checking…"}</dd>
@@ -62,6 +66,12 @@ export function CustodySecurityPanel() {
         </button>
       </div>
       {note ? <p className="settings-note">{note}</p> : null}
-    </section>
+    </>
   );
+
+  if (embedded) {
+    return <div className="settings-panel-fields">{body}</div>;
+  }
+
+  return <section className="settings-section">{body}</section>;
 }

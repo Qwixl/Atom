@@ -135,7 +135,13 @@ export function AtomShell({
           {headerActions}
           {status}
           <ThemeToggle className="btn btn-ghost atom-theme-toggle" />
-          <button type="button" className="btn btn-ghost atom-app-settings" onClick={onOpenSettings}>
+          <button
+            type="button"
+            className="btn btn-ghost atom-app-settings"
+            aria-label={settingsLabel}
+            title={settingsLabel}
+            onClick={onOpenSettings}
+          >
             <IconSettings className="atom-nav-icon" />
             <span className="atom-app-settings-label">{settingsLabel}</span>
           </button>
