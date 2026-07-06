@@ -8,6 +8,13 @@ import type { HostedAgentRecord } from "./fleet/types.js";
 
 type AccountType = "user" | "business" | "developer";
 
+function publicProvisionError(message: string): string {
+  if (/command failed:\s*docker|docker run/i.test(message)) {
+    return "Could not start your hosted agent. Check that Docker is running on the control plane host.";
+  }
+  return message;
+}
+
 interface BootstrapBody {
   handle?: string;
   accountType?: AccountType;
@@ -231,7 +238,7 @@ export function registerAccountRoutes(
       } catch {
         /* best effort */
       }
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: publicProvisionError(message) });
     }
   });
 
