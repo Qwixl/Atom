@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   bootstrapHostedAccount,
+  clearStaleSupabaseSession,
   fetchHostedAgentConnection,
+  friendlyHostedProvisionError,
   getSupabaseClient,
   hasSupabaseSession,
   isEmailNotConfirmedError,
+  isEmailRateLimitError,
   registerSupabaseAccount,
   resendSignupConfirmation,
   signInSupabaseAccount,
@@ -106,6 +109,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
   const [provisionTasks, setProvisionTasks] = useState<ProvisionTask[]>([]);
   const [emailConfirmedThanks, setEmailConfirmedThanks] = useState(false);
   const [resendNote, setResendNote] = useState<string | null>(null);
+  const confirmHandledRef = useRef(false);
 
   const labels = useMemo(
     () =>
@@ -124,6 +128,11 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         : steps[0];
     if (fallback) goTo(fallback);
   }, [steps, step]);
+
+  useEffect(() => {
+    if (mode !== "register" || !usesSupabaseHostedAuth()) return;
+    void clearStaleSupabaseSession();
+  }, [mode]);
 
   useEffect(() => {
     if (hosting !== "hosted" || !handle.trim() || !isHostedSignupAvailable()) {
@@ -204,17 +213,17 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
   }, [hosting]);
 
   useEffect(() => {
-    if (step !== "confirm-email" || emailConfirmedThanks || !usesSupabaseHostedAuth()) return;
+    if (step !== "confirm-email" || !usesSupabaseHostedAuth()) return;
 
     let cancelled = false;
-    let thanksTimer: number | undefined;
 
     const continueAfterConfirm = async () => {
-      if (cancelled || !(await hasSupabaseSession())) return;
+      if (cancelled || confirmHandledRef.current || !(await hasSupabaseSession())) return;
+      confirmHandledRef.current = true;
       claimEmailConfirmation();
       setEmailConfirmedThanks(true);
       setError(null);
-      thanksTimer = window.setTimeout(() => {
+      window.setTimeout(() => {
         if (cancelled) return;
         goTo("provisioning");
         if (mode === "login") {
@@ -244,9 +253,8 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       unsubBridge();
       subscription.unsubscribe();
       clearInterval(interval);
-      if (thanksTimer !== undefined) window.clearTimeout(thanksTimer);
     };
-  }, [step, emailConfirmedThanks, mode]);
+  }, [step, mode]);
 
   function goTo(next: AuthStepId) {
     setStep(next);
@@ -292,7 +300,10 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
   }
 
   async function runHostedSupabaseProvisioning(): Promise<void> {
-    if (!tryAcquireProvisioningLock()) return;
+    if (!tryAcquireProvisioningLock()) {
+      setError("Setup is already in progress. Wait a moment, then click Try again.");
+      return;
+    }
 
     setBusy(true);
     setError(null);
@@ -327,8 +338,8 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       clearPendingHostedAuth();
       window.location.replace("/app/");
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      const raw = err instanceof Error ? err.message : String(err);
+      setError(friendlyHostedProvisionError(raw));
       setProvisionTasks((prev) =>
         prev.map((t) => (t.state === "active" ? { ...t, state: "error" } : t)),
       );
@@ -339,7 +350,10 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
   }
 
   async function finishHostedSupabaseLogin(): Promise<void> {
-    if (!tryAcquireProvisioningLock()) return;
+    if (!tryAcquireProvisioningLock()) {
+      setError("Setup is already in progress. Wait a moment, then click Try again.");
+      return;
+    }
 
     setBusy(true);
     setError(null);
@@ -358,8 +372,8 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       clearPendingHostedAuth();
       window.location.replace("/app/");
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      const raw = err instanceof Error ? err.message : String(err);
+      setError(friendlyHostedProvisionError(raw));
       setProvisionTasks((prev) =>
         prev.map((t) => (t.state === "active" ? { ...t, state: "error" } : t)),
       );
@@ -375,22 +389,37 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
     if (usesSupabaseHostedAuth() && hosting === "hosted" && mode === "register") {
       setBusy(true);
       setError(null);
+      savePendingHostedAuth({
+        kind: "register",
+        email: email.trim(),
+        handle,
+        llmApiKey,
+      });
       try {
-        const { needsEmailConfirmation } = await registerSupabaseAccount(email, password);
+        if (await hasSupabaseSession()) {
+          goTo("provisioning");
+          await runHostedSupabaseProvisioning();
+          return;
+        }
+
+        const { needsEmailConfirmation, note } = await registerSupabaseAccount(email, password);
         setEmailConfirmedThanks(false);
         if (needsEmailConfirmation) {
-          savePendingHostedAuth({
-            kind: "register",
-            email: email.trim(),
-            handle,
-            llmApiKey,
-          });
           goTo("confirm-email");
+          if (note) setResendNote(note);
         } else {
           goTo("provisioning");
           await runHostedSupabaseProvisioning();
         }
       } catch (err) {
+        if (isEmailRateLimitError(err)) {
+          goTo("confirm-email");
+          setResendNote(
+            "Too many emails sent recently. Check your inbox for an existing confirmation link.",
+          );
+          setError(null);
+          return;
+        }
         setError(err instanceof Error ? err.message : String(err));
       } finally {
         setBusy(false);
@@ -411,6 +440,11 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       await resendSignupConfirmation(email, authKind);
       setResendNote("Confirmation email sent — check your inbox.");
     } catch (err) {
+      if (isEmailRateLimitError(err)) {
+        setResendNote("Too many emails sent recently — wait a few minutes, or use the link already in your inbox.");
+        setError(null);
+        return;
+      }
       setError(err instanceof Error ? err.message : String(err));
     }
   }
@@ -488,8 +522,8 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       clearPendingHostedAuth();
       window.location.replace("/app/");
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      const raw = err instanceof Error ? err.message : String(err);
+      setError(friendlyHostedProvisionError(raw));
       setProvisionTasks((prev) =>
         prev.map((t) => (t.state === "active" ? { ...t, state: "error" } : t)),
       );
