@@ -75,13 +75,15 @@ export function IconLog(props: IconProps) {
   );
 }
 
+const settingsCogSrc = `${import.meta.env.BASE_URL}icons/settings-cog.png`;
+
 export function IconSettings(props: IconProps) {
   const className = props.className
     ? `${props.className} atom-icon-settings`
     : "atom-icon-settings";
   return (
     <img
-      src="/icons/settings-cog.png"
+      src={settingsCogSrc}
       className={className}
       width={18}
       height={18}
