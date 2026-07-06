@@ -1,10 +1,17 @@
 import { loadPendingHostedAuth } from "./pendingHostedAuth.js";
 
 const LOCK_KEY = "atom:hosted-provisioning";
+const LOCK_TTL_MS = 3 * 60 * 1000;
 
 export function tryAcquireProvisioningLock(): boolean {
   try {
-    if (sessionStorage.getItem(LOCK_KEY)) return false;
+    const raw = sessionStorage.getItem(LOCK_KEY);
+    if (raw) {
+      const started = Number(raw);
+      if (Number.isFinite(started) && Date.now() - started < LOCK_TTL_MS) {
+        return false;
+      }
+    }
     sessionStorage.setItem(LOCK_KEY, String(Date.now()));
     return true;
   } catch {

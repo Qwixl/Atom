@@ -35,23 +35,91 @@ export function isEmailNotConfirmedError(error: unknown): boolean {
   return /email not confirmed|not confirmed/i.test(message);
 }
 
-/** Sign up; returns whether the user must confirm email before a session exists. */
+export function isEmailRateLimitError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /rate limit|too many requests|\b429\b/i.test(message);
+}
+
+function isInvalidCredentialsError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /invalid login credentials|invalid email or password/i.test(message);
+}
+
+function isUserAlreadyRegisteredError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /already registered|already been registered|user already exists/i.test(message);
+}
+
+export type SupabaseRegisterResult = {
+  needsEmailConfirmation: boolean;
+  note?: string;
+};
+
+/** Sign in or sign up; avoids redundant signUp emails when the account already exists. */
 export async function registerSupabaseAccount(
   email: string,
   password: string,
-): Promise<{ needsEmailConfirmation: boolean }> {
+): Promise<SupabaseRegisterResult> {
   const supabase = getSupabaseClient();
+  const normalizedEmail = email.trim();
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (
+    sessionData.session?.user?.email?.trim().toLowerCase() === normalizedEmail.toLowerCase()
+  ) {
+    return { needsEmailConfirmation: false };
+  }
+
+  const signInResult = await supabase.auth.signInWithPassword({
+    email: normalizedEmail,
+    password,
+  });
+  if (!signInResult.error) return { needsEmailConfirmation: false };
+  if (isEmailNotConfirmedError(signInResult.error)) {
+    return {
+      needsEmailConfirmation: true,
+      note: "Check your inbox for the confirmation link we already sent.",
+    };
+  }
+  if (!isInvalidCredentialsError(signInResult.error)) {
+    throw signInResult.error;
+  }
+
   const { data, error } = await supabase.auth.signUp({
-    email: email.trim(),
+    email: normalizedEmail,
     password,
     options: { emailRedirectTo: supabaseEmailRedirectUrl() },
   });
-  if (error) throw error;
+
+  if (error) {
+    if (isUserAlreadyRegisteredError(error) || isEmailRateLimitError(error)) {
+      const retry = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+      if (!retry.error) return { needsEmailConfirmation: false };
+      if (isEmailNotConfirmedError(retry.error)) {
+        return {
+          needsEmailConfirmation: true,
+          note: isEmailRateLimitError(error)
+            ? "Too many emails sent recently. Use the confirmation link already in your inbox, or wait a few minutes."
+            : "Check your inbox for the confirmation link we already sent.",
+        };
+      }
+      if (isEmailRateLimitError(error)) {
+        throw new Error(
+          "Too many signup emails sent recently. Check your inbox for an existing confirmation link, or wait a few minutes before trying again.",
+        );
+      }
+    }
+    throw error;
+  }
+
   if (data.session) return { needsEmailConfirmation: false };
   if (data.user && !data.session) return { needsEmailConfirmation: true };
 
   const { error: signInError } = await supabase.auth.signInWithPassword({
-    email: email.trim(),
+    email: normalizedEmail,
     password,
   });
   if (!signInError) return { needsEmailConfirmation: false };
@@ -83,6 +151,36 @@ export async function hasSupabaseSession(): Promise<boolean> {
   if (!isSupabaseConfigured()) return false;
   const { data } = await getSupabaseClient().auth.getSession();
   return Boolean(data.session);
+}
+
+/** Drop cached tokens when the Supabase user was deleted server-side. */
+export async function clearStaleSupabaseSession(): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  const supabase = getSupabaseClient();
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) return;
+  const { data: userData, error } = await supabase.auth.getUser();
+  if (error || !userData.user) {
+    await supabase.auth.signOut();
+  }
+}
+
+export async function signOutSupabase(): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  await getSupabaseClient().auth.signOut();
+}
+
+export function friendlyHostedProvisionError(message: string): string {
+  if (/command failed:\s*docker|docker run/i.test(message)) {
+    return "We couldn't start your hosted agent. The hosting service may be temporarily unavailable — try again in a few minutes.";
+  }
+  if (/control plane starting|503/i.test(message)) {
+    return "The hosting service is starting up. Wait a moment, then try again.";
+  }
+  if (/not ready|complete signup first/i.test(message)) {
+    return "Your agent is still being set up. Wait a moment, then click Try again.";
+  }
+  return message;
 }
 
 export type AtomAccountType = "user" | "business" | "developer";
