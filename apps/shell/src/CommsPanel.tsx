@@ -1169,6 +1169,13 @@ export function CommsPanel({
       void startTttGame(gameId);
       return;
     }
+    if (name === "tttMove") {
+      const gameId = typeof payload.gameId === "string" ? payload.gameId : "";
+      const cell = typeof payload.cell === "number" ? payload.cell : -1;
+      const mark = payload.mark === "O" ? "O" : "X";
+      if (gameId && cell >= 0) void playTttCell(gameId, cell, mark);
+      return;
+    }
     if (name === "bsStart") {
       const gameId = typeof payload.gameId === "string" ? payload.gameId : `bs-${Date.now()}`;
       void startBsGame(gameId);

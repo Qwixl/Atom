@@ -58,6 +58,7 @@ import {
 import { MockAgentSession } from "./mock-agent.js";
 import { ProfilePanel } from "./ProfilePanel.js";
 import { bridgeChatModuleEvent } from "./comms/moduleBridge.js";
+import { handleChatTttUiEvent } from "./chat/tttChat.js";
 import { CommsPanel } from "./CommsPanel.js";
 import { DiscoverPanel } from "./DiscoverPanel.js";
 import { DiscoverChatResults, type DiscoverChatResult } from "./DiscoverChatResults.js";
@@ -1050,6 +1051,9 @@ export function App() {
       event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
         ? (event.payload as Record<string, unknown>)
         : undefined;
+    if (handleChatTttUiEvent(event, conversationRef.current)) {
+      return;
+    }
     if (bridgeChatModuleEvent(event.name, payload)) {
       setPanel("comms");
       if (commsContacts[0] && !commsFocusId) setCommsFocusId(commsContacts[0].id);
