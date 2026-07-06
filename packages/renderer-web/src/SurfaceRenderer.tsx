@@ -193,6 +193,10 @@ function ModuleFrameView({
   }, [bridge]);
 
   useEffect(() => {
+    sendInit();
+  }, [node.node.props, sendInit]);
+
+  useEffect(() => {
     function onMessage(event: MessageEvent): void {
       if (event.source !== iframeRef.current?.contentWindow) return;
       if (!bridge.isAllowedMessageOrigin(event.origin)) return;

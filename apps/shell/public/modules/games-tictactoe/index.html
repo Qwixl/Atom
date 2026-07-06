@@ -7,11 +7,24 @@
   <style>
     * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
     body { margin: 0; padding: 10px 12px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
-    .board { display: grid; grid-template-columns: repeat(3, 64px); gap: 6px; width: fit-content; }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      width: min(100%, 240px);
+    }
     button.cell {
-      width: 64px; height: 64px; font-size: 28px; font-weight: 600;
-      border: 1px solid var(--atom-color-border, #ccc); border-radius: 8px;
-      background: var(--atom-color-bg-raised, #fafafa); cursor: pointer; color: inherit;
+      aspect-ratio: 1;
+      width: 100%;
+      min-height: 56px;
+      font-size: clamp(20px, 5vw, 28px);
+      font-weight: 600;
+      border: 1px solid var(--atom-color-border, #ccc);
+      border-radius: 8px;
+      background: var(--atom-color-bg-raised, #fafafa);
+      cursor: pointer;
+      color: inherit;
+      padding: 0;
     }
     button.cell:disabled { cursor: default; opacity: 0.85; }
     .meta { margin-top: 8px; font-size: 12px; color: var(--atom-color-text-dim, #666); }
@@ -30,17 +43,21 @@
     let gameId = null;
     let myMark = "X";
     let readOnly = false;
-    function emit(name, payload) {
-      if (shellOrigin) window.parent.postMessage({ type:"event", name, payload }, shellOrigin);
-    }
-    function checkWinner(b) {
-      const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-      for (const [a,c,d] of lines) {
-        if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+
+    function normalizeBoard(raw) {
+      const next = Array(9).fill(null);
+      if (!Array.isArray(raw)) return next;
+      for (let i = 0; i < 9; i++) {
+        const mark = raw[i];
+        next[i] = mark === "X" || mark === "O" ? mark : null;
       }
-      if (b.every(Boolean)) return "draw";
-      return null;
+      return next;
     }
+
+    function emit(name, payload) {
+      if (shellOrigin) window.parent.postMessage({ type: "event", name, payload }, shellOrigin);
+    }
+
     function render() {
       const grid = document.getElementById("board");
       grid.innerHTML = "";
@@ -49,18 +66,26 @@
         btn.type = "button";
         btn.className = "cell";
         btn.textContent = board[i] || "";
+        btn.setAttribute("aria-label", "Cell " + (i + 1));
         const canPlay = !readOnly && status === "active" && !board[i] && turn === myMark;
         btn.disabled = !canPlay;
-        if (canPlay) btn.addEventListener("click", () => emit("tttMove", { gameId, cell: i, mark: myMark }));
+        if (canPlay) {
+          btn.addEventListener("click", () => {
+            board[i] = myMark;
+            render();
+            emit("tttMove", { gameId, cell: i, mark: myMark });
+          });
+        }
         grid.appendChild(btn);
       }
       const meta = document.getElementById("meta");
       if (status === "idle") meta.textContent = "Start a game or wait for your opponent.";
-      else if (status === "won") meta.textContent = "Game over — " + (board.includes("X") ? "Winner!" : "");
+      else if (status === "won") meta.textContent = "Game over.";
       else if (status === "draw") meta.textContent = "Draw.";
       else meta.textContent = turn === myMark ? "Your turn (" + myMark + ")" : "Waiting for opponent (" + turn + ")";
       document.getElementById("start").hidden = status === "active";
     }
+
     document.getElementById("start").addEventListener("click", () => {
       gameId = "ttt-" + Date.now();
       board = Array(9).fill(null);
@@ -71,18 +96,19 @@
       emit("tttStart", { gameId, board, turn, status: "active" });
       render();
     });
+
     window.addEventListener("message", (event) => {
       const data = event.data;
       if (!data || data.type !== "init") return;
       shellOrigin = event.origin;
       const props = data.props || {};
-      if (props.board) {
-        board = [...props.board];
-        turn = props.turn || "X";
+      if (props.board || props.status === "active" || props.status === "won" || props.status === "draw") {
+        board = normalizeBoard(props.board);
+        turn = props.turn === "O" ? "O" : "X";
         status = props.status || "active";
-        gameId = props.gameId;
-        myMark = props.myMark || (props.direction === "in" ? "O" : "X");
-        readOnly = props.readOnly || status !== "active";
+        gameId = props.gameId || gameId;
+        myMark = props.myMark === "O" ? "O" : "X";
+        readOnly = props.readOnly === true || status !== "active" || turn !== myMark;
         render();
       }
     });

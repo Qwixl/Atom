@@ -1,4 +1,5 @@
-import type { ResolvedSurface } from "./resolver.js";
+import type { ResolvedNode, ResolvedSurface } from "./resolver.js";
+import type { JsonObject } from "./types.js";
 
 /** One turn in the conversational channel between owner and agent. */
 export type FeedItem =
@@ -40,4 +41,30 @@ export function appendUserMessage(feed: FeedItem[], id: string, text: string): F
 
 export function clearFeed(): FeedItem[] {
   return [];
+}
+
+/** Merge props onto a module node inside a resolved surface (in-place feed update). */
+export function patchSurfaceNodeProps(
+  surface: ResolvedSurface,
+  componentName: string,
+  propsPatch: JsonObject,
+): ResolvedSurface {
+  function patchNode(node: ResolvedNode): ResolvedNode {
+    const children = node.children.map(patchNode);
+    if (
+      (node.kind === "component" || node.kind === "substituted") &&
+      node.node.component === componentName
+    ) {
+      return {
+        ...node,
+        children,
+        node: {
+          ...node.node,
+          props: { ...(node.node.props ?? {}), ...propsPatch },
+        },
+      };
+    }
+    return { ...node, children };
+  }
+  return { ...surface, root: patchNode(surface.root) };
 }
