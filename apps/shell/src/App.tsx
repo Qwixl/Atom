@@ -104,7 +104,7 @@ import {
   PRODUCTION_REGISTRY_URL,
   SHOW_DEV_WORKFLOWS,
 } from "./hostConfig.js";
-import { AGUI_CONFIG_KEY, DEFAULT_AGUI_URL, loadAgUiConfig, saveAgUiConfigForAgent } from "./agUiConfig.js";
+import { AGUI_CONFIG_KEY, DEFAULT_AGUI_URL, agUiAuthHeaders, loadAgUiConfig, saveAgUiConfigForAgent } from "./agUiConfig.js";
 import { validateProductionAgUiUrl } from "./productionGuard.js";
 import { applyAtomSkin, ATOM_SKINS, type AtomSkinId } from "@qwixl/skin-default/tokens";
 import { ShellComposer } from "./shell/ShellComposer.js";
@@ -657,8 +657,10 @@ export function App() {
       return new LlmAgentSession(llmConfig, catalog, buildContext);
     }
     if (provider === "ag-ui") {
+      const comms = loadCommsAgentConfig();
       return new AgUiAgentSession({
         ...agUiConfig,
+        headers: agUiAuthHeaders(comms.adminToken),
         profileProvider: buildContext,
       });
     }
@@ -667,7 +669,7 @@ export function App() {
       webcalEventsProvider: IS_DEMO_MODE && demoWebcalReady ? loadDemoWebcalEvents : undefined,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, llmConfig, agUiConfig, catalog, ownerStore, conversationMemory, buildContext, demoWebcalReady, loadDemoWebcalEvents]);
+  }, [provider, llmConfig, agUiConfig, catalog, ownerStore, conversationMemory, buildContext, demoWebcalReady, loadDemoWebcalEvents, agentConnectionReady, vaultUnlocked]);
 
   const sessionRef = useRef(session);
   sessionRef.current = session;
