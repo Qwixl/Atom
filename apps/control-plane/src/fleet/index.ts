@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { FleetProvisioner, HostedAgentRecord, ProvisionOutcome } from "./types.js";
 import { DockerFleetProvisioner, isDockerAvailable } from "./dockerProvisioner.js";
+import { ensureCommunityHost, resolveCommunityHostPublicUrl } from "./communityHost.js";
 
 function devStubCredentials(): { agentUrl: string; adminToken: string } | null {
   const agentUrl = process.env.HOSTED_STUB_AGENT_URL?.trim();
@@ -103,6 +104,8 @@ export async function createFleetProvisioner(
   }
   return new UnconfiguredProvisioner();
 }
+
+export { ensureCommunityHost, resolveCommunityHostPublicUrl };
 
 export function newAgentId(): string {
   return randomBytes(8).toString("hex");

@@ -39,7 +39,7 @@ function parseDevDiscoveryPorts(env: NodeJS.ProcessEnv = process.env): number[] 
       .map((part) => Number(part.trim()))
       .filter((port) => Number.isFinite(port) && port > 0);
   }
-  return [5204, 5205, 5207, 5301];
+  return [5204, 5205, 5207, 5301, 5305];
 }
 
 export function buildAgentCapabilities(opts: {
@@ -154,6 +154,36 @@ async function resolveViaWellKnown(businessDomain: string): Promise<ResolvedDisc
   }
 }
 
+async function resolveViaHostUrl(
+  entry: BusinessIndexEntry,
+  hostUrl: string,
+): Promise<ResolvedDiscoverTarget | null> {
+  const adminBase = normalizeBaseUrl(hostUrl);
+  const cap = await fetchCapabilities(adminBase);
+  if (!cap || !matchesEntry(cap, entry)) return null;
+  return {
+    adminBase: cap.publicBaseUrl,
+    agentCardUrl: cap.agentCardUrl,
+    did: cap.did,
+    resolvedVia: "index-url",
+  };
+}
+
+async function resolveViaConfiguredCommunityHost(
+  entry: BusinessIndexEntry,
+): Promise<ResolvedDiscoverTarget | null> {
+  const configured = process.env.ATOM_COMMUNITY_HOST_URL?.trim();
+  if (!configured) return null;
+  const cap = await fetchCapabilities(configured);
+  if (!cap || !matchesEntry(cap, entry)) return null;
+  return {
+    adminBase: cap.publicBaseUrl,
+    agentCardUrl: cap.agentCardUrl,
+    did: cap.did,
+    resolvedVia: "registry",
+  };
+}
+
 async function resolveViaIndexUrl(agentCardUrl: string): Promise<ResolvedDiscoverTarget | null> {
   const url = agentCardUrl.trim();
   if (!url) return null;
@@ -208,6 +238,24 @@ export async function resolveDiscoverEntry(opts: {
       handleCache.set(entry.handle, probed, entry.businessDomain);
     }
     return probed;
+  }
+
+  if (entry.hostUrl?.trim()) {
+    const fromHost = await resolveViaHostUrl(entry, entry.hostUrl);
+    if (fromHost) {
+      if (entry.handle?.trim() && handleCache) {
+        handleCache.set(entry.handle, fromHost, entry.businessDomain);
+      }
+      return fromHost;
+    }
+  }
+
+  const configuredCommunity = await resolveViaConfiguredCommunityHost(entry);
+  if (configuredCommunity) {
+    if (entry.handle?.trim() && handleCache) {
+      handleCache.set(entry.handle, configuredCommunity, entry.businessDomain);
+    }
+    return configuredCommunity;
   }
 
   if (entry.businessDomain?.trim()) {

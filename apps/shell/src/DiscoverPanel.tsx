@@ -10,7 +10,7 @@ import {
 } from "@qwixl/business-index";
 
 import { CommsAgentClient, type ResolvedDiscoverTarget } from "./comms/client.js";
-import { connectDiscoverEntry, joinDiscoverRoom, entryTitle } from "./discoverActions.js";
+import { connectDiscoverEntry, joinDiscoverRoom, entryTitle, filterAvailableDiscoverEntriesForClient } from "./discoverActions.js";
 import { isAgentAuthError } from "./comms/agentErrors.js";
 import { useAgentConfig } from "./comms/useAgentConfig.js";
 import type { AgentContact } from "./comms/types.js";
@@ -73,11 +73,13 @@ export function DiscoverPanel({
   const [results, setResults] = useState<DiscoverResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [indexMatches, setIndexMatches] = useState(0);
 
   const loadResults = useCallback(async () => {
     if (!connectionActive) {
       setStatus(null);
       setResults([]);
+      setIndexMatches(0);
       return;
     }
     setLoading(true);
@@ -107,7 +109,8 @@ export function DiscoverPanel({
         // Handle index is optional until M20 is fully deployed.
       }
 
-      const available = await client.filterAvailableDiscoverEntries(withHandles);
+      const available = await filterAvailableDiscoverEntriesForClient(client, withHandles);
+      setIndexMatches(withHandles.length);
       setResults(
         available.map(({ entry, resolved }) => {
           const orig = withHandles.find(
@@ -208,7 +211,11 @@ export function DiscoverPanel({
         <ul className="discover-results">
           {results.length === 0 && !loading ? (
             <li className="panel-empty">
-              Nothing matched your search. Try different terms or check again later.
+              {indexMatches > 0
+                ? "Listings were found but their host is not reachable yet. Try again shortly, or use Join Coffee Shop in Rooms."
+                : terms.trim()
+                  ? "Nothing matched your search. Try different terms or check again later."
+                  : "No listings in the index yet. Try again later."}
             </li>
           ) : (
             results.map((entry) => {
