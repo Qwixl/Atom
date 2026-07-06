@@ -7,7 +7,7 @@ import {
   type ResolvedSurface,
   type UiEvent,
 } from "@qwixl/shell-core";
-import { createModuleBridge, MODULE_IFRAME_SANDBOX } from "./moduleBridge.js";
+import { createModuleBridge, MODULE_IFRAME_SANDBOX, resolveModuleBundleUrl } from "./moduleBridge.js";
 
 export interface SurfaceRendererProps {
   surface: ResolvedSurface;
@@ -220,7 +220,7 @@ function ModuleFrameView({
       <iframe
         ref={iframeRef}
         className="atom-module-frame"
-        src={bundleUrl}
+        src={resolveModuleBundleUrl(bundleUrl)}
         sandbox={MODULE_IFRAME_SANDBOX}
         title={node.entry.spec.name}
         onLoad={sendInit}

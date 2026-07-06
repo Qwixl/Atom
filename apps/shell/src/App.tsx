@@ -21,7 +21,9 @@ import {
   type RegistryTrustPolicy,
   type UiEvent,
 } from "@qwixl/shell-core";
-import { SurfaceRenderer } from "@qwixl/renderer-web";
+import { bridgeChatModuleEvent } from "./comms/moduleBridge.js";
+import { CommsPanel } from "./CommsPanel.js";
+import { ChatFeedSurface } from "./chat/ChatFeedSurface.js";
 import { LlmAgentSession, runCuratorPass, type LlmConfig } from "@qwixl/agent-llm";
 import { AgUiAgentSession, type AgUiAgentConfig } from "@qwixl/ag-ui-adapter";
 import {
@@ -57,11 +59,6 @@ import {
 } from "@qwixl/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
 import { ProfilePanel } from "./ProfilePanel.js";
-import { bridgeChatModuleEvent } from "./comms/moduleBridge.js";
-import { handleChatTttUiEvent } from "./chat/tttChat.js";
-import { handleChatBsUiEvent } from "./chat/bsChat.js";
-import { isChatOwnedSurface, matchChatModuleIntent, openChatModuleForIntent } from "./chat/chatModules.js";
-import { CommsPanel } from "./CommsPanel.js";
 import { DiscoverPanel } from "./DiscoverPanel.js";
 import { DiscoverChatResults, type DiscoverChatResult } from "./DiscoverChatResults.js";
 import { connectDiscoverEntry, joinDiscoverRoom } from "./discoverActions.js";
@@ -994,17 +991,6 @@ export function App() {
       })();
       return;
     }
-    if (matchChatModuleIntent(trimmed, conversationRef.current.getSnapshot().feed)) {
-      turnTranscript.current = [];
-      conversationRef.current.appendUser(trimmed);
-      setInput("");
-      void openChatModuleForIntent(trimmed, conversationRef.current.getSnapshot().feed, {
-        runtime: conversationRef.current,
-        catalog: catalogRef.current,
-        registry: registryRef.current,
-      });
-      return;
-    }
     turnTranscript.current = [];
     conversationRef.current.appendUser(trimmed);
     setInput("");
@@ -1064,18 +1050,6 @@ export function App() {
       event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
         ? (event.payload as Record<string, unknown>)
         : undefined;
-    if (handleChatTttUiEvent(event, conversationRef.current)) {
-      return;
-    }
-    if (handleChatBsUiEvent(event, conversationRef.current)) {
-      return;
-    }
-    if (
-      isChatOwnedSurface(event.surfaceId) &&
-      (event.name === "tttStart" || event.name === "tttMove" || event.name === "bsStart" || event.name === "bsCommit")
-    ) {
-      return;
-    }
     if (bridgeChatModuleEvent(event.name, payload)) {
       setPanel("comms");
       if (commsContacts[0] && !commsFocusId) setCommsFocusId(commsContacts[0].id);
@@ -1394,12 +1368,13 @@ export function App() {
                 );
               }
               return (
-                <div key={item.id} className="feed-surface">
-                  {item.surface.degraded ? (
-                    <div className="feed-surface-degraded">degraded rendering</div>
-                  ) : null}
-                  <SurfaceRenderer surface={item.surface} onEvent={handleUiEvent} />
-                </div>
+                <ChatFeedSurface
+                  key={item.id}
+                  surface={item.surface}
+                  catalog={catalog}
+                  registry={registry}
+                  onEvent={handleUiEvent}
+                />
               );
             })
           )}
