@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
-import { TictactoeEngine } from "./tictactoe.js";
+import { describe, expect, it } from "vitest";
+import type { JsonObject } from "../types.js";
+import { TictactoeEngine, type TttMark } from "./tictactoe.js";
 import type { ActiveChatGame } from "./feed.js";
 import { GAME_MOVE_FALLBACK_TEXT, GameOrchestrator } from "./orchestrator.js";
 import type { GameOrchestratorCallbacks } from "./orchestrator.js";
 
-function activeGame(props: Record<string, unknown>, surfaceId = "ttt-1"): ActiveChatGame {
+function activeGame(props: JsonObject, surfaceId = "ttt-1"): ActiveChatGame {
   return {
     surface: {
       surfaceId,
@@ -33,12 +34,12 @@ function activeGame(props: Record<string, unknown>, surfaceId = "ttt-1"): Active
 }
 
 function mockCallbacks(game: ActiveChatGame | null): GameOrchestratorCallbacks & {
-  commits: Array<{ surfaceId: string; moduleId: string; props: Record<string, unknown> }>;
+  commits: Array<{ surfaceId: string; moduleId: string; props: JsonObject }>;
   prompts: string[];
   texts: string[];
 } {
   let current = game;
-  const commits: Array<{ surfaceId: string; moduleId: string; props: Record<string, unknown> }> = [];
+  const commits: Array<{ surfaceId: string; moduleId: string; props: JsonObject }> = [];
   const prompts: string[] = [];
   const texts: string[] = [];
   return {
@@ -77,7 +78,7 @@ describe("GameOrchestrator", () => {
     const cb = mockCallbacks(game);
     orch.handleAgentMove("ttt-1", { cell: 4 }, cb);
     expect(cb.commits).toHaveLength(1);
-    expect(cb.commits[0]?.props.board?.[4]).toBe("O");
+    expect((cb.commits[0]?.props.board as TttMark[])?.[4]).toBe("O");
   });
 
   it("rejects agent move for wrong surfaceId", () => {
@@ -100,7 +101,7 @@ describe("GameOrchestrator", () => {
     const cb = mockCallbacks(game);
     const result = orch.handleOwnerUiEvent("tttMove", { cell: 0 }, game, game.embed.props, cb);
     expect(result.handled).toBe(true);
-    expect(cb.commits[0]?.props.board?.[0]).toBe("X");
+    expect((cb.commits[0]?.props.board as TttMark[])?.[0]).toBe("X");
     expect(cb.prompts).toHaveLength(1);
     expect(cb.prompts[0]).toContain("[game-turn]");
   });
@@ -117,7 +118,7 @@ describe("GameOrchestrator", () => {
     expect(cb.prompts).toHaveLength(1);
     expect(orch.ensureAgentMove(cb)).toBe(false);
     expect(cb.commits).toHaveLength(1);
-    expect(cb.commits[0]?.props.board?.some((m) => m === "O")).toBe(true);
+    expect((cb.commits[0]?.props.board as TttMark[]).some((m) => m === "O")).toBe(true);
     expect(cb.texts).toContain(GAME_MOVE_FALLBACK_TEXT);
   });
 

@@ -20,7 +20,7 @@ const tttComposition: Composition = {
   },
 };
 
-function mockSurface(surfaceId: string, props: Record<string, unknown>): ResolvedSurface {
+function mockSurface(surfaceId: string, props: JsonObject): ResolvedSurface {
   return {
     surfaceId,
     intent: "Tic-tac-toe",
