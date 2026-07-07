@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-06T20:48:46.871Z",
+  "updatedAt": "2026-07-07T13:51:55.844Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
@@ -35,6 +35,14 @@
       "publisher": "did:key:z6Mkatomexamples01"
     },
     {
+      "id": "commerce/split-bill",
+      "version": "1.0.0",
+      "manifestUrl": "commerce/split-bill/manifest.json",
+      "integrity": "sha256:80775d7f4ae942711a8f7f26b453ab80fb38273e1b508b5ee5d77145b256f1c8",
+      "bundleIntegrity": "sha256:9a97efa43e6b73e5af10a35b5cea6d3cdf7a3c64d318bed8a6ab4a57facbf801",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
       "id": "community/coffee-shop",
       "version": "1.0.0",
       "manifestUrl": "community/coffee-shop/manifest.json",
@@ -48,8 +56,7 @@
       "manifestUrl": "connectors/webcal/manifest.json",
       "integrity": "sha256:5dcfc6f65a0cfc7b354871e34b15fa9eb95eef296473cb5d3445c0759887d2c8",
       "bundleIntegrity": "sha256:00f24e50256a69aa4f56f0dd70217037a05d65f332012dfc65842d154d9b7d46",
-      "publisher": "did:key:z6Mkatomexamples01",
-      "tier": "system"
+      "publisher": "did:key:z6Mkatomexamples01"
     },
     {
       "id": "coordination/poll",
@@ -57,8 +64,7 @@
       "manifestUrl": "coordination/poll/manifest.json",
       "integrity": "sha256:74deb6d08537f64466fa6b21ce0cf4c66bfb1b4a582bdf708b5cb320e59d0ade",
       "bundleIntegrity": "sha256:4d6ff625bd3bd93aee97466d824975463e52aa9353c2f80b65584e04de0bb925",
-      "publisher": "did:key:z6Mkatomexamples01",
-      "tier": "system"
+      "publisher": "did:key:z6Mkatomexamples01"
     },
     {
       "id": "coordination/shared-list",
@@ -66,8 +72,7 @@
       "manifestUrl": "coordination/shared-list/manifest.json",
       "integrity": "sha256:c8e1c859ba40ea62eec5d3e43217a536c6dcd08f26d5d88a6119911b45913ef9",
       "bundleIntegrity": "sha256:9f2f0e9c74a632836c171d6751fb5e0e4dd7867695a65bf3fa8d992236f92bae",
-      "publisher": "did:key:z6Mkatomexamples01",
-      "tier": "system"
+      "publisher": "did:key:z6Mkatomexamples01"
     },
     {
       "id": "core-examples/contact-card",
@@ -83,6 +88,22 @@
       "manifestUrl": "data/map-view/manifest.json",
       "integrity": "sha256:cf2e0ffe6a1c6a8a432b54965662d9e7d65fb1f6b4ae435ad2eae9f1c0eca284",
       "bundleIntegrity": "sha256:73fdf5d00536339f4bec6dde11b120193c4b2a6c3544e009b8e35da50c98a7b0",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "games/battleships",
+      "version": "1.0.0",
+      "manifestUrl": "games/battleships/manifest.json",
+      "integrity": "sha256:73d329a1d1e1ea2624f546492b01ce67f674f128ced8d152f8e7035530171cb0",
+      "bundleIntegrity": "sha256:5b1a9dab44dbb9eb00903f828c36c1e29effc6b43fba6cf2956d092f772a0be5",
+      "publisher": "did:key:z6Mkatomexamples01"
+    },
+    {
+      "id": "games/tictactoe",
+      "version": "1.0.0",
+      "manifestUrl": "games/tictactoe/manifest.json",
+      "integrity": "sha256:352efe28e1bccfb1617d690a8156487b487e5055e366938272c1b7e354f31a33",
+      "bundleIntegrity": "sha256:aaf396f17137d3f1403d5ae64d5399484c467df26dd986a8a2ab91b8ecfac5f0",
       "publisher": "did:key:z6Mkatomexamples01"
     },
     {
@@ -107,8 +128,7 @@
       "manifestUrl": "scheduling/meeting-picker/manifest.json",
       "integrity": "sha256:539a7a9c3b3f7c48daca8b33b6d4910cbf8b39804d505e8ae5e5dad2b2e90e5e",
       "bundleIntegrity": "sha256:83aadcdc5f557103d6385f471c437859880f3e09664725efe48fbf1a2d9a8429",
-      "publisher": "did:key:z6Mkatomexamples01",
-      "tier": "system"
+      "publisher": "did:key:z6Mkatomexamples01"
     },
     {
       "id": "travel/seat-map",
@@ -117,30 +137,6 @@
       "integrity": "sha256:2ec97da48f0a2be013c48110e5815936e40b98514754f926169f9b3e90d856ca",
       "bundleIntegrity": "sha256:2143262eb8e3abacf7688735991f32defa348f2e1a262400684ee68be9efb968",
       "publisher": "did:key:z6Mkdemotravel0001"
-    },
-    {
-      "id": "commerce/split-bill",
-      "version": "1.0.0",
-      "manifestUrl": "commerce/split-bill/manifest.json",
-      "integrity": "sha256:80775d7f4ae942711a8f7f26b453ab80fb38273e1b508b5ee5d77145b256f1c8",
-      "bundleIntegrity": "sha256:9a97efa43e6b73e5af10a35b5cea6d3cdf7a3c64d318bed8a6ab4a57facbf801",
-      "publisher": "did:key:z6Mkatomexamples01"
-    },
-    {
-      "id": "games/battleships",
-      "version": "1.0.0",
-      "manifestUrl": "games/battleships/manifest.json",
-      "integrity": "sha256:0786d5d68435355573a8e3344b263045a727086ebf08187a426afd268eeb1433",
-      "bundleIntegrity": "sha256:5b1a9dab44dbb9eb00903f828c36c1e29effc6b43fba6cf2956d092f772a0be5",
-      "publisher": "did:key:z6Mkatomexamples01"
-    },
-    {
-      "id": "games/tictactoe",
-      "version": "1.0.0",
-      "manifestUrl": "games/tictactoe/manifest.json",
-      "integrity": "sha256:352efe28e1bccfb1617d690a8156487b487e5055e366938272c1b7e354f31a33",
-      "bundleIntegrity": "sha256:aaf396f17137d3f1403d5ae64d5399484c467df26dd986a8a2ab91b8ecfac5f0",
-      "publisher": "did:key:z6Mkatomexamples01"
     }
   ]
 }

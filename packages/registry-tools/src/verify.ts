@@ -40,6 +40,8 @@ export interface VerifyOptions {
   requireIntegrity?: boolean;
   /** When true, verify Sigstore bundle digest match for manifests with signatureUrl. */
   verifySignatures?: boolean;
+  /** Fail when verifySignatures is on and a manifest omits signatureUrl (M-TS-03). */
+  requireSignatures?: boolean;
   /** Run bundle malware heuristics after integrity checks (M-TS-02). */
   scanBundles?: boolean;
   /** Treat external script/fetch patterns as errors (default: warnings only). */
@@ -237,7 +239,15 @@ async function verifyEntry(
 
   if (options.verifySignatures) {
     const signatureUrl = manifest.signatureUrl ?? entry.signatureUrl;
-    if (signatureUrl) {
+    if (!signatureUrl) {
+      if (options.requireSignatures) {
+        errors.push(`${entry.id}: missing signatureUrl (required for curated registry listings)`);
+      } else {
+        console.warn(
+          `Warning: ${entry.id}@${entry.version} has no signatureUrl (M-TS-03: required for new curated listings)`,
+        );
+      }
+    } else {
       try {
         await verifySignatureDigest(
           manifestBytes,
