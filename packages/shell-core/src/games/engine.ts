@@ -28,6 +28,8 @@ export type GameMoveResult<State> =
 export interface GameEngine<State = unknown, Move = JsonValue> {
   /** Module component id this engine arbitrates, e.g. "games/tictactoe". */
   readonly moduleId: string;
+  /** Module ui-event names for owner moves (orchestrator wiring). */
+  readonly uiEvents?: { move: string; restart?: string };
   initialState(): State;
   /** Parse an untrusted move payload (module event or agent message). Null = malformed. */
   parseMove(payload: unknown): Move | null;
@@ -43,4 +45,9 @@ export interface GameEngine<State = unknown, Move = JsonValue> {
   fromProps(props: JsonObject): State;
   /** Compact summary sent to the agent each turn (state + legal moves). */
   agentView(state: State): JsonObject;
+  /**
+   * Optional move ranking for difficulty hints (same order as `legalMoves`;
+   * higher = stronger). When omitted the agent picks from `legalMoves` alone.
+   */
+  rankMoves?(state: State, player: GamePlayer, moves: Move[]): number[];
 }

@@ -14,6 +14,19 @@ pnpm exec atom-registry verify --registry-dir ./registry --bundle-base ./public
 
 Deploy `./public` (or your static host) so `bundleUrl` paths resolve. For the reference registry, open a PR to `Qwixl/Atom` under `apps/shell/public/registry/` or host your own index and point shells at it in Settings.
 
+## Reference registry — prohibited use (M-TS-01)
+
+The curated store at [atom.registry.qwixl.com](https://atom.registry.qwixl.com) rejects modules whose primary purpose is:
+
+- Malware, credential theft, or sandbox escape attempts
+- Illegal goods or services (weapons, drugs, commercial sex)
+- Terrorist facilitation or violent extremism
+- CSAM or sexual abuse material
+
+Third-party registries are owner-controlled; Atom cannot centrally block them. Owners who add a custom index accept responsibility for what they install. Report abuse on the reference store via the project security contact in [SECURITY.md](./SECURITY.md).
+
+PRs to the reference registry must pass `pnpm registry:verify --require-integrity --signatures` in CI. Duplicate `id@version` rows in `index.json` fail verification.
+
 ## Scaffold
 
 ```bash
@@ -83,7 +96,7 @@ pnpm registry:publish-all
 pnpm registry:verify
 ```
 
-`publish-all` walks every `manifest.json`, writes `bundleIntegrity` into the manifest, and **upserts** the matching `id@version` row in `index.json`. It does **not** remove older semver rows.
+`publish-all` walks every `manifest.json`, writes `bundleIntegrity` into the manifest, and **upserts** the matching `id@version` row in `index.json`. It does **not** remove older semver rows. `atom-registry verify` fails on duplicate `id@version` rows (M-TS-09).
 
 When you **supersede** a module in place (same `manifest.json` path, bumped `version` in the manifest):
 

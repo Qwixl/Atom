@@ -59,8 +59,25 @@ function winningLine(board: TttMark[]): { mark: TttMark; line: number[] } | null
   return null;
 }
 
+/** Minimax score from `forPlayer`'s perspective (+10 win, -10 loss, 0 draw). */
+function minimaxScore(state: TttState, forPlayer: GamePlayer, engine: TictactoeEngine): number {
+  const status = engine.status(state);
+  if (status.phase === "won") return status.winner === forPlayer ? 10 : -10;
+  if (status.phase === "draw") return 0;
+
+  const onTurn = engine.turn(state);
+  const legal = engine.legalMoves(state, onTurn);
+  const childScores = legal.map((move) => {
+    const applied = engine.applyMove(state, move, onTurn);
+    if (!applied.ok) return onTurn === forPlayer ? -10 : 10;
+    return minimaxScore(applied.state, forPlayer, engine);
+  });
+  return onTurn === forPlayer ? Math.max(...childScores) : Math.min(...childScores);
+}
+
 export class TictactoeEngine implements GameEngine<TttState, TttMove> {
   readonly moduleId = "games/tictactoe";
+  readonly uiEvents = { move: "tttMove", restart: "tttStart" } as const;
 
   initialState(): TttState {
     return { board: Array(9).fill(null) };
@@ -136,16 +153,32 @@ export class TictactoeEngine implements GameEngine<TttState, TttMove> {
     return { board: normalizeBoard(props.board) };
   }
 
+  rankMoves(state: TttState, player: GamePlayer, moves: TttMove[]): number[] {
+    return moves.map((move) => {
+      const applied = this.applyMove(state, move, player);
+      if (!applied.ok) return -Infinity;
+      return minimaxScore(applied.state, player, this);
+    });
+  }
+
   agentView(state: TttState): JsonObject {
     const status = this.status(state);
-    return {
+    const legal = this.legalMoves(state, "agent");
+    const view: JsonObject = {
       game: "tictactoe",
       youAre: AGENT_MARK,
       ownerIs: OWNER_MARK,
       board: [...state.board],
       turn: this.turn(state),
       phase: status.phase,
-      legalCells: this.legalMoves(state, "agent").map((move) => move.cell),
+      legalCells: legal.map((move) => move.cell),
     };
+    if (legal.length > 0) {
+      const scores = this.rankMoves(state, "agent", legal);
+      view.moveScores = Object.fromEntries(
+        legal.map((move, index) => [String(move.cell), scores[index]]),
+      );
+    }
+    return view;
   }
 }
