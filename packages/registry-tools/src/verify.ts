@@ -12,6 +12,26 @@ import {
   type RegistryModuleEntry,
 } from "@qwixl/shell-core";
 
+/** Duplicate `id@version` rows in index.json (M-TS-09). */
+export function findRegistryIndexDuplicateErrors(modules: RegistryModuleEntry[]): string[] {
+  const byKey = new Map<string, RegistryModuleEntry[]>();
+  for (const entry of modules) {
+    const key = `${entry.id}@${entry.version}`;
+    const list = byKey.get(key) ?? [];
+    list.push(entry);
+    byKey.set(key, list);
+  }
+  const errors: string[] = [];
+  for (const [key, entries] of byKey) {
+    if (entries.length <= 1) continue;
+    const manifestUrls = [...new Set(entries.map((entry) => entry.manifestUrl))];
+    errors.push(
+      `duplicate index entry ${key} (${entries.length}x); manifest paths: ${manifestUrls.join(", ")}`,
+    );
+  }
+  return errors;
+}
+
 export interface VerifyOptions {
   registryDir: string;
   /** Directory bundles resolve from when manifest bundleUrl is absolute-from-root (e.g. /modules/...). */
@@ -91,6 +111,8 @@ export async function verifyRegistry(options: VerifyOptions): Promise<void> {
   }
 
   const errors: string[] = [];
+
+  errors.push(...findRegistryIndexDuplicateErrors(index.modules));
 
   for (const registryFile of ["index.json", "revocations.json"]) {
     const filePath = path.join(options.registryDir, registryFile);

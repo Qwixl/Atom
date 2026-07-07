@@ -1,5 +1,6 @@
 export { LlmAgentSession } from "./LlmAgentSession.js";
 export type { LlmConfig } from "./LlmAgentSession.js";
+export { listOpenAiCompatibleModels } from "./listModels.js";
 export { buildSystemPrompt } from "./prompt.js";
 export type { PromptProfile } from "./prompt.js";
 export { runCuratorPass } from "./runCuratorPass.js";

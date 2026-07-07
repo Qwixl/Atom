@@ -57,6 +57,23 @@ export type { ConversationSnapshot, ConversationRuntimeOptions, TurnCompleteInfo
 
 export { getGameEngine, registerGameEngine } from "./games/registry.js";
 export { TictactoeEngine } from "./games/tictactoe.js";
+export { GameOrchestrator, GAME_MOVE_FALLBACK_TEXT } from "./games/orchestrator.js";
+export type { GameOrchestratorCallbacks, OwnerUiEventResult } from "./games/orchestrator.js";
+export {
+  findModuleEmbed,
+  findActiveGameInFeed,
+  isGameModule,
+  isGameEnded,
+  isActiveShellGameOnFeed,
+  gameStateFromProps,
+} from "./games/feed.js";
+export type { ModuleEmbedTarget, ActiveChatGame } from "./games/feed.js";
+export {
+  gameModuleInComposition,
+  sanitizeNewGameComposition,
+  allowCompositionDuringGame,
+  activeGameContext,
+} from "./games/policies.js";
 export type { GameEngine, GameMoveResult, GamePlayer, GameStatus } from "./games/engine.js";
 export type { TttState, TttMove, TttMark } from "./games/tictactoe.js";
 
