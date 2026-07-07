@@ -27,6 +27,8 @@ Third-party registries are owner-controlled; Atom cannot centrally block them. O
 
 PRs to the reference registry must pass `pnpm registry:verify --require-integrity --signatures` in CI. Duplicate `id@version` rows in `index.json` fail verification.
 
+**New listings (M-TS-03):** include `signatureUrl` pointing at a Sigstore bundle JSON beside the manifest. Existing modules may omit signatures until re-published; CI warns today and will enforce `--require-signatures` once all curated modules are signed.
+
 ## Scaffold
 
 ```bash
