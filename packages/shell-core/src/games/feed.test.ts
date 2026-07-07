@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ResolvedSurface } from "../resolver.js";
+import type { JsonObject } from "../types.js";
 import { findActiveGameInFeed, isActiveShellGameOnFeed } from "./feed.js";
 
-function mockSurface(props: Record<string, unknown>): ResolvedSurface {
+function mockSurface(props: JsonObject): ResolvedSurface {
   return {
     surfaceId: "ttt-1",
     intent: "Tic-tac-toe",

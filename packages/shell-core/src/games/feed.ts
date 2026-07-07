@@ -6,7 +6,7 @@ import { getGameEngine } from "./registry.js";
 export interface ModuleEmbedTarget {
   moduleId: string;
   nodeId: string;
-  props: Record<string, unknown>;
+  props: JsonObject;
 }
 
 function walkForModule(node: ResolvedNode): ModuleEmbedTarget | null {
@@ -14,7 +14,7 @@ function walkForModule(node: ResolvedNode): ModuleEmbedTarget | null {
     return {
       moduleId: node.entry.spec.moduleId ?? node.node.component,
       nodeId: node.node.id,
-      props: (node.node.props ?? {}) as Record<string, unknown>,
+      props: (node.node.props ?? {}) as JsonObject,
     };
   }
   for (const child of node.children) {
@@ -34,7 +34,7 @@ export function isGameModule(moduleId: string): boolean {
   return getGameEngine(moduleId) !== null;
 }
 
-export function isGameEnded(props: Record<string, unknown>): boolean {
+export function isGameEnded(props: JsonObject): boolean {
   return props.status === "won" || props.status === "draw";
 }
 

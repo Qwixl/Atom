@@ -49,7 +49,7 @@ export class GameOrchestrator {
     }
     const engine = getGameEngine(game.embed.moduleId);
     if (!engine) return;
-    const state = engine.fromProps(game.embed.props as JsonObject);
+    const state = engine.fromProps(game.embed.props);
     const move = engine.parseMove(movePayload);
     if (!move) {
       this.lastReject = "the move payload was malformed";
@@ -114,7 +114,7 @@ export class GameOrchestrator {
     }
     const engine = getGameEngine(game.embed.moduleId);
     if (!engine) return false;
-    const state = engine.fromProps(game.embed.props as JsonObject);
+    const state = engine.fromProps(game.embed.props);
     if (engine.status(state).phase !== "active" || engine.turn(state) !== "agent") {
       this.resetTurnState();
       return false;

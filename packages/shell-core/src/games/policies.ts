@@ -49,7 +49,7 @@ export function allowCompositionDuringGame(
 export function activeGameContext(active: ReturnType<typeof findActiveGameInFeed>) {
   if (!active) return undefined;
   const engine = getGameEngine(active.embed.moduleId);
-  const props = active.embed.props as JsonObject;
+  const props = active.embed.props;
   return {
     surfaceId: active.surface.surfaceId,
     component: active.embed.moduleId,
