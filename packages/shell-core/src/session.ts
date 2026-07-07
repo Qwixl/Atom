@@ -22,6 +22,7 @@ export type AgentOutput =
   | { type: "composition"; composition: Composition }
   | { type: "consequential-action"; surfaceId: string; action: ConsequentialAction }
   | { type: "data-request"; request: DataRequest }
+  | { type: "game-move"; surfaceId: string; move: JsonValue }
   | { type: "done" };
 
 export type AgentOutputListener = (output: AgentOutput) => void;

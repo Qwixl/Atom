@@ -6,18 +6,19 @@
   <title>Tic-tac-toe</title>
   <style>
     * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
-    body { margin: 0; padding: 10px 12px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
+    body { margin: 0; padding: 8px 10px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); overflow: hidden; }
+    .board-wrap { position: relative; width: min(100%, 220px); }
     .board {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 6px;
-      width: min(100%, 240px);
+      gap: 5px;
     }
     button.cell {
       aspect-ratio: 1;
       width: 100%;
-      min-height: 56px;
-      font-size: clamp(20px, 5vw, 28px);
+      min-height: 0;
+      max-height: 64px;
+      font-size: clamp(18px, 4vw, 26px);
       font-weight: 600;
       border: 1px solid var(--atom-color-border, #ccc);
       border-radius: 8px;
@@ -27,12 +28,33 @@
       padding: 0;
     }
     button.cell:disabled { cursor: default; opacity: 0.85; }
-    .meta { margin-top: 8px; font-size: 12px; color: var(--atom-color-text-dim, #666); }
-    .start { margin-top: 8px; padding: 8px 14px; border: none; border-radius: 6px; background: var(--atom-color-accent, #111); color: var(--atom-color-bg, #fff); cursor: pointer; }
+    button.cell.win {
+      border-color: var(--atom-color-accent, #111);
+      animation: win-pulse 0.5s ease-in-out 2;
+    }
+    @keyframes win-pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+    }
+    .strike {
+      position: absolute;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--atom-color-accent, #111);
+      transform-origin: 0 50%;
+      width: 0;
+      transition: width 0.45s ease-out 0.35s;
+      pointer-events: none;
+    }
+    .meta { margin-top: 6px; font-size: 12px; color: var(--atom-color-text-dim, #666); }
+    .meta.over { font-weight: 600; color: var(--atom-color-text, #111); }
+    .start { margin-top: 6px; padding: 6px 12px; border: none; border-radius: 6px; background: var(--atom-color-accent, #111); color: var(--atom-color-bg, #fff); cursor: pointer; font-size: 12px; }
   </style>
 </head>
 <body>
-  <div class="board" id="board"></div>
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+  </div>
   <p class="meta" id="meta">Start a game or wait for your opponent.</p>
   <button type="button" class="start" id="start">New game</button>
   <script>
@@ -43,6 +65,8 @@
     let gameId = null;
     let myMark = "X";
     let readOnly = false;
+    let winner = null;
+    let winningLine = null;
 
     function normalizeBoard(raw) {
       const next = Array(9).fill(null);
@@ -58,43 +82,70 @@
       if (shellOrigin) window.parent.postMessage({ type: "event", name, payload }, shellOrigin);
     }
 
+    function drawStrike(line) {
+      const wrap = document.querySelector(".board-wrap");
+      const cells = document.querySelectorAll("button.cell");
+      const first = cells[line[0]];
+      const last = cells[line[2]];
+      if (!first || !last) return;
+      const wrapRect = wrap.getBoundingClientRect();
+      const a = first.getBoundingClientRect();
+      const b = last.getBoundingClientRect();
+      const x1 = a.left + a.width / 2 - wrapRect.left;
+      const y1 = a.top + a.height / 2 - wrapRect.top;
+      const x2 = b.left + b.width / 2 - wrapRect.left;
+      const y2 = b.top + b.height / 2 - wrapRect.top;
+      const length = Math.hypot(x2 - x1, y2 - y1);
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+      const strike = document.createElement("div");
+      strike.className = "strike";
+      strike.style.left = x1 + "px";
+      strike.style.top = y1 - 2 + "px";
+      strike.style.transform = "rotate(" + angle + "rad)";
+      wrap.appendChild(strike);
+      requestAnimationFrame(() => {
+        strike.style.width = length + "px";
+      });
+    }
+
     function render() {
+      const wrap = document.querySelector(".board-wrap");
+      const oldStrike = wrap.querySelector(".strike");
+      if (oldStrike) oldStrike.remove();
       const grid = document.getElementById("board");
       grid.innerHTML = "";
+      const winSet = new Set(status === "won" && Array.isArray(winningLine) ? winningLine : []);
       for (let i = 0; i < 9; i++) {
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "cell";
+        btn.className = "cell" + (winSet.has(i) ? " win" : "");
         btn.textContent = board[i] || "";
         btn.setAttribute("aria-label", "Cell " + (i + 1));
         const canPlay = !readOnly && status === "active" && !board[i] && turn === myMark;
         btn.disabled = !canPlay;
         if (canPlay) {
           btn.addEventListener("click", () => {
-            board[i] = myMark;
-            render();
             emit("tttMove", { gameId, cell: i, mark: myMark });
           });
         }
         grid.appendChild(btn);
       }
       const meta = document.getElementById("meta");
+      meta.classList.toggle("over", status === "won" || status === "draw");
       if (status === "idle") meta.textContent = "Start a game or wait for your opponent.";
-      else if (status === "won") meta.textContent = "Game over.";
-      else if (status === "draw") meta.textContent = "Draw.";
+      else if (status === "won") meta.textContent = "Game Over — " + (winner === myMark ? "you win!" : (winner || "?") + " wins.");
+      else if (status === "draw") meta.textContent = "Game Over — it's a draw.";
       else meta.textContent = turn === myMark ? "Your turn (" + myMark + ")" : "Waiting for opponent (" + turn + ")";
-      document.getElementById("start").hidden = status === "active";
+      const startBtn = document.getElementById("start");
+      startBtn.hidden = status === "active";
+      startBtn.textContent = status === "won" || status === "draw" ? "Play again?" : "New game";
+      if (status === "won" && winSet.size === 3) {
+        requestAnimationFrame(() => drawStrike(winningLine));
+      }
     }
 
     document.getElementById("start").addEventListener("click", () => {
-      gameId = "ttt-" + Date.now();
-      board = Array(9).fill(null);
-      turn = "X";
-      status = "active";
-      myMark = "X";
-      readOnly = false;
-      emit("tttStart", { gameId, board, turn, status: "active" });
-      render();
+      emit("tttStart", { gameId: "ttt-" + Date.now() });
     });
 
     window.addEventListener("message", (event) => {
@@ -108,6 +159,8 @@
         status = props.status || "active";
         gameId = props.gameId || gameId;
         myMark = props.myMark === "O" ? "O" : "X";
+        winner = props.winner === "X" || props.winner === "O" ? props.winner : null;
+        winningLine = Array.isArray(props.winningLine) ? props.winningLine : null;
         readOnly = props.readOnly === true || status !== "active" || turn !== myMark;
         render();
       }
