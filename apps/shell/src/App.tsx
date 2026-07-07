@@ -644,10 +644,7 @@ export function App() {
   const [gameModalDismissedId, setGameModalDismissedId] = useState<string | null>(() => {
     const restored = findActiveGameInFeed(chatFeedRef.current);
     if (!restored) return null;
-    const props = withModulePropDefaults(
-      restored.embed.moduleId,
-      restored.embed.props as Record<string, unknown>,
-    );
+    const props = withModulePropDefaults(restored.embed.moduleId, restored.embed.props);
     return isGameEnded(props) ? restored.surface.surfaceId : null;
   });
   const [gameNotice, setGameNotice] = useState<string | null>(null);
@@ -1021,7 +1018,7 @@ export function App() {
       activeGameEngine &&
       activeGameProps &&
       (() => {
-        const state = activeGameEngine.fromProps(activeGameProps as JsonObject);
+        const state = activeGameEngine.fromProps(activeGameProps);
         return (
           activeGameEngine.status(state).phase === "active" &&
           activeGameEngine.turn(state) === "agent"
@@ -1162,10 +1159,7 @@ export function App() {
         : undefined;
 
     if (activeChatGame && activeGameEngine) {
-      const props = withModulePropDefaults(
-        activeChatGame.embed.moduleId,
-        activeChatGame.embed.props as Record<string, unknown>,
-      ) as JsonObject;
+      const props = withModulePropDefaults(activeChatGame.embed.moduleId, activeChatGame.embed.props);
       const result = gameOrchestratorRef.current.handleOwnerUiEvent(
         event.name,
         payload,

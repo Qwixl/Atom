@@ -1,4 +1,4 @@
-import type { ResolvedSurface } from "@qwixl/shell-core";
+import type { JsonObject, ResolvedSurface } from "@qwixl/shell-core";
 import { gameModuleLabel, isGameEnded } from "./gameModules.js";
 import { withModulePropDefaults } from "./moduleEmbedDefaults.js";
 
@@ -10,7 +10,7 @@ export function GameFeedChip({
 }: {
   surface: ResolvedSurface;
   moduleId: string;
-  props: Record<string, unknown>;
+  props: JsonObject;
   onResume: () => void;
 }) {
   const resolved = withModulePropDefaults(moduleId, props);
