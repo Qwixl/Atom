@@ -68,4 +68,8 @@ describe("withModulePropDefaults", () => {
     expect(withModulePropDefaults("coordination/poll", {}).mode).toBe("compose");
     expect(withModulePropDefaults("coordination/shared-list", {}).mode).toBe("compose");
   });
+
+  it("defaults split-bill label", () => {
+    expect(withModulePropDefaults("commerce/split-bill", {}).defaultLabel).toBe("Split bill");
+  });
 });
