@@ -6,6 +6,11 @@ export type CommsModuleBridge =
   | { action: "meetingProposed"; title: string; slots: SchedulingSlot[] }
   | { action: "pollCreated"; question: string; options: Array<{ id: string; label: string }> }
   | {
+      action: "listCreated";
+      title: string;
+      items: Array<{ id: string; text: string; done: boolean }>;
+    }
+  | {
       action: "splitProposed";
       label: string;
       totalMinor: number;
@@ -56,6 +61,22 @@ export function bridgeChatModuleEvent(
       : [];
     if (!question || options.length < 2) return false;
     queueCommsModuleBridge({ action: "pollCreated", question, options });
+    return true;
+  }
+  if (name === "listCreated") {
+    const title = typeof payload?.title === "string" ? payload.title : "Shared list";
+    const items = Array.isArray(payload?.items)
+      ? payload.items.filter(
+          (entry): entry is { id: string; text: string; done: boolean } =>
+            !!entry &&
+            typeof entry === "object" &&
+            typeof (entry as { id?: string }).id === "string" &&
+            typeof (entry as { text?: string }).text === "string" &&
+            typeof (entry as { done?: boolean }).done === "boolean",
+        )
+      : [];
+    if (items.length === 0) return false;
+    queueCommsModuleBridge({ action: "listCreated", title, items });
     return true;
   }
   if (name === "splitProposed") {
