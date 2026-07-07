@@ -367,6 +367,8 @@ export function CommsPanel({
       void sendSchedulingProposal(bridge.title, bridge.slots);
     } else if (bridge.action === "pollCreated") {
       void sendPoll(bridge.question, bridge.options);
+    } else if (bridge.action === "listCreated") {
+      void sendSharedList(bridge.title, bridge.items);
     } else if (bridge.action === "splitProposed") {
       void sendSplitBill(
         bridge.label,

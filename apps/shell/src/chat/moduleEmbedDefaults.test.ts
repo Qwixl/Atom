@@ -59,4 +59,13 @@ describe("withModulePropDefaults", () => {
     const props = withModulePropDefaults("games/tictactoe", { board, status: "active", turn: "X" });
     expect(props.board).toEqual(board);
   });
+
+  it("defaults meeting picker title", () => {
+    expect(withModulePropDefaults("scheduling/meeting-picker", {}).defaultTitle).toBe("Meeting");
+  });
+
+  it("defaults poll and shared-list to compose mode", () => {
+    expect(withModulePropDefaults("coordination/poll", {}).mode).toBe("compose");
+    expect(withModulePropDefaults("coordination/shared-list", {}).mode).toBe("compose");
+  });
 });
