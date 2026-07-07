@@ -7,6 +7,13 @@ import {
   createAttestationPersistence,
   createJsonPersistence,
   getGameEngine,
+  GameOrchestrator,
+  findActiveGameInFeed,
+  activeGameContext,
+  allowCompositionDuringGame,
+  sanitizeNewGameComposition,
+  isGameEnded,
+  isActiveShellGameOnFeed,
   loadBooleanFromStorage,
   loadJsonFromStorage,
   loadStringFromStorage,
@@ -18,20 +25,18 @@ import {
   type AttestationEntry,
   type ConsequentialAction,
   type FeedItem,
-  type GameEngine,
   type JsonObject,
   type RegistryRevocation,
   type RegistryTrustPolicy,
   type UiEvent,
+  type GameOrchestratorCallbacks,
 } from "@qwixl/shell-core";
 import { bridgeChatModuleEvent } from "./comms/moduleBridge.js";
 import { CommsPanel } from "./CommsPanel.js";
 import { ChatFeedSurface } from "./chat/ChatFeedSurface.js";
 import { GameModal } from "./chat/GameModal.js";
-import { findActiveGameInFeed, isGameEnded } from "./chat/gameModules.js";
-import { activeGameContext, allowCompositionDuringGame, sanitizeNewGameComposition } from "./chat/gameComposition.js";
 import { withModulePropDefaults } from "./chat/moduleEmbedDefaults.js";
-import { LlmAgentSession, runCuratorPass, type LlmConfig } from "@qwixl/agent-llm";
+import { LlmAgentSession, runCuratorPass, listOpenAiCompatibleModels, type LlmConfig } from "@qwixl/agent-llm";
 import { AgUiAgentSession, type AgUiAgentConfig } from "@qwixl/ag-ui-adapter";
 import {
   OwnerStore,
@@ -645,11 +650,17 @@ export function App() {
     );
     return isGameEnded(props) ? restored.surface.surfaceId : null;
   });
+  const [gameNotice, setGameNotice] = useState<string | null>(null);
   const prevGameSurfaceIdRef = useRef<string | null>(
     findActiveGameInFeed(chatFeedRef.current)?.surface.surfaceId ?? null,
   );
-  const gameMoveRetryRef = useRef(0);
-  const lastGameMoveRejectRef = useRef<string | null>(null);
+  const gameOrchestratorRef = useRef(new GameOrchestrator());
+  const gameCallbacksRef = useRef<GameOrchestratorCallbacks>({
+    getActiveGame: () => null,
+    commitProps: () => {},
+    appendAgentText: () => {},
+    requestAgentTurn: () => {},
+  });
   const conversationMemory = useMemo(
     () =>
       new ConversationMemoryIndex({
@@ -872,27 +883,20 @@ export function App() {
         },
         shouldReplaceSurface: (composition, feed) =>
           allowCompositionDuringGame(composition, feed),
-        shouldAppendAgentText: (text, feed) => {
-          const game = findActiveGameInFeed(feed);
-          if (!game || game.embed.moduleId !== "games/tictactoe") return true;
-          const props = withModulePropDefaults(
-            game.embed.moduleId,
-            game.embed.props as Record<string, unknown>,
-          );
-          if (isGameEnded(props)) return true;
-          if (/^You're X — tap a square\.?$/i.test(text.trim())) return false;
-          return true;
-        },
+        shouldAppendAgentText: (_text, feed) => !isActiveShellGameOnFeed(feed),
         onRegistryError: (message) => setRegistryErrorRef.current(message),
-        onGameMove: (surfaceId, move) => handleAgentGameMove(surfaceId, move),
+        onGameMove: (surfaceId, move) =>
+          gameOrchestratorRef.current.handleAgentMove(surfaceId, move, gameCallbacksRef.current),
         guardedRecordCount: (categories) =>
           ownerStoreRef.current.guardedRecords(categories).length,
         onTranscriptLine: (role, text) => {
+          if (role === "user" && text.startsWith("[game-turn]")) return;
+          if (role === "assistant" && isActiveShellGameOnFeed(chatFeedRef.current)) return;
           if (role === "user") lastUserMessageRef.current = text;
           turnTranscript.current.push({ role, text });
         },
         onTurnComplete: () => {
-          if (ensureAgentGameMove()) return;
+          if (gameOrchestratorRef.current.ensureAgentMove(gameCallbacksRef.current)) return;
           const activeProvider = providerRef.current;
           const activeLlmConfig = llmConfigRef.current;
           const activeOwnerStore = ownerStoreRef.current;
@@ -974,6 +978,23 @@ export function App() {
 
   const conversationRef = useRef(conversation);
   conversationRef.current = conversation;
+  gameCallbacksRef.current = {
+    getActiveGame: () => findActiveGameInFeed(chatFeedRef.current),
+    commitProps: (surfaceId, moduleId, props) => {
+      conversationRef.current.updateSurfaceModuleProps(surfaceId, moduleId, props);
+    },
+    appendAgentText: (text) => {
+      if (isActiveShellGameOnFeed(chatFeedRef.current)) {
+        setGameNotice(text);
+        return;
+      }
+      conversationRef.current.appendLocalAgentText(text);
+    },
+    requestAgentTurn: (prompt) => {
+      conversationRef.current.setBusy(true);
+      sessionRef.current.sendUserMessage(prompt);
+    },
+  };
 
   const { feed, busy, pending } = useSyncExternalStore(
     (listener) => conversation.subscribe(listener),
@@ -1007,101 +1028,13 @@ export function App() {
         );
       })(),
   );
+  useEffect(() => {
+    if (activeGameEnded || !activeChatGame) setGameNotice(null);
+  }, [activeGameEnded, activeChatGame?.surface.surfaceId]);
+
   const showGameModal = Boolean(
     activeChatGame && gameModalDismissedId !== activeChatGame.surface.surfaceId,
   );
-
-  /** Apply a validated engine state to the feed surface. */
-  function commitGameState(engine: GameEngine, surfaceId: string, state: unknown): void {
-    conversationRef.current.updateSurfaceModuleProps(
-      surfaceId,
-      engine.moduleId,
-      engine.toProps(state),
-    );
-  }
-
-  /** Agent proposed a move via the game-move protocol message. */
-  function handleAgentGameMove(surfaceId: string, movePayload: unknown): void {
-    const game = findActiveGameInFeed(chatFeedRef.current);
-    if (!game || game.surface.surfaceId !== surfaceId) {
-      lastGameMoveRejectRef.current = "that surfaceId is not the active game";
-      return;
-    }
-    const engine = getGameEngine(game.embed.moduleId);
-    if (!engine) return;
-    const state = engine.fromProps(game.embed.props as JsonObject);
-    const move = engine.parseMove(movePayload);
-    if (!move) {
-      lastGameMoveRejectRef.current = "the move payload was malformed";
-      return;
-    }
-    const result = engine.applyMove(state, move, "agent");
-    if (!result.ok) {
-      lastGameMoveRejectRef.current = result.reason;
-      return;
-    }
-    gameMoveRetryRef.current = 0;
-    lastGameMoveRejectRef.current = null;
-    commitGameState(engine, game.surface.surfaceId, result.state);
-  }
-
-  /**
-   * End-of-turn arbiter: if the agent owes a move, retry once with the
-   * rejection reason and legal moves; after that, play a disclosed fallback
-   * so the game can never stall. Returns true when a retry turn was started.
-   */
-  function ensureAgentGameMove(): boolean {
-    const game = findActiveGameInFeed(chatFeedRef.current);
-    if (!game) {
-      gameMoveRetryRef.current = 0;
-      return false;
-    }
-    const engine = getGameEngine(game.embed.moduleId);
-    if (!engine) return false;
-    const state = engine.fromProps(game.embed.props as JsonObject);
-    if (engine.status(state).phase !== "active" || engine.turn(state) !== "agent") {
-      gameMoveRetryRef.current = 0;
-      return false;
-    }
-    if (gameMoveRetryRef.current < 1) {
-      gameMoveRetryRef.current += 1;
-      const reason = lastGameMoveRejectRef.current;
-      lastGameMoveRejectRef.current = null;
-      requestAgentGameMove(engine, game.surface.surfaceId, state, reason);
-      return true;
-    }
-    const legal = engine.legalMoves(state, "agent");
-    const fallback = legal[Math.floor(Math.random() * legal.length)];
-    if (fallback !== undefined) {
-      const result = engine.applyMove(state, fallback, "agent");
-      if (result.ok) {
-        commitGameState(engine, game.surface.surfaceId, result.state);
-        conversationRef.current.appendLocalAgentText(
-          "(Your agent didn't produce a valid move, so the shell played a random legal move for it.)",
-        );
-      }
-    }
-    gameMoveRetryRef.current = 0;
-    return false;
-  }
-
-  /** Ask the agent for its move, with current state and legal moves inline. */
-  function requestAgentGameMove(
-    engine: GameEngine,
-    surfaceId: string,
-    state: unknown,
-    rejectionReason?: string | null,
-  ): void {
-    const view = engine.agentView(state);
-    const prefix = rejectionReason
-      ? `Your previous move was rejected by the game engine: ${rejectionReason}. `
-      : "";
-    conversationRef.current.setBusy(true);
-    sessionRef.current.sendUserMessage(
-      `[game-turn] ${prefix}It is your move. Game state: ${JSON.stringify(view)}. ` +
-        `Reply with ONLY: {"messages":[{"type":"game-move","surfaceId":"${surfaceId}","move":{"cell":<one of legalCells>}}]} — no text, no composition.`,
-    );
-  }
 
   useEffect(() => {
     if (prevSessionRef.current && prevSessionRef.current !== session) {
@@ -1229,35 +1162,19 @@ export function App() {
         : undefined;
 
     if (activeChatGame && activeGameEngine) {
-      const engine = activeGameEngine;
-      const surfaceId = activeChatGame.surface.surfaceId;
-      const state = engine.fromProps(
-        withModulePropDefaults(
-          activeChatGame.embed.moduleId,
-          activeChatGame.embed.props as Record<string, unknown>,
-        ) as JsonObject,
+      const props = withModulePropDefaults(
+        activeChatGame.embed.moduleId,
+        activeChatGame.embed.props as Record<string, unknown>,
+      ) as JsonObject;
+      const result = gameOrchestratorRef.current.handleOwnerUiEvent(
+        event.name,
+        payload,
+        activeChatGame,
+        props,
+        gameCallbacksRef.current,
       );
-
-      if (event.name === "tttStart") {
-        gameMoveRetryRef.current = 0;
-        lastGameMoveRejectRef.current = null;
-        commitGameState(engine, surfaceId, engine.initialState());
-        setGameModalDismissedId(null);
-        return;
-      }
-
-      if (event.name === "tttMove") {
-        const move = engine.parseMove(payload);
-        if (!move) return;
-        const result = engine.applyMove(state, move, "owner");
-        if (!result.ok) return;
-        gameMoveRetryRef.current = 0;
-        lastGameMoveRejectRef.current = null;
-        commitGameState(engine, surfaceId, result.state);
-        const status = engine.status(result.state);
-        if (status.phase === "active" && engine.turn(result.state) === "agent") {
-          requestAgentGameMove(engine, surfaceId, result.state);
-        }
+      if (result.handled) {
+        if (result.reopenModal) setGameModalDismissedId(null);
         return;
       }
     }
@@ -1778,7 +1695,11 @@ export function App() {
           catalog={catalog}
           registry={registry}
           agentBusy={waitingForAgentMove}
-          onClose={() => setGameModalDismissedId(activeChatGame.surface.surfaceId)}
+          notice={gameNotice}
+          onClose={() => {
+            setGameModalDismissedId(activeChatGame.surface.surfaceId);
+            setGameNotice(null);
+          }}
           onEvent={handleUiEvent}
         />
       ) : null}
@@ -1820,6 +1741,9 @@ export function App() {
           chatProvider={provider}
           chatProviderSummary={chatProviderSummary}
           allowBrowserLlm={ALLOW_BROWSER_LLM}
+          resolveLlmApiKey={() =>
+            llmConnection ? secretStore.get(llmConnection.secretRef) ?? null : null
+          }
           onSwitchChatProvider={switchProvider}
           onClose={closeSettings}
           onLogout={usesSupabaseHostedAuth() ? () => void handleLogout() : undefined}
@@ -1908,6 +1832,7 @@ function SettingsDialog({
   chatProvider,
   chatProviderSummary,
   allowBrowserLlm,
+  resolveLlmApiKey,
   onSwitchChatProvider,
   onClose,
   onLogout,
@@ -1936,6 +1861,7 @@ function SettingsDialog({
   chatProvider: Provider;
   chatProviderSummary: string;
   allowBrowserLlm: boolean;
+  resolveLlmApiKey: () => string | null;
   onSwitchChatProvider: (provider: Provider) => void;
   onClose: () => void;
   onLogout?: () => void;
@@ -1952,6 +1878,12 @@ function SettingsDialog({
     llmConnectionInitial?.baseUrl ?? "https://api.openai.com/v1",
   );
   const [model, setModel] = useState(llmConnectionInitial?.model ?? "");
+  const modelRef = useRef(model);
+  modelRef.current = model;
+  const [modelOptions, setModelOptions] = useState<string[]>([]);
+  const [modelOptionsLoading, setModelOptionsLoading] = useState(false);
+  /** null = no key yet; true = provider returned models; false = use text input fallback */
+  const [modelsFromApi, setModelsFromApi] = useState<boolean | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [changingKey, setChangingKey] = useState(!savedLlmKeyHint);
   const [agUiUrl, setAgUiUrl] = useState(agUiInitial.url);
@@ -1967,9 +1899,8 @@ function SettingsDialog({
   );
   const [stripeProductId, setStripeProductId] = useState(stripePaymentInitial?.productId ?? "");
   const hasSavedKey = Boolean(savedLlmKeyHint) && !changingKey;
-  const llmValid =
-    Boolean(baseUrl.trim() && model.trim()) &&
-    (hasSavedKey || Boolean(apiKey.trim()));
+  const hasApiKey = hasSavedKey || Boolean(apiKey.trim());
+  const llmValid = Boolean(baseUrl.trim() && model.trim() && hasApiKey);
   const hasSavedStripeSecret = Boolean(savedStripeSecretHint) && !changingStripeSecret;
   const stripePaymentValid =
     (hasSavedStripeSecret || Boolean(stripeSecretKey.trim())) &&
@@ -2035,6 +1966,37 @@ function SettingsDialog({
     };
     onSaveLlm(connection, hasSavedKey ? undefined : apiKey.trim());
   }
+
+  const loadModelOptions = useCallback(async () => {
+    const key = hasSavedKey ? resolveLlmApiKey() : apiKey.trim();
+    if (!baseUrl.trim() || !key) {
+      setModelOptions([]);
+      setModelsFromApi(null);
+      return;
+    }
+    setModelOptionsLoading(true);
+    try {
+      const ids = await listOpenAiCompatibleModels(baseUrl, key);
+      const persisted =
+        modelRef.current.trim() || llmConnectionInitial?.model?.trim() || "";
+      const merged =
+        persisted && !ids.includes(persisted) ? [persisted, ...ids] : ids;
+      setModelOptions(merged);
+      setModelsFromApi(true);
+    } catch {
+      setModelOptions([]);
+      setModelsFromApi(false);
+    } finally {
+      setModelOptionsLoading(false);
+    }
+  }, [apiKey, baseUrl, hasSavedKey, llmConnectionInitial?.model, resolveLlmApiKey]);
+
+  useEffect(() => {
+    if (!allowBrowserLlm) return;
+    const delay = hasSavedKey || !apiKey.trim() ? 0 : 500;
+    const timer = setTimeout(() => void loadModelOptions(), delay);
+    return () => clearTimeout(timer);
+  }, [allowBrowserLlm, loadModelOptions, apiKey, hasSavedKey, baseUrl]);
 
   function saveStripePayment() {
     const connection: PaymentConnectionConfig = {
@@ -2169,14 +2131,6 @@ function SettingsDialog({
               <span className="atom-field-label">Endpoint base URL</span>
               <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
             </label>
-            <label className="atom-field">
-              <span className="atom-field-label">Model</span>
-              <input
-                value={model}
-                placeholder="e.g. gpt-4o-mini"
-                onChange={(e) => setModel(e.target.value)}
-              />
-            </label>
             {hasSavedKey ? (
               <div className="settings-saved-key">
                 <span className="settings-saved-key-label">API key</span>
@@ -2187,6 +2141,8 @@ function SettingsDialog({
                   onClick={() => {
                     setChangingKey(true);
                     setApiKey("");
+                    setModelOptions([]);
+                    setModelsFromApi(null);
                   }}
                 >
                   Change key
@@ -2203,6 +2159,36 @@ function SettingsDialog({
                 />
               </label>
             )}
+            <label className="atom-field">
+              <span className="atom-field-label">Model</span>
+              {!hasApiKey ? (
+                <p className="settings-note">Please add your API Key</p>
+              ) : modelOptionsLoading ? (
+                <p className="settings-note">Loading models…</p>
+              ) : modelsFromApi && modelOptions.length > 0 ? (
+                <select value={model} onChange={(e) => setModel(e.target.value)}>
+                  {!model.trim() ? (
+                    <option value="" disabled>
+                      Please select a model
+                    </option>
+                  ) : null}
+                  {modelOptions.map((id) => (
+                    <option key={id} value={id}>
+                      {id}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={model}
+                  placeholder="e.g. gpt-4o-mini"
+                  onChange={(e) => setModel(e.target.value)}
+                />
+              )}
+              {hasApiKey && !modelOptionsLoading && modelsFromApi && !model.trim() ? (
+                <p className="settings-note">Please select a model</p>
+              ) : null}
+            </label>
             {!intent ? (
               <div className="chrome-actions settings-section-actions">
                 <button
@@ -2215,19 +2201,40 @@ function SettingsDialog({
                 </button>
               </div>
             ) : null}
-            <label className="atom-field atom-field-checkbox">
-              <input type="checkbox" checked={curatorOn} onChange={(e) => setCuratorOn(e.target.checked)} />
-              <span>Remember preferences from chat (curator)</span>
-            </label>
-            <label className="atom-field atom-field-checkbox">
-              <input
-                type="checkbox"
-                checked={curatorAutoAcceptOn}
-                disabled={!curatorOn}
-                onChange={(e) => setCuratorAutoAcceptOn(e.target.checked)}
-              />
-              <span>Apply remembered preferences automatically on your next turn</span>
-            </label>
+            <section className="settings-section" aria-labelledby="settings-memory-heading">
+              <h3 id="settings-memory-heading">Model memory preferences</h3>
+              <p className="settings-note">
+                After each chat turn, Atom can extract durable preferences into your Profile — separate
+                from the model you chat with.
+              </p>
+              <ul className="settings-checkbox-list">
+                <li>
+                  <label className="settings-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={curatorOn}
+                      onChange={(e) => setCuratorOn(e.target.checked)}
+                    />
+                    <span className="settings-checkbox-text">
+                      Remember preferences from chat (curator)
+                    </span>
+                  </label>
+                </li>
+                <li>
+                  <label className="settings-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={curatorAutoAcceptOn}
+                      disabled={!curatorOn}
+                      onChange={(e) => setCuratorAutoAcceptOn(e.target.checked)}
+                    />
+                    <span className="settings-checkbox-text">
+                      Apply remembered preferences automatically on your next turn
+                    </span>
+                  </label>
+                </li>
+              </ul>
+            </section>
           </>
         )}
       </>

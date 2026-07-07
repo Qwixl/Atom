@@ -101,4 +101,20 @@ describe("TictactoeEngine", () => {
     expect(view.turn).toBe("agent");
     expect(view.legalCells).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
+
+  it("rankMoves prefers center after owner opens corner", () => {
+    const state = stateOf(["X", null, null, null, null, null, null, null, null]);
+    const legal = engine.legalMoves(state, "agent");
+    const scores = engine.rankMoves(state, "agent", legal);
+    const centerIndex = legal.findIndex((move) => move.cell === 4);
+    expect(centerIndex).toBeGreaterThanOrEqual(0);
+    expect(scores[centerIndex]).toBeGreaterThanOrEqual(Math.max(...scores));
+  });
+
+  it("agentView includes moveScores on the agent turn", () => {
+    const state = stateOf(["X", null, null, null, null, null, null, null, null]);
+    const view = engine.agentView(state);
+    expect(view.moveScores).toBeDefined();
+    expect(Object.keys(view.moveScores as Record<string, number>)).toHaveLength(8);
+  });
 });

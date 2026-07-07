@@ -46,6 +46,19 @@ Public routes (no token): A2A JSON-RPC, agent card, `GET /mls/key-package`.
 
 Shell skins are CSS token packages (`@qwixl/skin-default`). Pick a skin under Settings → Appearance. Modules receive serialized token values in the iframe `init` message. Action chrome does not consume skin tokens (D041).
 
+Positioning sentence: existing platforms put UI *inside their chat*; Atom makes the owner's portal *the* interface, with chat as one surface of it and agent-to-agent traffic behind it.
+
+## Protocol alignment watch
+
+External specs Atom tracks but does not fork effort on until a concrete integration request lands:
+
+| Watch | Trigger | Atom seam |
+|---|---|---|
+| **A2UI v1 `actionResponse`** (F4-3) | v1.0 stable | Compare to shell `ui-event` loop; extend `@qwixl/a2ui-adapter` if delta is small |
+| **MCP Apps `ui://` resources** (F4-4) | Host requests adapter or spec reaches parity with module iframe lifecycle | Map to registry manifest + postMessage bridge |
+
+Quarterly: skim A2UI and MCP Apps release notes. Prototype adapters only when a shipping host needs them.
+
 ## Example modules (M14.1)
 
 Ten modules in `apps/shell/public/registry/` — run `pnpm registry:verify` after edits.

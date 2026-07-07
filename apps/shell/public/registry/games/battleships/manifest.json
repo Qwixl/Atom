@@ -18,7 +18,7 @@
           "name": "bsCommit"
         }
       ],
-      "agentHint": "6×6 battleships with hashed ship commitments. Emits bsStart or bsCommit; battle shots fire from the thread card."
+      "agentHint": "A2A-only (Messages / CommsPanel). Not on the shell-arbitrated Chat gaming path — pending Battleships GameEngine (Q24). 6×6 battleships with hashed ship commitments. Emits bsStart or bsCommit; battle shots fire from the thread card."
     }
   ],
   "capabilities": [],

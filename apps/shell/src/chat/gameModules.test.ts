@@ -3,8 +3,9 @@ import type { ResolvedSurface } from "@qwixl/shell-core";
 import { findActiveGameInFeed, isGameModule, isGameEnded } from "./gameModules.js";
 
 describe("gameModules", () => {
-  it("recognises game module ids", () => {
+  it("recognises shell-arbitrated game module ids", () => {
     expect(isGameModule("games/tictactoe")).toBe(true);
+    expect(isGameModule("games/battleships")).toBe(false);
     expect(isGameModule("scheduling/meeting-picker")).toBe(false);
   });
 

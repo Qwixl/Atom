@@ -130,6 +130,27 @@ describe("parseAgentProtocolMessage", () => {
     });
     expect(result?.kind).toBe("output");
   });
+
+  it("parses game-move messages", () => {
+    const result = parseAgentProtocolMessage({
+      type: "game-move",
+      surfaceId: "ttt-1",
+      move: { cell: 4 },
+    });
+    expect(result?.kind).toBe("output");
+    if (result?.kind === "output") {
+      expect(result.output).toEqual({
+        type: "game-move",
+        surfaceId: "ttt-1",
+        move: { cell: 4 },
+      });
+    }
+  });
+
+  it("rejects malformed game-move messages", () => {
+    const result = parseAgentProtocolMessage({ type: "game-move", move: { cell: 4 } });
+    expect(result?.kind).toBe("reject");
+  });
 });
 
 describe("registry integrity", () => {

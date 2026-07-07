@@ -12,6 +12,8 @@ type GameModalProps = {
   catalog: Catalog;
   registry: ModuleRegistry;
   agentBusy?: boolean;
+  /** Shell-only notice (e.g. disclosed fallback move) — shown in modal, not chat. */
+  notice?: string | null;
   onClose: () => void;
   onEvent: (event: UiEvent) => void;
 };
@@ -24,6 +26,7 @@ export function GameModal({
   catalog,
   registry,
   agentBusy = false,
+  notice = null,
   onClose,
   onEvent,
 }: GameModalProps) {
@@ -68,11 +71,13 @@ export function GameModal({
           />
         </div>
         <p className="game-modal-footnote">
-          {agentBusy
-            ? "Your agent is choosing a move…"
-            : ended
-              ? "Game over — play again or close to return to chat."
-              : "Your agent keeps this session until the game ends or you close it. Chat continues in the background."}
+          {notice
+            ? notice
+            : agentBusy
+              ? "Your agent is choosing a move…"
+              : ended
+                ? "Game over — play again or close to return to chat."
+                : "Play in the modal — game moves stay out of chat."}
         </p>
       </div>
     </div>

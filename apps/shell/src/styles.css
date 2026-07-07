@@ -516,6 +516,47 @@ body {
   font-size: 11px;
 }
 
+.settings-checkbox-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.settings-checkbox input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--shell-cta-bg, #111);
+}
+
+.settings-checkbox input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.settings-checkbox-text {
+  flex: 1;
+  color: var(--text);
+}
+
+.settings-checkbox:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
 .shell-log-toggle {
   background: transparent;
   border: 1px solid var(--border);
@@ -1195,6 +1236,34 @@ body {
   border-radius: 8px;
   color: var(--text);
   padding: 9px 12px;
+}
+
+.atom-field select {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 9px 12px;
+}
+
+.settings-model-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.settings-model-row input,
+.settings-model-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-model-row button {
+  flex-shrink: 0;
+}
+
+.settings-model-custom {
+  margin-top: 6px;
 }
 
 .atom-field-checkbox {

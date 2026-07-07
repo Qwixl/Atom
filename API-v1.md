@@ -43,11 +43,16 @@ Outbound (`AgentOutput`, agent → host):
 |---|---|
 | `text` | `{ text }` |
 | `composition` | `{ composition }` |
+| `game-move` | `{ surfaceId, move }` — mid-game turn in shell-arbitrated games only; shell validates via `GameEngine` |
 | `consequential-action` | `{ surfaceId, action }` |
 | `data-request` | `{ request }` |
 | `done` | — |
 
 Wire parsing: `parseAgentProtocolMessage()` (LLM JSON) and AG-UI CUSTOM events (`@qwixl/ag-ui-adapter`).
+
+### Shell-arbitrated games (`game-move`)
+
+Turn-based games use a shell-side `GameEngine` (see D050). The agent starts a game with a `composition`; mid-game it may only send `game-move`. The host validates moves via `engine.applyMove()` — illegal moves are rejected; after one retry the host may play a disclosed fallback so the game never stalls. Embedders wire owner module events and agent turns through `GameOrchestrator` in `@qwixl/shell-core`. Game modules are pure renderers; they must not hold authoritative state.
 
 ## Consequential actions (`ConsequentialAction`)
 
