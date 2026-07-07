@@ -9,13 +9,20 @@ import {
 } from "./conversation.js";
 import { buildDataRequestChrome, type PendingChrome } from "./chrome.js";
 import { resolveComposition } from "./resolver.js";
-import type { Composition, JsonObject } from "./types.js";
+import type { Composition, JsonObject, JsonValue } from "./types.js";
 import type { AgentOutput, AgentSession } from "./session.js";
 
 export interface ConversationSnapshot {
   feed: readonly FeedItem[];
   busy: boolean;
   pending: PendingChrome | null;
+}
+
+export interface TurnCompleteInfo {
+  /** True when the agent emitted a composition that updated the feed surface this turn. */
+  hadComposition: boolean;
+  /** True when the agent emitted a game-move this turn (valid or not). */
+  hadGameMove: boolean;
 }
 
 export interface ConversationRuntimeOptions {
@@ -26,13 +33,19 @@ export interface ConversationRuntimeOptions {
   /** Guarded record count for data-request chrome terms. */
   guardedRecordCount?: (categories: string[]) => number;
   /** Called when agent output type is "done". */
-  onTurnComplete?: () => void;
+  onTurnComplete?: (info: TurnCompleteInfo) => void;
   /** Assistant/user text appended to the feed (for curator transcript, etc.). */
   onTranscriptLine?: (role: "user" | "assistant", text: string) => void;
   /** Previously persisted feed items to restore on startup (text turns only). */
   restoreFeed?: FeedItem[];
   /** Called after every feed change so hosts can persist history. */
   onFeedChange?: (feed: readonly FeedItem[]) => void;
+  /** When false, composition is ignored for surface upsert (feed text may still append). */
+  shouldReplaceSurface?: (composition: Composition, feed: readonly FeedItem[]) => boolean;
+  /** When false, agent text is omitted from the feed (transcript line may still run). */
+  shouldAppendAgentText?: (text: string, feed: readonly FeedItem[]) => boolean;
+  /** Agent proposed a game move; host validates via the game engine and updates the surface. */
+  onGameMove?: (surfaceId: string, move: JsonValue) => void;
 }
 
 /**
@@ -46,6 +59,9 @@ export class ConversationRuntime {
   private listeners = new Set<() => void>();
   private idCounter = 0;
   private snapshot: ConversationSnapshot = { feed: [], busy: false, pending: null };
+  private outputChain: Promise<void> = Promise.resolve();
+  private turnHadComposition = false;
+  private turnHadGameMove = false;
 
   constructor(private readonly options: ConversationRuntimeOptions) {
     const restored = options.restoreFeed;
@@ -138,10 +154,16 @@ export class ConversationRuntime {
   async handleAgentOutput(output: AgentOutput): Promise<void> {
     const id = this.nextId();
     switch (output.type) {
-      case "text":
-        this.feed = appendAgentText(this.feed, id, output.text);
+      case "text": {
+        const append =
+          !this.options.shouldAppendAgentText ||
+          this.options.shouldAppendAgentText(output.text, this.feed);
+        if (append) {
+          this.feed = appendAgentText(this.feed, id, output.text);
+        }
         this.options.onTranscriptLine?.("assistant", output.text);
         break;
+      }
       case "composition": {
         if (this.options.beforeResolveComposition) {
           try {
@@ -153,7 +175,14 @@ export class ConversationRuntime {
           }
         }
         const surface = resolveComposition(output.composition, this.options.catalog);
+        if (
+          this.options.shouldReplaceSurface &&
+          !this.options.shouldReplaceSurface(output.composition, this.feed)
+        ) {
+          break;
+        }
         this.feed = upsertFeedSurface(this.feed, surface, id);
+        this.turnHadComposition = true;
         break;
       }
       case "consequential-action":
@@ -168,9 +197,18 @@ export class ConversationRuntime {
         this.pending = buildDataRequestChrome(output.request, count);
         break;
       }
+      case "game-move":
+        this.turnHadGameMove = true;
+        this.options.onGameMove?.(output.surfaceId, output.move);
+        break;
       case "done":
         this.busy = false;
-        this.options.onTurnComplete?.();
+        this.options.onTurnComplete?.({
+          hadComposition: this.turnHadComposition,
+          hadGameMove: this.turnHadGameMove,
+        });
+        this.turnHadComposition = false;
+        this.turnHadGameMove = false;
         break;
     }
     this.notify();
@@ -179,7 +217,7 @@ export class ConversationRuntime {
   /** Subscribe session output to this runtime; returns unsubscribe. */
   wireSession(session: AgentSession): () => void {
     return session.subscribe((output) => {
-      void this.handleAgentOutput(output);
+      this.outputChain = this.outputChain.then(() => this.handleAgentOutput(output));
     });
   }
 

@@ -20,6 +20,13 @@ export interface PromptProfile {
   memorySnippets?: string[];
   /** Business agent catalog/brand/policy summary (M12.1). */
   businessContext?: string;
+  /** Live chat surface the shell is showing (same surfaceId = in-place update). */
+  activeSurface?: {
+    surfaceId: string;
+    component?: string;
+    intent?: string;
+    props?: Record<string, unknown>;
+  };
 }
 
 function profileSection(profile: PromptProfile | undefined): string {
@@ -88,10 +95,28 @@ function businessSection(profile: PromptProfile | undefined): string {
   return `## Business agent context\n\n${ctx}\n\nWhen answering on behalf of the business, honor catalog availability and signed offer terms. Brand voice always applies; retrieved reference excerpts are query-matched — cite them accurately and do not invent policy or terms beyond those excerpts.`;
 }
 
+function activeSurfaceSection(profile: PromptProfile | undefined): string {
+  const active = profile?.activeSurface;
+  if (!active?.surfaceId) return "";
+  const lines = [
+    `surfaceId: ${active.surfaceId}`,
+    active.component ? `component: ${active.component}` : null,
+    active.intent ? `intent: ${active.intent}` : null,
+    active.props ? `state: ${JSON.stringify(active.props)}` : null,
+  ].filter(Boolean);
+  return `## Active game (shell-arbitrated)
+
+The shell is running this game in the game modal. The shell's game engine owns the board and the rules — you are a PLAYER, not the bookkeeper. Mid-game you never emit compositions for it; you respond to [game-turn] messages with a game-move message (see Game turn loop).
+
+${lines.join("\n")}`;
+}
+
 function profileAndMemorySection(profile: PromptProfile | undefined): string {
   const business = businessSection(profile);
+  const active = activeSurfaceSection(profile);
   const core = `${profileSection(profile)}\n\n## Retrieved memory\n\n${memorySection(profile)}`;
-  return business ? `${business}\n\n${core}` : core;
+  const sections = [business, active, core].filter((s) => s.length > 0);
+  return sections.join("\n\n");
 }
 
 /**
@@ -115,7 +140,8 @@ Respond ONLY with a single JSON object, no markdown fences, matching:
     { "type": "text", "text": "conversational reply to the user" },
     { "type": "composition", "composition": { ... } },
     { "type": "consequential-action", "surfaceId": "...", "action": { ... } },
-    { "type": "data-request", "request": { "requestId": "req-1", "categories": ["identity"], "reason": "why you need it" } }
+    { "type": "data-request", "request": { "requestId": "req-1", "categories": ["identity"], "reason": "why you need it" } },
+    { "type": "game-move", "surfaceId": "...", "move": { "cell": 4 } }
   ]
 }
 
@@ -223,8 +249,8 @@ pickers in text alone:
 
 Rules:
 - Pair a short \`text\` message with the module **composition** in the same turn — the shell renders what you compose.
-- For games, emit the module with correct \`props\` (board, turn, status, myMark). **Never** draw ASCII grids or numbered cell maps in text.
-- On \`tttMove\` / \`bsCommit\` etc., emit an updated composition on the **same surfaceId** with revised props.
+- For games, emit the module composition to START a game. **Never** draw ASCII grids or numbered cell maps in text. Mid-game turns use \`game-move\` messages, not compositions (see Game turn loop).
+- On non-game module events (\`meetingProposed\`, \`pollCreated\`, \`listCreated\`), emit an updated composition on the **same surfaceId** with revised props.
 - Use \`games/battleships\` only when the owner wants to **play the game** — not for naval/fleet trivia (e.g. "how many battleships does the UK have?" is a text answer).
 - Wrap the module in \`core/card\` with a clear \`title\` when helpful.
 - Set \`events\` on the module node so interactions route back (\`meetingProposed\`, \`pollCreated\`, \`listCreated\`, \`tttMove\`, \`bsCommit\`).
@@ -269,5 +295,27 @@ This is WRONG — never do this instead, even though it is valid JSON:
 The board is a **component the shell renders**, never text you draw. The same pattern applies to every \
 module row above: emit the \`composition\` with that module's \`component\` id and props from its agentHint \
 — a text description of a board, slot list, or checklist is always the wrong output when a module exists \
-for it.`;
+for it.
+
+### Game turn loop (tic-tac-toe, battleships)
+
+Games are **shell-arbitrated**: the shell's game engine owns the board, validates every move, and detects wins/draws. You are a PLAYER. You cannot move the owner's pieces, replay the board, or end the game — illegal moves are rejected by the engine.
+
+- **Starting a game:** emit the module composition as shown above. The shell resets the board to the engine's initial state regardless of the props you send.
+- **Mid-game:** the shell opens a game modal and sends you \`[game-turn]\` messages containing the current state and your \`legalCells\`. Respond with ONLY a game-move message:
+
+{ "messages": [ { "type": "game-move", "surfaceId": "<the active game surfaceId>", "move": { "cell": <one of legalCells> } } ] }
+
+- Never emit a composition, text drawing, or new surface mid-game. One game-move message, nothing else.
+- Play to win: complete your own line when possible; otherwise block the owner's two-in-a-row; otherwise prefer center, then corners.
+- If the engine rejects your move you get one retry with the reason; after that the shell plays a random legal move for you and tells the owner.
+- When the game ends the shell shows the winning line and offers "Play again" — the next \`[game-turn]\` only arrives if a new game starts.
+
+### Worked example — [game-turn] mid-game
+
+You receive: [game-turn] It is your move. Game state: {"game":"tictactoe","youAre":"O","ownerIs":"X","board":["X",null,null,null,null,null,null,null,null],"turn":"agent","phase":"active","legalCells":[1,2,3,4,5,6,7,8]}
+
+You respond (center is the strongest reply):
+
+{ "messages": [ { "type": "game-move", "surfaceId": "ttt-1", "move": { "cell": 4 } } ] }`;
 }

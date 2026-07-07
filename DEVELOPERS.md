@@ -2,6 +2,10 @@
 
 Public entry point for building on the Atom platform (M14). Full API reference lives in the repo root markdown files and the docs site (`pnpm dev:docs`).
 
+## Why build here instead of a chat-platform SDK
+
+MCP Apps and vendor app SDKs put your widget inside an AI vendor's chat product — the vendor owns the host, the identity, and the distribution. Atom modules ship into **user-owned infrastructure**: a shell the user runs (or exports and leaves with), a federated registry any publisher can host, and an agent the user picks the model for. Technically the module contract is familiar — sandboxed iframe, postMessage bridge, integrity-hashed bundle — but consequential actions and guarded data cross an owner-side trust boundary (shell chrome + attestation log) that no in-conversation widget can bypass or imitate. Positioning details: [README.md § Why Atom](./README.md#why-atom).
+
 ## Quick paths
 
 | Goal | Start here |

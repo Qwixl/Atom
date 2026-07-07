@@ -71,6 +71,19 @@ export function parseAgentProtocolMessage(message: unknown): AgentWireResult | n
       : invalidDataRequest(result.missing);
   }
 
+  if (m.type === "game-move") {
+    if (typeof m.surfaceId === "string" && m.move !== undefined) {
+      return {
+        kind: "output",
+        output: { type: "game-move", surfaceId: m.surfaceId, move: m.move as never },
+      };
+    }
+    return {
+      kind: "reject",
+      text: '(The agent sent a malformed game move, blocked by the shell. Use: { "type": "game-move", "surfaceId": "<active surface>", "move": { "cell": 4 } })',
+    };
+  }
+
   return null;
 }
 

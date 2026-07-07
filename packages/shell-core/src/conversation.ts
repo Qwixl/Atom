@@ -1,6 +1,13 @@
 import type { ResolvedNode, ResolvedSurface } from "./resolver.js";
 import type { JsonObject } from "./types.js";
 
+/** Active module surface on the chat feed (for agent context). */
+export interface ActiveFeedSurface {
+  surfaceId: string;
+  component?: string;
+  intent?: string;
+}
+
 /** One turn in the conversational channel between owner and agent. */
 export type FeedItem =
   | { kind: "user"; id: string; text: string }
@@ -41,6 +48,28 @@ export function appendUserMessage(feed: FeedItem[], id: string, text: string): F
 
 export function clearFeed(): FeedItem[] {
   return [];
+}
+
+function surfaceComponent(root: ResolvedNode): string | undefined {
+  if (root.kind === "component" || root.kind === "substituted" || root.kind === "fallback") {
+    return root.node.component;
+  }
+  return undefined;
+}
+
+/** Latest surface item on the feed (shell keeps one active surface). */
+export function findActiveFeedSurface(feed: readonly FeedItem[]): ActiveFeedSurface | undefined {
+  for (let i = feed.length - 1; i >= 0; i--) {
+    const item = feed[i];
+    if (item?.kind === "surface") {
+      return {
+        surfaceId: item.surface.surfaceId,
+        component: surfaceComponent(item.surface.root),
+        intent: item.surface.intent,
+      };
+    }
+  }
+  return undefined;
 }
 
 /** Merge props onto a module node inside a resolved surface (in-place feed update). */

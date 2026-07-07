@@ -1,4 +1,5 @@
 export type AuthStepId =
+  | "account-type"
   | "hosting"
   | "credentials"
   | "profile"
@@ -9,9 +10,16 @@ export type AuthWizardMode = "register" | "login";
 
 export type HostingType = "hosted" | "self-hosted";
 
-export function authSteps(mode: AuthWizardMode, options?: { supabaseHostedRegister?: boolean }): AuthStepId[] {
-  if (mode === "login") return ["credentials", "provisioning"];
-  const steps: AuthStepId[] = ["hosting", "credentials", "profile"];
+export function authSteps(
+  mode: AuthWizardMode,
+  options?: { supabaseHostedRegister?: boolean; supabaseHostedLogin?: boolean },
+): AuthStepId[] {
+  if (mode === "login") {
+    if (options?.supabaseHostedLogin) return ["credentials", "provisioning"];
+    // Self-hosted / local browser mode: reconnect agent (no Supabase credentials).
+    return ["profile", "provisioning"];
+  }
+  const steps: AuthStepId[] = ["account-type", "hosting", "credentials", "profile"];
   if (options?.supabaseHostedRegister) {
     steps.push("confirm-email");
   }
@@ -21,6 +29,8 @@ export function authSteps(mode: AuthWizardMode, options?: { supabaseHostedRegist
 
 export function stepLabel(step: AuthStepId): string {
   switch (step) {
+    case "account-type":
+      return "Type";
     case "hosting":
       return "Hosting";
     case "credentials":
