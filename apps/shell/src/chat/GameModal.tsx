@@ -1,4 +1,4 @@
-import type { Catalog, ModuleRegistry, ResolvedSurface, UiEvent } from "@qwixl/shell-core";
+import type { Catalog, JsonObject, ModuleRegistry, ResolvedSurface, UiEvent } from "@qwixl/shell-core";
 import { CommsModuleEmbed } from "../comms/CommsModuleEmbed.js";
 import { IconClose } from "../shell/ShellIcons.js";
 import { gameModuleLabel, isGameEnded } from "./gameModules.js";
@@ -8,7 +8,7 @@ type GameModalProps = {
   surface: ResolvedSurface;
   moduleId: string;
   nodeId: string;
-  props: Record<string, unknown>;
+  props: JsonObject;
   catalog: Catalog;
   registry: ModuleRegistry;
   agentBusy?: boolean;

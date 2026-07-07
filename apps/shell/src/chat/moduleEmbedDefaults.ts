@@ -1,9 +1,9 @@
-import type { ResolvedNode, ResolvedSurface } from "@qwixl/shell-core";
+import type { JsonObject, ResolvedNode, ResolvedSurface } from "@qwixl/shell-core";
 
 export interface ModuleEmbedTarget {
   moduleId: string;
   nodeId: string;
-  props: Record<string, unknown>;
+  props: JsonObject;
 }
 
 function walkForModule(node: ResolvedNode): ModuleEmbedTarget | null {
@@ -11,7 +11,7 @@ function walkForModule(node: ResolvedNode): ModuleEmbedTarget | null {
     return {
       moduleId: node.entry.spec.moduleId ?? node.node.component,
       nodeId: node.node.id,
-      props: (node.node.props ?? {}) as Record<string, unknown>,
+      props: (node.node.props ?? {}) as JsonObject,
     };
   }
   for (const child of node.children) {
@@ -29,8 +29,8 @@ export function findModuleEmbed(surface: ResolvedSurface): ModuleEmbedTarget | n
 /** Fill in required module props when the agent composition omits them. */
 export function withModulePropDefaults(
   moduleId: string,
-  props: Record<string, unknown>,
-): Record<string, unknown> {
+  props: JsonObject,
+): JsonObject {
   if (moduleId === "games/tictactoe") {
     const hasBoard = props.board !== undefined;
     const hasStatus =
