@@ -175,9 +175,11 @@ export class TictactoeEngine implements GameEngine<TttState, TttMove> {
     };
     if (legal.length > 0) {
       const scores = this.rankMoves(state, "agent", legal);
-      view.moveScores = Object.fromEntries(
-        legal.map((move, index) => [String(move.cell), scores[index]]),
-      );
+      const moveScores: JsonObject = {};
+      for (let index = 0; index < legal.length; index++) {
+        moveScores[String(legal[index]!.cell)] = scores[index]!;
+      }
+      view.moveScores = moveScores;
     }
     return view;
   }
