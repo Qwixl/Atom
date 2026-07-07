@@ -81,6 +81,47 @@
           <h2>Why agent-first?</h2>
           <p>Most agents scrape the human web and guess. Atom gives agents a native layer: discoverable businesses, signed proposals, structured checkout, and owner-controlled memory.</p>
         </section>
+        <section class="section">
+          <h2>How Atom differs from chat-platform app SDKs</h2>
+          <p class="lead" style="margin-bottom:24px">Agent-rendered UI is becoming standard — MCP Apps, A2UI, and vendor app SDKs all let a tool return an interactive widget inside a conversation. Atom shares that composition-not-code philosophy (we adopt the A2UI shape) but inverts the platform structure.</p>
+          <table class="hiw-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Chat-platform apps (MCP Apps, vendor SDKs)</th>
+                <th>Atom</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Who owns the host</strong></td>
+                <td>The AI vendor's chat product; it owns identity, data, and distribution</td>
+                <td>The user's shell — open source, self-hostable, with a federated module registry</td>
+              </tr>
+              <tr>
+                <td><strong>Who renders for whom</strong></td>
+                <td>A business ships a widget into the vendor's surface</td>
+                <td>The owner's agent composes UI for the owner, from a catalog the owner's shell trusts</td>
+              </tr>
+              <tr>
+                <td><strong>How counterparties participate</strong></td>
+                <td>Server-side tools called by the vendor's model</td>
+                <td>Signed data objects over encrypted agent-to-agent sessions; counterpart agents send data, never pixels</td>
+              </tr>
+              <tr>
+                <td><strong>Trust model</strong></td>
+                <td>Host-vendor sandbox policy (CSP, iframe isolation)</td>
+                <td>Sandbox <em>plus</em> owner-side chrome: consequential actions render in shell-owned UI, decisions land in a hash-chained attestation log, guarded data needs per-use approval</td>
+              </tr>
+              <tr>
+                <td><strong>Model coupling</strong></td>
+                <td>The vendor's model, priced by the vendor</td>
+                <td>Any OpenAI-compatible endpoint, including fully local — the LLM is a swappable part, not the platform</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="hiw-note">Building modules today is close to building MCP Apps views — sandboxed iframe, postMessage bridge, integrity-hashed bundles — but they ship into user-owned infrastructure instead of a vendor's chat. Deep dives: <a href="https://github.com/Qwixl/Atom/blob/main/API-v1.md">API v1</a>, <a href="https://github.com/Qwixl/Atom/blob/main/SECURITY.md">security model</a>.</p>
+        </section>
         <a class="btn btn-primary" href="https://github.com/Qwixl/Atom" rel="noopener noreferrer">View on GitHub</a>
 </main>
 <footer class="site-footer">

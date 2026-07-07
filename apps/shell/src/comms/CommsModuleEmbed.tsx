@@ -99,7 +99,7 @@ export function CommsModuleEmbed({
       title={manifest.id}
       src={resolveBundleUrl(bundleUrl)}
       sandbox={MODULE_IFRAME_SANDBOX}
-      style={{ minHeight, width: "100%", border: "none", display: "block" }}
+      style={{ height: minHeight, width: "100%", border: "none", display: "block", overflow: "hidden" }}
     />
   );
 }

@@ -18,12 +18,12 @@
           "name": "tttMove"
         }
       ],
-      "agentHint": "Turn-based tic-tac-toe board; emits tttStart or tttMove for signed game objects."
+      "agentHint": "Turn-based tic-tac-toe board arbitrated by the shell game engine; owner is X. Mid-game, respond to [game-turn] with a game-move message."
     }
   ],
   "capabilities": [],
   "categories": [
     "games"
   ],
-  "bundleIntegrity": "sha256:550a39792137ffa6cae0aa410fd21627d712f8b1b208757bc2c564f808cea135"
+  "bundleIntegrity": "sha256:aaf396f17137d3f1403d5ae64d5399484c467df26dd986a8a2ab91b8ecfac5f0"
 }

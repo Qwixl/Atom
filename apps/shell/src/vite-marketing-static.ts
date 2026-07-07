@@ -41,6 +41,13 @@ export function marketingStaticPlugin(): Plugin {
         const urlPath = raw.split("?")[0] ?? "/";
         const qs = raw.includes("?") ? raw.slice(raw.indexOf("?")) : "";
 
+        // Module bundles are served from /modules/ in dev (public dir root).
+        // Do not rewrite /app/modules/* to the React shell.
+        if (urlPath.startsWith("/app/modules/")) {
+          req.url = `${urlPath.slice("/app".length)}${qs}`;
+          return next();
+        }
+
         if (urlPath === "/app" || urlPath.startsWith("/app/")) {
           req.url = `/app.html${qs}`;
           return next();

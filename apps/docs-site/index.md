@@ -15,9 +15,11 @@ features:
   - title: Composition, not codegen
     details: Agents emit declarative UI resolved against a vetted catalog — no arbitrary code in the shell.
   - title: You own the shell
-    details: Rendering, trust, and confirmation chrome belong to the person running it.
+    details: Rendering, trust, and confirmation chrome belong to the person running it — not to an AI vendor's chat product.
   - title: Self-hostable agents
     details: Run npx @qwixl/agent-backend on your infrastructure; managed hosting is optional.
+  - title: Agents talk to agents
+    details: Counterparties exchange signed data objects over encrypted sessions — data in, never pixels; your shell renders everything.
 ---
 
 ## Live hosts

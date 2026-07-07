@@ -7,6 +7,20 @@
 
 An open, user-owned shell for agent-driven interfaces. Your agent composes a declarative description of the UI; your shell renders it from a trusted catalog of components. Counterpart agents send data, never pixels — and actions of consequence only ever happen in shell-owned chrome.
 
+## Why Atom
+
+Agent-rendered UI is becoming standard: MCP Apps, A2UI, and vendor app SDKs all let tools return interactive widgets inside a conversation. Atom shares the composition-not-code approach (the composition model follows the A2UI shape) but inverts the platform structure:
+
+| | Chat-platform apps (MCP Apps, vendor SDKs) | Atom |
+|---|---|---|
+| **Host ownership** | The AI vendor's chat product owns identity, data, distribution | The user's shell — open source, self-hostable, federated module registry |
+| **Rendering direction** | Businesses ship widgets into the vendor's surface | The owner's agent composes UI for the owner from a shell-trusted catalog |
+| **Counterparty channel** | Server-side tools called by the vendor's model | Signed data objects over encrypted A2A/MLS sessions; counterparts send data, never pixels |
+| **Trust boundary** | Host-vendor sandbox policy | Sandbox **plus** owner-side chrome: consequential actions in shell-owned UI, hash-chained attestation log, per-use approval for guarded data |
+| **Model coupling** | The vendor's model | Any OpenAI-compatible endpoint, including fully local |
+
+The premise: interfaces are shifting from "chat with occasional UI" to **model-driven UI with chat attached**. Atom makes the owner's portal the interface for all of it — agents coordinate in the background over A2A instead of driving human-centric websites, and the result is rendered once, owner-side. Incumbent platforms bake the opposite assumption into their infrastructure: the vendor's chat app is the platform, and everyone else is a widget inside it.
+
 ## Start here
 
 Two ways to use Atom — pick one and stay in it:

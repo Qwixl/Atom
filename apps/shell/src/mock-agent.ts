@@ -38,6 +38,11 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
   private webcalEventsProvider?: () => Promise<DemoCalendarEvent[]>;
   private scheduleSlotOptions: DemoSlotOption[] = buildDefaultDemoSlots();
   private pending: PendingStep | null = null;
+  private tttState: {
+    surfaceId: string;
+    board: Array<"X" | "O" | null>;
+    gameId: string;
+  } | null = null;
 
   constructor(options?: MockAgentOptions) {
     super();
@@ -107,14 +112,41 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
       return;
     }
     if (event.name === "pollCreated" || event.name === "tttStart" || event.name === "splitProposed") {
-      this.later(400, () =>
-        this.emit({
-          type: "text",
-          text: "Opening Messages to continue with your contact.",
-        }),
-      );
-      this.later(450, () => this.finishTurn());
+      if (event.name === "tttStart") {
+        this.tttState = {
+          surfaceId: event.surfaceId,
+          board: Array(9).fill(null),
+          gameId: String((event.payload as { gameId?: string })?.gameId ?? "ttt-mock"),
+        };
+      }
+      if (event.name !== "tttStart") {
+        this.later(400, () =>
+          this.emit({
+            type: "text",
+            text: "Opening Messages to continue with your contact.",
+          }),
+        );
+        this.later(450, () => this.finishTurn());
+      }
       return;
+    }
+    if (event.name === "tttMove") {
+      const cell = (event.payload as { cell?: number })?.cell;
+      if (this.tttState && typeof cell === "number" && cell >= 0 && cell < 9 && !this.tttState.board[cell]) {
+        const board = [...this.tttState.board];
+        board[cell] = "X";
+        const botCell = board.findIndex((mark, index) => mark === null && index !== cell);
+        if (botCell >= 0) board[botCell] = "O";
+        this.tttState = { ...this.tttState, board };
+        this.later(300, () =>
+          this.emit({
+            type: "composition",
+            composition: this.tttSurface(this.tttState!.surfaceId, board),
+          }),
+        );
+        this.later(350, () => this.finishTurn());
+        return;
+      }
     }
     if (event.name === "selected") {
       const optionId = (event.payload as { optionId?: string })?.optionId ?? "unknown";
@@ -331,13 +363,15 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
 
   private runTttScenario(): void {
     const surfaceId = this.nextSurfaceId();
+    const board = Array<"X" | "O" | null>(9).fill(null);
+    this.tttState = { surfaceId, board, gameId: surfaceId };
     this.later(300, () =>
-      this.emit({ type: "text", text: "Start a game — I'll open Messages when you're ready." }),
+      this.emit({ type: "text", text: "You're X — tap a square." }),
     );
     this.later(700, () =>
       this.emit({
         type: "composition",
-        composition: this.tttSurface(surfaceId),
+        composition: this.tttSurface(surfaceId, board),
       }),
     );
     this.later(750, () => this.finishTurn());
@@ -410,7 +444,7 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
     };
   }
 
-  private tttSurface(surfaceId: string): Composition {
+  private tttSurface(surfaceId: string, board: Array<"X" | "O" | null>): Composition {
     return {
       version: 1,
       surfaceId,
@@ -419,7 +453,14 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
         id: "game",
         component: "games/tictactoe",
         semanticRole: "input/game-board",
-        events: ["tttStart"],
+        props: {
+          gameId: surfaceId,
+          board,
+          turn: "X",
+          status: "active",
+          myMark: "X",
+        },
+        events: ["tttStart", "tttMove"],
       },
     };
   }

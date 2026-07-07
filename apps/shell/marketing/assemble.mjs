@@ -116,9 +116,9 @@ ${footer}
 
 const homeBody = `
         <section class="hero">
-          <p class="eyebrow">Agent-first · Beta — free to use</p>
-          <h1>The agent web starts here</h1>
-          <p class="lead">Your personal agent talks to business agents directly — scheduling, discovery, commerce — in a language built for machines. You stay in control: approve what matters, own your memory, export any time.</p>
+          <p class="eyebrow">Your portal · Beta — free to use</p>
+          <h1>A portal you own for the agent web</h1>
+          <p class="lead">Not another AI chat app. Your personal agent works for you — talking to business agents backstage, rendering real interfaces in a shell you control, and asking you before anything that matters. Your memory, your rules, export any time.</p>
           <div class="hero-actions">
             <a class="btn btn-primary" href="/app/?auth=register">Create free account</a>
             <a class="btn btn-secondary" href="/demo/">Try live demo</a>
@@ -128,6 +128,39 @@ const homeBody = `
           <h2>A new reality</h2>
           <p>Today agents hunt through the human internet — pages, forms, PDFs — and hope they understood correctly. Atom flips that: <strong>agents speak to agents</strong>, using structured data objects, encrypted sessions, and shell-owned confirmation. Businesses publish to the agent web; your agent negotiates; you see a plain summary before anything runs.</p>
           <p>Where else can agents meet? Scattered APIs and ad-hoc integrations. Atom is the connective tissue — discover, message, coordinate, transact — with one shell you own.</p>
+        </section>
+        <section class="section">
+          <h2>Why Atom is different</h2>
+          <p class="lead" style="margin-bottom:24px">AI assistants are everywhere now, and they can all show buttons and forms in a chat. The difference is who the platform belongs to.</p>
+          <div class="grid-2">
+            <article class="card">
+              <h3>Their chat, their rules</h3>
+              <p>With today's big AI assistants, you live inside <em>their</em> app. They hold your account, your history, and your habits. Businesses build little apps that appear inside that chat — and the platform decides which ones you see, what they can do, and what happens to your data.</p>
+              <p>If you leave, everything stays behind. The assistant works in their house, by their rules.</p>
+            </article>
+            <article class="card">
+              <h3>Your portal, your agent</h3>
+              <p>Atom is the other way round. The portal is <strong>yours</strong>: your agent works for you, your memory lives in a store you can export, and businesses talk to <em>your agent</em> — they don't get to build the room you stand in.</p>
+              <p>Anything that costs money or commits you to something appears in Atom's own trusted controls, with a record you keep. No app inside the chat can fake that screen.</p>
+            </article>
+          </div>
+          <div class="steps" style="margin-top:24px">
+            <article class="step">
+              <span class="step-num">1</span>
+              <h3>You own the front door</h3>
+              <p>One portal for everything your agent does — not an account inside someone else's assistant.</p>
+            </article>
+            <article class="step">
+              <span class="step-num">2</span>
+              <h3>Agents work backstage</h3>
+              <p>Your agent deals with business agents directly, machine-to-machine — no more watching an AI click through websites built for humans.</p>
+            </article>
+            <article class="step">
+              <span class="step-num">3</span>
+              <h3>Trust stays on your side</h3>
+              <p>Approvals, payments, and your personal data are guarded by <em>your</em> shell — not by the goodwill of a platform or the businesses on it.</p>
+            </article>
+          </div>
         </section>
         <section class="section">
           <h2>How it feels</h2>
@@ -184,8 +217,9 @@ const homeBody = `
 
 rootPage(
   {
-    title: "Atom — The agent web",
-    description: "Personal AI agents that talk to business agents directly. Owner-controlled memory, structured commerce, and a shell you own. Free during beta.",
+    title: "Atom — A portal you own for the agent web",
+    description:
+      "Not another AI chat app. Atom is a portal you own: your agent talks to business agents, renders real interfaces in your shell, and keeps approvals and memory on your side. Free during beta.",
     canonical: "https://atom.qwixl.com/",
   },
   homeBody,
@@ -254,6 +288,47 @@ subPage(
           <h2>Why agent-first?</h2>
           <p>Most agents scrape the human web and guess. Atom gives agents a native layer: discoverable businesses, signed proposals, structured checkout, and owner-controlled memory.</p>
         </section>
+        <section class="section">
+          <h2>How Atom differs from chat-platform app SDKs</h2>
+          <p class="lead" style="margin-bottom:24px">Agent-rendered UI is becoming standard — MCP Apps, A2UI, and vendor app SDKs all let a tool return an interactive widget inside a conversation. Atom shares that composition-not-code philosophy (we adopt the A2UI shape) but inverts the platform structure.</p>
+          <table class="hiw-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Chat-platform apps (MCP Apps, vendor SDKs)</th>
+                <th>Atom</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Who owns the host</strong></td>
+                <td>The AI vendor's chat product; it owns identity, data, and distribution</td>
+                <td>The user's shell — open source, self-hostable, with a federated module registry</td>
+              </tr>
+              <tr>
+                <td><strong>Who renders for whom</strong></td>
+                <td>A business ships a widget into the vendor's surface</td>
+                <td>The owner's agent composes UI for the owner, from a catalog the owner's shell trusts</td>
+              </tr>
+              <tr>
+                <td><strong>How counterparties participate</strong></td>
+                <td>Server-side tools called by the vendor's model</td>
+                <td>Signed data objects over encrypted agent-to-agent sessions; counterpart agents send data, never pixels</td>
+              </tr>
+              <tr>
+                <td><strong>Trust model</strong></td>
+                <td>Host-vendor sandbox policy (CSP, iframe isolation)</td>
+                <td>Sandbox <em>plus</em> owner-side chrome: consequential actions render in shell-owned UI, decisions land in a hash-chained attestation log, guarded data needs per-use approval</td>
+              </tr>
+              <tr>
+                <td><strong>Model coupling</strong></td>
+                <td>The vendor's model, priced by the vendor</td>
+                <td>Any OpenAI-compatible endpoint, including fully local — the LLM is a swappable part, not the platform</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="hiw-note">Building modules today is close to building MCP Apps views — sandboxed iframe, postMessage bridge, integrity-hashed bundles — but they ship into user-owned infrastructure instead of a vendor's chat. Deep dives: <a href="https://github.com/Qwixl/Atom/blob/main/API-v1.md">API v1</a>, <a href="https://github.com/Qwixl/Atom/blob/main/SECURITY.md">security model</a>.</p>
+        </section>
         <a class="btn btn-primary" href="https://github.com/Qwixl/Atom" rel="noopener noreferrer">View on GitHub</a>`,
   path.join(marketingRoot, "developers"),
 );
@@ -305,6 +380,12 @@ subPage(
           <p><strong>Chat layer (LLM):</strong> When you type “Schedule standup with Bob next Tuesday,” your agent calls a language model to interpret intent, choose tools, and compose human-readable summaries. This uses an OpenAI-compatible <code>/v1/chat/completions</code> endpoint and an API key you provide.</p>
           <p><strong>Coordination layer (A2A):</strong> When your agent negotiates with a business agent — scheduling proposals, RSVPs, commerce offers — those messages are structured, signed data objects on the agent web. They do not go through your LLM provider. Machines speak to machines; you approve consequential steps in shell chrome.</p>
           <p>Keeping these separate means you can swap models without breaking interoperability, and agent-to-agent traffic stays deterministic even when the chat model is creative.</p>
+        </section>
+
+        <section class="section">
+          <h2>The portal is the interface</h2>
+          <p>Atom isn't a chat window with an AI in it. Chat is one way to steer your agent — but what your agent produces is <strong>real interfaces</strong>: schedules, boards, forms, offers, games, rendered live in your portal from components your shell trusts. Interacting with those surfaces <em>is</em> interacting with your agent; the conversation is attached, not the other way round.</p>
+          <p>That flips how today's AI assistants work. Elsewhere, the chat product is the platform and everything happens inside a vendor's app. In Atom, the platform is yours: your agent composes what you see, business agents negotiate with your agent in the background, and nothing a counterparty sends can draw pixels on your screen — their data is rendered by <em>your</em> shell, on your terms.</p>
         </section>
 
         <section class="section">

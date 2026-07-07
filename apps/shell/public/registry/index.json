@@ -138,8 +138,8 @@
       "id": "games/tictactoe",
       "version": "1.0.0",
       "manifestUrl": "games/tictactoe/manifest.json",
-      "integrity": "sha256:899cd625939a4f7ef30ae501291054f8216d0c6e218198ec46030a0c89f50458",
-      "bundleIntegrity": "sha256:550a39792137ffa6cae0aa410fd21627d712f8b1b208757bc2c564f808cea135",
+      "integrity": "sha256:352efe28e1bccfb1617d690a8156487b487e5055e366938272c1b7e354f31a33",
+      "bundleIntegrity": "sha256:aaf396f17137d3f1403d5ae64d5399484c467df26dd986a8a2ab91b8ecfac5f0",
       "publisher": "did:key:z6Mkatomexamples01"
     }
   ]

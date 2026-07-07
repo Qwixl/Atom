@@ -6,6 +6,7 @@ import {
   ModuleRegistry,
   createAttestationPersistence,
   createJsonPersistence,
+  getGameEngine,
   loadBooleanFromStorage,
   loadJsonFromStorage,
   loadStringFromStorage,
@@ -17,6 +18,8 @@ import {
   type AttestationEntry,
   type ConsequentialAction,
   type FeedItem,
+  type GameEngine,
+  type JsonObject,
   type RegistryRevocation,
   type RegistryTrustPolicy,
   type UiEvent,
@@ -24,6 +27,10 @@ import {
 import { bridgeChatModuleEvent } from "./comms/moduleBridge.js";
 import { CommsPanel } from "./CommsPanel.js";
 import { ChatFeedSurface } from "./chat/ChatFeedSurface.js";
+import { GameModal } from "./chat/GameModal.js";
+import { findActiveGameInFeed, isGameEnded } from "./chat/gameModules.js";
+import { activeGameContext, allowCompositionDuringGame, sanitizeNewGameComposition } from "./chat/gameComposition.js";
+import { withModulePropDefaults } from "./chat/moduleEmbedDefaults.js";
 import { LlmAgentSession, runCuratorPass, type LlmConfig } from "@qwixl/agent-llm";
 import { AgUiAgentSession, type AgUiAgentConfig } from "@qwixl/ag-ui-adapter";
 import {
@@ -626,7 +633,23 @@ export function App() {
   const turnTranscript = useRef<Array<{ role: "user" | "assistant"; text: string }>>([]);
   const lastUserMessageRef = useRef("");
   const sessionContextTagsRef = useRef<string[]>([]);
-
+  const chatFeedRef = useRef<readonly FeedItem[]>(restoredChatFeed());
+  // Ended games restored from persistence start dismissed so the modal
+  // doesn't pop open on page load just to show a finished board.
+  const [gameModalDismissedId, setGameModalDismissedId] = useState<string | null>(() => {
+    const restored = findActiveGameInFeed(chatFeedRef.current);
+    if (!restored) return null;
+    const props = withModulePropDefaults(
+      restored.embed.moduleId,
+      restored.embed.props as Record<string, unknown>,
+    );
+    return isGameEnded(props) ? restored.surface.surfaceId : null;
+  });
+  const prevGameSurfaceIdRef = useRef<string | null>(
+    findActiveGameInFeed(chatFeedRef.current)?.surface.surfaceId ?? null,
+  );
+  const gameMoveRetryRef = useRef(0);
+  const lastGameMoveRejectRef = useRef<string | null>(null);
   const conversationMemory = useMemo(
     () =>
       new ConversationMemoryIndex({
@@ -639,13 +662,16 @@ export function App() {
   conversationMemoryRef.current = conversationMemory;
 
   const buildContext = useCallback(
-    () =>
-      mergeBusinessContextIntoProfile(
+    () => {
+      const base = mergeBusinessContextIntoProfile(
         ownerStore,
         buildPersonalAgentContext(ownerStore, conversationMemory, lastUserMessageRef.current, {
           sessionContextTags: sessionContextTagsRef.current,
         }),
-      ),
+      );
+      const active = activeGameContext(findActiveGameInFeed(chatFeedRef.current));
+      return active ? { ...base, activeSurface: active } : base;
+    },
     [ownerStore, conversationMemory],
   );
 
@@ -834,13 +860,31 @@ export function App() {
       new ConversationRuntime({
         catalog,
         restoreFeed: restoredChatFeed(),
-        onFeedChange: (feed) => chatFeedPersistence.save(persistableChatFeed(feed)),
+        onFeedChange: (feed) => {
+          chatFeedRef.current = feed;
+          chatFeedPersistence.save(persistableChatFeed(feed));
+        },
         beforeResolveComposition: async (composition) => {
+          sanitizeNewGameComposition(composition);
           if (!modulesActiveRef.current) return;
           setRegistryErrorRef.current(null);
           await registryRef.current.ensureModules(catalogRef.current, composition);
         },
+        shouldReplaceSurface: (composition, feed) =>
+          allowCompositionDuringGame(composition, feed),
+        shouldAppendAgentText: (text, feed) => {
+          const game = findActiveGameInFeed(feed);
+          if (!game || game.embed.moduleId !== "games/tictactoe") return true;
+          const props = withModulePropDefaults(
+            game.embed.moduleId,
+            game.embed.props as Record<string, unknown>,
+          );
+          if (isGameEnded(props)) return true;
+          if (/^You're X — tap a square\.?$/i.test(text.trim())) return false;
+          return true;
+        },
         onRegistryError: (message) => setRegistryErrorRef.current(message),
+        onGameMove: (surfaceId, move) => handleAgentGameMove(surfaceId, move),
         guardedRecordCount: (categories) =>
           ownerStoreRef.current.guardedRecords(categories).length,
         onTranscriptLine: (role, text) => {
@@ -848,6 +892,7 @@ export function App() {
           turnTranscript.current.push({ role, text });
         },
         onTurnComplete: () => {
+          if (ensureAgentGameMove()) return;
           const activeProvider = providerRef.current;
           const activeLlmConfig = llmConfigRef.current;
           const activeOwnerStore = ownerStoreRef.current;
@@ -935,6 +980,129 @@ export function App() {
     () => conversation.getSnapshot(),
   );
 
+  const activeChatGame = useMemo(() => findActiveGameInFeed(feed), [feed]);
+  const activeGameEngine = activeChatGame ? getGameEngine(activeChatGame.embed.moduleId) : null;
+
+  useEffect(() => {
+    const surfaceId = activeChatGame?.surface.surfaceId ?? null;
+    if (surfaceId && surfaceId !== prevGameSurfaceIdRef.current) {
+      setGameModalDismissedId(null);
+    }
+    prevGameSurfaceIdRef.current = surfaceId;
+  }, [activeChatGame?.surface.surfaceId]);
+
+  const activeGameProps = activeChatGame
+    ? withModulePropDefaults(activeChatGame.embed.moduleId, activeChatGame.embed.props)
+    : null;
+  const activeGameEnded = activeGameProps ? isGameEnded(activeGameProps) : false;
+  const waitingForAgentMove = Boolean(
+    busy &&
+      activeGameEngine &&
+      activeGameProps &&
+      (() => {
+        const state = activeGameEngine.fromProps(activeGameProps as JsonObject);
+        return (
+          activeGameEngine.status(state).phase === "active" &&
+          activeGameEngine.turn(state) === "agent"
+        );
+      })(),
+  );
+  const showGameModal = Boolean(
+    activeChatGame && gameModalDismissedId !== activeChatGame.surface.surfaceId,
+  );
+
+  /** Apply a validated engine state to the feed surface. */
+  function commitGameState(engine: GameEngine, surfaceId: string, state: unknown): void {
+    conversationRef.current.updateSurfaceModuleProps(
+      surfaceId,
+      engine.moduleId,
+      engine.toProps(state),
+    );
+  }
+
+  /** Agent proposed a move via the game-move protocol message. */
+  function handleAgentGameMove(surfaceId: string, movePayload: unknown): void {
+    const game = findActiveGameInFeed(chatFeedRef.current);
+    if (!game || game.surface.surfaceId !== surfaceId) {
+      lastGameMoveRejectRef.current = "that surfaceId is not the active game";
+      return;
+    }
+    const engine = getGameEngine(game.embed.moduleId);
+    if (!engine) return;
+    const state = engine.fromProps(game.embed.props as JsonObject);
+    const move = engine.parseMove(movePayload);
+    if (!move) {
+      lastGameMoveRejectRef.current = "the move payload was malformed";
+      return;
+    }
+    const result = engine.applyMove(state, move, "agent");
+    if (!result.ok) {
+      lastGameMoveRejectRef.current = result.reason;
+      return;
+    }
+    gameMoveRetryRef.current = 0;
+    lastGameMoveRejectRef.current = null;
+    commitGameState(engine, game.surface.surfaceId, result.state);
+  }
+
+  /**
+   * End-of-turn arbiter: if the agent owes a move, retry once with the
+   * rejection reason and legal moves; after that, play a disclosed fallback
+   * so the game can never stall. Returns true when a retry turn was started.
+   */
+  function ensureAgentGameMove(): boolean {
+    const game = findActiveGameInFeed(chatFeedRef.current);
+    if (!game) {
+      gameMoveRetryRef.current = 0;
+      return false;
+    }
+    const engine = getGameEngine(game.embed.moduleId);
+    if (!engine) return false;
+    const state = engine.fromProps(game.embed.props as JsonObject);
+    if (engine.status(state).phase !== "active" || engine.turn(state) !== "agent") {
+      gameMoveRetryRef.current = 0;
+      return false;
+    }
+    if (gameMoveRetryRef.current < 1) {
+      gameMoveRetryRef.current += 1;
+      const reason = lastGameMoveRejectRef.current;
+      lastGameMoveRejectRef.current = null;
+      requestAgentGameMove(engine, game.surface.surfaceId, state, reason);
+      return true;
+    }
+    const legal = engine.legalMoves(state, "agent");
+    const fallback = legal[Math.floor(Math.random() * legal.length)];
+    if (fallback !== undefined) {
+      const result = engine.applyMove(state, fallback, "agent");
+      if (result.ok) {
+        commitGameState(engine, game.surface.surfaceId, result.state);
+        conversationRef.current.appendLocalAgentText(
+          "(Your agent didn't produce a valid move, so the shell played a random legal move for it.)",
+        );
+      }
+    }
+    gameMoveRetryRef.current = 0;
+    return false;
+  }
+
+  /** Ask the agent for its move, with current state and legal moves inline. */
+  function requestAgentGameMove(
+    engine: GameEngine,
+    surfaceId: string,
+    state: unknown,
+    rejectionReason?: string | null,
+  ): void {
+    const view = engine.agentView(state);
+    const prefix = rejectionReason
+      ? `Your previous move was rejected by the game engine: ${rejectionReason}. `
+      : "";
+    conversationRef.current.setBusy(true);
+    sessionRef.current.sendUserMessage(
+      `[game-turn] ${prefix}It is your move. Game state: ${JSON.stringify(view)}. ` +
+        `Reply with ONLY: {"messages":[{"type":"game-move","surfaceId":"${surfaceId}","move":{"cell":<one of legalCells>}}]} — no text, no composition.`,
+    );
+  }
+
   useEffect(() => {
     if (prevSessionRef.current && prevSessionRef.current !== session) {
       prevSessionRef.current.dispose?.();
@@ -957,6 +1125,15 @@ export function App() {
         trimmed,
         "Live LLM is selected but no API key is configured. Open Settings to add your key.",
       );
+      return;
+    }
+    if (
+      activeChatGame &&
+      !activeGameEnded &&
+      /\b(?:play\s*)?(?:a\s+)?tic[\s-]?tac[\s-]?toe\b|\bplay\s+(?:a\s+)?game\b/i.test(trimmed)
+    ) {
+      setGameModalDismissedId(null);
+      setInput("");
       return;
     }
     if (
@@ -1050,7 +1227,45 @@ export function App() {
       event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
         ? (event.payload as Record<string, unknown>)
         : undefined;
-    if (bridgeChatModuleEvent(event.name, payload)) {
+
+    if (activeChatGame && activeGameEngine) {
+      const engine = activeGameEngine;
+      const surfaceId = activeChatGame.surface.surfaceId;
+      const state = engine.fromProps(
+        withModulePropDefaults(
+          activeChatGame.embed.moduleId,
+          activeChatGame.embed.props as Record<string, unknown>,
+        ) as JsonObject,
+      );
+
+      if (event.name === "tttStart") {
+        gameMoveRetryRef.current = 0;
+        lastGameMoveRejectRef.current = null;
+        commitGameState(engine, surfaceId, engine.initialState());
+        setGameModalDismissedId(null);
+        return;
+      }
+
+      if (event.name === "tttMove") {
+        const move = engine.parseMove(payload);
+        if (!move) return;
+        const result = engine.applyMove(state, move, "owner");
+        if (!result.ok) return;
+        gameMoveRetryRef.current = 0;
+        lastGameMoveRejectRef.current = null;
+        commitGameState(engine, surfaceId, result.state);
+        const status = engine.status(result.state);
+        if (status.phase === "active" && engine.turn(result.state) === "agent") {
+          requestAgentGameMove(engine, surfaceId, result.state);
+        }
+        return;
+      }
+    }
+
+    if (
+      !activeChatGame &&
+      bridgeChatModuleEvent(event.name, payload)
+    ) {
       setPanel("comms");
       if (commsContacts[0] && !commsFocusId) setCommsFocusId(commsContacts[0].id);
       return;
@@ -1374,6 +1589,7 @@ export function App() {
                   catalog={catalog}
                   registry={registry}
                   onEvent={handleUiEvent}
+                  onResumeGame={() => setGameModalDismissedId(null)}
                 />
               );
             })
@@ -1553,6 +1769,20 @@ export function App() {
         />
       ) : null}
 
+      {showGameModal && activeChatGame ? (
+        <GameModal
+          surface={activeChatGame.surface}
+          moduleId={activeChatGame.embed.moduleId}
+          nodeId={activeChatGame.embed.nodeId}
+          props={activeGameProps ?? activeChatGame.embed.props}
+          catalog={catalog}
+          registry={registry}
+          agentBusy={waitingForAgentMove}
+          onClose={() => setGameModalDismissedId(activeChatGame.surface.surfaceId)}
+          onEvent={handleUiEvent}
+        />
+      ) : null}
+
       {IS_DEMO_MODE && !demoReady ? (
         <DemoBootstrap
           onReady={handleDemoReady}
@@ -1587,6 +1817,10 @@ export function App() {
           productionLocked={IS_PRODUCTION_HOST}
           vaultUnlocked={vaultUnlocked}
           intent={settingsIntent}
+          chatProvider={provider}
+          chatProviderSummary={chatProviderSummary}
+          allowBrowserLlm={ALLOW_BROWSER_LLM}
+          onSwitchChatProvider={switchProvider}
           onClose={closeSettings}
           onLogout={usesSupabaseHostedAuth() ? () => void handleLogout() : undefined}
           onSaveLlm={(connection, apiKey) => {
@@ -1671,6 +1905,10 @@ function SettingsDialog({
   productionLocked,
   vaultUnlocked,
   intent,
+  chatProvider,
+  chatProviderSummary,
+  allowBrowserLlm,
+  onSwitchChatProvider,
   onClose,
   onLogout,
   onSaveLlm,
@@ -1695,6 +1933,10 @@ function SettingsDialog({
   productionLocked: boolean;
   vaultUnlocked: boolean;
   intent: Provider | null;
+  chatProvider: Provider;
+  chatProviderSummary: string;
+  allowBrowserLlm: boolean;
+  onSwitchChatProvider: (provider: Provider) => void;
   onClose: () => void;
   onLogout?: () => void;
   onSaveLlm: (connection: LlmConnectionConfig, apiKey?: string) => void;
@@ -1822,6 +2064,37 @@ function SettingsDialog({
   function renderAgentPanel() {
     return (
       <>
+        {!productionLocked ? (
+          <>
+            <p className="settings-note">
+              <strong>Chat</strong> composes the main feed (Live LLM or AG-UI).{" "}
+              <strong>Messages</strong> is your agent talking to other agents (A2A) — configured at
+              signup or reconnect, independent of Chat provider.
+            </p>
+            <fieldset className="atom-field">
+              <legend className="atom-field-label">Chat provider</legend>
+              <div className="shell-segmented settings-chat-provider" role="group">
+                {allowBrowserLlm ? (
+                  <button
+                    type="button"
+                    className={chatProvider === "llm" || intent === "llm" ? "is-active" : ""}
+                    onClick={() => onSwitchChatProvider("llm")}
+                  >
+                    Live LLM
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className={chatProvider === "ag-ui" || intent === "ag-ui" ? "is-active" : ""}
+                  onClick={() => onSwitchChatProvider("ag-ui")}
+                >
+                  Agent (AG-UI)
+                </button>
+              </div>
+              <p className="atom-note">Active: {chatProviderSummary}</p>
+            </fieldset>
+          </>
+        ) : null}
         {intent === "llm" && !productionLocked ? (
           <p className="settings-intent-note">
             Enter your model endpoint and API key, then click <strong>Enable Live LLM</strong> below.

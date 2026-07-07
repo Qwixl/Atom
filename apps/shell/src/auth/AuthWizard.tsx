@@ -29,6 +29,7 @@ import {
 } from "./authSteps.js";
 import {
   bareOwnerHandle,
+  loadOwnerHandle,
   normalizeOwnerHandle,
   validateOwnerHandle,
 } from "../ownerHandle.js";
@@ -95,20 +96,23 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
 
   const supabaseHostedRegister =
     mode === "register" && hosting === "hosted" && usesSupabaseHostedAuth();
+  const supabaseHostedLogin = mode === "login" && usesSupabaseHostedAuth();
 
   const steps = useMemo(
     () =>
       loginNeedsConfirm && mode === "login"
         ? (["credentials", "confirm-email", "provisioning"] as AuthStepId[])
-        : authSteps(mode, { supabaseHostedRegister }),
-    [mode, supabaseHostedRegister, loginNeedsConfirm],
+        : authSteps(mode, { supabaseHostedRegister, supabaseHostedLogin }),
+    [mode, supabaseHostedRegister, supabaseHostedLogin, loginNeedsConfirm],
   );
 
   const [step, setStep] = useState<AuthStepId>(() => steps[0] ?? "credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [handle, setHandle] = useState("");
+  const [handle, setHandle] = useState(() =>
+    mode === "login" ? (loadOwnerHandle() ?? "") : "",
+  );
   const [llmApiKey, setLlmApiKey] = useState("");
   const [adminUrl, setAdminUrl] = useState(() => {
     if (ATOM_BROWSER_MODE) return BROWSER_AGENT_API;
@@ -617,6 +621,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
           handle: handle.trim() ? bareOwnerHandle(handle) : undefined,
           kind: "self-hosted",
         });
+        if (mode === "register") saveAccountType(accountType);
         updateTask("connect", "done");
       }
 
@@ -667,10 +672,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       return false;
     }
     if (mode === "login" && !usesSupabaseHostedAuth()) {
-      setError(
-        "Hosted login requires Supabase. Connect a self-hosted agent instead.",
-      );
-      return false;
+      return true;
     }
     return true;
   }
@@ -680,6 +682,13 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
     if (handleError) {
       setError(handleError);
       return false;
+    }
+    if (mode === "login") {
+      if (!adminUrl.trim() || !adminToken.trim()) {
+        setError("Agent URL and connection token are required.");
+        return false;
+      }
+      return true;
     }
     if (hosting === "hosted") {
       if (!llmApiKey.trim()) {
@@ -699,6 +708,10 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
 
   function handlePrimary() {
     setError(null);
+    if (step === "account-type") {
+      goNext();
+      return;
+    }
     if (step === "hosting") {
       goNext();
       return;
@@ -714,7 +727,13 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       return;
     }
     if (step === "profile") {
-      void submitProfileStep();
+      if (mode === "login") {
+        if (!validateProfile()) return;
+        goTo("provisioning");
+        void runProvisioning();
+      } else {
+        void submitProfileStep();
+      }
       return;
     }
   }
@@ -723,6 +742,34 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
 
   function renderStepPanel(stepId: AuthStepId) {
     switch (stepId) {
+      case "account-type":
+        return (
+          <>
+            <h3 className="auth-slide-title">What kind of account?</h3>
+            <p className="auth-slide-desc">
+              Personal for everyday use, Business for a brand agent, Developer for building modules.
+            </p>
+            <div className="auth-radio-stack">
+              {ACCOUNT_TYPES.map((type) => (
+                <label
+                  key={type.id}
+                  className={`atom-radio-card${accountType === type.id ? " is-selected" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    name="accountType"
+                    checked={accountType === type.id}
+                    onChange={() => setAccountType(type.id)}
+                  />
+                  <span>
+                    <strong>{type.label}</strong>
+                    <span>{type.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </>
+        );
       case "hosting":
         return (
           <>
@@ -817,13 +864,19 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       case "profile":
         return (
           <>
-            <h3 className="auth-slide-title">Profile & keys</h3>
+            <h3 className="auth-slide-title">
+              {mode === "login" ? "Welcome back" : "Profile & keys"}
+            </h3>
             <p className="auth-slide-desc">
-              {hosting === "hosted"
-                ? "Your public handle and LLM provider key."
-                : ATOM_BROWSER_MODE
-                  ? "Your handle and local agent connection (pre-filled for this dev session)."
-                  : "Your handle and agent connection details."}
+              {mode === "login"
+                ? ATOM_BROWSER_MODE
+                  ? "Confirm your handle and reconnect to your local agent."
+                  : "Reconnect your self-hosted agent."
+                : hosting === "hosted"
+                  ? "Your public handle and LLM provider key."
+                  : ATOM_BROWSER_MODE
+                    ? "Your handle and local agent connection (pre-filled for this dev session)."
+                    : "Your handle and agent connection details."}
             </p>
             <label className="atom-field">
               <span className="atom-field-label">Handle</span>
@@ -835,30 +888,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
             </label>
             {handleStatus ? <p className="atom-note">{handleStatus}</p> : null}
 
-            {hosting === "hosted" && usesSupabaseHostedAuth() ? (
-              <fieldset className="atom-field">
-                <legend className="atom-field-label">Account type</legend>
-                <div className="atom-radio-group">
-                  {ACCOUNT_TYPES.map((type) => (
-                    <label
-                      key={type.id}
-                      className={`atom-radio-card${accountType === type.id ? " is-selected" : ""}`}
-                    >
-                      <input
-                        type="radio"
-                        name="accountType"
-                        checked={accountType === type.id}
-                        onChange={() => setAccountType(type.id)}
-                      />
-                      <span className="atom-radio-card-title">{type.label}</span>
-                      <span className="atom-radio-card-hint">{type.hint}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            ) : null}
-
-            {hosting === "hosted" ? (
+            {mode === "register" && hosting === "hosted" ? (
               <label className="atom-field">
                 <FieldLabelWithHint label="LLM API key" hint={<LlmApiKeyHintContent />} />
                 <input
@@ -891,7 +921,8 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
                 </label>
                 {ATOM_BROWSER_MODE ? (
                   <p className="atom-note">
-                    Connected via <code>{BROWSER_AGENT_API}</code>. Add an LLM key in Settings after setup.
+                    Connected via <code>{BROWSER_AGENT_API}</code>. Set Chat provider and LLM key in
+                    Settings after setup.
                   </p>
                 ) : SHOW_DEV_WORKFLOWS ? (
                   <p className="atom-note">

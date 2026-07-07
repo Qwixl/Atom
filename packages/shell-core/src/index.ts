@@ -43,8 +43,9 @@ export {
   appendAgentText,
   appendUserMessage,
   clearFeed,
+  findActiveFeedSurface,
 } from "./conversation.js";
-export type { FeedItem } from "./conversation.js";
+export type { FeedItem, ActiveFeedSurface } from "./conversation.js";
 
 export { normalizeDataRequest } from "./dataRequest.js";
 
@@ -52,7 +53,12 @@ export { buildDataRequestChrome } from "./chrome.js";
 export type { PendingChrome } from "./chrome.js";
 
 export { ConversationRuntime } from "./ConversationRuntime.js";
-export type { ConversationSnapshot, ConversationRuntimeOptions } from "./ConversationRuntime.js";
+export type { ConversationSnapshot, ConversationRuntimeOptions, TurnCompleteInfo } from "./ConversationRuntime.js";
+
+export { getGameEngine, registerGameEngine } from "./games/registry.js";
+export { TictactoeEngine } from "./games/tictactoe.js";
+export type { GameEngine, GameMoveResult, GamePlayer, GameStatus } from "./games/engine.js";
+export type { TttState, TttMove, TttMark } from "./games/tictactoe.js";
 
 
 
