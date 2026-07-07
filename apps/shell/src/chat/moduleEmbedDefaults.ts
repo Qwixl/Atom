@@ -46,5 +46,14 @@ export function withModulePropDefaults(
       };
     }
   }
+  if (moduleId === "scheduling/meeting-picker") {
+    return { defaultTitle: "Meeting", ...props };
+  }
+  if (moduleId === "coordination/poll" && props.mode === undefined) {
+    return { mode: "compose", ...props };
+  }
+  if (moduleId === "coordination/shared-list" && props.mode === undefined) {
+    return { mode: "compose", ...props };
+  }
   return props;
 }

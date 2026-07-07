@@ -81,6 +81,12 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
       this.runScheduleScenario();
     } else if (lower.includes("poll") || lower.includes("where should we")) {
       this.runPollScenario();
+    } else if (
+      lower.includes("shared list") ||
+      lower.includes("grocery list") ||
+      lower.includes("packing list")
+    ) {
+      this.runSharedListScenario();
     } else if (lower.includes("split") && lower.includes("bill")) {
       this.runSplitBillScenario();
     } else if (lower.includes("tic-tac-toe") || lower.includes("tictactoe") || lower.includes("play a game")) {
@@ -111,7 +117,7 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
       this.later(450, () => this.finishTurn());
       return;
     }
-    if (event.name === "pollCreated" || event.name === "tttStart" || event.name === "splitProposed") {
+    if (event.name === "pollCreated" || event.name === "listCreated" || event.name === "tttStart" || event.name === "splitProposed") {
       if (event.name === "tttStart") {
         this.tttState = {
           surfaceId: event.surfaceId,
@@ -361,6 +367,20 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
     this.later(750, () => this.finishTurn());
   }
 
+  private runSharedListScenario(): void {
+    const surfaceId = this.nextSurfaceId();
+    this.later(300, () =>
+      this.emit({ type: "text", text: "Create a shared list for your contact." }),
+    );
+    this.later(700, () =>
+      this.emit({
+        type: "composition",
+        composition: this.sharedListComposerSurface(surfaceId),
+      }),
+    );
+    this.later(750, () => this.finishTurn());
+  }
+
   private runTttScenario(): void {
     const surfaceId = this.nextSurfaceId();
     const board = Array<"X" | "O" | null>(9).fill(null);
@@ -424,6 +444,21 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
         component: "coordination/poll",
         semanticRole: "input/poll",
         events: ["pollCreated"],
+        props: { mode: "compose" },
+      },
+    };
+  }
+
+  private sharedListComposerSurface(surfaceId: string): Composition {
+    return {
+      version: 1,
+      surfaceId,
+      intent: "Create a shared list",
+      root: {
+        id: "list",
+        component: "coordination/shared-list",
+        semanticRole: "input/shared-list",
+        events: ["listCreated"],
         props: { mode: "compose" },
       },
     };
