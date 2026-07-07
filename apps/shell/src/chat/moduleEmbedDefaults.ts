@@ -55,5 +55,8 @@ export function withModulePropDefaults(
   if (moduleId === "coordination/shared-list" && props.mode === undefined) {
     return { mode: "compose", ...props };
   }
+  if (moduleId === "commerce/split-bill" && props.defaultLabel === undefined) {
+    return { defaultLabel: "Split bill", ...props };
+  }
   return props;
 }

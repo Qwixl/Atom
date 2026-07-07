@@ -125,6 +125,25 @@ export const ECOSYSTEM_MODULE_MANIFESTS: ModuleManifest[] = [
     categories: ["coordination"],
     tier: "system",
   },
+  {
+    id: "commerce/split-bill",
+    version: "1.0.0",
+    publisher: "did:key:z6Mkatomexamples01",
+    targets: ["web"],
+    bundleUrl: "/modules/commerce-split-bill/index.html",
+    components: [
+      {
+        name: "commerce/split-bill",
+        semanticRole: "input/split-bill",
+        events: [{ name: "splitProposed" }],
+        agentHint:
+          "Propose splitting a bill between contacts. Use when the owner wants to split costs, divide a check, or share an expense. Props: { defaultLabel? }. Emits splitProposed with { label, totalMinor, currency, splitCount, shareMinor }.",
+      },
+    ],
+    capabilities: [],
+    categories: ["commerce"],
+    tier: "system",
+  },
 ];
 
 export function registerEcosystemModules(catalog: Catalog): void {

@@ -63,4 +63,24 @@ describe("bridgeChatModuleEvent", () => {
     expect(bridgeChatModuleEvent("listCreated", { title: "Empty", items: [] })).toBe(false);
     expect(sessionStorage.getItem(COMMS_MODULE_BRIDGE_KEY)).toBeNull();
   });
+
+  it("bridges splitProposed", () => {
+    expect(
+      bridgeChatModuleEvent("splitProposed", {
+        label: "Dinner",
+        totalMinor: 8000,
+        currency: "USD",
+        splitCount: 4,
+        shareMinor: 2000,
+      }),
+    ).toBe(true);
+    expect(takeCommsModuleBridge()).toEqual({
+      action: "splitProposed",
+      label: "Dinner",
+      totalMinor: 8000,
+      currency: "USD",
+      splitCount: 4,
+      shareMinor: 2000,
+    });
+  });
 });
