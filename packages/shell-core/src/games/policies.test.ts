@@ -67,6 +67,17 @@ describe("game policies", () => {
     expect(allowCompositionDuringGame(tttComposition, feed)).toBe(false);
   });
 
+  it("allows owner chrome starts while an active game is on the feed", () => {
+    const feed: FeedItem[] = [
+      {
+        kind: "surface",
+        id: "s1",
+        surface: mockSurface("ttt-1", { status: "active", board: Array(9).fill(null) }),
+      },
+    ];
+    expect(allowCompositionDuringGame(tttComposition, feed, { ownerStart: true })).toBe(true);
+  });
+
   it("allows non-game compositions while an active game is on the feed", () => {
     const scheduleComposition: Composition = {
       version: 1,
