@@ -1,4 +1,4 @@
-import { hashEmbedText, type TextEmbedder } from "./textEmbedding.js";
+import { hashEmbedText, type AsyncTextEmbedder, type TextEmbedder } from "./textEmbedding.js";
 
 export interface ApiTextEmbeddingOptions {
   baseUrl?: string;
@@ -44,7 +44,7 @@ export async function embedTextAsync(text: string, options: ApiTextEmbeddingOpti
 
 /**
  * Sync TextEmbedder for ATOM_EMBEDDER=api — uses hash vectors until async reindex runs.
- * Semantic vectors: call embedTextAsync during knowledge index rebuild (BK-D3).
+ * Semantic vectors: call {@link embedTextAsync} / {@link createAsyncTextEmbedder} during knowledge index rebuild.
  */
 export function createApiTextEmbedder(options: ApiTextEmbeddingOptions = {}): TextEmbedder {
   const { apiKey } = resolveApiConfig(options);
@@ -57,8 +57,17 @@ export function createApiTextEmbedder(options: ApiTextEmbeddingOptions = {}): Te
       console.warn(
         "[owner-store] ATOM_EMBEDDER=api: sync path uses hash fallback; run async reindex for semantic embeddings.",
       );
-      warned = true;
     }
+    warned = true;
     return hashEmbedText(text);
   };
+}
+
+/** Async embedder that calls the configured OpenAI-compatible embeddings API. */
+export function createAsyncTextEmbedder(options: ApiTextEmbeddingOptions = {}): AsyncTextEmbedder {
+  const { apiKey } = resolveApiConfig(options);
+  if (!apiKey) {
+    throw new Error("ATOM_EMBEDDER=api requires ATOM_EMBEDDER_API_KEY or LLM_API_KEY");
+  }
+  return (text: string) => embedTextAsync(text, options);
 }

@@ -3,6 +3,9 @@ import { tokenize } from "./conversationMemory.js";
 /** Maps text to a unit vector. Default implementation is on-device (no API). */
 export type TextEmbedder = (text: string) => number[];
 
+/** Async embedder for API backends (OpenAI-compatible `/embeddings`). */
+export type AsyncTextEmbedder = (text: string) => Promise<number[]>;
+
 const DEFAULT_DIMS = 256;
 
 /** FNV-1a 32-bit — deterministic feature hash for local embeddings. */

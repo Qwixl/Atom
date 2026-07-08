@@ -130,6 +130,7 @@ import {
 import { MockAgentSession } from "./mock-agent.js";
 import { loadBriefingPreferences, BRIEFING_OPEN_MESSAGE, applyCuratorBriefingTopics, formatBriefingContextForPrompt } from "./briefing/briefingPreferences.js";
 import { BriefingSettingsPanel } from "./briefing/BriefingSettingsPanel.js";
+import { SpendPolicySettingsPanel } from "./billing/SpendPolicySettingsPanel.js";
 import { formatLocationContextForPrompt } from "./location/locationContext.js";
 import { loadLocationPreferences } from "./location/locationPreferences.js";
 import type { DeviceLocationSnapshot } from "./location/deviceLocation.js";
@@ -3109,6 +3110,11 @@ function SettingsDialog({
             Save payment connection
           </button>
         </div>
+        <SpendPolicySettingsPanel
+          workspaceId={activeWorkspaceId}
+          vaultUnlocked={vaultUnlocked}
+          embedded
+        />
       </>
     );
   }
