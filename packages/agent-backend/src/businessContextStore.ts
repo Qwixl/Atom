@@ -41,6 +41,7 @@ function parseRecord(body: Record<string, unknown>): BusinessContextRecord {
 export class BusinessContextStore {
   private readonly records = new Map<string, BusinessContextRecord>();
   private readonly filePath: string;
+  private persistQueue: Promise<void> = Promise.resolve();
 
   constructor(filePath = resolveDataPath(CONTEXT_FILE)) {
     this.filePath = filePath;
@@ -76,13 +77,13 @@ export class BusinessContextStore {
   upsert(input: BusinessContextRecord): BusinessContextRecord {
     const record = parseRecord(input as unknown as Record<string, unknown>);
     this.records.set(this.recordKey(record), record);
-    void this.persist();
+    this.persist();
     return record;
   }
 
   remove(category: BusinessContextRecord["category"], label: string): boolean {
     const removed = this.records.delete(this.recordKey({ category, label }));
-    if (removed) void this.persist();
+    if (removed) this.persist();
     return removed;
   }
 
@@ -92,19 +93,31 @@ export class BusinessContextStore {
       const parsed = parseRecord(record as unknown as Record<string, unknown>);
       this.records.set(this.recordKey(parsed), parsed);
     }
-    void this.persist();
+    this.persist();
   }
 
   brandPolicyLines(): { brandLines: string[]; policyLines: string[] } {
     return brandPolicyLinesFromRecords(this.list());
   }
 
-  private async persist(): Promise<void> {
-    const payload: ContextFile = {
-      schemaVersion: SCHEMA_VERSION,
-      records: this.list(),
-    };
-    await atomicWriteJson(this.filePath, payload);
+  private persist(): void {
+    this.persistQueue = this.persistQueue
+      .then(async () => {
+        const payload: ContextFile = {
+          schemaVersion: SCHEMA_VERSION,
+          records: this.list(),
+        };
+        await atomicWriteJson(this.filePath, payload);
+      })
+      .catch((error) => {
+        console.warn(
+          `[business-context] persist failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+  }
+
+  async flush(): Promise<void> {
+    await this.persistQueue;
   }
 }
 

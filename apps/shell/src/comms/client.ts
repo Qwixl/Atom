@@ -605,6 +605,50 @@ export class CommsAgentClient {
     );
   }
 
+  async setConnectorToken(
+    connectorId: string,
+    token: string,
+    approvalRef?: string,
+  ): Promise<{ connectorId: string; configured: boolean }> {
+    return postJson(
+      this.base(),
+      `/connectors/${encodeURIComponent(connectorId)}/token`,
+      { token, approvalRef },
+      this.auth,
+      true,
+    );
+  }
+
+  async clearConnectorToken(connectorId: string, approvalRef?: string): Promise<{ connectorId: string; removed: boolean }> {
+    const query = approvalRef?.trim() ? `?approvalRef=${encodeURIComponent(approvalRef.trim())}` : "";
+    const headers: Record<string, string> = {};
+    const bearer = this.bearer(true);
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    const resp = await fetch(`${this.base()}/connectors/${encodeURIComponent(connectorId)}/token${query}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (!resp.ok) {
+      const err = (await resp.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? `Request failed (${resp.status})`);
+    }
+    return resp.json() as Promise<{ connectorId: string; removed: boolean }>;
+  }
+
+  async createTodoistTask(
+    content: string,
+    opts?: { projectId?: string; dueString?: string },
+    approvalRef?: string,
+  ): Promise<{ task: { id: string; content: string } }> {
+    return postJson(
+      this.base(),
+      "/connectors/todoist/tasks",
+      { content, projectId: opts?.projectId, dueString: opts?.dueString, approvalRef },
+      this.auth,
+      true,
+    );
+  }
+
   async listMcpServers(): Promise<{
     servers: Array<{
       id: string;
