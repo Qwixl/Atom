@@ -1,13 +1,11 @@
 import { describe, expect, it } from "vitest";
-import {
-  Catalog,
-  ConversationRuntime,
-  SessionEmitter,
-  allowCompositionDuringGame,
-  parseAgentProtocolMessage,
-  registerCorePrimitives,
-  type AgentOutput,
-} from "@qwixl/shell-core";
+import { Catalog } from "./catalog.js";
+import { ConversationRuntime } from "./ConversationRuntime.js";
+import { SessionEmitter, type AgentOutput, type AgentSession } from "./session.js";
+import { allowCompositionDuringGame } from "./games/policies.js";
+import { parseAgentProtocolMessage } from "./agentOutput.js";
+import { registerCorePrimitives } from "./core-primitives.js";
+import type { UiEvent } from "./types.js";
 
 const SCHEDULE_COMPOSITION = {
   version: 1 as const,
@@ -34,7 +32,11 @@ const SCHEDULE_COMPOSITION = {
   },
 };
 
-class TestSession extends SessionEmitter {
+class TestSession extends SessionEmitter implements AgentSession {
+  sendUserMessage(_text: string): void {}
+  sendUiEvent(_event: UiEvent): void {}
+  sendActionDecision(_actionId: string, _decision: "approved" | "declined"): void {}
+
   emitAll(outputs: AgentOutput[]) {
     for (const output of outputs) this.emit(output);
   }
@@ -81,8 +83,9 @@ describe("schedule composition loop", () => {
     if (surface?.kind === "surface") {
       expect(surface.surface.root.node.component).toBe("core/card");
       const list = surface.surface.root.children[0];
+      const scheduleList = SCHEDULE_COMPOSITION.root.children[0];
       expect(list?.node.component).toBe("core/list");
-      expect(list?.node.props?.items).toEqual(SCHEDULE_COMPOSITION.root.children[0].props.items);
+      expect(list?.node.props?.items).toEqual(scheduleList?.props.items);
     }
   });
 
