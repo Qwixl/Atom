@@ -218,7 +218,7 @@ Business agents need **two layers** of non-catalog context:
 | `ATOM_BUSINESS_KNOWLEDGE_BACKEND` | Status | Use when |
 |---|---|---|
 | `json` (default) | **Shipped** | Small corpora, self-hosted dev, Coffee Shop seed |
-| `sqlite` | Planned | Large corpora on agent volume — chunked SQLite + vector index |
+| `sqlite` | **Shipped** (BK-D1) | Larger corpora on agent volume — `node:sqlite` chunked index + hybrid retrieval (`business-knowledge.sqlite`) |
 | `remote` | Planned | Customer-operated or Qwixl-operated knowledge service (`ATOM_BUSINESS_KNOWLEDGE_REMOTE_URL`) |
 
 Hosted vs self-hosted agents both use the same backend package; only **where the index file lives** changes (your disk vs your container volume). A future hosted knowledge **service** would plug in as `remote` without changing shell sync or admin routes.
@@ -251,7 +251,7 @@ Domain verification (tier 1, D039): publish DNS TXT at `_atom.<domain>` with `at
 |---|---|---|
 | `ATOM_BUSINESS_MODE` | off | `true` or `1` — enable catalog, intent ingestion, business agent card fields |
 | `ATOM_BUSINESS_DOMAIN` | — | Dev shortcut: grant tier-1 domain verification without DNS |
-| `ATOM_BUSINESS_KNOWLEDGE_BACKEND` | `json` | `json` (v1), `sqlite` and `remote` reserved — fail at startup if set before implemented |
+| `ATOM_BUSINESS_KNOWLEDGE_BACKEND` | `json` | `json` (default) or `sqlite` (BK-D1); `remote` reserved — fails at startup until implemented |
 | `ATOM_BUSINESS_KNOWLEDGE_REMOTE_URL` | — | Required when backend=`remote` (future) |
 
 Agent card includes optional `business` extension when verified: `verificationTier`, `businessDomain`, `tierLabel`.

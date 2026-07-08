@@ -5,6 +5,7 @@ import { parseSignupHandle, publicHandle } from "./handles.js";
 import { isSupabaseConfigured, supabaseAdmin } from "./supabaseAdmin.js";
 import { verifySupabaseAccessToken } from "./supabaseAuth.js";
 import type { HostedAgentRecord } from "./fleet/types.js";
+import { ensurePersonalWorkspaceId } from "./workspaceRoutes.js";
 
 type AccountType = "user" | "business" | "developer";
 
@@ -175,9 +176,27 @@ export function registerAccountRoutes(
       }
 
       const agentId = newAgentId();
+      const personalWorkspaceId = await ensurePersonalWorkspaceId(user.id);
+      if (accountType === "business") {
+        const { data: businessWs } = await supabaseAdmin()
+          .from("workspaces")
+          .select("id")
+          .eq("owner_user_id", user.id)
+          .eq("kind", "business")
+          .maybeSingle();
+        if (!businessWs?.id) {
+          await supabaseAdmin().from("workspaces").insert({
+            owner_user_id: user.id,
+            kind: "business",
+            label: "Business",
+            handle: parsedHandle.handle,
+          });
+        }
+      }
       await supabaseAdmin().from("hosted_agents").upsert(
         {
           user_id: user.id,
+          workspace_id: personalWorkspaceId,
           control_plane_agent_id: agentId,
           handle: parsedHandle.handle,
           status: "provisioning",
@@ -201,6 +220,7 @@ export function registerAccountRoutes(
           control_plane_agent_id: outcome.agent.id,
           handle: outcome.agent.handle,
           agent_url: outcome.agent.agentUrl,
+          workspace_id: personalWorkspaceId,
           status: "active",
           status_message: outcome.message ?? null,
         })
