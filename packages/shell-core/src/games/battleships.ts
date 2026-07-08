@@ -24,6 +24,8 @@ export type BattleshipsPhase = "setup" | "battle" | "won";
 export interface BattleshipsShot {
   cell: number;
   hit: boolean;
+  /** Remainder of a sunk ship revealed by the engine — does not consume a turn. */
+  auto?: boolean;
 }
 
 export interface BattleshipsState {
@@ -74,22 +76,26 @@ export function isStraightShip(size: number, cells: readonly number[], length: n
   return true;
 }
 
-/** Partition cells into straight ships matching `lengths` (order-insensitive). */
-export function canPartitionIntoShips(
+/**
+ * Partition fleet cells into straight ships matching `lengths`.
+ * Returns null when the layout is illegal.
+ */
+export function partitionFleet(
   size: number,
   cells: readonly number[],
   lengths: readonly number[],
-): boolean {
+): number[][] | null {
   const need = [...lengths].sort((a, b) => b - a);
-  if (cells.length !== totalShipCells(need)) return false;
+  if (cells.length !== totalShipCells(need)) return null;
   const uniq = new Set(cells);
-  if (uniq.size !== cells.length) return false;
+  if (uniq.size !== cells.length) return null;
   const max = size * size;
   for (const cell of cells) {
-    if (!Number.isInteger(cell) || cell < 0 || cell >= max) return false;
+    if (!Number.isInteger(cell) || cell < 0 || cell >= max) return null;
   }
 
   const remaining = new Set(cells);
+  const placed: number[][] = [];
 
   function candidatesFor(length: number): number[][] {
     const out: number[][] = [];
@@ -120,13 +126,39 @@ export function canPartitionIntoShips(
     const [len, ...rest] = needLeft;
     for (const ship of candidatesFor(len!)) {
       for (const cell of ship) remaining.delete(cell);
+      placed.push(ship);
       if (search(rest)) return true;
+      placed.pop();
       for (const cell of ship) remaining.add(cell);
     }
     return false;
   }
 
-  return search(need);
+  return search(need) ? placed.map((ship) => [...ship].sort((a, b) => a - b)) : null;
+}
+
+/** Partition cells into straight ships matching `lengths` (order-insensitive). */
+export function canPartitionIntoShips(
+  size: number,
+  cells: readonly number[],
+  lengths: readonly number[],
+): boolean {
+  return partitionFleet(size, cells, lengths) !== null;
+}
+
+function shipContaining(
+  size: number,
+  fleet: readonly number[],
+  lengths: readonly number[],
+  cell: number,
+): number[] | null {
+  const ships = partitionFleet(size, fleet, lengths);
+  if (!ships) return null;
+  return ships.find((ship) => ship.includes(cell)) ?? null;
+}
+
+function intentionalShotCount(shots: readonly BattleshipsShot[]): number {
+  return shots.filter((shot) => !shot.auto).length;
 }
 
 function normalizeShots(raw: unknown): BattleshipsShot[] {
@@ -136,8 +168,9 @@ function normalizeShots(raw: unknown): BattleshipsShot[] {
     if (!entry || typeof entry !== "object") continue;
     const cell = (entry as { cell?: unknown }).cell;
     const hit = (entry as { hit?: unknown }).hit;
+    const auto = (entry as { auto?: unknown }).auto;
     if (typeof cell !== "number" || !Number.isInteger(cell)) continue;
-    shots.push({ cell, hit: hit === true });
+    shots.push({ cell, hit: hit === true, ...(auto === true ? { auto: true } : {}) });
   }
   return shots;
 }
@@ -281,8 +314,10 @@ export class BattleshipsEngine implements GameEngine<BattleshipsState, Battleshi
       if (!state.agentShips) return "agent";
       return "owner";
     }
-    // Battle: owner fires first; then alternate by shot counts.
-    return state.ownerShots.length === state.agentShots.length ? "owner" : "agent";
+    // Battle: only intentional shots consume a turn (auto-reveal after a sink does not).
+    return intentionalShotCount(state.ownerShots) === intentionalShotCount(state.agentShots)
+      ? "owner"
+      : "agent";
   }
 
   status(state: BattleshipsState): GameStatus {
@@ -377,11 +412,24 @@ export class BattleshipsEngine implements GameEngine<BattleshipsState, Battleshi
     const foe = this.foeShips(state, player);
     if (!foe) return { ok: false, reason: "opponent fleet is not placed" };
     const hit = foe.includes(move.cell);
-    const nextShot = { cell: move.cell, hit };
+    const added: BattleshipsShot[] = [{ cell: move.cell, hit }];
+    if (hit) {
+      const ship = shipContaining(state.size, foe, state.shipLengths, move.cell);
+      if (ship) {
+        for (const cell of ship) {
+          if (cell === move.cell) continue;
+          if (myShots.some((shot) => shot.cell === cell) || added.some((shot) => shot.cell === cell)) {
+            continue;
+          }
+          added.push({ cell, hit: true, auto: true });
+        }
+      }
+    }
+
     const next: BattleshipsState = {
       ...state,
-      ownerShots: player === "owner" ? [...state.ownerShots, nextShot] : [...state.ownerShots],
-      agentShots: player === "agent" ? [...state.agentShots, nextShot] : [...state.agentShots],
+      ownerShots: player === "owner" ? [...state.ownerShots, ...added] : [...state.ownerShots],
+      agentShots: player === "agent" ? [...state.agentShots, ...added] : [...state.agentShots],
       ownerShips: state.ownerShips ? [...state.ownerShips] : null,
       agentShips: state.agentShips ? [...state.agentShips] : null,
       shipLengths: [...state.shipLengths],
@@ -487,16 +535,58 @@ export class BattleshipsEngine implements GameEngine<BattleshipsState, Battleshi
     if (state.phase === "setup" && turn === "agent") {
       base.action = "place";
       base.moveShape = { action: "place", cells: "<contiguous cells matching shipLengths>" };
-      // One valid sample helps weak models; rules still validated.
       const sample = legal.find((move) => move.action === "place");
       if (sample && sample.action === "place") base.samplePlace = sample.cells;
     } else if (state.phase === "battle" && turn === "agent") {
       base.action = "fire";
-      base.legalCells = legal
-        .filter((move): move is { action: "fire"; cell: number } => move.action === "fire")
-        .map((move) => move.cell);
+      const fireMoves = legal.filter(
+        (move): move is { action: "fire"; cell: number } => move.action === "fire",
+      );
       base.moveShape = { action: "fire", cell: "<one of legalCells>" };
+      if (fireMoves.length > 0) {
+        const scores = this.rankMoves(state, "agent", fireMoves);
+        const moveScores: JsonObject = {};
+        const ranked: Array<{ cell: number; score: number }> = [];
+        for (let index = 0; index < fireMoves.length; index++) {
+          const cell = fireMoves[index]!.cell;
+          const score = scores[index]!;
+          moveScores[String(cell)] = score;
+          ranked.push({ cell, score });
+        }
+        ranked.sort((a, b) => b.score - a.score || a.cell - b.cell);
+        // Lead legalCells with preferred targets so naive "first cell" picks are not raster.
+        base.legalCells = ranked.map((row) => row.cell);
+        base.moveScores = moveScores;
+        base.preferredCells = ranked.slice(0, Math.min(6, ranked.length)).map((row) => row.cell);
+        base.strategy =
+          "Prefer preferredCells (parity scatter, scrambled — never scan row/column in order from cell 0).";
+      }
     }
     return base;
+  }
+
+  /**
+   * Higher = stronger. With sink-on-first-hit there are no partial ships to
+   * chase, so scores are a parity checkerboard scrambled by salt (shot history)
+   * — never cell index order from top-left.
+   */
+  rankMoves(state: BattleshipsState, player: GamePlayer, moves: BattleshipsMove[]): number[] {
+    if (state.phase === "setup") {
+      return moves.map(() => Math.random());
+    }
+    const myShots = this.shotsBy(state, player);
+    const hitSum = myShots.filter((shot) => shot.hit).reduce((sum, shot) => sum + shot.cell, 0);
+    const salt = (hitSum + myShots.length * 17 + 41) % 97;
+
+    return moves.map((move) => {
+      if (move.action !== "fire") return Math.random();
+      const parity = (Math.floor(move.cell / state.size) + (move.cell % state.size)) % 2;
+      const preferredParity = salt % 2;
+      const parityScore = parity === preferredParity ? 20 : 6;
+      // Deterministic scramble so fallback / preferredCells aren't raster order.
+      const scramble = (move.cell * 13 + salt * 7) % 19;
+      const jitter = Math.random() * 0.5;
+      return parityScore + scramble + jitter;
+    });
   }
 }

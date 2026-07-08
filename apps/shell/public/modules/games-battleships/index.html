@@ -32,9 +32,49 @@
     .btn:disabled { opacity: 0.5; cursor: default; }
     .btn-secondary { background: transparent; color: inherit; border: 1px solid var(--atom-color-border, #ccc); }
     .notice { margin-top: 8px; font-size: 12px; font-weight: 600; }
+    .win-overlay {
+      position: fixed; inset: 0; pointer-events: none; z-index: 20;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.25s ease;
+    }
+    .win-overlay.show { opacity: 1; }
+    .win-overlay.owner { background: radial-gradient(circle at 50% 40%, color-mix(in srgb, #12b76a 28%, transparent), transparent 55%); }
+    .win-overlay.agent { background: radial-gradient(circle at 50% 40%, color-mix(in srgb, #b42318 22%, transparent), transparent 55%); }
+    .win-banner {
+      font-size: 22px; font-weight: 700; letter-spacing: 0.02em;
+      padding: 14px 22px; border-radius: 12px;
+      background: color-mix(in srgb, var(--atom-color-bg, #fff) 88%, transparent);
+      border: 1px solid var(--atom-color-border, #ccc);
+      box-shadow: 0 8px 28px color-mix(in srgb, #000 18%, transparent);
+      transform: scale(0.86) translateY(8px);
+      animation: win-pop 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.2) forwards;
+    }
+    @keyframes win-pop {
+      0% { transform: scale(0.7) translateY(12px); opacity: 0; }
+      60% { transform: scale(1.06) translateY(0); opacity: 1; }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    .spark {
+      position: absolute; width: 7px; height: 7px; border-radius: 50%;
+      background: var(--spark, #f5a524); opacity: 0;
+      animation: spark-burst 0.9s ease-out forwards;
+    }
+    @keyframes spark-burst {
+      0% { transform: translate(0, 0) scale(0.4); opacity: 0; }
+      15% { opacity: 1; }
+      100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+    }
+    body.won-pulse .boards { animation: boards-pulse 0.7s ease; }
+    @keyframes boards-pulse {
+      0%, 100% { filter: brightness(1); }
+      40% { filter: brightness(1.12); }
+    }
   </style>
 </head>
 <body>
+  <div class="win-overlay" id="winOverlay" hidden aria-hidden="true">
+    <div class="win-banner" id="winBanner"></div>
+  </div>
   <div class="boards">
     <div class="board-wrap">
       <h3>Your fleet</h3>
@@ -67,6 +107,7 @@
     let foeShipCells = 6;
     let selected = new Set();
     let totalShipCells = 6;
+    let celebratedKey = null;
 
     function emit(name, payload) {
       if (shellOrigin) window.parent.postMessage({ type: "event", name, payload }, shellOrigin);
@@ -159,6 +200,45 @@
       }
     }
 
+    function celebrateWin() {
+      const key = String(winner) + ":" + foeHitsFound + ":" + (ownBoard.join(",") || "");
+      if (celebratedKey === key) return;
+      celebratedKey = key;
+      const overlay = document.getElementById("winOverlay");
+      const banner = document.getElementById("winBanner");
+      overlay.hidden = false;
+      overlay.className = "win-overlay show " + (winner === "owner" ? "owner" : "agent");
+      banner.textContent = winner === "owner" ? "Fleet sunk!" : "Fleet lost";
+      overlay.querySelectorAll(".spark").forEach((n) => n.remove());
+      const colors = winner === "owner"
+        ? ["#12b76a", "#32d583", "#f5a524", "#84caff"]
+        : ["#f97066", "#b42318", "#98a2b3", "#f5a524"];
+      for (let i = 0; i < 28; i++) {
+        const spark = document.createElement("span");
+        spark.className = "spark";
+        const angle = (Math.PI * 2 * i) / 28 + Math.random() * 0.4;
+        const dist = 48 + Math.random() * 90;
+        spark.style.setProperty("--dx", Math.cos(angle) * dist + "px");
+        spark.style.setProperty("--dy", Math.sin(angle) * dist + "px");
+        spark.style.setProperty("--spark", colors[i % colors.length]);
+        spark.style.left = "50%";
+        spark.style.top = "42%";
+        spark.style.animationDelay = (Math.random() * 0.2) + "s";
+        overlay.appendChild(spark);
+      }
+      document.body.classList.add("won-pulse");
+      setTimeout(() => document.body.classList.remove("won-pulse"), 800);
+    }
+
+    function clearCelebration() {
+      celebratedKey = null;
+      const overlay = document.getElementById("winOverlay");
+      overlay.hidden = true;
+      overlay.className = "win-overlay";
+      overlay.querySelectorAll(".spark").forEach((n) => n.remove());
+      document.body.classList.remove("won-pulse");
+    }
+
     function render() {
       const ownEl = document.getElementById("ownBoard");
       const foeEl = document.getElementById("foeBoard");
@@ -178,23 +258,26 @@
 
       if (status === "won") {
         meta.textContent = winner === "owner" ? "You sank the fleet." : "Your fleet was sunk.";
-        notice.hidden = false;
-        notice.textContent = "Game over";
-      } else if (phase === "setup") {
-        if (!ownerPlaced) {
-          meta.textContent =
-            "Place ships (" + shipLengths.join("·") + "). Selected " + selected.size + "/" + totalShipCells + ".";
-        } else if (!agentPlaced) {
-          meta.textContent = "Ships locked. Waiting for the agent to place…";
-        } else {
-          meta.textContent = "Fleets locked.";
-        }
         notice.hidden = true;
+        celebrateWin();
       } else {
-        meta.textContent =
-          (turn === "owner" ? "Your shot — tap a grey square." : "Agent is firing…") +
-          " Hits " + foeHitsFound + "/" + foeShipCells + ".";
-        notice.hidden = true;
+        clearCelebration();
+        if (phase === "setup") {
+          if (!ownerPlaced) {
+            meta.textContent =
+              "Place ships (" + shipLengths.join("·") + "). Selected " + selected.size + "/" + totalShipCells + ".";
+          } else if (!agentPlaced) {
+            meta.textContent = "Ships locked. Waiting for the agent to place…";
+          } else {
+            meta.textContent = "Fleets locked.";
+          }
+          notice.hidden = true;
+        } else {
+          meta.textContent =
+            (turn === "owner" ? "Your shot — tap a grey square." : "Agent is firing…") +
+            " Hits " + foeHitsFound + "/" + foeShipCells + ".";
+          notice.hidden = true;
+        }
       }
     }
 
@@ -206,6 +289,7 @@
 
     document.getElementById("restart").addEventListener("click", () => {
       selected = new Set();
+      clearCelebration();
       emit("bsStart", {});
     });
 

@@ -779,7 +779,7 @@ Games are **shell-arbitrated**: the shell's game engine owns the board, validate
   - battleships **fire** or tic-tac-toe: \`{ "action": "fire", "cell": <legal> }\` or \`{ "cell": <legalCells> }\`
 - Never emit a composition, text drawing, or new surface mid-game. One game-move message, nothing else.
 - Tic-tac-toe strategy: complete your line when possible; otherwise block the owner; prefer center, then corners.
-- Battleships: place straight ships; fire at unknown foe cells; sink all foe ship cells to win.
+- Battleships: place straight ships; fire at unknown foe cells (prefer \`preferredCells\` from the game-turn view — scrambled parity scatter, never scan from cell 0 across rows). A hit sinks that whole ship (engine auto-reveals the rest). Sink all foe ship cells to win.
 - If the engine rejects your move you get one retry with the reason; after that the shell plays a random legal move for you and tells the owner.
 - When the game ends the shell shows the result and offers "Play again" — the next \`[game-turn]\` only arrives if a new game starts.
 
@@ -793,7 +793,7 @@ You respond (center is the strongest reply):
 
 ### Worked example — [game-turn] battleships fire
 
-You receive a battle-phase view with \`action":"fire"\` and \`legalCells\`. Respond:
+You receive a battle-phase view with \`action":"fire"\`, \`legalCells\`, and \`preferredCells\` (best scatter targets — do not pick the lowest legalCells index). Respond with one of \`preferredCells\` when present:
 
 { "messages": [ { "type": "game-move", "surfaceId": "bs-1", "move": { "action": "fire", "cell": 14 } } ] }`;
 }

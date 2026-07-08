@@ -129,7 +129,18 @@ export class GameOrchestrator {
       return true;
     }
     const legal = engine.legalMoves(state, "agent");
-    const fallback = legal[Math.floor(Math.random() * legal.length)];
+    let fallback = legal[0];
+    if (engine.rankMoves && legal.length > 0) {
+      const scores = engine.rankMoves(state, "agent", legal);
+      const ranked = legal
+        .map((move, index) => ({ move, score: scores[index]! }))
+        .sort((a, b) => b.score - a.score);
+      const topScore = ranked[0]!.score;
+      const pool = ranked.filter((row) => row.score >= topScore - 1).map((row) => row.move);
+      fallback = pool[Math.floor(Math.random() * pool.length)] ?? ranked[0]!.move;
+    } else if (legal.length > 0) {
+      fallback = legal[Math.floor(Math.random() * legal.length)];
+    }
     if (fallback !== undefined) {
       const result = engine.applyMove(state, fallback, "agent");
       if (result.ok) {
