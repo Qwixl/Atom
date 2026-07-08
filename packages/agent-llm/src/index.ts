@@ -1,7 +1,7 @@
 export { LlmAgentSession } from "./LlmAgentSession.js";
 export type { LlmConfig, LlmAgentSessionOptions } from "./LlmAgentSession.js";
 export { listOpenAiCompatibleModels } from "./listModels.js";
-export { discoverModelCapabilities, inferModelCapabilities, normalizeModelCapabilityProfile, formatNativeToolsLabel } from "./modelCapabilities.js";
+export { discoverModelCapabilities, inferModelCapabilities, normalizeModelCapabilityProfile, capabilitiesNeedRefresh, formatNativeToolsLabel } from "./modelCapabilities.js";
 export type { ModelCapabilityProfile, NativeToolId, ProviderKind, ModelFamily } from "./modelCapabilities.js";
 export {
   parseProviderModelMetadata,

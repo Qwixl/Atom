@@ -26,6 +26,8 @@ export interface PromptProfile {
   calendarContext?: string;
   /** Read-only RSS snapshot (Settings → Connectors; vault unlock + feed change only). */
   rssContext?: string;
+  /** Optional owner briefing topic prefs (F6-1 passive snapshot). */
+  briefingContext?: string;
   /** Live chat surface the shell is showing (same surfaceId = in-place update). */
   activeSurface?: {
     surfaceId: string;
@@ -172,13 +174,25 @@ The shell is running this game in the game modal. The shell's game engine owns t
 ${lines.join("\n")}`;
 }
 
+function briefingSection(profile: PromptProfile | undefined): string {
+  const ctx = profile?.briefingContext?.trim();
+  if (!ctx) return "";
+  return `## Briefing preferences (F6-1)
+
+${ctx}
+
+When the owner opens chat or asks for a roundup, you may lead with a concise briefing using \
+calendar + RSS snapshots and general knowledge — do not refuse topics outside RSS.`;
+}
+
 function profileAndMemorySection(profile: PromptProfile | undefined): string {
   const calendar = calendarSection(profile);
   const rss = rssSection(profile);
+  const briefing = briefingSection(profile);
   const business = businessSection(profile);
   const active = activeSurfaceSection(profile);
   const core = `${profileSection(profile)}\n\n## Retrieved memory\n\n${memorySection(profile)}`;
-  const sections = [calendar, rss, business, active, core].filter((s) => s.length > 0);
+  const sections = [calendar, rss, briefing, business, active, core].filter((s) => s.length > 0);
   return sections.join("\n\n");
 }
 
