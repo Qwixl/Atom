@@ -8,6 +8,7 @@ import {
   createJsonPersistence,
   createTieredJsonPersistence,
   getGameEngine,
+  listGameModuleIds,
   GameOrchestrator,
   findActiveGameInFeed,
   activeGameContext,
@@ -37,6 +38,8 @@ import { CommsPanel } from "./CommsPanel.js";
 import { ChatFeedSurface } from "./chat/ChatFeedSurface.js";
 import { GameModal } from "./chat/GameModal.js";
 import { FeedAgentText } from "./chat/FeedAgentText.js";
+import { gameModuleLabel } from "./chat/gameModules.js";
+import { buildGameStartComposition } from "./chat/startGameComposition.js";
 import {
   buildLinkIntentMessage,
   friendlyLinkIntentLabel,
@@ -1241,6 +1244,8 @@ export function App() {
   setProfileRecordsRef.current = setProfileRecords;
   const setProfileProposalsRef = useRef(setProfileProposals);
   setProfileProposalsRef.current = setProfileProposals;
+  /** Set while an owner chrome Games menu launch is in flight. */
+  const ownerStartGameRef = useRef(false);
 
   const conversation = useMemo(
     () =>
@@ -1258,7 +1263,9 @@ export function App() {
           await registryRef.current.ensureModules(catalogRef.current, composition);
         },
         shouldReplaceSurface: (composition, feed) =>
-          allowCompositionDuringGame(composition, feed),
+          allowCompositionDuringGame(composition, feed, {
+            ownerStart: ownerStartGameRef.current,
+          }),
         shouldAppendAgentText: (_text, feed) => !isActiveShellGameOnFeed(feed),
         onRegistryError: (message) => setRegistryErrorRef.current(message),
         onGameMove: (surfaceId, move) =>
@@ -1844,6 +1851,29 @@ export function App() {
     setPanel(next);
   }
 
+  const loadedGames = useMemo(
+    () =>
+      listGameModuleIds()
+        .filter((moduleId) => catalog.isModuleInstalled(moduleId))
+        .map((moduleId) => ({ moduleId, label: gameModuleLabel(moduleId) }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [catalog],
+  );
+
+  async function startGameFromMenu(moduleId: string) {
+    if (!getGameEngine(moduleId) || !catalog.isModuleInstalled(moduleId)) return;
+    navigatePanel("none");
+    setGameModalDismissedId(null);
+    ownerStartGameRef.current = true;
+    try {
+      await conversationRef.current.showComposition(buildGameStartComposition(moduleId));
+      gameOrchestratorRef.current.resetTurnState();
+      gameOrchestratorRef.current.ensureAgentMove(gameCallbacksRef.current);
+    } finally {
+      ownerStartGameRef.current = false;
+    }
+  }
+
   const profileNavBadge = profileProposals.length
     ? { count: profileProposals.length, tone: "warn" as const }
     : profileRecords.length
@@ -1904,6 +1934,8 @@ export function App() {
             </button>
           ) : undefined
         }
+        games={loadedGames}
+        onStartGame={(moduleId) => void startGameFromMenu(moduleId)}
         badges={{
           ...(commsUnreadCount > 0 ? { comms: { count: commsUnreadCount } } : {}),
           ...(profileNavBadge ? { profile: profileNavBadge } : {}),

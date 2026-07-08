@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-08T14:41:25.704Z",
+  "updatedAt": "2026-07-08T15:04:23.115Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
@@ -132,18 +132,6 @@
       "signatureUrl": "signature.sigstore.json"
     },
     {
-      "id": "games/tictactoe",
-      "version": "1.0.0",
-      "manifestUrl": "games/tictactoe/manifest.json",
-      "integrity": "sha256:352efe28e1bccfb1617d690a8156487b487e5055e366938272c1b7e354f31a33",
-      "bundleIntegrity": "sha256:aaf396f17137d3f1403d5ae64d5399484c467df26dd986a8a2ab91b8ecfac5f0",
-      "publisher": "did:key:z6Mkatomexamples01",
-      "categories": [
-        "games"
-      ],
-      "signatureUrl": "signature.sigstore.json"
-    },
-    {
       "id": "media/audio-player",
       "version": "1.0.0",
       "manifestUrl": "media/audio-player/manifest.json",
@@ -213,6 +201,19 @@
       "manifestUrl": "games/battleships/manifest.json",
       "integrity": "sha256:7d55899746940aba40594d97dde8727fe6dc7adcb15fd15c3c6ec6a48e2323b7",
       "bundleIntegrity": "sha256:e5ba7141f2bc8525957f5275c7fdc030762253963bc0bbbadf3f3379ee8cbe99",
+      "publisher": "did:key:z6Mkatomexamples01",
+      "categories": [
+        "games"
+      ],
+      "tier": "system",
+      "signatureUrl": "signature.sigstore.json"
+    },
+    {
+      "id": "games/tictactoe",
+      "version": "1.0.0",
+      "manifestUrl": "games/tictactoe/manifest.json",
+      "integrity": "sha256:3cbdddb15401789a6b38eb3610af7a4cec4575e6112bf475cb75f6ddac6a22a9",
+      "bundleIntegrity": "sha256:aaf396f17137d3f1403d5ae64d5399484c467df26dd986a8a2ab91b8ecfac5f0",
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
         "games"

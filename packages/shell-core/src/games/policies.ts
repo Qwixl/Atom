@@ -35,11 +35,15 @@ export function sanitizeNewGameComposition(composition: Composition): void {
  * the agent must not emit a **new game** composition. Non-game surfaces
  * (core/card, scheduling modules, etc.) are always allowed — upsertFeedSurface
  * replaces the prior surface. Mid-game the agent's game channel is game-move.
+ *
+ * Owner chrome (Games menu) may force a replacement while a game is active.
  */
 export function allowCompositionDuringGame(
   composition: Composition,
   feed: readonly FeedItem[],
+  options?: { ownerStart?: boolean },
 ): boolean {
+  if (options?.ownerStart) return true;
   if (!gameModuleInComposition(composition.root)) return true;
   const active = findActiveGameInFeed(feed);
   if (!active) return true;

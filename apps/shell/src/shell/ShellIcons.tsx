@@ -130,6 +130,27 @@ export function IconMenu(props: IconProps) {
   );
 }
 
+/** Space-invader silhouette for the Games chrome control. */
+export function IconGames(props: IconProps) {
+  return (
+    <svg
+      className={props.className}
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden={props.label ? undefined : true}
+      aria-label={props.label}
+      role={props.label ? "img" : undefined}
+    >
+      {/* Scaled to fill the viewBox — pixel art otherwise reads smaller than stroke icons. */}
+      <g transform="translate(12 12) scale(1.22) translate(-12 -12)">
+        <path d="M9 3h2v2H9zm4 0h2v2h-2zM7 5h2v2H7zm8 0h2v2h-2zM5 7h14v2H5zm0 2h2v2H5zm4 0h6v2H9zm6 0h2v2h-2zM3 11h2v4H3zm4 0h2v2H7zm8 0h2v2h-2zm4 0h2v4h-2zM7 13h2v2H7zm8 0h2v2h-2zM5 15h2v2H5zm4 0h2v2H9zm4 0h2v2h-2zm4 0h2v2h-2zM7 17h2v2H7zm8 0h2v2h-2z" />
+      </g>
+    </svg>
+  );
+}
+
 export function IconAtomMark(props: IconProps) {
   return (
     <svg className={props.className} width={24} height={24} viewBox="0 0 24 24" aria-hidden="true">

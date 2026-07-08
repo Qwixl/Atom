@@ -1,5 +1,6 @@
 import { ThemeToggle } from "../theme/ThemeToggle.js";
 import type { ShellNavPanel } from "./ShellSidebar.js";
+import { GamesMenu, type GamesMenuItem } from "./GamesMenu.js";
 import {
   IconChat,
   IconDiscover,
@@ -28,6 +29,9 @@ type AtomShellProps = {
   status?: React.ReactNode;
   banner?: React.ReactNode;
   headerActions?: React.ReactNode;
+  /** Shell-arbitrated games available in the trusted catalog. */
+  games?: readonly GamesMenuItem[];
+  onStartGame?: (moduleId: string) => void;
   composer?: React.ReactNode;
   lockedSections?: ShellNavPanel[];
   showDemoTag?: boolean;
@@ -83,6 +87,8 @@ export function AtomShell({
   status,
   banner,
   headerActions,
+  games = [],
+  onStartGame,
   composer,
   lockedSections = [],
   showDemoTag = false,
@@ -137,6 +143,9 @@ export function AtomShell({
           >
             <IconSettings className="atom-nav-icon" />
           </button>
+          {onStartGame ? (
+            <GamesMenu games={games} onSelect={onStartGame} />
+          ) : null}
           <button
             type="button"
             className={`btn btn-ghost atom-app-log-trigger panel-btn-icon${section === "log" ? " is-active" : ""}`}

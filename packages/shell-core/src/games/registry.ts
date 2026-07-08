@@ -14,6 +14,11 @@ export function getGameEngine(moduleId: string): GameEngine | null {
   return engines.get(moduleId) ?? null;
 }
 
+/** Ids of shell-arbitrated game engines currently registered. */
+export function listGameModuleIds(): string[] {
+  return [...engines.keys()];
+}
+
 /** Register an engine (module ecosystem: engines can ship beside modules). */
 export function registerGameEngine(engine: GameEngine): void {
   engines.set(engine.moduleId, engine);
