@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-08T14:18:50.871Z",
+  "updatedAt": "2026-07-08T14:41:25.704Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
@@ -211,8 +211,8 @@
       "id": "games/battleships",
       "version": "1.0.0",
       "manifestUrl": "games/battleships/manifest.json",
-      "integrity": "sha256:d35816e66bbc6085c2a242e6d63320291c4491ca07a15bac08b8d3777979ebd0",
-      "bundleIntegrity": "sha256:2a742c8dbeb1bd58be9ad8a2b6e90c79621ce115ac164b8ea9b7e6442e4aeda5",
+      "integrity": "sha256:7d55899746940aba40594d97dde8727fe6dc7adcb15fd15c3c6ec6a48e2323b7",
+      "bundleIntegrity": "sha256:e5ba7141f2bc8525957f5275c7fdc030762253963bc0bbbadf3f3379ee8cbe99",
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
         "games"
