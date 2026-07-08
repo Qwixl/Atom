@@ -71,12 +71,29 @@ export interface StoredCalDavAccount {
   addedAt: number;
 }
 
+export interface StoredShopifyStore {
+  shop: string;
+  accessToken: string;
+  configuredAt: number;
+}
+
+export interface StoredWooCommerceStore {
+  storeUrl: string;
+  consumerKey: string;
+  consumerSecret: string;
+  configuredAt: number;
+}
+
 interface ConnectorVaultPayload {
   schemaVersion: 1;
   oauth?: Record<string, StoredOAuthTokens>;
   oauthClients?: Record<string, StoredOAuthClient>;
   apiTokens?: Record<string, StoredApiToken>;
   caldavAccounts?: StoredCalDavAccount[];
+  businessStores?: {
+    shopify?: StoredShopifyStore;
+    woocommerce?: StoredWooCommerceStore;
+  };
   webcalFeeds?: StoredWebcalFeed[];
   rssFeeds?: StoredRssFeed[];
   bookmarks?: StoredBookmark[];
@@ -232,6 +249,64 @@ export class ConnectorVault {
     this.payload.caldavAccounts = next;
     await this.persist();
     return true;
+  }
+
+  getShopifyStore(): StoredShopifyStore | undefined {
+    return this.payload.businessStores?.shopify;
+  }
+
+  async setShopifyStore(shop: string, accessToken: string): Promise<void> {
+    const trimmedShop = shop.trim();
+    const trimmedToken = accessToken.trim();
+    if (!trimmedShop || !trimmedToken) {
+      throw new Error("shop and accessToken required");
+    }
+    this.payload.businessStores ??= {};
+    this.payload.businessStores.shopify = {
+      shop: trimmedShop,
+      accessToken: trimmedToken,
+      configuredAt: Date.now(),
+    };
+    await this.persist();
+  }
+
+  async clearShopifyStore(): Promise<void> {
+    if (this.payload.businessStores?.shopify) {
+      delete this.payload.businessStores.shopify;
+      await this.persist();
+    }
+  }
+
+  getWooCommerceStore(): StoredWooCommerceStore | undefined {
+    return this.payload.businessStores?.woocommerce;
+  }
+
+  async setWooCommerceStore(
+    storeUrl: string,
+    consumerKey: string,
+    consumerSecret: string,
+  ): Promise<void> {
+    const url = storeUrl.trim();
+    const key = consumerKey.trim();
+    const secret = consumerSecret.trim();
+    if (!url || !key || !secret) {
+      throw new Error("storeUrl, consumerKey, and consumerSecret required");
+    }
+    this.payload.businessStores ??= {};
+    this.payload.businessStores.woocommerce = {
+      storeUrl: url,
+      consumerKey: key,
+      consumerSecret: secret,
+      configuredAt: Date.now(),
+    };
+    await this.persist();
+  }
+
+  async clearWooCommerceStore(): Promise<void> {
+    if (this.payload.businessStores?.woocommerce) {
+      delete this.payload.businessStores.woocommerce;
+      await this.persist();
+    }
   }
 
   getWebcalFeeds(): StoredWebcalFeed[] {
