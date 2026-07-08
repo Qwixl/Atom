@@ -1,6 +1,12 @@
 import type { Express } from "express";
 import { BUSINESS_POLICY_CATEGORY, type BusinessCatalogItemValue } from "@qwixl/owner-store";
+import { allowDevBypassApproval, requireApprovalRef } from "./approvalRef.js";
 import type { BusinessCatalogStore } from "./businessCatalogStore.js";
+import {
+  importShopifyCatalog,
+  importWooCommerceCatalog,
+} from "./businessCatalogImport.js";
+import type { ConnectorVault } from "./connectorVault.js";
 import type { BusinessContextStore, BusinessContextRecord } from "./businessContextStore.js";
 import { parseBusinessContextRecord } from "./businessContextStore.js";
 import type {
@@ -17,6 +23,34 @@ export interface BusinessAdminDeps {
   knowledge: BusinessKnowledgeBackend;
   store: BusinessStore;
   verification: BusinessVerificationStore;
+  vault: ConnectorVault;
+}
+
+function readApprovalRef(req: { body?: unknown; query?: unknown }): string | undefined {
+  const body = req.body as { approvalRef?: string } | undefined;
+  const fromBody = body?.approvalRef?.trim();
+  if (fromBody) return fromBody;
+  const fromQuery = (req.query as { approvalRef?: string } | undefined)?.approvalRef;
+  return typeof fromQuery === "string" ? fromQuery.trim() : undefined;
+}
+
+function assertBusinessWriteApproval(req: { body?: unknown; query?: unknown }): string {
+  return requireApprovalRef(readApprovalRef(req), { allowDevBypass: allowDevBypassApproval() });
+}
+
+function syncCatalogToKnowledge(
+  knowledge: BusinessKnowledgeBackend,
+  items: BusinessCatalogItemValue[],
+): void {
+  for (const item of items) {
+    if (!item.description?.trim()) continue;
+    knowledge.upsert({
+      id: `product-${item.catalogItemId}`,
+      title: item.label,
+      category: "product",
+      body: item.description.trim(),
+    });
+  }
 }
 
 export function syncContextPoliciesToKnowledge(
@@ -108,6 +142,153 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
       return;
     }
     res.json({ ok: true });
+  });
+
+  adminApp.get("/business/store/status", (_req, res) => {
+    const shopify = deps.vault.getShopifyStore();
+    const woocommerce = deps.vault.getWooCommerceStore();
+    res.json({
+      shopify: { configured: Boolean(shopify?.accessToken), configuredAt: shopify?.configuredAt },
+      woocommerce: {
+        configured: Boolean(woocommerce?.consumerKey),
+        configuredAt: woocommerce?.configuredAt,
+      },
+    });
+  });
+
+  adminApp.post("/business/store/shopify", async (req, res) => {
+    try {
+      assertBusinessWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const body = req.body as { shop?: string; accessToken?: string };
+    const shop = body.shop?.trim();
+    const accessToken = body.accessToken?.trim();
+    if (!shop || !accessToken) {
+      res.status(400).json({ error: "shop and accessToken required" });
+      return;
+    }
+    try {
+      await deps.vault.setShopifyStore(shop, accessToken);
+      res.json({ configured: true });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.delete("/business/store/shopify", async (req, res) => {
+    try {
+      assertBusinessWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    await deps.vault.clearShopifyStore();
+    res.json({ removed: true });
+  });
+
+  adminApp.post("/business/store/woocommerce", async (req, res) => {
+    try {
+      assertBusinessWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const body = req.body as { storeUrl?: string; consumerKey?: string; consumerSecret?: string };
+    const storeUrl = body.storeUrl?.trim();
+    const consumerKey = body.consumerKey?.trim();
+    const consumerSecret = body.consumerSecret?.trim();
+    if (!storeUrl || !consumerKey || !consumerSecret) {
+      res.status(400).json({ error: "storeUrl, consumerKey, and consumerSecret required" });
+      return;
+    }
+    try {
+      await deps.vault.setWooCommerceStore(storeUrl, consumerKey, consumerSecret);
+      res.json({ configured: true });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.delete("/business/store/woocommerce", async (req, res) => {
+    try {
+      assertBusinessWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    await deps.vault.clearWooCommerceStore();
+    res.json({ removed: true });
+  });
+
+  adminApp.post("/business/catalog/import/shopify", async (req, res) => {
+    try {
+      assertBusinessWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const stored = deps.vault.getShopifyStore();
+    if (!stored) {
+      res.status(400).json({ error: "Shopify store not configured" });
+      return;
+    }
+    const body = req.body as { limit?: number; syncKnowledge?: boolean };
+    try {
+      const imported = await importShopifyCatalog(stored.shop, stored.accessToken, body.limit);
+      deps.catalog.replaceAll(imported.items);
+      if (body.syncKnowledge !== false) {
+        syncCatalogToKnowledge(deps.knowledge, imported.items);
+      }
+      res.json({
+        source: "shopify",
+        importedCount: imported.items.length,
+        currency: imported.currency,
+        catalog: deps.catalog.list(),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(/not configured|required/i.test(message) ? 400 : 502).json({ error: message });
+    }
+  });
+
+  adminApp.post("/business/catalog/import/woocommerce", async (req, res) => {
+    try {
+      assertBusinessWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const stored = deps.vault.getWooCommerceStore();
+    if (!stored) {
+      res.status(400).json({ error: "WooCommerce store not configured" });
+      return;
+    }
+    const body = req.body as { limit?: number; currency?: string; syncKnowledge?: boolean };
+    try {
+      const imported = await importWooCommerceCatalog(
+        stored.storeUrl,
+        stored.consumerKey,
+        stored.consumerSecret,
+        body.limit,
+        body.currency,
+      );
+      deps.catalog.replaceAll(imported.items);
+      if (body.syncKnowledge !== false) {
+        syncCatalogToKnowledge(deps.knowledge, imported.items);
+      }
+      res.json({
+        source: "woocommerce",
+        importedCount: imported.items.length,
+        currency: imported.currency,
+        catalog: deps.catalog.list(),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(/not configured|required/i.test(message) ? 400 : 502).json({ error: message });
+    }
   });
 
   adminApp.get("/business/context", (_req, res) => {
