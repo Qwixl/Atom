@@ -1,3 +1,4 @@
+import { validateHttpsUrl } from "@qwixl/shell-core";
 import type { CommsAgentClient } from "./client.js";
 
 export interface RssItemSummary {
@@ -10,6 +11,11 @@ export interface RssItemSummary {
 
 function formatItemLine(item: RssItemSummary): string {
   const date = item.published ? ` (${item.published})` : "";
+  const link = item.link?.trim();
+  const safeLink = link ? validateHttpsUrl(link) : null;
+  if (safeLink) {
+    return `- [${item.title}](${safeLink})${date}`;
+  }
   return `- ${item.title}${date}`;
 }
 
@@ -65,10 +71,7 @@ export function formatRssContextForPrompt(opts: {
   return [
     `Optional owner RSS snapshot (not a restriction on what you can discuss). ${labels}`,
     lines.length > 0
-      ? `Recent items:\n${lines.join("\n")}`
+      ? `Recent items:\n${lines.join("\n")}\n\nIn daily briefings include up to 5 linked headlines from this list under a feed-oriented card — separate from briefing topic news.`
       : "Recent items: none returned from feeds.",
-    lines.length > 0
-      ? "Use for feed-specific questions only; general news uses your own capabilities."
-      : "If the owner asks for feed headlines and none returned, suggest checking feed URLs in Settings.",
   ].join("\n\n");
 }

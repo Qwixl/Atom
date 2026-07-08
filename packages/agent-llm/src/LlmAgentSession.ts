@@ -21,6 +21,7 @@ import { wrapUntrustedContent } from "./untrusted.js";
 import { callResponsesApi } from "./responsesApi.js";
 import { buildImageResultProtocol } from "./imageProtocol.js";
 import { formatLlmProviderError, isResponsesApiFallbackEligible } from "./llmProviderErrors.js";
+import { coalesceTurnMessages } from "./coalesceTurnMessages.js";
 
 export interface LlmConfig {
   /** OpenAI-compatible base URL, e.g. "https://api.openai.com/v1". */
@@ -106,7 +107,7 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
 
   private systemPromptFingerprintKey(): string {
     const profile = this.profileProvider?.();
-    return `${this.catalog.list().length}:${JSON.stringify(profile?.open?.length ?? 0)}:${profile?.calendarContext?.length ?? 0}:${profile?.rssContext?.length ?? 0}`;
+    return `${this.catalog.list().length}:${JSON.stringify(profile?.open?.length ?? 0)}:${profile?.calendarContext?.length ?? 0}:${profile?.rssContext?.length ?? 0}:${profile?.briefingContext?.length ?? 0}:${profile?.briefingContext ?? ""}:${profile?.discoveryPathContext?.length ?? 0}:${profile?.discoveryPathContext ?? ""}:${profile?.interestConnectionsContext?.length ?? 0}:${profile?.interestConnectionsContext ?? ""}:${profile?.pathIntersectionContext?.length ?? 0}:${profile?.pathIntersectionContext ?? ""}`;
   }
 
   private currentSystemPrompt(): string {
@@ -220,7 +221,7 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
       }
     }
 
-    for (const message of (parsed as { messages: unknown[] }).messages) {
+    for (const message of coalesceTurnMessages((parsed as { messages: unknown[] }).messages)) {
       this.emitAgentMessage(message);
     }
   }

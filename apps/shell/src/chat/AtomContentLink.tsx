@@ -19,7 +19,7 @@ function LinkToolMenu({
 }) {
   return (
     <span
-      ref={menuRef}
+      ref={menuRef as React.RefObject<HTMLSpanElement>}
       className="atom-link-tool-menu atom-link-tool-menu--portal"
       id={id}
       role="menu"

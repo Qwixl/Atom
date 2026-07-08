@@ -15,9 +15,15 @@ export type FeedItem =
   | { kind: "agent-text"; id: string; text: string }
   | { kind: "surface"; id: string; surface: ResolvedSurface };
 
+export const BRIEFING_SURFACE_ID = "briefing-daily";
+
+export function isBriefingSurface(surface: ResolvedSurface): boolean {
+  return surface.surfaceId === BRIEFING_SURFACE_ID;
+}
+
 /**
  * Shell feed policy:
- * - Read-only surfaces (schedule, cards, etc.) append and stay in chat history.
+ * - Read-only surfaces append and stay in chat history, except briefing-daily which replaces prior briefing.
  * - Interactive game surfaces are singular: update by surfaceId, replace prior games.
  * Text messages always append.
  */
@@ -27,9 +33,21 @@ export function upsertFeedSurface(
   id: string,
 ): FeedItem[] {
   if (!isInteractiveSurface(surface)) {
+    if (isBriefingSurface(surface)) {
+      const existingIdx = feed.findIndex(
+        (item) => item.kind === "surface" && item.surface.surfaceId === surface.surfaceId,
+      );
+      if (existingIdx >= 0) {
+        const prev = feed[existingIdx];
+        if (prev?.kind === "surface") {
+          const next = [...feed];
+          next[existingIdx] = { kind: "surface", id: prev.id, surface };
+          return next;
+        }
+      }
+    }
     return [...feed, { kind: "surface", id, surface }];
   }
-
   const existingIdx = feed.findIndex(
     (item) => item.kind === "surface" && item.surface.surfaceId === surface.surfaceId,
   );
