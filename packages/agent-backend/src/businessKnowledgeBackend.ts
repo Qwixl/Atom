@@ -36,6 +36,10 @@ export interface BusinessKnowledgeBackend {
   remove(documentId: string): boolean;
   replaceAll(documents: BusinessKnowledgeDocument[]): void;
   retrieve(query: string, limit?: number): string[];
+  /** Semantic retrieval when ATOM_EMBEDDER=api (awaits pending async reindex). */
+  retrieveAsync?(query: string, limit?: number): Promise<string[]>;
+  /** Rebuild chunk embeddings via API embedder when configured. */
+  reindexAsync?(): Promise<void>;
 }
 
 /** Supported values for `ATOM_BUSINESS_KNOWLEDGE_BACKEND`. */

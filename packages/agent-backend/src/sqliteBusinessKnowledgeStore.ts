@@ -2,9 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
+  createOptionalAsyncTextEmbedder,
   createTextEmbedder,
   hybridRetrievalScore,
   scoreTokenOverlap,
+  type AsyncTextEmbedder,
   type TextEmbedder,
 } from "@qwixl/owner-store";
 import type {
@@ -56,11 +58,18 @@ export class SqliteBusinessKnowledgeStore implements BusinessKnowledgeBackend {
   static readonly storeMeta = AGENT_STORE_REGISTRY.businessKnowledge;
   private readonly filePath: string;
   private readonly embedder: TextEmbedder;
+  private readonly asyncEmbedder: AsyncTextEmbedder | null;
   private db: DatabaseSync | null = null;
+  private reindexQueue: Promise<void> = Promise.resolve();
 
-  constructor(filePath: string, embedder: TextEmbedder = createTextEmbedder()) {
+  constructor(
+    filePath: string,
+    embedder: TextEmbedder = createTextEmbedder(),
+    asyncEmbedder: AsyncTextEmbedder | null = createOptionalAsyncTextEmbedder(),
+  ) {
     this.filePath = filePath;
     this.embedder = embedder;
+    this.asyncEmbedder = asyncEmbedder;
   }
 
   async load(): Promise<void> {
@@ -159,6 +168,7 @@ export class SqliteBusinessKnowledgeStore implements BusinessKnowledgeBackend {
          updated_at = excluded.updated_at`,
     ).run(doc.id, doc.title, doc.category, doc.body, doc.updatedAt);
     this.replaceChunksForDocument(doc);
+    this.scheduleAsyncReindexForDocument(doc);
     return doc;
   }
 
@@ -202,6 +212,38 @@ export class SqliteBusinessKnowledgeStore implements BusinessKnowledgeBackend {
       .all() as unknown as ChunkRow[];
     if (rows.length === 0) return [];
     const queryEmbedding = this.embedder(trimmed);
+    return this.scoreRows(trimmed, queryEmbedding, rows, limit);
+  }
+
+  async retrieveAsync(query: string, limit = 6): Promise<string[]> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    await this.reindexQueue;
+    const rows = this.requireDb()
+      .prepare(
+        `SELECT id, document_id, title, category, text, embedding_json FROM chunks`,
+      )
+      .all() as unknown as ChunkRow[];
+    if (rows.length === 0) return [];
+    const queryEmbedding = this.asyncEmbedder
+      ? await this.asyncEmbedder(trimmed)
+      : this.embedder(trimmed);
+    return this.scoreRows(trimmed, queryEmbedding, rows, limit);
+  }
+
+  async reindexAsync(): Promise<void> {
+    if (!this.asyncEmbedder) return;
+    for (const doc of this.list()) {
+      await this.replaceChunksForDocumentAsync(doc);
+    }
+  }
+
+  private scoreRows(
+    trimmed: string,
+    queryEmbedding: number[],
+    rows: ChunkRow[],
+    limit: number,
+  ): string[] {
     return rows
       .map((row) => {
         let embedding: number[] = [];
@@ -239,6 +281,43 @@ export class SqliteBusinessKnowledgeStore implements BusinessKnowledgeBackend {
         JSON.stringify(this.embedder(text)),
       );
     }
+  }
+
+  private async replaceChunksForDocumentAsync(doc: BusinessKnowledgeDocument): Promise<void> {
+    if (!this.asyncEmbedder) {
+      this.replaceChunksForDocument(doc);
+      return;
+    }
+    const db = this.requireDb();
+    db.prepare(`DELETE FROM chunks WHERE document_id = ?`).run(doc.id);
+    const insert = db.prepare(
+      `INSERT INTO chunks (id, document_id, title, category, text, embedding_json)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    const parts = chunkDocumentText(doc.body);
+    for (let index = 0; index < parts.length; index += 1) {
+      const text = parts[index]!;
+      const embedding = await this.asyncEmbedder(text);
+      insert.run(
+        `${doc.id}:${index}`,
+        doc.id,
+        doc.title,
+        doc.category,
+        text,
+        JSON.stringify(embedding),
+      );
+    }
+  }
+
+  private scheduleAsyncReindexForDocument(doc: BusinessKnowledgeDocument): void {
+    if (!this.asyncEmbedder) return;
+    this.reindexQueue = this.reindexQueue
+      .then(() => this.replaceChunksForDocumentAsync(doc))
+      .catch((error) => {
+        console.warn(
+          `[business-knowledge] async reindex failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
   }
 
   close(): void {
