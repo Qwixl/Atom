@@ -19,6 +19,12 @@ export const RSS_CONNECTOR_OPERATIONS: ConnectorOperationSpec[] = [
     description: "List recent items from configured feeds.",
     cacheTtlMs: DEFAULT_CONNECTOR_READ_CACHE_TTL_MS,
   },
+  {
+    id: "listPodcastItems",
+    permission: "read",
+    description: "List recent RSS items that include audio enclosures (podcasts).",
+    cacheTtlMs: DEFAULT_CONNECTOR_READ_CACHE_TTL_MS,
+  },
 ];
 
 export function rssConnectorOperation(id: string): ConnectorOperationSpec | undefined {
@@ -58,6 +64,24 @@ export async function invokeRssConnector(
       }
       const limit = Number(input.limit ?? 20);
       const items = await fetchRssItems(selected, Number.isFinite(limit) ? limit : 20);
+      return { operation: operationId, result: { items } };
+    }
+    case "listPodcastItems": {
+      if (feeds.length === 0) {
+        throw new Error("No RSS feeds configured — add a podcast RSS feed in Settings");
+      }
+      const feedId = String(input.feedId ?? "").trim();
+      const selected = feedId ? feeds.filter((feed) => feed.id === feedId) : feeds;
+      if (feedId && selected.length === 0) {
+        throw new Error(`Unknown feed id "${feedId}"`);
+      }
+      const limit = Number(input.limit ?? 20);
+      const allItems = await fetchRssItems(selected, Number.isFinite(limit) ? limit : 20);
+      const items = allItems.filter(
+        (item) =>
+          Boolean(item.enclosureUrl) &&
+          (!item.enclosureType || item.enclosureType.startsWith("audio/")),
+      );
       return { operation: operationId, result: { items } };
     }
     default:

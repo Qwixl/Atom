@@ -649,6 +649,36 @@ export class CommsAgentClient {
     );
   }
 
+  async addCalDavAccount(
+    input: { label?: string; calendarUrl: string; username: string; password: string },
+    approvalRef?: string,
+  ): Promise<{ account: { id: string; label: string } }> {
+    return postJson(this.base(), "/connectors/caldav/accounts", { ...input, approvalRef }, this.auth, true);
+  }
+
+  async removeCalDavAccount(accountId: string, approvalRef?: string): Promise<{ removed: boolean; accountId: string }> {
+    const query = approvalRef?.trim() ? `?approvalRef=${encodeURIComponent(approvalRef.trim())}` : "";
+    const headers: Record<string, string> = {};
+    const bearer = this.bearer(true);
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    const resp = await fetch(`${this.base()}/connectors/caldav/accounts/${encodeURIComponent(accountId)}${query}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (!resp.ok) {
+      const err = (await resp.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? `Request failed (${resp.status})`);
+    }
+    return resp.json() as Promise<{ removed: boolean; accountId: string }>;
+  }
+
+  async createCalDavEvent(
+    input: { accountId: string; summary: string; start: string; end: string; description?: string },
+    approvalRef?: string,
+  ): Promise<{ event: { uid: string; summary: string } }> {
+    return postJson(this.base(), "/connectors/caldav/events", { ...input, approvalRef }, this.auth, true);
+  }
+
   async listMcpServers(): Promise<{
     servers: Array<{
       id: string;

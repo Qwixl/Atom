@@ -6,6 +6,8 @@ export interface RssItemSummary {
   link?: string;
   published?: string;
   feedId: string;
+  enclosureUrl?: string;
+  enclosureType?: string;
 }
 
 function decodeXmlEntities(value: string): string {
@@ -34,6 +36,23 @@ function linkHref(block: string): string | undefined {
   return firstTag(block, "link");
 }
 
+function enclosureFromBlock(block: string): { url?: string; type?: string } {
+  const tagMatch = block.match(/<enclosure\b([^>]*)\/?>/i);
+  if (tagMatch?.[1]) {
+    const attrs = tagMatch[1];
+    const url = attrs.match(/\burl=["']([^"']+)["']/i)?.[1]?.trim();
+    const type = attrs.match(/\btype=["']([^"']+)["']/i)?.[1]?.trim();
+    if (url) return { url, type };
+  }
+  const atomEnclosure = block.match(
+    /<link[^>]+rel=["']enclosure["'][^>]+href=["']([^"']+)["'][^>]*(?:type=["']([^"']+)["'])?/i,
+  );
+  if (atomEnclosure?.[1]) {
+    return { url: atomEnclosure[1].trim(), type: atomEnclosure[2]?.trim() };
+  }
+  return {};
+}
+
 export function parseRssOrAtomFeed(xml: string, feedId: string): RssItemSummary[] {
   const items: RssItemSummary[] = [];
   const isAtom = /<feed[\s>]/i.test(xml);
@@ -49,12 +68,15 @@ export function parseRssOrAtomFeed(xml: string, feedId: string): RssItemSummary[
       firstTag(block, "published") ??
       firstTag(block, "updated") ??
       firstTag(block, "pubDate");
+    const enclosure = enclosureFromBlock(block);
     items.push({
       id: `${feedId}-${index}`,
       title,
       link: linkHref(block),
       published,
       feedId,
+      enclosureUrl: enclosure.url,
+      enclosureType: enclosure.type,
     });
     index += 1;
   }

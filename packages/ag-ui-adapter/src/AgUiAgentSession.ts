@@ -15,7 +15,7 @@ import {
 } from "./atom-events.js";
 import { formatConnectorResultMessage } from "./inbound.js";
 
-export type AtomConnectorId = "webcal" | "rss" | "news-search" | "bookmarks" | "todoist" | "github" | "notion";
+export type AtomConnectorId = "webcal" | "rss" | "news-search" | "bookmarks" | "todoist" | "github" | "notion" | "caldav" | "weather";
 
 export type AtomConnectorInvokeInput = {
   connectorId: AtomConnectorId;

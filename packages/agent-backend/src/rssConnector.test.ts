@@ -8,7 +8,7 @@ import { RSS_CONNECTOR_OPERATIONS, invokeRssConnector, rssConnectorOperation } f
 describe("rssConnector", () => {
   it("declares read-only operations", () => {
     const ids = RSS_CONNECTOR_OPERATIONS.map((op) => op.id).sort();
-    expect(ids).toEqual(["getStatus", "listItems"]);
+    expect(ids).toEqual(["getStatus", "listItems", "listPodcastItems"]);
     expect(rssConnectorOperation("writeItem")).toBeUndefined();
   });
 

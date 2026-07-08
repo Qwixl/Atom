@@ -36,6 +36,18 @@ import {
   todoistConnectorOperation,
 } from "./todoistConnector.js";
 import {
+  CALDAV_CONNECTOR_ID,
+  CALDAV_CONNECTOR_OPERATIONS,
+  caldavConnectorOperation,
+  invokeCalDavConnector,
+} from "./caldavConnector.js";
+import {
+  WEATHER_CONNECTOR_ID,
+  WEATHER_CONNECTOR_OPERATIONS,
+  invokeWeatherConnector,
+  weatherConnectorOperation,
+} from "./weatherConnector.js";
+import {
   WEBCAL_CONNECTOR_ID,
   WEBCAL_CONNECTOR_OPERATIONS,
   connectorOperation,
@@ -232,6 +244,61 @@ const CONNECTOR_BACKENDS = new Map<string, ConnectorBackend>([
       invokeNotionConnector,
       notionConnectorOperation,
     ),
+  ],
+  [
+    CALDAV_CONNECTOR_ID,
+    {
+      id: CALDAV_CONNECTOR_ID,
+      moduleId: "connectors/caldav",
+      provider: "caldav",
+      label: "CalDAV",
+      async status(vault) {
+        const accounts = vault.getCalDavAccounts();
+        return {
+          connectorId: CALDAV_CONNECTOR_ID,
+          moduleId: "connectors/caldav",
+          provider: "caldav",
+          label: "CalDAV",
+          configured: accounts.length > 0,
+          accountCount: accounts.length,
+          accounts: accounts.map((account) => ({ id: account.id, label: account.label })),
+          vaultOnly: true,
+          operations: CALDAV_CONNECTOR_OPERATIONS,
+        };
+      },
+      async invoke(vault, operation, input) {
+        return invokeCalDavConnector({ vault }, operation, input);
+      },
+      operationSpec(operation) {
+        return caldavConnectorOperation(operation);
+      },
+    },
+  ],
+  [
+    WEATHER_CONNECTOR_ID,
+    {
+      id: WEATHER_CONNECTOR_ID,
+      moduleId: "connectors/weather",
+      provider: "weather",
+      label: "Weather",
+      async status() {
+        return {
+          connectorId: WEATHER_CONNECTOR_ID,
+          moduleId: "connectors/weather",
+          provider: "weather",
+          label: "Weather (Open-Meteo)",
+          configured: true,
+          vaultOnly: false,
+          operations: WEATHER_CONNECTOR_OPERATIONS,
+        };
+      },
+      async invoke(vault, operation, input) {
+        return invokeWeatherConnector({ vault }, operation, input);
+      },
+      operationSpec(operation) {
+        return weatherConnectorOperation(operation);
+      },
+    },
   ],
 ]);
 

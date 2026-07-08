@@ -61,11 +61,22 @@ export interface StoredApiToken {
   configuredAt: number;
 }
 
+/** CalDAV account with Basic auth (Fastmail, Nextcloud, iCloud app password). */
+export interface StoredCalDavAccount {
+  id: string;
+  label: string;
+  calendarUrl: string;
+  username: string;
+  password: string;
+  addedAt: number;
+}
+
 interface ConnectorVaultPayload {
   schemaVersion: 1;
   oauth?: Record<string, StoredOAuthTokens>;
   oauthClients?: Record<string, StoredOAuthClient>;
   apiTokens?: Record<string, StoredApiToken>;
+  caldavAccounts?: StoredCalDavAccount[];
   webcalFeeds?: StoredWebcalFeed[];
   rssFeeds?: StoredRssFeed[];
   bookmarks?: StoredBookmark[];
@@ -189,6 +200,38 @@ export class ConnectorVault {
       delete this.payload.apiTokens[connectorId];
       await this.persist();
     }
+  }
+
+  getCalDavAccounts(): StoredCalDavAccount[] {
+    return this.payload.caldavAccounts ?? [];
+  }
+
+  async addCalDavAccount(input: {
+    label: string;
+    calendarUrl: string;
+    username: string;
+    password: string;
+  }): Promise<StoredCalDavAccount> {
+    const account: StoredCalDavAccount = {
+      id: crypto.randomUUID(),
+      label: input.label.trim() || "CalDAV",
+      calendarUrl: input.calendarUrl.trim(),
+      username: input.username.trim(),
+      password: input.password,
+      addedAt: Date.now(),
+    };
+    this.payload.caldavAccounts = [...this.getCalDavAccounts(), account];
+    await this.persist();
+    return account;
+  }
+
+  async removeCalDavAccount(accountId: string): Promise<boolean> {
+    const existing = this.getCalDavAccounts();
+    const next = existing.filter((account) => account.id !== accountId);
+    if (next.length === existing.length) return false;
+    this.payload.caldavAccounts = next;
+    await this.persist();
+    return true;
   }
 
   getWebcalFeeds(): StoredWebcalFeed[] {

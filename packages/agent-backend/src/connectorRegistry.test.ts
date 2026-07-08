@@ -7,6 +7,8 @@ import { WEBCAL_CONNECTOR_ID } from "./webcalConnector.js";
 import { TODOIST_CONNECTOR_ID } from "./todoistConnector.js";
 import { GITHUB_CONNECTOR_ID } from "./githubConnector.js";
 import { NOTION_CONNECTOR_ID } from "./notionConnector.js";
+import { CALDAV_CONNECTOR_ID } from "./caldavConnector.js";
+import { WEATHER_CONNECTOR_ID } from "./weatherConnector.js";
 
 describe("connectorRegistry", () => {
   it("registers hero connector backends", () => {
@@ -18,6 +20,8 @@ describe("connectorRegistry", () => {
         TODOIST_CONNECTOR_ID,
         GITHUB_CONNECTOR_ID,
         NOTION_CONNECTOR_ID,
+        CALDAV_CONNECTOR_ID,
+        WEATHER_CONNECTOR_ID,
       ]),
     );
     expect(getConnectorBackend(WEBCAL_CONNECTOR_ID)?.provider).toBe("webcal");
