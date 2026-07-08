@@ -106,6 +106,22 @@ export function parseConsequentialPayload(payload: unknown): AgentWireResult {
   return invalidAction(errors);
 }
 
+/** Parse AG-UI atom.game-move CUSTOM payload. */
+export function parseGameMovePayload(payload: unknown): AgentWireResult {
+  const body =
+    payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
+  if (body && typeof body.surfaceId === "string" && body.move !== undefined) {
+    return {
+      kind: "output",
+      output: { type: "game-move", surfaceId: body.surfaceId, move: body.move as never },
+    };
+  }
+  return {
+    kind: "reject",
+    text: '(The agent sent a malformed game move, blocked by the shell. Use: { "type": "game-move", "surfaceId": "<active surface>", "move": { "cell": 4 } })',
+  };
+}
+
 /** Parse AG-UI atom.data-request CUSTOM payload (bare request object). */
 export function parseDataRequestPayload(payload: unknown): AgentWireResult {
   const envelope =

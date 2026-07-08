@@ -109,6 +109,7 @@ export {
   parseCompositionValue,
   parseConsequentialPayload,
   parseDataRequestPayload,
+  parseGameMovePayload,
 } from "./agentOutput.js";
 export type { AgentWireResult, AgentWireReject } from "./agentOutput.js";
 
