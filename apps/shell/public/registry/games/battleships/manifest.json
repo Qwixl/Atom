@@ -15,10 +15,13 @@
           "name": "bsStart"
         },
         {
+          "name": "bsMove"
+        },
+        {
           "name": "bsCommit"
         }
       ],
-      "agentHint": "A2A-only (Messages / CommsPanel). Not on the shell-arbitrated Chat gaming path — pending Battleships GameEngine (Q24). 6×6 battleships with hashed ship commitments. Emits bsStart or bsCommit; battle shots fire from the thread card."
+      "agentHint": "Shell-arbitrated battleships for Chat (GameEngine owns fleets + hits). Setup place then fire. Emits bsStart or bsMove { action:'place'|'fire' }. Messages may still use bsCommit on the A2A path."
     }
   ],
   "capabilities": [],
@@ -26,5 +29,5 @@
     "games"
   ],
   "tier": "system",
-  "bundleIntegrity": "sha256:5b1a9dab44dbb9eb00903f828c36c1e29effc6b43fba6cf2956d092f772a0be5"
+  "bundleIntegrity": "sha256:2a742c8dbeb1bd58be9ad8a2b6e90c79621ce115ac164b8ea9b7e6442e4aeda5"
 }

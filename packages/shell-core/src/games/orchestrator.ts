@@ -34,10 +34,11 @@ export class GameOrchestrator {
     const prefix = rejectionReason
       ? `Your previous move was rejected by the game engine: ${rejectionReason}. `
       : "";
-    return (
-      `[game-turn] ${prefix}It is your move. Game state: ${JSON.stringify(view)}. ` +
-      `Reply with ONLY: {"messages":[{"type":"game-move","surfaceId":"${surfaceId}","move":{"cell":<one of legalCells>}}]} — no text, no composition.`
-    );
+    const moveHint =
+      typeof view.moveShape === "object" && view.moveShape !== null
+        ? `Reply with ONLY: {"messages":[{"type":"game-move","surfaceId":"${surfaceId}","move":${JSON.stringify(view.moveShape)}}]} — replace placeholders; no text, no composition.`
+        : `Reply with ONLY: {"messages":[{"type":"game-move","surfaceId":"${surfaceId}","move":{"cell":<one of legalCells>}}]} — no text, no composition.`;
+    return `[game-turn] ${prefix}It is your move. Game state: ${JSON.stringify(view)}. ${moveHint}`;
   }
 
   /** Agent proposed a move via the game-move protocol message. */

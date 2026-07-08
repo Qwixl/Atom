@@ -616,6 +616,30 @@ This is WRONG — never do this instead, even though it is valid JSON:
 
 { "messages": [ { "type": "text", "text": "Here's the board: 1|2|3 --- 4|5|6 --- 7|8|9. Choose a cell." } ] }
 
+### Worked example — starting battleships
+
+The owner says "play battleships". Shell engine owns both fleets. Respond:
+
+{
+  "messages": [
+    { "type": "text", "text": "Place your ships, then we'll fire." },
+    {
+      "type": "composition",
+      "composition": {
+        "version": 1,
+        "surfaceId": "bs-1",
+        "intent": "Battleships game",
+        "root": {
+          "id": "bs-board",
+          "component": "games/battleships",
+          "semanticRole": "input/game-board",
+          "events": ["bsStart", "bsMove"]
+        }
+      }
+    }
+  ]
+}
+
 The board is a **component the shell renders**, never text you draw. The same pattern applies to every \
 module row above: emit the \`composition\` with that module's \`component\` id and props from its agentHint \
 — a text description of a board, slot list, or checklist is always the wrong output when a module exists \
@@ -747,23 +771,29 @@ The shell owns consequential UI. Always emit \`consequential-action\` for calend
 
 ### Game turn loop (tic-tac-toe, battleships)
 
-Games are **shell-arbitrated**: the shell's game engine owns the board, validates every move, and detects wins/draws. You are a PLAYER. You cannot move the owner's pieces, replay the board, or end the game — illegal moves are rejected by the engine.
+Games are **shell-arbitrated**: the shell's game engine owns the board, validates every move, and detects wins/draws. You are a PLAYER. You cannot invent fleets or boards, peek at hidden ships the engine withholds, or end the game — illegal moves are rejected.
 
-- **Starting a game:** emit the module composition as shown above. The shell resets the board to the engine's initial state regardless of the props you send.
-- **Mid-game:** the shell opens a game modal and sends you \`[game-turn]\` messages containing the current state and your \`legalCells\`. Respond with ONLY a game-move message:
-
-{ "messages": [ { "type": "game-move", "surfaceId": "<the active game surfaceId>", "move": { "cell": <one of legalCells> } } ] }
-
+- **Starting a game:** emit the module composition as shown above. The shell resets state to the engine's initial state regardless of the props you send.
+- **Mid-game:** the shell opens a game modal and sends you \`[game-turn]\` messages containing \`engine.agentView\` (filtered). Respond with ONLY a game-move whose \`move\` matches \`moveShape\` / \`action\` in that view:
+  - battleships **place**: \`{ "action": "place", "cells": [<ship cells matching shipLengths>] }\` (use \`samplePlace\` if provided)
+  - battleships **fire** or tic-tac-toe: \`{ "action": "fire", "cell": <legal> }\` or \`{ "cell": <legalCells> }\`
 - Never emit a composition, text drawing, or new surface mid-game. One game-move message, nothing else.
-- Play to win: complete your own line when possible; otherwise block the owner's two-in-a-row; otherwise prefer center, then corners.
+- Tic-tac-toe strategy: complete your line when possible; otherwise block the owner; prefer center, then corners.
+- Battleships: place straight ships; fire at unknown foe cells; sink all foe ship cells to win.
 - If the engine rejects your move you get one retry with the reason; after that the shell plays a random legal move for you and tells the owner.
-- When the game ends the shell shows the winning line and offers "Play again" — the next \`[game-turn]\` only arrives if a new game starts.
+- When the game ends the shell shows the result and offers "Play again" — the next \`[game-turn]\` only arrives if a new game starts.
 
-### Worked example — [game-turn] mid-game
+### Worked example — [game-turn] mid-game (tic-tac-toe)
 
 You receive: [game-turn] It is your move. Game state: {"game":"tictactoe","youAre":"O","ownerIs":"X","board":["X",null,null,null,null,null,null,null,null],"turn":"agent","phase":"active","legalCells":[1,2,3,4,5,6,7,8]}
 
 You respond (center is the strongest reply):
 
-{ "messages": [ { "type": "game-move", "surfaceId": "ttt-1", "move": { "cell": 4 } } ] }`;
+{ "messages": [ { "type": "game-move", "surfaceId": "ttt-1", "move": { "cell": 4 } } ] }
+
+### Worked example — [game-turn] battleships fire
+
+You receive a battle-phase view with \`action":"fire"\` and \`legalCells\`. Respond:
+
+{ "messages": [ { "type": "game-move", "surfaceId": "bs-1", "move": { "action": "fire", "cell": 14 } } ] }`;
 }
