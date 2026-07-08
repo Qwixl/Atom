@@ -16,6 +16,7 @@ import {
   isSigstoreBundleShape,
 } from "./registry/signature.js";
 import { isRevoked } from "./registry/trust.js";
+import { createRevocationEntry, upsertRevocation } from "./registry/revocationOps.js";
 import { resolveRegistryUrl } from "./registry/resolveUrl.js";
 import { validateHttpsUrl, isCrossOriginModuleBundle } from "./security/url.js";
 import { validateComposition, validateConsequentialAction } from "./validate.js";
@@ -252,6 +253,23 @@ describe("registry revocations", () => {
     expect(isRevoked(revocations, "demo/a", "2.0.0")).toBe(false);
     expect(isRevoked(revocations, "demo/b", "9.9.9")).toBe(true);
     expect(isRevoked(revocations, "demo/c", "1.0.0")).toBe(false);
+  });
+
+  it("upserts revocation entries for operator edits", () => {
+    const first = createRevocationEntry({
+      id: "games/demo",
+      version: "1.0.0",
+      reason: "malware",
+      revokedAt: "2026-07-08T00:00:00.000Z",
+    });
+    const doc = upsertRevocation(null, first);
+    expect(doc.revoked).toHaveLength(1);
+    const updated = upsertRevocation(doc, {
+      ...first,
+      reason: "confirmed malware",
+    });
+    expect(updated.revoked).toHaveLength(1);
+    expect(updated.revoked[0]?.reason).toBe("confirmed malware");
   });
 });
 

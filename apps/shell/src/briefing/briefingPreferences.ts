@@ -1,8 +1,17 @@
 /** F6-1 foundation: owner briefing preferences (local until owner-store tier ships). */
 
+/** Max headlines in the "Topics you follow" briefing card after agent curation. */
+export const BRIEFING_TOPIC_HEADLINE_CAP = 5;
+
+/** Max headlines from subscribed RSS in a daily briefing. */
+export const BRIEFING_RSS_HEADLINE_CAP = 5;
+
+/** Candidate pool per topic from news-search before curation. */
+export const BRIEFING_TOPIC_SEARCH_POOL = 8;
+
 /** Auto-sent once per session when briefing is enabled and Live LLM is active. */
 export const BRIEFING_OPEN_MESSAGE =
-  "[briefing-open] Give me a concise daily roundup from my calendar and RSS snapshots. Honor my briefing topic preferences when relevant.";
+  "[briefing-open] One briefing-daily composition (core/stack of cards): Today calendar card even if empty, up to 5 RSS headlines with links, up to 5 curated topic headlines from news-search. Single JSON turn — no headline lists in text.";
 
 export interface BriefingPreferences {
   enabled: boolean;
@@ -34,6 +43,32 @@ export function loadBriefingPreferences(): BriefingPreferences {
 
 export function saveBriefingPreferences(prefs: BriefingPreferences): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+}
+
+export function formatBriefingContextForPrompt(
+  prefs: BriefingPreferences,
+  interestThemeHints: readonly string[] = [],
+): string | undefined {
+  if (prefs.topics.length === 0 && interestThemeHints.length === 0) return undefined;
+  const topics =
+    prefs.topics.length > 0
+      ? prefs.topics.join(", ")
+      : "(none configured yet — use emerging interest themes below as soft hints)";
+  const interestLine =
+    interestThemeHints.length > 0
+      ? `Emerging interest themes from exploration graph (soft ranking signal, not hard prefs): ${interestThemeHints.join(", ")}.`
+      : null;
+  return [
+    `Owner briefing topics (separate from subscribed RSS feeds): ${topics}.`,
+    interestLine,
+    `Call atom_connector_invoke news-search searchItems with input { query: "<topic>", limit: ${BRIEFING_TOPIC_SEARCH_POOL} } for each topic (candidate pool).`,
+    `Present at most ${BRIEFING_TOPIC_HEADLINE_CAP} headlines total in Topics you follow after ranking — not ${BRIEFING_TOPIC_SEARCH_POOL} or more.`,
+    "Ranking signals: owner profile records (tier, confidence, strength), retrieved memory and past link explorations / interest connections, recency, topic relevance.",
+    "Reserve 1–2 slots for major breaking stories (elections, disasters, war, market shocks) even without profile match — highlight interests without insulating the owner.",
+    "Never relabel unrelated RSS headlines as topic news.",
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join(" ");
 }
 
 /** Merge curator-learned topic into briefing prefs when enabled (F6-2 hook). */

@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import {
   applyCuratorBriefingTopics,
+  formatBriefingContextForPrompt,
   loadBriefingPreferences,
   rememberBriefingTopic,
   saveBriefingPreferences,
@@ -49,5 +50,24 @@ describe("briefingPreferences", () => {
       { category: "preferences", label: "seat", value: "aisle" },
     ]);
     expect(loadBriefingPreferences().topics).toEqual(["product launches"]);
+  });
+
+  it("formatBriefingContextForPrompt requires news-search per topic", () => {
+    const ctx = formatBriefingContextForPrompt({
+      enabled: true,
+      topics: ["agentic-web"],
+    });
+    expect(ctx).toContain("agentic-web");
+    expect(ctx).toContain("news-search");
+    expect(ctx).toContain("at most 5 headlines");
+    expect(ctx).toContain("breaking stories");
+  });
+
+  it("formatBriefingContextForPrompt includes emerging interest themes", () => {
+    const ctx = formatBriefingContextForPrompt({ enabled: true, topics: ["tech"] }, [
+      "eu policy",
+    ]);
+    expect(ctx).toContain("eu policy");
+    expect(ctx).toContain("Emerging interest themes");
   });
 });

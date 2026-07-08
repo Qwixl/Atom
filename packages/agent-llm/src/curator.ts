@@ -43,6 +43,8 @@ export function shouldCurateTranscript(
 
   if (looksLikeLookup && !ownerSelfDisclosure) return false;
   if (/^\[briefing-open\]/i.test(userText)) return false;
+  if (/^\[link-intent\]/i.test(userText)) return false;
+  if (/^\[path-intersect\]/i.test(userText)) return false;
   return true;
 }
 

@@ -42,8 +42,10 @@ export {
   upsertFeedSurface,
   appendAgentText,
   appendUserMessage,
+  BRIEFING_SURFACE_ID,
   clearFeed,
   findActiveFeedSurface,
+  isBriefingSurface,
 } from "./conversation.js";
 export type { FeedItem, ActiveFeedSurface } from "./conversation.js";
 
@@ -140,6 +142,10 @@ export {
   assertTrustPolicy,
 
   isRevoked,
+
+  createRevocationEntry,
+
+  upsertRevocation,
 
   verifyManifestSignature,
 

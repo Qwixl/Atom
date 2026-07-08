@@ -66,7 +66,7 @@ export const ATOM_CONNECTOR_INVOKE_TOOL = {
           type: "string",
           description:
             "Operation id. webcal: getStatus, listEvents. rss: getStatus, listItems. " +
-            "news-search: searchItems (requires input.query). bookmarks: getStatus, listItems, readUrl.",
+            "news-search: searchItems (requires input.query; optional input.limit). bookmarks: getStatus, listItems, readUrl.",
         },
         input: {
           type: "object",
@@ -129,7 +129,10 @@ export function formatToolsForPrompt(profile: AgentToolProfile): string {
   }
   if (profile.atom.includes("connector_invoke")) {
     lines.push(
-      "- **atom_connector_invoke** (Atom): owner calendar, RSS, news-search, bookmarks — call for fresh owner data",
+      "- **atom_connector_invoke** (Atom): owner calendar, RSS, **news-search** (topic headlines for briefings), bookmarks — call for fresh owner data",
+    );
+    lines.push(
+      "  Prefer this tool over passive Calendar/RSS snapshots when answering schedule, feed, bookmark, or briefing-topic questions.",
     );
   }
   if (profile.native.length === 0 && profile.atom.length === 0) {

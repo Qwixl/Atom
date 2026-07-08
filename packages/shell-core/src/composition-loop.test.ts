@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ResolvedSurface } from "./resolver.js";
 import type { FeedItem } from "./conversation.js";
-import { findActiveFeedSurface, upsertFeedSurface } from "./conversation.js";
+import { findActiveFeedSurface, upsertFeedSurface, BRIEFING_SURFACE_ID } from "./conversation.js";
 
 function mockSurface(surfaceId: string, component = "games/tictactoe"): ResolvedSurface {
   return {
@@ -108,6 +108,28 @@ describe("composition loop feed policy", () => {
     expect(feed.filter((item) => item.kind === "surface")).toHaveLength(2);
     expect(feed[2]?.kind).toBe("surface");
     expect(feed[feed.length - 1]?.kind).toBe("surface");
+  });
+
+  it("replaces prior briefing-daily surface instead of appending", () => {
+    let feed: FeedItem[] = [];
+    feed = [
+      ...feed,
+      { kind: "user", id: "u1", text: "[briefing-open]" },
+      { kind: "agent-text", id: "a1", text: "Good morning — here's your daily briefing." },
+    ];
+    feed = upsertFeedSurface(feed, mockSurface(BRIEFING_SURFACE_ID, "core/stack"), "s1");
+    feed = [
+      ...feed,
+      { kind: "agent-text", id: "a2", text: "Updated briefing." },
+    ];
+    feed = upsertFeedSurface(feed, mockSurface(BRIEFING_SURFACE_ID, "core/card"), "s2");
+
+    expect(feed.filter((item) => item.kind === "surface")).toHaveLength(1);
+    const surface = feed.find((item) => item.kind === "surface");
+    expect(surface?.kind).toBe("surface");
+    if (surface?.kind === "surface") {
+      expect(surface.surface.surfaceId).toBe(BRIEFING_SURFACE_ID);
+    }
   });
 
   it("findActiveFeedSurface returns the latest surface metadata", () => {

@@ -13,6 +13,30 @@ describe("shouldCurateTranscript", () => {
       ]),
     ).toBe(false);
   });
+
+  it("skips link-intent protocol turns", () => {
+    expect(
+      shouldCurateTranscript([
+        {
+          role: "user",
+          text: '[link-intent] {"url":"https://example.com/a","title":"Story","intent":"summarize"}',
+        },
+        { role: "assistant", text: "Summary here." },
+      ]),
+    ).toBe(false);
+  });
+
+  it("skips path-intersect protocol turns", () => {
+    expect(
+      shouldCurateTranscript([
+        {
+          role: "user",
+          text: '[path-intersect] {"decision":"merge","activePathId":"a","relatedPathId":"b"}',
+        },
+        { role: "assistant", text: "Merged." },
+      ]),
+    ).toBe(false);
+  });
 });
 
 describe("parseCuratorResponse splitProposals", () => {

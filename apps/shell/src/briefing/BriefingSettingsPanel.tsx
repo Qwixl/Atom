@@ -5,21 +5,7 @@ import {
   type BriefingPreferences,
 } from "./briefingPreferences.js";
 
-type ChatProvider = "mock" | "llm" | "ag-ui";
-
-export function BriefingSettingsPanel({
-  embedded = false,
-  chatProvider,
-  vaultUnlocked = false,
-  agentConnectionReady = false,
-  onTestBriefing,
-}: {
-  embedded?: boolean;
-  chatProvider: ChatProvider;
-  vaultUnlocked?: boolean;
-  agentConnectionReady?: boolean;
-  onTestBriefing?: () => void;
-}) {
+export function BriefingSettingsPanel({ embedded = false }: { embedded?: boolean }) {
   const [prefs, setPrefs] = useState<BriefingPreferences>(() => loadBriefingPreferences());
   const [topicInput, setTopicInput] = useState("");
   const [note, setNote] = useState<string | null>(null);
@@ -49,9 +35,6 @@ export function BriefingSettingsPanel({
   function removeTopic(topic: string) {
     persist({ ...prefs, topics: prefs.topics.filter((item) => item !== topic) });
   }
-
-  const prerequisitesMet =
-    chatProvider === "llm" && vaultUnlocked && agentConnectionReady;
 
   const body = (
     <>
@@ -112,39 +95,6 @@ export function BriefingSettingsPanel({
       ) : (
         <p className="settings-note">No topics yet — the agent still summarizes calendar and RSS.</p>
       )}
-      <section className="settings-section" aria-labelledby="briefing-manual-test-heading">
-        <h4 id="briefing-manual-test-heading">How to test manually</h4>
-        <ol className="settings-note">
-          <li>Settings → Agent — select Live LLM and save your API key.</li>
-          <li>Settings → Connectors — add at least one WebCal or RSS feed.</li>
-          <li>Settings → Briefing — enable briefing and add topics (optional).</li>
-          <li>Unlock your vault if prompted, then open Chat — a roundup runs automatically once per session.</li>
-          <li>Or use Test briefing now below to trigger immediately without reloading.</li>
-        </ol>
-        {chatProvider !== "llm" ? (
-          <p className="settings-note webcal-settings-warn">
-            Switch Chat to Live LLM (Settings → Agent) to run briefings.
-          </p>
-        ) : null}
-        {chatProvider === "llm" && !vaultUnlocked ? (
-          <p className="settings-note webcal-settings-warn">Unlock your vault to reach the agent.</p>
-        ) : null}
-        {chatProvider === "llm" && vaultUnlocked && !agentConnectionReady ? (
-          <p className="settings-note webcal-settings-warn">
-            Connect your agent (pnpm start:agent) before testing.
-          </p>
-        ) : null}
-        <div className="chrome-actions settings-section-actions">
-          <button
-            type="button"
-            className="chrome-approve"
-            disabled={!prefs.enabled || !prerequisitesMet || !onTestBriefing}
-            onClick={onTestBriefing}
-          >
-            Test briefing now
-          </button>
-        </div>
-      </section>
       {note ? <p className="settings-note webcal-settings-note">{note}</p> : null}
     </>
   );

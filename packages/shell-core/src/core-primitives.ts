@@ -24,7 +24,7 @@ export const CORE_PRIMITIVES: ComponentSpec[] = [
   {
     name: "core/list",
     semanticRole: "collection/list",
-    agentHint: "Bulleted or numbered list. Props: { items: string[], ordered? }.",
+    agentHint: "Bulleted or numbered list. Props: { items: string[], ordered? }. Each string may include markdown links [label](https://url) for headlines.",
   },
   {
     name: "core/table",

@@ -35,6 +35,7 @@ export { fetchRegistryRatings, formatStarRating } from "./registry/ratings.js";
 export { validateModuleManifest } from "./registry/manifest.js";
 export { formatIntegrity, parseIntegrity, sha256Hex, integrityMatches } from "./registry/hash.js";
 export { assertTrustPolicy, isRevoked } from "./registry/trust.js";
+export { createRevocationEntry, upsertRevocation } from "./registry/revocationOps.js";
 export {
   validateModulePricing,
   normalizeModulePricing,
