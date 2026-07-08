@@ -7,7 +7,23 @@ import {
   type JsonValue,
   type UiEvent,
 } from "@qwixl/shell-core";
-import { mapCustomEventToOutput, resetA2uiAssembler } from "./atom-events.js";
+import {
+  ATOM_AGUI_EVENTS,
+  mapCustomEventToOutput,
+  parseConnectorInvokeRequest,
+  resetA2uiAssembler,
+} from "./atom-events.js";
+import { formatConnectorResultMessage } from "./inbound.js";
+
+export type AtomConnectorId = "webcal" | "rss" | "news-search" | "bookmarks";
+
+export type AtomConnectorInvokeInput = {
+  connectorId: AtomConnectorId;
+  operation: string;
+  input?: Record<string, unknown>;
+};
+
+export type AtomConnectorExecutor = (call: AtomConnectorInvokeInput) => Promise<unknown>;
 
 export interface AgUiAgentConfig {
   /** AG-UI agent endpoint (POST, SSE response). */
@@ -16,6 +32,10 @@ export interface AgUiAgentConfig {
   headers?: Record<string, string>;
   /** Owner profile + memory forwarded to backend each run (M10.4). */
   profileProvider?: () => PersonalAgentContext;
+  /** Shell-side connector reads when the brain emits atom.connector-invoke. */
+  connectorExecutor?: AtomConnectorExecutor;
+  /** Advertise connector availability to the brain via forwardedProps. */
+  connectorsAvailable?: boolean;
 }
 
 /**
@@ -24,16 +44,25 @@ export interface AgUiAgentConfig {
  * the AG-UI thread (same wire shape as @qwixl/agent-llm for backend parity).
  */
 export class AgUiAgentSession extends SessionEmitter implements AgentSession {
+  private static readonly MAX_CONNECTOR_ROUNDS = 8;
+
   private agent: HttpAgent;
   private profileProvider?: () => PersonalAgentContext;
+  private connectorExecutor?: AtomConnectorExecutor;
+  private connectorsAvailable: boolean;
   private inFlight = false;
   private queued: string[] = [];
   private disposed = false;
   private textBuffers = new Map<string, string>();
+  private pendingConnectorCalls = new Map<string, Promise<void>>();
+  private connectorResultsToSend: string[] = [];
+  private connectorRounds = 0;
 
   constructor(config: AgUiAgentConfig) {
     super();
     this.profileProvider = config.profileProvider;
+    this.connectorExecutor = config.connectorExecutor;
+    this.connectorsAvailable = config.connectorsAvailable ?? Boolean(config.connectorExecutor);
     this.agent = new HttpAgent({
       url: config.url,
       threadId: config.threadId ?? uuid(),
@@ -82,18 +111,61 @@ export class AgUiAgentSession extends SessionEmitter implements AgentSession {
 
   private async drain(): Promise<void> {
     this.inFlight = true;
+    this.connectorRounds = 0;
     try {
       while (this.queued.length > 0 && !this.disposed) {
         const batch = this.queued.splice(0, this.queued.length);
         for (const content of batch) {
           this.agent.messages.push({ id: uuid(), role: "user", content });
         }
-        await this.runOnce();
+        await this.runConnectorFollowUps();
       }
     } finally {
       this.inFlight = false;
       if (!this.disposed) this.emit({ type: "done" });
     }
+  }
+
+  private async runConnectorFollowUps(): Promise<void> {
+    await this.runOnce();
+    while (
+      this.connectorResultsToSend.length > 0 &&
+      this.connectorRounds < AgUiAgentSession.MAX_CONNECTOR_ROUNDS &&
+      !this.disposed
+    ) {
+      this.connectorRounds += 1;
+      const batch = this.connectorResultsToSend.splice(0, this.connectorResultsToSend.length);
+      for (const content of batch) {
+        this.agent.messages.push({ id: uuid(), role: "user", content });
+      }
+      await this.runOnce();
+    }
+  }
+
+  private queueConnectorInvoke(req: ReturnType<typeof parseConnectorInvokeRequest>): void {
+    if (!req || !this.connectorExecutor) return;
+    const executor = this.connectorExecutor;
+    const promise = (async () => {
+      try {
+        const result = await executor({
+          connectorId: req.connectorId,
+          operation: req.operation,
+          input: req.input,
+        });
+        this.connectorResultsToSend.push(
+          formatConnectorResultMessage({ callId: req.callId, ok: true, result }),
+        );
+      } catch (error) {
+        this.connectorResultsToSend.push(
+          formatConnectorResultMessage({
+            callId: req.callId,
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        );
+      }
+    })();
+    this.pendingConnectorCalls.set(req.callId, promise);
   }
 
   private async runOnce(): Promise<void> {
@@ -109,6 +181,10 @@ export class AgUiAgentSession extends SessionEmitter implements AgentSession {
         if (text) this.emit({ type: "text", text });
       },
       onCustomEvent: ({ event }) => {
+        if (event.name === ATOM_AGUI_EVENTS.CONNECTOR_INVOKE) {
+          this.queueConnectorInvoke(parseConnectorInvokeRequest(event.value));
+          return;
+        }
         const output = mapCustomEventToOutput(event);
         if (output) this.emit(output);
       },
@@ -122,12 +198,16 @@ export class AgUiAgentSession extends SessionEmitter implements AgentSession {
 
     try {
       const profile = this.profileProvider?.();
+      const forwardedProps: Record<string, unknown> = {};
+      if (profile) forwardedProps[ATOM_AGUI_PROFILE_PROP] = profile;
+      if (this.connectorsAvailable) forwardedProps.atomConnectorsAvailable = true;
+
       await this.agent.runAgent(
-        profile
-          ? { forwardedProps: { [ATOM_AGUI_PROFILE_PROP]: profile } }
-          : {},
+        Object.keys(forwardedProps).length > 0 ? { forwardedProps } : {},
         subscriber,
       );
+      await Promise.all(this.pendingConnectorCalls.values());
+      this.pendingConnectorCalls.clear();
     } catch (error) {
       this.emit({
         type: "text",

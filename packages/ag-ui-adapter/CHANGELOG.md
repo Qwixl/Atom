@@ -1,5 +1,13 @@
 # @qwixl/ag-ui-adapter
 
+## 0.9.0
+
+### Minor Changes
+
+- **`@qwixl/ag-ui-adapter/server`** — brain-side SDK: inbound bracket parsers, `agentOutputToAgUiEvents` (incl. `game-move`), SSE writer, `createAtomAgUiHttpHandler`.
+- **`atom.game-move`** and **`atom.connector-invoke`** CUSTOM events; `AgUiAgentSession` connector loop for external AG-UI brains.
+- Conformance tests (`conformance.test.ts`) in CI via root `pnpm test`.
+
 ## 0.8.0
 
 ### Patch Changes
