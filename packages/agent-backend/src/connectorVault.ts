@@ -114,6 +114,19 @@ export interface StoredHomeAssistantInstance {
   configuredAt: number;
 }
 
+export interface StoredBlueskyAccount {
+  handle: string;
+  appPassword: string;
+  pdsUrl?: string;
+  configuredAt: number;
+}
+
+export interface StoredMastodonInstance {
+  instanceUrl: string;
+  accessToken: string;
+  configuredAt: number;
+}
+
 interface ConnectorVaultPayload {
   schemaVersion: 1;
   oauth?: Record<string, StoredOAuthTokens>;
@@ -128,6 +141,8 @@ interface ConnectorVaultPayload {
   };
   trello?: StoredTrelloCredentials;
   homeAssistant?: StoredHomeAssistantInstance;
+  bluesky?: StoredBlueskyAccount;
+  mastodon?: StoredMastodonInstance;
   webcalFeeds?: StoredWebcalFeed[];
   rssFeeds?: StoredRssFeed[];
   bookmarks?: StoredBookmark[];
@@ -446,6 +461,57 @@ export class ConnectorVault {
   async clearHomeAssistantInstance(): Promise<void> {
     if (this.payload.homeAssistant) {
       delete this.payload.homeAssistant;
+      await this.persist();
+    }
+  }
+
+  getBlueskyAccount(): StoredBlueskyAccount | undefined {
+    return this.payload.bluesky;
+  }
+
+  async setBlueskyAccount(handle: string, appPassword: string, pdsUrl?: string): Promise<void> {
+    const identifier = handle.trim();
+    const password = appPassword.trim();
+    if (!identifier || !password) {
+      throw new Error("handle and appPassword required");
+    }
+    this.payload.bluesky = {
+      handle: identifier,
+      appPassword: password,
+      pdsUrl: pdsUrl?.trim() || undefined,
+      configuredAt: Date.now(),
+    };
+    await this.persist();
+  }
+
+  async clearBlueskyAccount(): Promise<void> {
+    if (this.payload.bluesky) {
+      delete this.payload.bluesky;
+      await this.persist();
+    }
+  }
+
+  getMastodonInstance(): StoredMastodonInstance | undefined {
+    return this.payload.mastodon;
+  }
+
+  async setMastodonInstance(instanceUrl: string, accessToken: string): Promise<void> {
+    const url = instanceUrl.trim();
+    const token = accessToken.trim();
+    if (!url || !token) {
+      throw new Error("instanceUrl and accessToken required");
+    }
+    this.payload.mastodon = {
+      instanceUrl: url,
+      accessToken: token,
+      configuredAt: Date.now(),
+    };
+    await this.persist();
+  }
+
+  async clearMastodonInstance(): Promise<void> {
+    if (this.payload.mastodon) {
+      delete this.payload.mastodon;
       await this.persist();
     }
   }

@@ -714,6 +714,55 @@ export class CommsAgentClient {
     return resp.json() as Promise<{ connectorId: string; removed: boolean }>;
   }
 
+  async saveBlueskyCredentials(input: {
+    handle: string;
+    appPassword: string;
+    pdsUrl?: string;
+    approvalRef?: string;
+  }): Promise<{ connectorId: string; configured: boolean }> {
+    return postJson(this.base(), "/connectors/bluesky/credentials", input, this.auth, true);
+  }
+
+  async clearBlueskyCredentials(approvalRef?: string): Promise<{ connectorId: string; removed: boolean }> {
+    const query = approvalRef?.trim() ? `?approvalRef=${encodeURIComponent(approvalRef.trim())}` : "";
+    const headers: Record<string, string> = {};
+    const bearer = this.bearer(true);
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    const resp = await fetch(`${this.base()}/connectors/bluesky/credentials${query}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (!resp.ok) {
+      const err = (await resp.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? `Request failed (${resp.status})`);
+    }
+    return resp.json() as Promise<{ connectorId: string; removed: boolean }>;
+  }
+
+  async saveMastodonCredentials(input: {
+    instanceUrl: string;
+    accessToken: string;
+    approvalRef?: string;
+  }): Promise<{ connectorId: string; configured: boolean }> {
+    return postJson(this.base(), "/connectors/mastodon/credentials", input, this.auth, true);
+  }
+
+  async clearMastodonCredentials(approvalRef?: string): Promise<{ connectorId: string; removed: boolean }> {
+    const query = approvalRef?.trim() ? `?approvalRef=${encodeURIComponent(approvalRef.trim())}` : "";
+    const headers: Record<string, string> = {};
+    const bearer = this.bearer(true);
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    const resp = await fetch(`${this.base()}/connectors/mastodon/credentials${query}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (!resp.ok) {
+      const err = (await resp.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? `Request failed (${resp.status})`);
+    }
+    return resp.json() as Promise<{ connectorId: string; removed: boolean }>;
+  }
+
   async createTodoistTask(
     content: string,
     opts?: { projectId?: string; dueString?: string },
