@@ -19,6 +19,8 @@ import {
 import type { RegistryCacheStore, RegistryIndex, RegistryModuleEntry } from "./registry/types.js";
 import { resolveRegistryUrl } from "./registry/resolveUrl.js";
 
+const DEFAULT_REGISTRY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
 export type {
   RegistryIndex,
   RegistryModuleEntry,
@@ -198,7 +200,11 @@ export class ModuleRegistry {
   private async fetchIndex(force: boolean): Promise<RegistryIndex> {
     if (!force && this.cache) {
       const cached = this.cache.load(this.indexUrl);
-      if (cached?.index) {
+      if (
+        cached?.index &&
+        typeof cached.fetchedAt === "number" &&
+        Date.now() - cached.fetchedAt < DEFAULT_REGISTRY_CACHE_TTL_MS
+      ) {
         this.index = cached.index;
         return cached.index;
       }

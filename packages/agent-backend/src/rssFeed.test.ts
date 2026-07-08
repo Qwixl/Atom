@@ -38,6 +38,7 @@ describe("rssFeed", () => {
 describe("connectorUrl", () => {
   it("rejects private hosts", () => {
     expect(() => validateConnectorHttpsUrl("http://127.0.0.1/feed")).toThrow(/Private/);
+    expect(() => validateConnectorHttpsUrl("http://169.254.169.254/latest/meta-data")).toThrow(/Private/);
   });
 
   it("strips HTML to text", () => {

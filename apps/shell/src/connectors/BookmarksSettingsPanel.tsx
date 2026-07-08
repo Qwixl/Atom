@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { approvalRefForConnectorWrite } from "./connectorWriteApproval.js";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
 
 interface BookmarkSummary {
@@ -44,7 +45,8 @@ export function BookmarksSettingsPanel({
     setBusy(true);
     setNote("Saving bookmark to your agent vault…");
     try {
-      await client.addBookmark(url, pageLabel.trim() || undefined);
+      const approvalRef = await approvalRefForConnectorWrite("Save bookmark", { url }, config);
+      await client.addBookmark(url, pageLabel.trim() || undefined, approvalRef);
       setPageUrl("");
       setPageLabel("");
       setNote(null);
@@ -59,7 +61,8 @@ export function BookmarksSettingsPanel({
     setBusy(true);
     setNote("Removing bookmark…");
     try {
-      await client.removeBookmark(bookmarkId);
+      const approvalRef = await approvalRefForConnectorWrite("Remove bookmark", { bookmarkId });
+      await client.removeBookmark(bookmarkId, approvalRef);
       setNote(null);
       await refresh();
     } catch (error) {

@@ -17,6 +17,7 @@ import {
 import type { ModelCapabilityProfile } from "./modelCapabilities.js";
 import { inferModelCapabilities, normalizeModelCapabilityProfile } from "./modelCapabilities.js";
 import { buildSystemPrompt, type PromptProfile } from "./prompt.js";
+import { wrapUntrustedContent } from "./untrusted.js";
 import { callResponsesApi } from "./responsesApi.js";
 import { buildImageResultProtocol } from "./imageProtocol.js";
 
@@ -70,6 +71,9 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
 
   private static readonly REQUEST_TIMEOUT_MS = 120_000;
   private static readonly MAX_TOOL_ROUNDS = 8;
+  /** Non-system messages retained (user + assistant + tool). */
+  private static readonly MAX_HISTORY_MESSAGES = 40;
+  private systemPromptFingerprint = "";
 
   constructor(
     config: LlmConfig,
@@ -91,11 +95,35 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
         options?.atomConnectorsAvailable && options?.atomToolExecutor,
       ),
     });
-    this.messages = [{ role: "system", content: this.currentSystemPrompt() }];
+    this.messages = [{ role: "system", content: this.buildSystemPromptContent() }];
+    this.systemPromptFingerprint = this.systemPromptFingerprintKey();
+  }
+
+  private buildSystemPromptContent(): string {
+    return buildSystemPrompt(this.catalog, this.profileProvider?.(), this.toolProfile);
+  }
+
+  private systemPromptFingerprintKey(): string {
+    const profile = this.profileProvider?.();
+    return `${this.catalog.list().length}:${JSON.stringify(profile?.open?.length ?? 0)}:${profile?.calendarContext?.length ?? 0}:${profile?.rssContext?.length ?? 0}`;
   }
 
   private currentSystemPrompt(): string {
-    return buildSystemPrompt(this.catalog, this.profileProvider?.(), this.toolProfile);
+    const fingerprint = this.systemPromptFingerprintKey();
+    const content = buildSystemPrompt(this.catalog, this.profileProvider?.(), this.toolProfile);
+    if (fingerprint !== this.systemPromptFingerprint && this.messages[0]?.role === "system") {
+      this.systemPromptFingerprint = fingerprint;
+      this.messages[0] = { role: "system", content };
+    }
+    return this.messages[0]?.role === "system" && typeof this.messages[0].content === "string"
+      ? this.messages[0].content
+      : content;
+  }
+
+  private trimMessageHistory(): void {
+    const system = this.messages[0];
+    if (!system || this.messages.length <= LlmAgentSession.MAX_HISTORY_MESSAGES + 1) return;
+    this.messages = [system, ...this.messages.slice(-LlmAgentSession.MAX_HISTORY_MESSAGES)];
   }
 
   sendUserMessage(text: string): void {
@@ -179,6 +207,7 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
     }
 
     this.messages.push({ role: "assistant", content: raw });
+    this.trimMessageHistory();
     let parsed = extractJson(raw);
     if (!parsed || !Array.isArray((parsed as { messages?: unknown }).messages)) {
       const repaired = await this.attemptRepair();
@@ -455,7 +484,10 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
     try {
       const args = parseAtomConnectorInvokeArgs(argsJson);
       const result = await this.atomToolExecutor(args);
-      return JSON.stringify(result);
+      return wrapUntrustedContent(JSON.stringify(result, null, 2), {
+        source: `connector:${args.connectorId}`,
+        purpose: args.operation,
+      });
     } catch (error) {
       return JSON.stringify({
         error: error instanceof Error ? error.message : String(error),
@@ -477,7 +509,7 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
           "Put every headline and fact in `text` and/or a `core/list` inside `core/card`. " +
           "Never return only an intro line.",
       },
-      { role: "user", content: `Package this for the owner:\n\n${gathered}` },
+      { role: "user", content: `Package this for the owner:\n\n${wrapUntrustedContent(gathered, { source: "provider-tools", purpose: "web-search-gather" })}` },
     ];
     try {
       const body: Record<string, unknown> = {

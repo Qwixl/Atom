@@ -55,6 +55,12 @@ export function loadCommsAgentConfig(): CommsAgentConfig {
     };
   }
   const adminToken = loadStringFromStorage(AGENT_TOKEN_KEY)?.trim();
+  if (typeof import.meta !== "undefined" && import.meta.env.PROD) {
+    return {
+      adminUrl: url || defaultCommsAgentUrl(),
+      adminToken: undefined,
+    };
+  }
   return {
     adminUrl: url || defaultCommsAgentUrl(),
     adminToken: adminToken || undefined,
@@ -73,8 +79,12 @@ export async function loadCommsAgentConfigSecure(): Promise<CommsAgentConfig> {
 export function saveCommsAgentConfig(config: CommsAgentConfig): void {
   saveStringToStorage(AGENT_URL_KEY, config.adminUrl.trim());
   const token = config.adminToken?.trim();
-  if (token) saveStringToStorage(AGENT_TOKEN_KEY, token);
-  else clearCommsAdminToken();
+  if (token) {
+    if (typeof import.meta !== "undefined" && import.meta.env.PROD) {
+      return;
+    }
+    saveStringToStorage(AGENT_TOKEN_KEY, token);
+  } else clearCommsAdminToken();
 }
 
 export async function saveCommsAgentConfigSecure(config: CommsAgentConfig): Promise<void> {

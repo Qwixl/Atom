@@ -17,6 +17,7 @@ import {
 } from "@qwixl/a2a-transport";
 import { createAtomA2aExpressApp } from "@qwixl/a2a-transport/server";
 import { base64ToBytes, signDataObject, verifyDataObject, type UnsignedDataObject } from "@qwixl/protocol";
+import { createRateLimiter } from "./rateLimit.js";
 import { loadAgentBackendConfig, type AgentBackendConfig } from "./config.js";
 import { publicBaseUrlForPort, resolvePortWithPrompt } from "./portConflict.js";
 import { loadOrCreateAdminToken, requireAdminAuth, adminTokenPath } from "./adminAuth.js";
@@ -350,6 +351,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   });
 
   app.use(a2aApp);
+  app.use("/discover/capabilities", createRateLimiter(60 * 1000, 60));
   registerCalendarFeedPublicRoutes(app, {
     publicBaseUrl: config.publicBaseUrl,
     calendarFeed,
@@ -364,6 +366,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
 
   const adminApp = express();
   adminApp.use(express.json({ limit: "512kb" }));
+  const keyPackageRateLimit = createRateLimiter(60 * 1000, 30);
   adminApp.use(requireAdminAuth(adminAuth.token));
 
   registerCoordinationAdminRoutes(adminApp, { identity, mlsStore, calendarFeed });
@@ -435,7 +438,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     res.json({ entries: inbox.list() });
   });
 
-  adminApp.get("/mls/key-package", async (_req, res) => {
+  adminApp.get("/mls/key-package", keyPackageRateLimit, async (_req, res) => {
     try {
       const payload = await mlsStore.keyPackageForHandshake(identity.did);
       res.json(payload);

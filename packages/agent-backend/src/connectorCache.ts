@@ -25,18 +25,43 @@ export function stableCacheKey(
   return `${connectorId}:${operation}:${JSON.stringify(sorted)}`;
 }
 
+export const DEFAULT_CONNECTOR_READ_CACHE_TTL_MS = 5 * 60 * 1000;
+export const MAX_CONNECTOR_CACHE_TTL_MS = 15 * 60 * 1000;
+
 export class ConnectorResultCache {
   private entries = new Map<string, ConnectorCacheEntry>();
+  private readonly maxEntries: number;
+
+  constructor(maxEntries = 512) {
+    this.maxEntries = maxEntries;
+  }
+
+  private sweepExpired(now: number): void {
+    for (const [key, entry] of this.entries) {
+      if (now - entry.fetchedAtMs > MAX_CONNECTOR_CACHE_TTL_MS) {
+        this.entries.delete(key);
+      }
+    }
+  }
 
   get(key: string, ttlMs: number, now = Date.now()): ConnectorCacheEntry | undefined {
     if (ttlMs <= 0) return undefined;
     const entry = this.entries.get(key);
     if (!entry) return undefined;
-    if (now - entry.fetchedAtMs > ttlMs) return undefined;
+    if (now - entry.fetchedAtMs > ttlMs) {
+      this.entries.delete(key);
+      return undefined;
+    }
     return entry;
   }
 
   set(key: string, value: unknown, now = Date.now()): ConnectorCacheEntry {
+    this.sweepExpired(now);
+    while (this.entries.size >= this.maxEntries) {
+      const oldest = this.entries.keys().next().value;
+      if (!oldest) break;
+      this.entries.delete(oldest);
+    }
     const entry = { value, fetchedAtMs: now };
     this.entries.set(key, entry);
     return entry;
@@ -60,9 +85,6 @@ export const connectorResultCache = new ConnectorResultCache();
 export function resetConnectorResultCacheForTests(): void {
   connectorResultCache.clear();
 }
-
-export const DEFAULT_CONNECTOR_READ_CACHE_TTL_MS = 5 * 60 * 1000;
-export const MAX_CONNECTOR_CACHE_TTL_MS = 15 * 60 * 1000;
 
 export function resolveOperationCacheTtl(spec?: {
   permission?: string;

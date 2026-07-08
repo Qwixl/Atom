@@ -206,6 +206,11 @@ app.post("/provision", signupRateLimit, async (req, res) => {
 });
 
 app.post("/agents/:id/suspend", async (req, res) => {
+  if (isProduction && !provisionSecret) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (!requireProvisionAuth(req, res)) return;
   const agent = agents.get(req.params.id);
   if (!agent || !fleet) {
     res.status(404).json({ error: "agent not found" });
@@ -221,6 +226,11 @@ app.post("/agents/:id/suspend", async (req, res) => {
 });
 
 app.post("/agents/:id/resume", async (req, res) => {
+  if (isProduction && !provisionSecret) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (!requireProvisionAuth(req, res)) return;
   const agent = agents.get(req.params.id);
   if (!agent || !fleet) {
     res.status(404).json({ error: "agent not found" });
@@ -235,6 +245,11 @@ app.post("/agents/:id/resume", async (req, res) => {
 });
 
 app.delete("/agents/:id", async (req, res) => {
+  if (isProduction && !provisionSecret) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (!requireProvisionAuth(req, res)) return;
   const agent = agents.get(req.params.id);
   if (!agent || !fleet) {
     res.status(404).json({ error: "agent not found" });

@@ -70,6 +70,7 @@ export function DiscoverPanel({
   const indexConfigs = useMemo(() => loadDiscoverIndexes(), []);
 
   const [terms, setTerms] = useState("");
+  const [debouncedTerms, setDebouncedTerms] = useState("");
   const [kind, setKind] = useState<IndexEntryKind | "all">("all");
   const [results, setResults] = useState<DiscoverResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -90,6 +91,11 @@ export function DiscoverPanel({
     }
   }, [client, connectionActive]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedTerms(terms), 400);
+    return () => window.clearTimeout(timer);
+  }, [terms]);
+
   const loadResults = useCallback(async () => {
     if (!connectionActive) {
       setStatus(null);
@@ -100,23 +106,33 @@ export function DiscoverPanel({
     setLoading(true);
     setStatus(null);
     try {
+      const indexList = indexConfigs.length > 0 ? indexConfigs : DEFAULT_DISCOVER_INDEXES;
+      const indexBodies = await Promise.all(
+        indexList.map(async (index) => {
+          try {
+            const body = await fetchBusinessIndex(index.url);
+            return { index, body };
+          } catch {
+            return null;
+          }
+        }),
+      );
       const merged: Array<BusinessIndexEntry & { indexLabel: string }> = [];
-      for (const index of indexConfigs.length > 0 ? indexConfigs : DEFAULT_DISCOVER_INDEXES) {
-        const body = await fetchBusinessIndex(index.url);
-        const filtered = filterBusinessIndex(body, {
-          terms: terms.trim() || undefined,
+      for (const row of indexBodies) {
+        if (!row) continue;
+        const filtered = filterBusinessIndex(row.body, {
+          terms: debouncedTerms.trim() || undefined,
           kind: kind === "all" ? undefined : kind,
         });
         for (const entry of filtered) {
-          merged.push({ ...entry, indexLabel: index.label });
+          merged.push({ ...entry, indexLabel: row.index.label });
         }
       }
 
       let withHandles = merged;
       try {
         const handleIndex = await fetchHandleIndex(DEFAULT_HANDLE_INDEX_URL);
-        const attached = attachHandlesToEntries(merged, handleIndex.handles);
-        withHandles = attached.map((entry, index) => ({
+        withHandles = attachHandlesToEntries(merged, handleIndex.handles).map((entry, index) => ({
           ...entry,
           indexLabel: merged[index]!.indexLabel,
         }));
@@ -125,18 +141,16 @@ export function DiscoverPanel({
       }
 
       const available = await filterAvailableDiscoverEntriesForClient(client, withHandles);
+      const labelByEntry = new Map(
+        withHandles.map((row) => [`${row.displayName}\0${row.businessDomain ?? ""}`, row.indexLabel]),
+      );
       setIndexMatches(withHandles.length);
       setResults(
-        available.map(({ entry, resolved }) => {
-          const orig = withHandles.find(
-            (row) => row.displayName === entry.displayName && row.businessDomain === entry.businessDomain,
-          );
-          return {
-            ...entry,
-            indexLabel: orig?.indexLabel ?? "Index",
-            resolved,
-          };
-        }),
+        available.map(({ entry, resolved }) => ({
+          ...entry,
+          indexLabel: labelByEntry.get(`${entry.displayName}\0${entry.businessDomain ?? ""}`) ?? "Index",
+          resolved,
+        })),
       );
     } catch (error) {
       if (isAgentAuthError(error)) onAgentAuthFailure?.();
@@ -145,7 +159,7 @@ export function DiscoverPanel({
     } finally {
       setLoading(false);
     }
-  }, [client, connectionActive, indexConfigs, kind, onAgentAuthFailure, terms]);
+  }, [client, connectionActive, debouncedTerms, indexConfigs, kind, onAgentAuthFailure]);
 
   useEffect(() => {
     void loadResults();

@@ -534,17 +534,18 @@ export class CommsAgentClient {
     );
   }
 
-  async addWebcalFeed(url: string, label?: string): Promise<{ feed: { id: string; label: string } }> {
-    return postJson(this.base(), "/connectors/webcal/feeds", { url, label }, this.adminToken);
+  async addWebcalFeed(url: string, label?: string, approvalRef?: string): Promise<{ feed: { id: string; label: string } }> {
+    return postJson(this.base(), "/connectors/webcal/feeds", { url, label, approvalRef }, this.adminToken);
   }
 
-  async removeWebcalFeed(feedId: string): Promise<{ removed: boolean; feedId: string }> {
+  async removeWebcalFeed(feedId: string, approvalRef?: string): Promise<{ removed: boolean; feedId: string }> {
+    const query = approvalRef?.trim() ? `?approvalRef=${encodeURIComponent(approvalRef.trim())}` : "";
     const headers: Record<string, string> = {};
     if (this.adminToken?.trim()) {
       headers.Authorization = `Bearer ${this.adminToken.trim()}`;
     }
     const resp = await fetch(
-      `${this.base()}/connectors/webcal/feeds/${encodeURIComponent(feedId)}`,
+      `${this.base()}/connectors/webcal/feeds/${encodeURIComponent(feedId)}${query}`,
       { method: "DELETE", headers },
     );
     if (!resp.ok) {
@@ -554,17 +555,18 @@ export class CommsAgentClient {
     return resp.json() as Promise<{ removed: boolean; feedId: string }>;
   }
 
-  async addRssFeed(url: string, label?: string): Promise<{ feed: { id: string; label: string } }> {
-    return postJson(this.base(), "/connectors/rss/feeds", { url, label }, this.adminToken);
+  async addRssFeed(url: string, label?: string, approvalRef?: string): Promise<{ feed: { id: string; label: string } }> {
+    return postJson(this.base(), "/connectors/rss/feeds", { url, label, approvalRef }, this.adminToken);
   }
 
-  async removeRssFeed(feedId: string): Promise<{ removed: boolean; feedId: string }> {
+  async removeRssFeed(feedId: string, approvalRef?: string): Promise<{ removed: boolean; feedId: string }> {
+    const query = approvalRef?.trim() ? `?approvalRef=${encodeURIComponent(approvalRef.trim())}` : "";
     const headers: Record<string, string> = {};
     if (this.adminToken?.trim()) {
       headers.Authorization = `Bearer ${this.adminToken.trim()}`;
     }
     const resp = await fetch(
-      `${this.base()}/connectors/rss/feeds/${encodeURIComponent(feedId)}`,
+      `${this.base()}/connectors/rss/feeds/${encodeURIComponent(feedId)}${query}`,
       { method: "DELETE", headers },
     );
     if (!resp.ok) {
@@ -574,17 +576,18 @@ export class CommsAgentClient {
     return resp.json() as Promise<{ removed: boolean; feedId: string }>;
   }
 
-  async addBookmark(url: string, label?: string): Promise<{ bookmark: { id: string; label: string } }> {
-    return postJson(this.base(), "/connectors/bookmarks", { url, label }, this.adminToken);
+  async addBookmark(url: string, label?: string, approvalRef?: string): Promise<{ bookmark: { id: string; label: string } }> {
+    return postJson(this.base(), "/connectors/bookmarks", { url, label, approvalRef }, this.adminToken);
   }
 
-  async removeBookmark(bookmarkId: string): Promise<{ removed: boolean; bookmarkId: string }> {
+  async removeBookmark(bookmarkId: string, approvalRef?: string): Promise<{ removed: boolean; bookmarkId: string }> {
+    const query = approvalRef?.trim() ? `?approvalRef=${encodeURIComponent(approvalRef.trim())}` : "";
     const headers: Record<string, string> = {};
     if (this.adminToken?.trim()) {
       headers.Authorization = `Bearer ${this.adminToken.trim()}`;
     }
     const resp = await fetch(
-      `${this.base()}/connectors/bookmarks/${encodeURIComponent(bookmarkId)}`,
+      `${this.base()}/connectors/bookmarks/${encodeURIComponent(bookmarkId)}${query}`,
       { method: "DELETE", headers },
     );
     if (!resp.ok) {

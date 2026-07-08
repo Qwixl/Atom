@@ -23,22 +23,26 @@ function normalizeHandle(handle: string): string {
 
 export class HandleCacheStore {
   private readonly filePath: string;
+  private memory: Record<string, HandleCacheRecord> | null = null;
 
   constructor(filePath = resolveDataPath(CACHE_FILE)) {
     this.filePath = filePath;
   }
 
   private readAll(): Record<string, HandleCacheRecord> {
+    if (this.memory) return this.memory;
     try {
       const raw = fs.readFileSync(this.filePath, "utf8");
       const parsed = JSON.parse(raw) as Record<string, HandleCacheRecord>;
-      return parsed && typeof parsed === "object" ? parsed : {};
+      this.memory = parsed && typeof parsed === "object" ? parsed : {};
     } catch {
-      return {};
+      this.memory = {};
     }
+    return this.memory;
   }
 
   private writeAll(records: Record<string, HandleCacheRecord>): void {
+    this.memory = records;
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     fs.writeFileSync(this.filePath, `${JSON.stringify(records, null, 2)}\n`, "utf8");
   }
@@ -54,7 +58,7 @@ export class HandleCacheStore {
 
   set(handle: string, resolved: ResolvedDiscoverTarget, businessDomain?: string): void {
     const key = normalizeHandle(handle);
-    const all = this.readAll();
+    const all = { ...this.readAll() };
     all[key] = {
       handle: key,
       did: resolved.did,

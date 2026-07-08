@@ -9,7 +9,6 @@ import { CommsModuleEmbed } from "./comms/CommsModuleEmbed.js";
 import { mergeThread } from "./comms/coordinationThread.js";
 import { deriveSharedListStates } from "./comms/sharedListLogic.js";
 import { takeCommsModuleBridge } from "./comms/moduleBridge.js";
-import { looksLikeSchedulingIntent } from "./comms/schedulingIntent.js";
 import { applyTttMove, emptyTttBoard } from "./comms/tttLogic.js";
 import {
   allShipsSunk,
@@ -177,7 +176,6 @@ export function CommsPanel({
   );
   const [conversationPane, setConversationPane] = useState<"chat" | "contact">("chat");
   const [inlineModuleId, setInlineModuleId] = useState<string | null>(null);
-  const [scheduleDismissedFor, setScheduleDismissedFor] = useState<string | null>(null);
   const [contactSearch, setContactSearch] = useState("");
   const [webcalBusyEvents, setWebcalBusyEvents] = useState<WebcalBusyEvent[]>([]);
 
@@ -337,22 +335,7 @@ export function CommsPanel({
   useEffect(() => {
     setConversationPane("chat");
     setInlineModuleId(null);
-    setScheduleDismissedFor(null);
   }, [selectedId]);
-
-  const lastThreadMessage = useMemo(() => {
-    for (let i = thread.length - 1; i >= 0; i--) {
-      const item = thread[i];
-      if (item?.kind === "message") return item;
-    }
-    return null;
-  }, [thread]);
-  const lastThreadMessageId = lastThreadMessage?.id ?? null;
-  const schedulingSuggested =
-    !demoMode &&
-    lastThreadMessage != null &&
-    lastThreadMessageId !== scheduleDismissedFor &&
-    looksLikeSchedulingIntent(lastThreadMessage.text);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -2029,63 +2012,9 @@ export function CommsPanel({
                       Remove
                     </button>
                     {modulesReady ? (
-                      <>
-                        <button
-                          type="button"
-                          className="panel-btn"
-                          disabled={busy || selected.blocked || !sessionReady}
-                          onClick={() => {
-                            setConversationPane("chat");
-                            setInlineModuleId("coordination/poll");
-                          }}
-                        >
-                          Start poll
-                        </button>
-                        <button
-                          type="button"
-                          className="panel-btn"
-                          disabled={busy || selected.blocked || !sessionReady}
-                          onClick={() => {
-                            setConversationPane("chat");
-                            setInlineModuleId("coordination/shared-list");
-                          }}
-                        >
-                          Shared list
-                        </button>
-                        <button
-                          type="button"
-                          className="panel-btn"
-                          disabled={busy || selected.blocked || !sessionReady}
-                          onClick={() => {
-                            setConversationPane("chat");
-                            setInlineModuleId("commerce/split-bill");
-                          }}
-                        >
-                          Split bill
-                        </button>
-                        <button
-                          type="button"
-                          className="panel-btn"
-                          disabled={busy || selected.blocked || !sessionReady}
-                          onClick={() => {
-                            setConversationPane("chat");
-                            setInlineModuleId("games/tictactoe");
-                          }}
-                        >
-                          Play tic-tac-toe
-                        </button>
-                        <button
-                          type="button"
-                          className="panel-btn"
-                          disabled={busy || selected.blocked || !sessionReady}
-                          onClick={() => {
-                            setConversationPane("chat");
-                            setInlineModuleId("games/battleships");
-                          }}
-                        >
-                          Play battleships
-                        </button>
-                      </>
+                      <p className="settings-note comms-agent-compose-hint">
+                        Ask your agent in Chat to compose coordination modules (poll, shared list, games) for this thread.
+                      </p>
                     ) : null}
                   </div>
                   {ownerCategories.length > 0 ? (
@@ -2263,27 +2192,6 @@ export function CommsPanel({
 
               {!demoMode ? (
               <>
-                {schedulingSuggested && !inlineModuleId ? (
-                  <div className="comms-schedule-suggest">
-                    <span>Arranging to meet?</span>
-                    <button
-                      type="button"
-                      className="panel-btn"
-                      disabled={busy || selected.blocked || !sessionReady || !modulesReady}
-                      onClick={() => setInlineModuleId("scheduling/meeting-picker")}
-                    >
-                      Pick a time
-                    </button>
-                    <button
-                      type="button"
-                      className="comms-schedule-card-close"
-                      aria-label="Dismiss scheduling suggestion"
-                      onClick={() => setScheduleDismissedFor(lastThreadMessageId)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ) : null}
                 {modulesReady && inlineModuleId ? (
                   <div className="comms-inline-module">
                     <button

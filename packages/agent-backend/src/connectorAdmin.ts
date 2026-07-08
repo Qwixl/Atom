@@ -1,5 +1,6 @@
 import type { Express, Request } from "express";
 
+import { allowDevBypassApproval, requireApprovalRef } from "./approvalRef.js";
 import type { ConnectorVault } from "./connectorVault.js";
 
 import {
@@ -69,6 +70,18 @@ function rejectInlineCredentials(req: Request, res: { status: (code: number) => 
 }
 
 
+
+function readApprovalRef(req: Request): string | undefined {
+  const body = req.body as { approvalRef?: string } | undefined;
+  const fromBody = body?.approvalRef?.trim();
+  if (fromBody) return fromBody;
+  const fromQuery = req.query.approvalRef;
+  return typeof fromQuery === "string" ? fromQuery.trim() : undefined;
+}
+
+function assertConnectorWriteApproval(req: Request): string {
+  return requireApprovalRef(readApprovalRef(req), { allowDevBypass: allowDevBypassApproval() });
+}
 
 export function registerConnectorAdminRoutes(adminApp: Express, config: ConnectorAdminConfig): void {
 
@@ -195,7 +208,12 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
 
   adminApp.post("/connectors/webcal/feeds", async (req, res) => {
-
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
     const body = req.body as { url?: string; label?: string };
 
     const url = body.url?.trim();
@@ -227,7 +245,12 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
 
   adminApp.delete("/connectors/webcal/feeds/:feedId", async (req, res) => {
-
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
     const feedId = req.params.feedId?.trim();
 
     if (!feedId) {
@@ -257,7 +280,12 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
 
   adminApp.post("/connectors/rss/feeds", async (req, res) => {
-
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
     const body = req.body as { url?: string; label?: string };
 
     const url = body.url?.trim();
@@ -289,7 +317,12 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
 
   adminApp.delete("/connectors/rss/feeds/:feedId", async (req, res) => {
-
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
     const feedId = req.params.feedId?.trim();
 
     if (!feedId) {
@@ -319,7 +352,12 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
 
   adminApp.post("/connectors/bookmarks", async (req, res) => {
-
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
     const body = req.body as { url?: string; label?: string };
 
     const url = body.url?.trim();
@@ -351,7 +389,12 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
 
   adminApp.delete("/connectors/bookmarks/:bookmarkId", async (req, res) => {
-
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
     const bookmarkId = req.params.bookmarkId?.trim();
 
     if (!bookmarkId) {
