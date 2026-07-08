@@ -21,4 +21,6 @@ Violations may result in suspend-with-reason. You will receive a reason code and
 
 ## Report abuse
 
-POST `/report-abuse` on the control plane or email abuse@qwixl.dev with the agent URL and summary.
+- **Hosted agent URL:** `POST /report-abuse` with `{ agentUrl, reason }`, or email abuse@qwixl.dev.
+- **Peer / contact (Messages or room member):** Shell **Report** → `POST /comms-abuse-report` (metadata only: peer DID, category, optional endpoint). Owners should **Block** as well; report forms offer auto-block.
+- Operators: `docs/04-security/08-comms-abuse-runbook.md` (private working tree). Escalate hosted agents via suspend-with-reason.

@@ -3,6 +3,7 @@ import {
   filterRegistryModulesByCategory,
   formatRegistryCategoryLabel,
   moduleRegistryCategory,
+  moduleRegistryTags,
   uniqueRegistryCategories,
 } from "./moduleRegistryCategories.js";
 
@@ -17,12 +18,24 @@ describe("moduleRegistryCategories", () => {
     expect(formatRegistryCategoryLabel("coordination")).toBe("Coordination");
   });
 
-  it("filters modules by category", () => {
+  it("unions index categories with namespace for filters", () => {
     const modules = [
-      { id: "games/tictactoe", version: "1.0.0", manifestUrl: "a" },
-      { id: "scheduling/meeting-picker", version: "1.0.0", manifestUrl: "b" },
+      {
+        id: "games/tictactoe",
+        version: "1.0.0",
+        manifestUrl: "a",
+        categories: ["games"],
+      },
+      {
+        id: "scheduling/meeting-picker",
+        version: "1.0.0",
+        manifestUrl: "b",
+        categories: ["scheduling", "coordination"],
+      },
     ];
-    expect(uniqueRegistryCategories(modules)).toEqual(["games", "scheduling"]);
+    expect(moduleRegistryTags(modules[1]!)).toEqual(["coordination", "scheduling"]);
+    expect(uniqueRegistryCategories(modules)).toEqual(["coordination", "games", "scheduling"]);
+    expect(filterRegistryModulesByCategory(modules, "coordination")).toEqual([modules[1]]);
     expect(filterRegistryModulesByCategory(modules, "games")).toHaveLength(1);
     expect(filterRegistryModulesByCategory(modules, "all")).toHaveLength(2);
   });
