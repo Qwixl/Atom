@@ -99,6 +99,7 @@ import { PersonalDemoWalkthrough } from "./PersonalDemoWalkthrough.js";
 import { calendarAddUrlFromAction } from "./calendarAddLink.js";
 import { type DemoCalendarEvent } from "./demoScheduling.js";
 import { CommsAgentClient } from "./comms/client.js";
+import { commsClientAuth, mintChatSessionToken, setChatSessionToken } from "./comms/chatSessionToken.js";
 import {
   formatCalendarContextForPrompt,
   isWebcalConnected,
@@ -458,6 +459,21 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (!vaultUnlocked) {
+      setChatSessionToken(null);
+      return;
+    }
+    void (async () => {
+      const config = await loadCommsAgentConfigSecure();
+      if (!config.adminToken?.trim()) {
+        setChatSessionToken(null);
+        return;
+      }
+      setChatSessionToken(await mintChatSessionToken(config));
+    })();
+  }, [vaultUnlocked, agentConnectionReady]);
+
+  useEffect(() => {
     if (!agentConnectionReady || !vaultUnlocked) return;
     void (async () => {
       try {
@@ -665,7 +681,7 @@ export function App() {
     if (IS_DEMO_MODE || !agentConnectionReady) return;
     const config = loadCommsAgentConfig();
     if (!config.adminToken?.trim()) return;
-    const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+    const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
     void syncContactsToAgent(client, commsContacts).catch(() => {
       /* policy sync is best-effort until agent is reachable */
     });
@@ -685,7 +701,7 @@ export function App() {
       const config = loadCommsAgentConfig();
       if (!config.adminToken?.trim()) return;
       try {
-        const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+        const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
         const entries = await client.inbox();
         if (cancelled) return;
         const lastRead = loadStringFromStorage(COMMS_LAST_READ_KEY) ?? "";
@@ -811,7 +827,7 @@ export function App() {
 
   const loadDemoWebcalEvents = useCallback(async (): Promise<DemoCalendarEvent[]> => {
     const config = loadCommsAgentConfig();
-    const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+    const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
     return loadWebcalBusyEvents(client);
   }, []);
   const demoWebcalReadyRef = useRef(demoWebcalReady);
@@ -847,7 +863,7 @@ export function App() {
       return;
     }
     try {
-      const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+      const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
       const connected = await isWebcalConnected(client);
       setDemoWebcalReady(connected);
       if (!connected) {
@@ -914,7 +930,7 @@ export function App() {
         return;
       }
       try {
-        const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+        const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
         const connected = await isRssConnected(client);
         if (!connected) {
           applyRssContext(formatRssContextForPrompt({ connected: false, items: [] }));
@@ -1048,7 +1064,7 @@ export function App() {
         "Atom connectors need your Messages agent running (pnpm start:agent) and connected in Settings.",
       );
     }
-    const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+    const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
     const response = await client.invokeConnector(
       call.connectorId,
       call.operation,
@@ -1532,7 +1548,7 @@ export function App() {
 
   async function saveDemoWebcalFeed(url: string) {
     const config = loadCommsAgentConfig();
-    const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+    const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
     await client.addWebcalFeed(url);
     await refreshDemoWebcalState();
   }

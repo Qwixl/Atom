@@ -21,10 +21,24 @@ export interface ResolvedDiscoverTarget {
   resolvedVia: "local" | "localhost-probe" | "registry" | "well-known" | "index-url";
 }
 
-function adminHeaders(adminToken?: string): HeadersInit {
+export type CommsAgentAuth =
+  | string
+  | {
+      readToken?: string;
+      adminToken?: string;
+    };
+
+function resolveAuthToken(auth: CommsAgentAuth | undefined, forWrite: boolean): string | undefined {
+  if (typeof auth === "string") return auth.trim() || undefined;
+  const token = forWrite ? auth?.adminToken : auth?.readToken ?? auth?.adminToken;
+  return token?.trim() || undefined;
+}
+
+function adminHeaders(auth: CommsAgentAuth | undefined, forWrite = false): HeadersInit {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (adminToken?.trim()) {
-    headers.Authorization = `Bearer ${adminToken.trim()}`;
+  const token = resolveAuthToken(auth, forWrite);
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
   return headers;
 }
@@ -33,12 +47,13 @@ async function postJson<T>(
   adminUrl: string,
   path: string,
   body: Record<string, unknown>,
-  adminToken?: string,
+  auth?: CommsAgentAuth,
+  forWrite = false,
 ): Promise<T> {
   assertProductionAgentUrl(adminUrl);
   const resp = await fetch(`${adminUrl.replace(/\/$/, "")}${path}`, {
     method: "POST",
-    headers: adminHeaders(adminToken),
+    headers: adminHeaders(auth, forWrite),
     body: JSON.stringify(body),
   });
   if (!resp.ok) {
@@ -48,11 +63,17 @@ async function postJson<T>(
   return resp.json() as Promise<T>;
 }
 
-async function getJson<T>(adminUrl: string, path: string, adminToken?: string): Promise<T> {
+async function getJson<T>(
+  adminUrl: string,
+  path: string,
+  auth?: CommsAgentAuth,
+  forWrite = false,
+): Promise<T> {
   assertProductionAgentUrl(adminUrl);
   const headers: Record<string, string> = {};
-  if (adminToken?.trim()) {
-    headers.Authorization = `Bearer ${adminToken.trim()}`;
+  const token = resolveAuthToken(auth, forWrite);
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
   const resp = await fetch(`${adminUrl.replace(/\/$/, "")}${path}`, { headers });
   if (!resp.ok) {
@@ -65,19 +86,23 @@ async function getJson<T>(adminUrl: string, path: string, adminToken?: string): 
 export class CommsAgentClient {
   constructor(
     private readonly adminUrl: string,
-    private readonly adminToken?: string,
+    private readonly auth?: CommsAgentAuth,
   ) {}
+
+  private bearer(forWrite = false): string | undefined {
+    return resolveAuthToken(this.auth, forWrite);
+  }
 
   private base(): string {
     return this.adminUrl.replace(/\/$/, "");
   }
 
   async health(): Promise<{ ok: boolean; did: string; inbox: number; mlsPeers: string[] }> {
-    return getJson(this.base(), "/health", this.adminToken);
+    return getJson(this.base(), "/health", this.auth, true);
   }
 
   async inbox(): Promise<InboxEntryWire[]> {
-    const body = await getJson<{ entries?: InboxEntryWire[] }>(this.base(), "/inbox", this.adminToken);
+    const body = await getJson<{ entries?: InboxEntryWire[] }>(this.base(), "/inbox", this.auth, true);
     return body.entries ?? [];
   }
 
@@ -86,12 +111,13 @@ export class CommsAgentClient {
       this.base(),
       "/invite",
       ttlSeconds ? { ttlSeconds } : {},
-      this.adminToken,
+      this.auth,
+      true,
     );
   }
 
   async connectInvite(invite: string): Promise<{ connected: string }> {
-    return postJson(this.base(), "/mls/connect", { invite: invite.trim() }, this.adminToken);
+    return postJson(this.base(), "/mls/connect", { invite: invite.trim() }, this.auth, true);
   }
 
   async connectPeer(peerUrl: string, peerDid?: string): Promise<{ connected: string }> {
@@ -99,7 +125,8 @@ export class CommsAgentClient {
       this.base(),
       "/mls/connect",
       { peerUrl: peerUrl.trim(), ...(peerDid?.trim() ? { peerDid: peerDid.trim() } : {}) },
-      this.adminToken,
+      this.auth,
+      true,
     );
   }
 
@@ -108,7 +135,8 @@ export class CommsAgentClient {
       this.base(),
       "/discover/resolve",
       entry as unknown as Record<string, unknown>,
-      this.adminToken,
+      this.auth,
+      true,
     );
     return body.resolved;
   }
@@ -118,7 +146,7 @@ export class CommsAgentClient {
   ): Promise<Array<{ entry: BusinessIndexEntry; resolved: ResolvedDiscoverTarget }>> {
     const body = await postJson<{
       available: Array<{ entry: BusinessIndexEntry; resolved: ResolvedDiscoverTarget }>;
-    }>(this.base(), "/discover/availability", { entries }, this.adminToken);
+    }>(this.base(), "/discover/availability", { entries }, this.auth, true);
     return body.available;
   }
 
@@ -135,7 +163,7 @@ export class CommsAgentClient {
       indexLabel: string;
     }>;
   }> {
-    return postJson(this.base(), "/discover/search", opts, this.adminToken);
+    return postJson(this.base(), "/discover/search", opts, this.auth, true);
   }
 
   async sendText(opts: {
@@ -158,7 +186,8 @@ export class CommsAgentClient {
         message,
         encrypt: opts.encrypt,
       },
-      this.adminToken,
+      this.auth,
+      true,
     );
   }
 
@@ -179,7 +208,8 @@ export class CommsAgentClient {
         slots: opts.slots,
         encrypt: opts.encrypt ?? true,
       },
-      this.adminToken,
+      this.auth,
+      true,
     );
     return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
   }
@@ -209,7 +239,8 @@ export class CommsAgentClient {
         end: opts.end,
         encrypt: opts.encrypt ?? true,
       },
-      this.adminToken,
+      this.auth,
+      true,
     );
   }
 
@@ -219,7 +250,7 @@ export class CommsAgentClient {
     webcalUrl: string;
     tokenHint: string;
   }> {
-    return getJson(this.base(), "/calendar/feed", this.adminToken);
+    return getJson(this.base(), "/calendar/feed", this.auth, true);
   }
 
   async rotateCalendarPublishFeedToken(): Promise<{
@@ -228,11 +259,11 @@ export class CommsAgentClient {
     webcalUrl: string;
     tokenHint: string;
   }> {
-    return postJson(this.base(), "/calendar/feed/rotate-token", {}, this.adminToken);
+    return postJson(this.base(), "/calendar/feed/rotate-token", {}, this.auth, true);
   }
 
   async syncCalendarPublishFeed(): Promise<{ added: number; eventCount: number }> {
-    return postJson(this.base(), "/calendar/feed/sync-inbox", {}, this.adminToken);
+    return postJson(this.base(), "/calendar/feed/sync-inbox", {}, this.auth, true);
   }
 
   async sendRsvpRequest(opts: {
@@ -254,7 +285,8 @@ export class CommsAgentClient {
         location: opts.location,
         encrypt: opts.encrypt ?? true,
       },
-      this.adminToken,
+      this.auth,
+      true,
     );
     return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
   }
@@ -276,7 +308,8 @@ export class CommsAgentClient {
         response: opts.response,
         encrypt: opts.encrypt ?? true,
       },
-      this.adminToken,
+      this.auth,
+      true,
     );
   }
 
@@ -297,7 +330,8 @@ export class CommsAgentClient {
         options: opts.options,
         encrypt: opts.encrypt ?? true,
       },
-      this.adminToken,
+      this.auth,
+      true,
     );
     return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
   }
@@ -319,7 +353,8 @@ export class CommsAgentClient {
         optionId: opts.optionId,
         encrypt: opts.encrypt ?? true,
       },
-      this.adminToken,
+      this.auth,
+      true,
     );
   }
 
@@ -348,7 +383,8 @@ export class CommsAgentClient {
         shareMinor: opts.shareMinor,
         encrypt: opts.encrypt ?? true,
       },
-      this.adminToken,
+      this.auth,
+      true,
     );
     return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
   }
@@ -372,7 +408,8 @@ export class CommsAgentClient {
         items: opts.items,
         encrypt: opts.encrypt ?? true,
       },
-      this.adminToken,
+      this.auth,
+      true,
     );
     return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
   }
@@ -396,7 +433,8 @@ export class CommsAgentClient {
         items: opts.items,
         encrypt: opts.encrypt ?? true,
       },
-      this.adminToken,
+      this.auth,
+      true,
     );
   }
 
@@ -423,7 +461,8 @@ export class CommsAgentClient {
         winner: opts.winner,
         encrypt: opts.encrypt ?? true,
       },
-      this.adminToken,
+      this.auth,
+      true,
     );
     return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
   }
@@ -447,7 +486,8 @@ export class CommsAgentClient {
         mark: opts.mark,
         encrypt: opts.encrypt ?? true,
       },
-      this.adminToken,
+      this.auth,
+      true,
     );
   }
 
@@ -478,7 +518,8 @@ export class CommsAgentClient {
         winner: opts.winner,
         encrypt: opts.encrypt ?? true,
       },
-      this.adminToken,
+      this.auth,
+      true,
     );
     return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
   }
@@ -504,7 +545,8 @@ export class CommsAgentClient {
         hit: opts.hit,
         encrypt: opts.encrypt ?? true,
       },
-      this.adminToken,
+      this.auth,
+      true,
     );
   }
 
@@ -517,7 +559,7 @@ export class CommsAgentClient {
     oauthConnected?: boolean;
     vaultOnly?: boolean;
   }> {
-    return getJson(this.base(), `/connectors/${encodeURIComponent(connectorId)}/status`, this.adminToken);
+    return getJson(this.base(), `/connectors/${encodeURIComponent(connectorId)}/status`, this.auth);
   }
 
   async invokeConnector(
@@ -530,19 +572,20 @@ export class CommsAgentClient {
       this.base(),
       `/connectors/${encodeURIComponent(connectorId)}/invoke`,
       { operation, input, approvalRef },
-      this.adminToken,
+      this.auth,
     );
   }
 
   async addWebcalFeed(url: string, label?: string, approvalRef?: string): Promise<{ feed: { id: string; label: string } }> {
-    return postJson(this.base(), "/connectors/webcal/feeds", { url, label, approvalRef }, this.adminToken);
+    return postJson(this.base(), "/connectors/webcal/feeds", { url, label, approvalRef }, this.auth, true);
   }
 
   async removeWebcalFeed(feedId: string, approvalRef?: string): Promise<{ removed: boolean; feedId: string }> {
     const query = approvalRef?.trim() ? `?approvalRef=${encodeURIComponent(approvalRef.trim())}` : "";
     const headers: Record<string, string> = {};
-    if (this.adminToken?.trim()) {
-      headers.Authorization = `Bearer ${this.adminToken.trim()}`;
+    const token = this.bearer(true);
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
     const resp = await fetch(
       `${this.base()}/connectors/webcal/feeds/${encodeURIComponent(feedId)}${query}`,
@@ -556,14 +599,15 @@ export class CommsAgentClient {
   }
 
   async addRssFeed(url: string, label?: string, approvalRef?: string): Promise<{ feed: { id: string; label: string } }> {
-    return postJson(this.base(), "/connectors/rss/feeds", { url, label, approvalRef }, this.adminToken);
+    return postJson(this.base(), "/connectors/rss/feeds", { url, label, approvalRef }, this.auth, true);
   }
 
   async removeRssFeed(feedId: string, approvalRef?: string): Promise<{ removed: boolean; feedId: string }> {
     const query = approvalRef?.trim() ? `?approvalRef=${encodeURIComponent(approvalRef.trim())}` : "";
     const headers: Record<string, string> = {};
-    if (this.adminToken?.trim()) {
-      headers.Authorization = `Bearer ${this.adminToken.trim()}`;
+    const token = this.bearer(true);
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
     const resp = await fetch(
       `${this.base()}/connectors/rss/feeds/${encodeURIComponent(feedId)}${query}`,
@@ -577,14 +621,15 @@ export class CommsAgentClient {
   }
 
   async addBookmark(url: string, label?: string, approvalRef?: string): Promise<{ bookmark: { id: string; label: string } }> {
-    return postJson(this.base(), "/connectors/bookmarks", { url, label, approvalRef }, this.adminToken);
+    return postJson(this.base(), "/connectors/bookmarks", { url, label, approvalRef }, this.auth, true);
   }
 
   async removeBookmark(bookmarkId: string, approvalRef?: string): Promise<{ removed: boolean; bookmarkId: string }> {
     const query = approvalRef?.trim() ? `?approvalRef=${encodeURIComponent(approvalRef.trim())}` : "";
     const headers: Record<string, string> = {};
-    if (this.adminToken?.trim()) {
-      headers.Authorization = `Bearer ${this.adminToken.trim()}`;
+    const token = this.bearer(true);
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
     const resp = await fetch(
       `${this.base()}/connectors/bookmarks/${encodeURIComponent(bookmarkId)}${query}`,
@@ -609,7 +654,7 @@ export class CommsAgentClient {
     peerUrl?: string;
     encrypt?: boolean;
   }): Promise<{ object: { id: string } }> {
-    return postJson(this.base(), "/actions/reserve", opts, this.adminToken);
+    return postJson(this.base(), "/actions/reserve", opts, this.auth, true);
   }
 
   async confirmTransaction(opts: {
@@ -619,7 +664,7 @@ export class CommsAgentClient {
     peerDid: string;
     encrypt?: boolean;
   }): Promise<{ transaction: { phase: string } }> {
-    return postJson(this.base(), "/transactions/confirm", opts, this.adminToken);
+    return postJson(this.base(), "/transactions/confirm", opts, this.auth, true);
   }
 
   async declineTransaction(opts: {
@@ -630,7 +675,7 @@ export class CommsAgentClient {
     peerDid: string;
     encrypt?: boolean;
   }): Promise<{ transaction: { phase: string } }> {
-    return postJson(this.base(), "/transactions/decline", opts, this.adminToken);
+    return postJson(this.base(), "/transactions/decline", opts, this.auth, true);
   }
 
   async sendCommerceIntent(opts: {
@@ -644,7 +689,7 @@ export class CommsAgentClient {
     maxAmountMinor?: number;
     currency?: string;
   }): Promise<{ object: { id: string } }> {
-    return postJson(this.base(), "/business/intent", opts, this.adminToken);
+    return postJson(this.base(), "/business/intent", opts, this.auth, true);
   }
 
   async offerTransaction(opts: {
@@ -660,19 +705,19 @@ export class CommsAgentClient {
     stripeSecretKey?: string;
     encrypt?: boolean;
   }): Promise<{ transaction: { phase: string } }> {
-    return postJson(this.base(), "/transactions/offer", opts, this.adminToken);
+    return postJson(this.base(), "/transactions/offer", opts, this.auth, true);
   }
 
   async syncBusinessCatalog(
     items: BusinessCatalogItemValue[],
   ): Promise<{ catalog: unknown[] }> {
-    return postJson(this.base(), "/business/catalog/sync", { items }, this.adminToken);
+    return postJson(this.base(), "/business/catalog/sync", { items }, this.auth, true);
   }
 
   async syncBusinessContext(
     records: Array<{ category: "business-brand" | "business-policy"; label: string; value: string }>,
   ): Promise<{ brand: unknown[]; policy: unknown[] }> {
-    return postJson(this.base(), "/business/context/sync", { records }, this.adminToken);
+    return postJson(this.base(), "/business/context/sync", { records }, this.auth, true);
   }
 
   async syncBusinessKnowledge(
@@ -683,7 +728,7 @@ export class CommsAgentClient {
       body: string;
     }>,
   ): Promise<{ documents: unknown[] }> {
-    return postJson(this.base(), "/business/knowledge/sync", { documents }, this.adminToken);
+    return postJson(this.base(), "/business/knowledge/sync", { documents }, this.auth, true);
   }
 
   async listRooms(): Promise<{
@@ -708,7 +753,7 @@ export class CommsAgentClient {
       };
     }>;
   }> {
-    return getJson(this.base(), "/rooms", this.adminToken);
+    return getJson(this.base(), "/rooms", this.auth, true);
   }
 
   async getRoom(roomId: string): Promise<{
@@ -722,13 +767,13 @@ export class CommsAgentClient {
     };
     memberCount: number;
   }> {
-    return getJson(this.base(), `/rooms/${encodeURIComponent(roomId)}`, this.adminToken);
+    return getJson(this.base(), `/rooms/${encodeURIComponent(roomId)}`, this.auth, true);
   }
 
   async listRoomMembers(roomId: string): Promise<{
     members: Array<{ did: string; name?: string; endpoint?: string; joinedAt: string }>;
   }> {
-    return getJson(this.base(), `/rooms/${encodeURIComponent(roomId)}/members`, this.adminToken);
+    return getJson(this.base(), `/rooms/${encodeURIComponent(roomId)}/members`, this.auth, true);
   }
 
   async listRoomMessages(
@@ -748,7 +793,8 @@ export class CommsAgentClient {
     return getJson(
       this.base(),
       `/rooms/${encodeURIComponent(roomId)}/messages?after=${afterSeq}`,
-      this.adminToken,
+      this.auth,
+      true,
     );
   }
 
@@ -757,11 +803,11 @@ export class CommsAgentClient {
     roomId: string;
     memberName?: string;
   }): Promise<{ joined: string; descriptor: { roomId: string; name: string; moduleId?: string } | null }> {
-    return postJson(this.base(), "/rooms/join-remote", opts, this.adminToken);
+    return postJson(this.base(), "/rooms/join-remote", opts, this.auth, true);
   }
 
   async leaveRoom(roomId: string): Promise<{ left: string }> {
-    return postJson(this.base(), `/rooms/${encodeURIComponent(roomId)}/leave`, {}, this.adminToken);
+    return postJson(this.base(), `/rooms/${encodeURIComponent(roomId)}/leave`, {}, this.auth, true);
   }
 
   async syncContacts(
@@ -781,7 +827,8 @@ export class CommsAgentClient {
       this.base(),
       "/contacts/sync",
       { contacts },
-      this.adminToken,
+      this.auth,
+      true,
     );
     return body;
   }
@@ -793,13 +840,13 @@ export class CommsAgentClient {
     activityKind?: string;
     payload?: Record<string, unknown>;
   }): Promise<{ message?: { seq: number; text?: string }; pending?: boolean }> {
-    return postJson(this.base(), `/rooms/${encodeURIComponent(opts.roomId)}/send`, opts, this.adminToken);
+    return postJson(this.base(), `/rooms/${encodeURIComponent(opts.roomId)}/send`, opts, this.auth, true);
   }
 
   async roomStats(roomId: string): Promise<{
     stats: { present: number; joinsToday: number; messagesToday: number; activities: Record<string, number> };
   }> {
-    return getJson(this.base(), `/rooms/${encodeURIComponent(roomId)}/stats`, this.adminToken);
+    return getJson(this.base(), `/rooms/${encodeURIComponent(roomId)}/stats`, this.auth, true);
   }
 }
 

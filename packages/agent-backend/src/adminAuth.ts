@@ -3,6 +3,15 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { NextFunction, Request, Response } from "express";
 import { resolveDataPath } from "./dataDir.js";
+import { verifySessionToken, type SessionScope } from "./sessionToken.js";
+
+export type AdminAuthContext =
+  | { kind: "admin" }
+  | { kind: "session"; scopes: SessionScope[] };
+
+export interface AuthenticatedRequest extends Request {
+  auth?: AdminAuthContext;
+}
 
 const TOKEN_FILE = "agent-admin-token.txt";
 
@@ -48,7 +57,17 @@ function isPublicRoomRoute(req: Request): boolean {
 }
 
 export function requireAdminAuth(expectedToken: string) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return createAdminAuthMiddleware(expectedToken);
+}
+
+function allowsSessionAuth(req: Request): boolean {
+  if (req.method === "GET" && /^\/connectors\//.test(req.path)) return true;
+  if (req.method === "POST" && /^\/connectors\/[^/]+\/invoke$/.test(req.path)) return true;
+  return false;
+}
+
+export function createAdminAuthMiddleware(expectedToken: string) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (req.method === "GET" && PUBLIC_ADMIN_PATHS.has(req.path)) {
       next();
       return;
@@ -59,9 +78,33 @@ export function requireAdminAuth(expectedToken: string) {
     }
     const header = req.headers.authorization;
     if (header === `Bearer ${expectedToken}`) {
+      req.auth = { kind: "admin" };
       next();
       return;
     }
+    const bearer = header?.startsWith("Bearer ") ? header.slice(7).trim() : "";
+    if (bearer) {
+      const payload = verifySessionToken(expectedToken, bearer);
+      if (payload) {
+        if (!allowsSessionAuth(req)) {
+          res.status(403).json({ error: "Session token not valid for this route" });
+          return;
+        }
+        req.auth = { kind: "session", scopes: payload.scopes };
+        next();
+        return;
+      }
+    }
     res.status(401).json({ error: "Unauthorized" });
   };
+}
+
+export function isAdminAuth(req: AuthenticatedRequest): boolean {
+  return req.auth?.kind === "admin";
+}
+
+export function hasSessionScope(req: AuthenticatedRequest, scope: SessionScope): boolean {
+  if (req.auth?.kind === "admin") return true;
+  if (req.auth?.kind === "session") return req.auth.scopes.includes(scope);
+  return false;
 }

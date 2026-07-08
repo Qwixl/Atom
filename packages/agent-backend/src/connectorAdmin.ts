@@ -1,6 +1,7 @@
 import type { Express, Request } from "express";
 
 import { allowDevBypassApproval, requireApprovalRef } from "./approvalRef.js";
+import { hasSessionScope, isAdminAuth, type AuthenticatedRequest } from "./adminAuth.js";
 import type { ConnectorVault } from "./connectorVault.js";
 
 import {
@@ -83,9 +84,22 @@ function assertConnectorWriteApproval(req: Request): string {
   return requireApprovalRef(readApprovalRef(req), { allowDevBypass: allowDevBypassApproval() });
 }
 
+function assertConnectorReadAuth(req: Request, res: { status: (code: number) => { json: (body: unknown) => void } }): boolean {
+  if (hasSessionScope(req as AuthenticatedRequest, "connector:read")) return true;
+  res.status(403).json({ error: "Session token lacks connector:read scope" });
+  return false;
+}
+
+function assertAdminWriteAuth(req: Request, res: { status: (code: number) => { json: (body: unknown) => void } }): boolean {
+  if (isAdminAuth(req as AuthenticatedRequest)) return true;
+  res.status(403).json({ error: "Admin token required for connector writes" });
+  return false;
+}
+
 export function registerConnectorAdminRoutes(adminApp: Express, config: ConnectorAdminConfig): void {
 
   adminApp.get("/connectors/:connectorId", async (req, res) => {
+    if (!assertConnectorReadAuth(req, res)) return;
 
     try {
 
@@ -112,6 +126,7 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
 
   adminApp.get("/connectors/:connectorId/status", async (req, res) => {
+    if (!assertConnectorReadAuth(req, res)) return;
 
     try {
 
@@ -138,6 +153,7 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
 
   adminApp.post("/connectors/:connectorId/invoke", async (req, res) => {
+    if (!assertConnectorReadAuth(req, res)) return;
 
     const connectorId = connectorIdParam(req);
 
@@ -175,6 +191,15 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
       }
 
+      const operationSpec = backend.operationSpec?.(operation);
+      const authReq = req as AuthenticatedRequest;
+      if (authReq.auth?.kind === "session") {
+        if (!operationSpec || operationSpec.permission === "write") {
+          res.status(403).json({ error: "Session token is read-only" });
+          return;
+        }
+      }
+
       const result = await invokeConnectorCached(
 
         backend,
@@ -187,7 +212,7 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
         body.input ?? {},
 
-        backend.operationSpec?.(operation),
+        operationSpec,
 
       );
 
@@ -208,6 +233,7 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
 
   adminApp.post("/connectors/webcal/feeds", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
     try {
       assertConnectorWriteApproval(req);
     } catch (error) {
@@ -245,6 +271,7 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
 
   adminApp.delete("/connectors/webcal/feeds/:feedId", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
     try {
       assertConnectorWriteApproval(req);
     } catch (error) {
@@ -280,6 +307,7 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
 
   adminApp.post("/connectors/rss/feeds", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
     try {
       assertConnectorWriteApproval(req);
     } catch (error) {
@@ -317,6 +345,7 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
 
   adminApp.delete("/connectors/rss/feeds/:feedId", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
     try {
       assertConnectorWriteApproval(req);
     } catch (error) {
@@ -352,6 +381,7 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
 
   adminApp.post("/connectors/bookmarks", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
     try {
       assertConnectorWriteApproval(req);
     } catch (error) {
@@ -389,6 +419,7 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
 
   adminApp.delete("/connectors/bookmarks/:bookmarkId", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
     try {
       assertConnectorWriteApproval(req);
     } catch (error) {

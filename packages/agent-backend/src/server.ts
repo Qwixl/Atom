@@ -20,7 +20,8 @@ import { base64ToBytes, signDataObject, verifyDataObject, type UnsignedDataObjec
 import { createRateLimiter } from "./rateLimit.js";
 import { loadAgentBackendConfig, type AgentBackendConfig } from "./config.js";
 import { publicBaseUrlForPort, resolvePortWithPrompt } from "./portConflict.js";
-import { loadOrCreateAdminToken, requireAdminAuth, adminTokenPath } from "./adminAuth.js";
+import { loadOrCreateAdminToken, requireAdminAuth, adminTokenPath, isAdminAuth, type AuthenticatedRequest } from "./adminAuth.js";
+import { mintSessionToken, parseSessionTtlMs, type SessionScope } from "./sessionToken.js";
 import { agentConnectionPath, writeAgentConnectionFile } from "./agentConnectionFile.js";
 import { registerAdminDataRoutes } from "./adminDataRoutes.js";
 import { registerCustodyAdminRoutes } from "./custodyAdmin.js";
@@ -368,6 +369,24 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   adminApp.use(express.json({ limit: "512kb" }));
   const keyPackageRateLimit = createRateLimiter(60 * 1000, 30);
   adminApp.use(requireAdminAuth(adminAuth.token));
+
+  adminApp.post("/admin/session-token", (req, res) => {
+    if (!isAdminAuth(req as AuthenticatedRequest)) {
+      res.status(403).json({ error: "Admin token required" });
+      return;
+    }
+    const body = req.body as { scopes?: SessionScope[]; ttlSeconds?: number };
+    const scopes =
+      body.scopes?.filter((scope): scope is SessionScope => scope === "connector:read") ?? [
+        "connector:read",
+      ];
+    const ttlMs = parseSessionTtlMs(body.ttlSeconds);
+    res.json({
+      token: mintSessionToken(adminAuth.token, { scopes, ttlMs }),
+      scopes,
+      expiresInSeconds: Math.floor(ttlMs / 1000),
+    });
+  });
 
   registerCoordinationAdminRoutes(adminApp, { identity, mlsStore, calendarFeed });
   registerCalendarFeedAdminRoutes(adminApp, {
