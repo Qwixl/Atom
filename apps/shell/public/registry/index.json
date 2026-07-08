@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-08T12:16:30.891Z",
+  "updatedAt": "2026-07-08T13:12:31.663Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
@@ -13,7 +13,8 @@
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
         "commerce"
-      ]
+      ],
+      "signatureUrl": "signature.sigstore.json"
     },
     {
       "id": "commerce/offer-comparison-pro",
@@ -30,7 +31,8 @@
       },
       "categories": [
         "commerce"
-      ]
+      ],
+      "signatureUrl": "signature.sigstore.json"
     },
     {
       "id": "commerce/product-gallery",
@@ -41,7 +43,8 @@
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
         "commerce"
-      ]
+      ],
+      "signatureUrl": "signature.sigstore.json"
     },
     {
       "id": "commerce/split-bill",
@@ -52,7 +55,8 @@
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
         "commerce"
-      ]
+      ],
+      "signatureUrl": "signature.sigstore.json"
     },
     {
       "id": "community/coffee-shop",
@@ -63,7 +67,8 @@
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
         "community"
-      ]
+      ],
+      "signatureUrl": "signature.sigstore.json"
     },
     {
       "id": "connectors/webcal",
@@ -75,7 +80,8 @@
       "categories": [
         "connectors",
         "scheduling"
-      ]
+      ],
+      "signatureUrl": "signature.sigstore.json"
     },
     {
       "id": "coordination/poll",
@@ -86,7 +92,8 @@
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
         "coordination"
-      ]
+      ],
+      "signatureUrl": "signature.sigstore.json"
     },
     {
       "id": "coordination/shared-list",
@@ -97,7 +104,8 @@
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
         "coordination"
-      ]
+      ],
+      "signatureUrl": "signature.sigstore.json"
     },
     {
       "id": "core-examples/contact-card",
@@ -108,7 +116,8 @@
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
         "core-examples"
-      ]
+      ],
+      "signatureUrl": "signature.sigstore.json"
     },
     {
       "id": "data/map-view",
@@ -119,7 +128,8 @@
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
         "data"
-      ]
+      ],
+      "signatureUrl": "signature.sigstore.json"
     },
     {
       "id": "games/battleships",
@@ -131,7 +141,8 @@
       "categories": [
         "games"
       ],
-      "tier": "system"
+      "tier": "system",
+      "signatureUrl": "signature.sigstore.json"
     },
     {
       "id": "games/tictactoe",
@@ -142,7 +153,8 @@
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
         "games"
-      ]
+      ],
+      "signatureUrl": "signature.sigstore.json"
     },
     {
       "id": "media/audio-player",
@@ -153,7 +165,8 @@
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
         "media"
-      ]
+      ],
+      "signatureUrl": "signature.sigstore.json"
     },
     {
       "id": "scheduling/availability-grid",
@@ -164,7 +177,8 @@
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
         "scheduling"
-      ]
+      ],
+      "signatureUrl": "signature.sigstore.json"
     },
     {
       "id": "travel/seat-map",
@@ -175,7 +189,8 @@
       "publisher": "did:key:z6Mkdemotravel0001",
       "categories": [
         "travel"
-      ]
+      ],
+      "signatureUrl": "signature.sigstore.json"
     },
     {
       "id": "scheduling/meeting-picker",
@@ -188,7 +203,8 @@
         "scheduling",
         "coordination"
       ],
-      "tier": "system"
+      "tier": "system",
+      "signatureUrl": "signature.sigstore.json"
     }
   ]
 }

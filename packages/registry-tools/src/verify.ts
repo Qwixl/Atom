@@ -40,10 +40,15 @@ export interface VerifyOptions {
   requireIntegrity?: boolean;
   /** When true, verify Sigstore bundle digest match for manifests with signatureUrl. */
   verifySignatures?: boolean;
+  /**
+   * When true with verifySignatures, also run sigstore-js Fulcio/Rekor crypto verify.
+   * Digest-anchored curated bundles (atom-registry sign) skip this — they use local keys.
+   */
+  fulcioVerify?: boolean;
   /** Fail when verifySignatures is on and a manifest omits signatureUrl (M-TS-03). */
   requireSignatures?: boolean;
   /**
-   * Soft-fail Sigstore for rows without signatureUrl (CI default until all modules are signed).
+   * Soft-fail Sigstore for rows without signatureUrl (`registry:verify:soft`).
    * Still fails when a listing includes a broken/mismatched signatureUrl.
    */
   softRequireSignatures?: boolean;
@@ -289,7 +294,7 @@ async function verifyEntry(
           signatureUrl,
           manifestPath,
           options.bundleBase,
-          true,
+          options.fulcioVerify === true,
         );
       } catch (error) {
         errors.push(
@@ -387,6 +392,7 @@ export async function publishModule(options: PublishOptions): Promise<void> {
       ? { categories: [...updatedManifest.categories] }
       : {}),
     ...(updatedManifest.tier ? { tier: updatedManifest.tier } : {}),
+    ...(updatedManifest.signatureUrl ? { signatureUrl: updatedManifest.signatureUrl } : {}),
   };
 
   index.modules = index.modules.filter(
