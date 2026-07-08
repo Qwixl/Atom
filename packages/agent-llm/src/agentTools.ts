@@ -1,5 +1,5 @@
 import type { ModelCapabilityProfile, NativeToolId } from "./modelCapabilities.js";
-import { filterWireableHostedTools } from "./hostedToolWireability.js";
+import { filterWireableHostedTools, buildResponsesHostedTool } from "./hostedToolWireability.js";
 
 export type AtomToolId = "connector_invoke";
 
@@ -96,7 +96,8 @@ export function responsesApiTools(profile: AgentToolProfile): unknown[] {
   for (const type of filterWireableHostedTools(profile.providerHostedTools)) {
     if (seen.has(type)) continue;
     seen.add(type);
-    tools.push({ type });
+    const tool = buildResponsesHostedTool(type);
+    if (tool) tools.push(tool);
   }
   if (profile.atom.includes("connector_invoke")) {
     tools.push({
