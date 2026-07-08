@@ -30,7 +30,12 @@ export function buildAgentToolProfile(
   const atomConnectorsAvailable = opts?.atomConnectorsAvailable ?? false;
   const atom: AtomToolId[] = atomConnectorsAvailable ? ["connector_invoke"] : [];
   const hasResponsesTools = providerHostedTools.length > 0;
-  const useResponsesApi = Boolean(capabilities?.responsesApi) && hasResponsesTools;
+  // Chat compose defaults to Chat Completions — works for personal API keys without org verification.
+  // Responses API is reserved for image-family models (image_generation) that require it.
+  const useResponsesApi =
+    capabilities?.modelFamily === "image" &&
+    Boolean(capabilities?.responsesApi) &&
+    hasResponsesTools;
   const useAtomToolLoop = atom.length > 0 && !useResponsesApi;
   return {
     native,
@@ -113,11 +118,13 @@ export function responsesApiTools(profile: AgentToolProfile): unknown[] {
 
 export function formatToolsForPrompt(profile: AgentToolProfile): string {
   const lines: string[] = ["## Tools available this session", ""];
-  for (const type of profile.providerHostedTools) {
+  const wiredHosted = profile.useResponsesApi ? profile.providerHostedTools : [];
+  for (const type of wiredHosted) {
     lines.push(`- **${type}** (provider-hosted)`);
   }
   for (const tool of profile.native) {
-    if (profile.providerHostedTools.includes(tool)) continue;
+    if (wiredHosted.includes(tool)) continue;
+    if (!profile.useResponsesApi && profile.providerHostedTools.includes(tool)) continue;
     lines.push(`- ${NATIVE_TOOL_LABELS[tool] ?? tool}`);
   }
   if (profile.atom.includes("connector_invoke")) {
@@ -134,11 +141,10 @@ export function formatToolsForPrompt(profile: AgentToolProfile): string {
   lines.push("");
   lines.push(
     "When the owner asks what tools/skills you have, list **every tool above first**, then Atom UI composition abilities. " +
-      "Native provider tools and Atom tools **add together** — never omit web_search when listed above. " +
       "Never claim a tool not listed above.",
   );
   lines.push(
-    "After web search or connector reads, always emit Atom JSON with headline/list content in `text` and/or `core/list` — never stop at an empty intro.",
+    "After connector reads or other tool use, always emit Atom JSON with headline/list content in `text` and/or `core/list` — never stop at an empty intro.",
   );
   lines.push(
     "When atom_connector_invoke fails, tell the owner to start their Messages agent (pnpm start:agent) — connectors run on the agent backend, not in the browser alone.",

@@ -53,18 +53,26 @@ describe("modelCapabilities", () => {
 });
 
 describe("agentTools", () => {
-  it("uses Responses API when providerHostedTools in profile", () => {
+  it("uses Chat Completions for chat models even when metadata lists hosted tools", () => {
     const profile = buildAgentToolProfile(
       {
         ...inferModelCapabilities("https://api.openai.com/v1", "gpt-4.1-mini"),
-        nativeTools: ["web_search"],
-        providerHostedTools: ["web_search"],
+        nativeTools: ["web_search", "code_interpreter"],
+        providerHostedTools: ["web_search", "code_interpreter"],
         responsesApi: true,
       },
       { atomConnectorsAvailable: true },
     );
+    expect(profile.useResponsesApi).toBe(false);
+    expect(profile.useAtomToolLoop).toBe(true);
+  });
+
+  it("uses Responses API for image-family models", () => {
+    const profile = buildAgentToolProfile(
+      inferModelCapabilities("https://api.openai.com/v1", "gpt-image-2"),
+      { atomConnectorsAvailable: false },
+    );
     expect(profile.useResponsesApi).toBe(true);
-    expect(profile.providerHostedTools).toEqual(["web_search"]);
   });
 
   it("prompt lists only wired tools", () => {
@@ -78,8 +86,8 @@ describe("agentTools", () => {
       { atomConnectorsAvailable: true },
     );
     const section = formatToolsForPrompt(profile);
-    expect(section).toContain("web_search");
-    expect(section).not.toContain("file_search");
+    expect(section).not.toContain("web_search");
+    expect(section).toContain("atom_connector_invoke");
   });
 
   it("formats native tools label from profile", () => {
