@@ -17,6 +17,8 @@ export type AtomConnectorId =
   | "home-assistant"
   | "caldav"
   | "carddav"
+  | "bluesky"
+  | "mastodon"
   | "weather";
 
 export interface AtomConnectorInvokeInput {
@@ -71,9 +73,10 @@ export const ATOM_CONNECTOR_INVOKE_TOOL = {
   function: {
     name: "atom_connector_invoke",
     description:
-      "Read owner-specific data via Atom connectors. Use for calendar (webcal, caldav), subscribed RSS/podcast feeds, " +
-      "ephemeral news search (news-search), saved bookmarks, Todoist tasks, GitHub notifications/issues, " +
-      "Notion search, or Open-Meteo weather. Agent-led only — never triggered by shell keywords.",
+      "Read owner-specific data via Atom connectors. Use for calendar (webcal, caldav), contacts (carddav), " +
+      "subscribed RSS/podcast feeds, ephemeral news search (news-search), saved bookmarks, Todoist tasks, " +
+      "GitHub notifications/issues, Notion search, Linear/Trello/Home Assistant, Bluesky/Mastodon timelines, " +
+      "or Open-Meteo weather. Agent-led only — never triggered by shell keywords.",
     parameters: {
       type: "object",
       properties: {
@@ -87,7 +90,13 @@ export const ATOM_CONNECTOR_INVOKE_TOOL = {
             "todoist",
             "github",
             "notion",
+            "linear",
+            "trello",
+            "home-assistant",
             "caldav",
+            "carddav",
+            "bluesky",
+            "mastodon",
             "weather",
           ],
           description: "Connector id.",
@@ -96,9 +105,12 @@ export const ATOM_CONNECTOR_INVOKE_TOOL = {
           type: "string",
           description:
             "Operation id. webcal: getStatus, listEvents. caldav: getStatus, listCalendars, listEvents. " +
-            "rss: getStatus, listItems, listPodcastItems. news-search: searchItems (input.query). " +
-            "bookmarks: getStatus, listBookmarks, readBookmark. todoist: getStatus, listTasks, listProjects. " +
-            "github: getStatus, listNotifications, listAssignedIssues. notion: getStatus, search (input.query). " +
+            "carddav: getStatus, listContacts. rss: getStatus, listItems, listPodcastItems. " +
+            "news-search: searchItems (input.query). bookmarks: getStatus, listBookmarks, readBookmark. " +
+            "todoist: getStatus, listTasks, listProjects. github: getStatus, listNotifications, listAssignedIssues. " +
+            "notion: getStatus, search (input.query). linear: getStatus, listAssignedIssues. " +
+            "trello: getStatus, listBoards, listCards. home-assistant: getStatus, listEntities, getEntityState. " +
+            "bluesky: getStatus, listTimeline, listNotifications. mastodon: getStatus, listHomeTimeline, listNotifications. " +
             "weather: getStatus, getForecast (input.location or latitude+longitude).",
         },
         input: {
@@ -173,7 +185,7 @@ export function formatToolsForPrompt(profile: AgentToolProfile): string {
   }
   if (profile.atom.includes("connector_invoke")) {
     lines.push(
-      "- **atom_connector_invoke** (Atom): owner calendar (webcal/caldav), contacts (carddav), RSS/podcasts, **news-search**, bookmarks, **Todoist**, **GitHub**, **Notion**, **Linear**, **Trello**, **Home Assistant**, **weather** — call for fresh owner data",
+      "- **atom_connector_invoke** (Atom): owner calendar (webcal/caldav), contacts (carddav), RSS/podcasts, **news-search**, bookmarks, **Todoist**, **GitHub**, **Notion**, **Linear**, **Trello**, **Home Assistant**, **Bluesky**, **Mastodon**, **weather** — call for fresh owner data",
     );
     lines.push(
       "  Prefer this tool over passive Calendar/RSS snapshots when answering schedule, feed, bookmark, or briefing-topic questions.",

@@ -51,6 +51,16 @@ import {
   normalizeHomeAssistantBaseUrl,
 } from "./homeAssistantConnector.js";
 
+import {
+  BLUESKY_CONNECTOR_ID,
+  normalizeBlueskyPdsUrl,
+} from "./blueskyConnector.js";
+
+import {
+  MASTODON_CONNECTOR_ID,
+  normalizeMastodonInstanceUrl,
+} from "./mastodonConnector.js";
+
 import { getConnectorBackend } from "./connectorRegistry.js";
 
 import { invalidateConnectorCache, invokeConnectorCached } from "./connectorInvoke.js";
@@ -614,6 +624,84 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
     await config.vault.clearHomeAssistantInstance();
     invalidateConnectorCache(HOME_ASSISTANT_CONNECTOR_ID);
     res.json({ connectorId: HOME_ASSISTANT_CONNECTOR_ID, removed: true });
+  });
+
+  adminApp.post("/connectors/bluesky/credentials", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const body = req.body as { handle?: string; appPassword?: string; pdsUrl?: string };
+    const handle = body.handle?.trim();
+    const appPassword = body.appPassword?.trim();
+    if (!handle || !appPassword) {
+      res.status(400).json({ error: "handle and appPassword required" });
+      return;
+    }
+    try {
+      await config.vault.setBlueskyAccount(
+        handle,
+        appPassword,
+        body.pdsUrl ? normalizeBlueskyPdsUrl(body.pdsUrl) : undefined,
+      );
+      invalidateConnectorCache(BLUESKY_CONNECTOR_ID);
+      res.json({ connectorId: BLUESKY_CONNECTOR_ID, configured: true });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.delete("/connectors/bluesky/credentials", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    await config.vault.clearBlueskyAccount();
+    invalidateConnectorCache(BLUESKY_CONNECTOR_ID);
+    res.json({ connectorId: BLUESKY_CONNECTOR_ID, removed: true });
+  });
+
+  adminApp.post("/connectors/mastodon/credentials", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const body = req.body as { instanceUrl?: string; accessToken?: string };
+    const instanceUrl = body.instanceUrl?.trim();
+    const accessToken = body.accessToken?.trim();
+    if (!instanceUrl || !accessToken) {
+      res.status(400).json({ error: "instanceUrl and accessToken required" });
+      return;
+    }
+    try {
+      await config.vault.setMastodonInstance(normalizeMastodonInstanceUrl(instanceUrl), accessToken);
+      invalidateConnectorCache(MASTODON_CONNECTOR_ID);
+      res.json({ connectorId: MASTODON_CONNECTOR_ID, configured: true });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.delete("/connectors/mastodon/credentials", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    await config.vault.clearMastodonInstance();
+    invalidateConnectorCache(MASTODON_CONNECTOR_ID);
+    res.json({ connectorId: MASTODON_CONNECTOR_ID, removed: true });
   });
 
 
