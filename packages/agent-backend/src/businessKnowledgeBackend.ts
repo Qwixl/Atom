@@ -1,5 +1,6 @@
 import { resolveDataPath } from "./dataDir.js";
 import { BusinessKnowledgeStore } from "./businessKnowledgeStore.js";
+import { SqliteBusinessKnowledgeStore } from "./sqliteBusinessKnowledgeStore.js";
 
 /** Reference document category for retrieval and admin sync. */
 export type BusinessKnowledgeCategory = "policy" | "terms" | "faq" | "product" | "general";
@@ -16,8 +17,8 @@ export interface BusinessKnowledgeDocument {
  * Pluggable business reference store (M12.8).
  *
  * v1: `json` — single-file index on the agent data volume (small corpora only).
- * Planned: `sqlite` (chunked index + vector search on agent volume), `remote`
- * (Qwixl-operated or customer-operated knowledge service; same admin/sync API).
+ * `sqlite` — Node `node:sqlite` chunked index + hybrid retrieval (BK-D1 / M12.9).
+ * Planned: `remote` (Qwixl-operated or customer-operated knowledge service; same admin/sync API).
  *
  * Admin routes, shell sync, and `/agent` retrieval depend on this interface only.
  */
@@ -70,8 +71,8 @@ export function createBusinessKnowledgeBackend(
         options.dataPath ?? resolveDataPath("business-knowledge.json"),
       );
     case "sqlite":
-      return new BusinessKnowledgeStore(
-        options.dataPath ?? resolveDataPath("business-knowledge.sqlite.json"),
+      return new SqliteBusinessKnowledgeStore(
+        options.dataPath ?? resolveDataPath("business-knowledge.sqlite"),
       );
     case "remote":
       if (!options.remoteUrl?.trim() && !process.env.ATOM_BUSINESS_KNOWLEDGE_REMOTE_URL?.trim()) {
