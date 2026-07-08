@@ -3,6 +3,7 @@
 # See AGENTS.md (itself private): the public repo carries only what is
 # strictly necessary to build and run the shell.
 # ------------------------------------------------------------------
+/.cursor/
 /docs/
 /AGENTS.md
 /notes/

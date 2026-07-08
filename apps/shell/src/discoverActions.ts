@@ -55,17 +55,8 @@ export async function filterAvailableDiscoverEntriesForClient(
   client: CommsAgentClient,
   entries: BusinessIndexEntry[],
 ): Promise<Array<{ entry: BusinessIndexEntry; resolved: ResolvedDiscoverTarget }>> {
-  const settled = await Promise.all(
-    entries.map(async (entry) => {
-      try {
-        const resolved = await resolveDiscoverEntryForClient(client, entry);
-        return { entry, resolved };
-      } catch {
-        return null;
-      }
-    }),
-  );
-  return settled.filter((row): row is { entry: BusinessIndexEntry; resolved: ResolvedDiscoverTarget } => row !== null);
+  if (entries.length === 0) return [];
+  return client.filterAvailableDiscoverEntries(entries);
 }
 
 export async function connectDiscoverEntry(opts: {

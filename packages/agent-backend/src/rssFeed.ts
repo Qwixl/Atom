@@ -66,11 +66,17 @@ export async function fetchRssItems(
   limit = 20,
 ): Promise<RssItemSummary[]> {
   const capped = Math.min(Math.max(limit, 1), 50);
-  const all: RssItemSummary[] = [];
-  for (const feed of feeds) {
-    const xml = await fetchTextLimited(validateConnectorHttpsUrl(feed.url));
-    all.push(...parseRssOrAtomFeed(xml, feed.id));
-  }
+  const chunks = await Promise.all(
+    feeds.map(async (feed) => {
+      try {
+        const xml = await fetchTextLimited(validateConnectorHttpsUrl(feed.url));
+        return parseRssOrAtomFeed(xml, feed.id);
+      } catch {
+        return [] as RssItemSummary[];
+      }
+    }),
+  );
+  const all = chunks.flat();
   all.sort((a, b) => (b.published ?? "").localeCompare(a.published ?? ""));
   return all.slice(0, capped);
 }

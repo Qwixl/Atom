@@ -1,4 +1,9 @@
 /** F6-1 foundation: owner briefing preferences (local until owner-store tier ships). */
+
+/** Auto-sent once per session when briefing is enabled and Live LLM is active. */
+export const BRIEFING_OPEN_MESSAGE =
+  "[briefing-open] Give me a concise daily roundup from my calendar and RSS snapshots. Honor my briefing topic preferences when relevant.";
+
 export interface BriefingPreferences {
   enabled: boolean;
   /** Topic labels the owner cares about in roundups (e.g. politics, tech). */

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createModuleBridge, MODULE_IFRAME_SANDBOX } from "@qwixl/renderer-web";
 import { CommsAgentClient } from "./comms/client.js";
 import { quickJoinCoffeeShop } from "./discoverActions.js";
 import { loadCommsAgentConfig, loadContacts, saveContacts } from "./comms/storage.js";
@@ -114,19 +115,14 @@ export function RoomsPanel({
 
   const pushModuleInit = useCallback(() => {
     const frame = moduleFrameRef.current;
-    if (!frame?.contentWindow || !selected) return;
-    frame.contentWindow.postMessage(
-      {
-        type: "init",
-        props: {
-          roomName: selected.name,
-          topic: selected.topic,
-          members: moduleMembers,
-          nowPlaying: "lo-fi beats (host)",
-        },
-      },
-      "*",
-    );
+    if (!frame?.contentWindow || !selected?.moduleId) return;
+    const bridge = createModuleBridge(moduleBundleUrl(selected.moduleId));
+    bridge.sendInit(frame.contentWindow, {
+      roomName: selected.name,
+      topic: selected.topic,
+      members: moduleMembers,
+      nowPlaying: "lo-fi beats (host)",
+    });
   }, [moduleMembers, selected]);
 
   const refreshRooms = useCallback(async () => {
@@ -249,8 +245,17 @@ export function RoomsPanel({
     [client, onActivity, refreshMessages, selectedId],
   );
 
+  const sceneModuleBridge = useMemo(
+    () => (selected?.moduleId ? createModuleBridge(moduleBundleUrl(selected.moduleId)) : null),
+    [selected?.moduleId],
+  );
+
   useEffect(() => {
+    if (!sceneModuleBridge) return;
+    const isAllowedOrigin = sceneModuleBridge.isAllowedMessageOrigin;
     function onMessage(event: MessageEvent): void {
+      if (event.source !== moduleFrameRef.current?.contentWindow) return;
+      if (!isAllowedOrigin(event.origin)) return;
       const data = event.data as {
         type?: string;
         event?: { name?: string; payload?: { activityKind?: string } };
@@ -263,7 +268,7 @@ export function RoomsPanel({
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [selectedId, sendActivity]);
+  }, [sceneModuleBridge, selectedId, sendActivity]);
 
   async function sendMessage(text: string): Promise<void> {
     if (!selectedId || !text.trim()) return;
@@ -655,7 +660,7 @@ export function RoomsPanel({
                       className="rooms-module-frame"
                       title={`${selected.name} activities`}
                       src={moduleBundleUrl(selected.moduleId)}
-                      sandbox="allow-scripts allow-same-origin"
+                      sandbox={MODULE_IFRAME_SANDBOX}
                       onLoad={() => pushModuleInit()}
                     />
                   ) : null}

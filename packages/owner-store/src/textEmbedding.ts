@@ -74,3 +74,32 @@ export function hybridRetrievalScore(
   const semantic = Math.max(0, cosineSimilarity(queryEmbedding, documentEmbedding));
   return lexicalWeight * lexicalScore + (1 - lexicalWeight) * semantic;
 }
+
+/** M10.8 — OpenAI-compatible embedding API (async; wire via ConversationMemoryOptions when configured). */
+export interface ApiEmbedderConfig {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  dims?: number;
+}
+
+export async function embedTextViaApi(text: string, config: ApiEmbedderConfig): Promise<number[]> {
+  const dims = config.dims ?? DEFAULT_DIMS;
+  try {
+    const resp = await fetch(`${config.baseUrl.replace(/\/$/, "")}/embeddings`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify({ model: config.model, input: text }),
+    });
+    if (!resp.ok) return hashEmbedText(text, dims);
+    const data = (await resp.json()) as { data?: Array<{ embedding?: number[] }> };
+    const vector = data.data?.[0]?.embedding;
+    if (Array.isArray(vector) && vector.length > 0) return vector;
+  } catch {
+    // fall through
+  }
+  return hashEmbedText(text, dims);
+}

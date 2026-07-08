@@ -106,6 +106,8 @@ export {
   loadBooleanFromStorage,
 } from "./persistence.js";
 export type { JsonPersistence, JsonPersistenceOptions } from "./persistence.js";
+export { createIndexedDbPersistence, createTieredJsonPersistence } from "./indexedDbPersistence.js";
+export type { AsyncJsonPersistence } from "./indexedDbPersistence.js";
 
 export {
 

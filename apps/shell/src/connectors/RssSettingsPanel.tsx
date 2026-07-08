@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { approvalRefForConnectorWrite } from "./connectorWriteApproval.js";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
 
 interface RssFeedSummary {
@@ -62,7 +63,8 @@ export function RssSettingsPanel({
     setBusy(true);
     setNote("Saving RSS feed to your agent vault…");
     try {
-      await client.addRssFeed(url, feedLabel.trim() || undefined);
+      const approvalRef = await approvalRefForConnectorWrite("Add RSS feed", { url }, config);
+      await client.addRssFeed(url, feedLabel.trim() || undefined, approvalRef);
       setFeedUrl("");
       setFeedLabel("");
       setNote(null);
@@ -77,7 +79,8 @@ export function RssSettingsPanel({
     setBusy(true);
     setNote("Removing feed…");
     try {
-      await client.removeRssFeed(feedId);
+      const approvalRef = await approvalRefForConnectorWrite("Remove RSS feed", { feedId });
+      await client.removeRssFeed(feedId, approvalRef);
       setNote(null);
       await refresh();
     } catch (error) {

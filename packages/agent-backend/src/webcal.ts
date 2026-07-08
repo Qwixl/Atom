@@ -1,5 +1,7 @@
 /** Read-only ICS/WebCal feed fetch and parse — feed URLs stored in agent vault (D044). */
 
+import { validateConnectorHttpsUrl } from "./connectorUrl.js";
+
 export interface CalendarEventSummary {
   uid: string;
   summary: string;
@@ -23,16 +25,7 @@ export function normalizeWebcalUrl(raw: string): string {
 }
 
 export function validateWebcalUrl(raw: string): string {
-  const normalized = normalizeWebcalUrl(raw);
-  try {
-    const parsed = new URL(normalized);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      throw new Error("Invalid feed URL protocol");
-    }
-  } catch {
-    throw new Error("Invalid feed URL");
-  }
-  return normalized;
+  return validateConnectorHttpsUrl(normalizeWebcalUrl(raw));
 }
 
 export function unfoldIcsLines(data: string): string[] {
@@ -153,15 +146,24 @@ export async function queryWebcalEvents(
     throw new Error("timeMin and timeMax must be valid ISO 8601 dates");
   }
   const all: CalendarEventSummary[] = [];
-  for (const feed of feeds) {
-    const ics = await fetchWebcalFeed(feed.url);
-    const events = parseVEventsFromCalendar(ics);
+  const feedBodies = await Promise.all(
+    feeds.map(async (feed) => {
+      try {
+        return { feed, ics: await fetchWebcalFeed(feed.url) };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  for (const row of feedBodies) {
+    if (!row) continue;
+    const events = parseVEventsFromCalendar(row.ics);
     for (const event of events) {
       const startMs = new Date(event.start).getTime();
       const endMs = new Date(event.end).getTime();
       if (Number.isNaN(startMs) || Number.isNaN(endMs)) continue;
       if (endMs >= minMs && startMs <= maxMs) {
-        all.push({ ...event, feedId: feed.id });
+        all.push({ ...event, feedId: row.feed.id });
       }
     }
   }
