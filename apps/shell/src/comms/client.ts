@@ -190,6 +190,9 @@ export class CommsAgentClient {
     proposalId: string;
     response: SchedulingResponseKind;
     slotId?: string;
+    title?: string;
+    start?: string;
+    end?: string;
     encrypt?: boolean;
   }): Promise<void> {
     await postJson(
@@ -201,10 +204,35 @@ export class CommsAgentClient {
         proposalId: opts.proposalId,
         response: opts.response,
         slotId: opts.slotId,
+        title: opts.title,
+        start: opts.start,
+        end: opts.end,
         encrypt: opts.encrypt ?? true,
       },
       this.adminToken,
     );
+  }
+
+  async getCalendarPublishFeed(): Promise<{
+    eventCount: number;
+    feedUrl: string;
+    webcalUrl: string;
+    tokenHint: string;
+  }> {
+    return getJson(this.base(), "/calendar/feed", this.adminToken);
+  }
+
+  async rotateCalendarPublishFeedToken(): Promise<{
+    eventCount: number;
+    feedUrl: string;
+    webcalUrl: string;
+    tokenHint: string;
+  }> {
+    return postJson(this.base(), "/calendar/feed/rotate-token", {}, this.adminToken);
+  }
+
+  async syncCalendarPublishFeed(): Promise<{ added: number; eventCount: number }> {
+    return postJson(this.base(), "/calendar/feed/sync-inbox", {}, this.adminToken);
   }
 
   async sendRsvpRequest(opts: {
@@ -497,7 +525,7 @@ export class CommsAgentClient {
     operation: string,
     input: Record<string, unknown>,
     approvalRef?: string,
-  ): Promise<{ operation: string; result: unknown }> {
+  ): Promise<{ operation: string; result: unknown; meta?: { fetchedAt: string; cacheHit: boolean; ttlMs: number } }> {
     return postJson(
       this.base(),
       `/connectors/${encodeURIComponent(connectorId)}/invoke`,
@@ -524,6 +552,46 @@ export class CommsAgentClient {
       throw new Error(err.error ?? `Request failed (${resp.status})`);
     }
     return resp.json() as Promise<{ removed: boolean; feedId: string }>;
+  }
+
+  async addRssFeed(url: string, label?: string): Promise<{ feed: { id: string; label: string } }> {
+    return postJson(this.base(), "/connectors/rss/feeds", { url, label }, this.adminToken);
+  }
+
+  async removeRssFeed(feedId: string): Promise<{ removed: boolean; feedId: string }> {
+    const headers: Record<string, string> = {};
+    if (this.adminToken?.trim()) {
+      headers.Authorization = `Bearer ${this.adminToken.trim()}`;
+    }
+    const resp = await fetch(
+      `${this.base()}/connectors/rss/feeds/${encodeURIComponent(feedId)}`,
+      { method: "DELETE", headers },
+    );
+    if (!resp.ok) {
+      const err = (await resp.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? `Request failed (${resp.status})`);
+    }
+    return resp.json() as Promise<{ removed: boolean; feedId: string }>;
+  }
+
+  async addBookmark(url: string, label?: string): Promise<{ bookmark: { id: string; label: string } }> {
+    return postJson(this.base(), "/connectors/bookmarks", { url, label }, this.adminToken);
+  }
+
+  async removeBookmark(bookmarkId: string): Promise<{ removed: boolean; bookmarkId: string }> {
+    const headers: Record<string, string> = {};
+    if (this.adminToken?.trim()) {
+      headers.Authorization = `Bearer ${this.adminToken.trim()}`;
+    }
+    const resp = await fetch(
+      `${this.base()}/connectors/bookmarks/${encodeURIComponent(bookmarkId)}`,
+      { method: "DELETE", headers },
+    );
+    if (!resp.ok) {
+      const err = (await resp.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? `Request failed (${resp.status})`);
+    }
+    return resp.json() as Promise<{ removed: boolean; bookmarkId: string }>;
   }
 
   async createActionReserve(opts: {

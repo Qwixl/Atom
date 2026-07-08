@@ -24,11 +24,13 @@ import {
 } from "@qwixl/a2a-transport";
 import type { AgentKeyPair } from "@qwixl/protocol";
 import { deliverSignedObject } from "./deliverObject.js";
+import type { CalendarFeedStore } from "./calendarFeedStore.js";
 import type { MlsSessionStore } from "./mlsSessions.js";
 
 export interface CoordinationAdminDeps {
   identity: AgentKeyPair;
   mlsStore: MlsSessionStore;
+  calendarFeed?: CalendarFeedStore;
 }
 
 interface PeerSendBody {
@@ -87,6 +89,12 @@ export function registerCoordinationAdminRoutes(adminApp: Express, deps: Coordin
           threadId: body.threadId?.trim() || undefined,
         },
       });
+      deps.calendarFeed?.recordProposal({
+        id: object.id,
+        title: body.title.trim(),
+        slots: body.slots,
+        recordedAt: new Date().toISOString(),
+      });
       await sendCoordinationObject(deps, res, body, object);
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
@@ -98,6 +106,9 @@ export function registerCoordinationAdminRoutes(adminApp: Express, deps: Coordin
       proposalId?: string;
       response?: SchedulingResponseKind;
       slotId?: string;
+      title?: string;
+      start?: string;
+      end?: string;
     };
     if (!body.proposalId?.trim() || !body.response) {
       res.status(400).json({ error: "proposalId and response required" });
@@ -113,6 +124,15 @@ export function registerCoordinationAdminRoutes(adminApp: Express, deps: Coordin
           threadId: body.threadId?.trim() || undefined,
         },
       });
+      if (body.response === "accept" && body.slotId?.trim() && deps.calendarFeed) {
+        deps.calendarFeed.recordAcceptedMeeting({
+          proposalId: body.proposalId.trim(),
+          slotId: body.slotId.trim(),
+          title: body.title?.trim(),
+          start: body.start?.trim(),
+          end: body.end?.trim(),
+        });
+      }
       await sendCoordinationObject(deps, res, body, object);
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : String(error) });

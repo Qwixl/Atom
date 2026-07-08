@@ -118,3 +118,48 @@ body {
   color: #f87171;
   font-size: 0.85rem;
 }
+
+.playground-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.playground-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: #93a1b5;
+}
+
+.playground-control select {
+  background: #161c26;
+  color: #e6ebf2;
+  border: 1px solid #2a3342;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font: inherit;
+  min-width: 180px;
+}
+
+.playground-vocab {
+  margin: 0 0 12px;
+  font-size: 0.75rem;
+  color: #7a8799;
+  line-height: 1.45;
+}
+
+.playground-preview-surface {
+  background: var(--bg-raised, #ffffff);
+  color: var(--text, #111);
+  border: 1px solid var(--border, #e0e0e0);
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 200px;
+}
+
+.playground.atom-app {
+  color: #e6ebf2;
+}

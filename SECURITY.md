@@ -45,6 +45,15 @@ Production deployments (`atom.qwixl.com`, npm `@qwixl/*`) are treated as product
 6. Bundle bytes match `bundleIntegrity`
 7. `syncRevocations()` evicts installed modules when list updates
 
+Optional owner policy (self-hosted / dev Settings only):
+
+| Field | Effect |
+|---|---|
+| `requireSignature` | Refuse install when manifest has no valid Sigstore bundle |
+| `trustedPublishers` | Allowlist of publisher DIDs; manifests from other publishers are rejected |
+
+Precedent: npm `only-allow` publisher allowlists + browser extension store curation.
+
 ## Module sandbox (web v1)
 
 - iframe `sandbox="allow-scripts"` — opaque origin; cannot read parent `localStorage`

@@ -13,6 +13,13 @@ interface CalendarEventSummary {
   end: string;
 }
 
+interface CalendarPublishFeed {
+  eventCount: number;
+  feedUrl: string;
+  webcalUrl: string;
+  tokenHint: string;
+}
+
 function formatRange(start: string, end: string): string {
   try {
     const s = new Date(start);
@@ -33,9 +40,11 @@ function formatRange(start: string, end: string): string {
 export function WebCalSettingsPanel({
   vaultUnlocked = true,
   embedded = false,
+  onFeedsChanged,
 }: {
   vaultUnlocked?: boolean;
   embedded?: boolean;
+  onFeedsChanged?: () => void;
 }) {
   const { config, client } = useAgentConfig(vaultUnlocked);
   const [feedUrl, setFeedUrl] = useState("");
@@ -44,12 +53,27 @@ export function WebCalSettingsPanel({
   const [note, setNote] = useState<string | null>(null);
   const [feeds, setFeeds] = useState<WebcalFeedSummary[]>([]);
   const [events, setEvents] = useState<CalendarEventSummary[]>([]);
+  const [publishFeed, setPublishFeed] = useState<CalendarPublishFeed | null>(null);
   const connected = feeds.length > 0;
+
+  const refreshPublishFeed = useCallback(async () => {
+    if (!config.adminToken) {
+      setPublishFeed(null);
+      return;
+    }
+    try {
+      const status = await client.getCalendarPublishFeed();
+      setPublishFeed(status);
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+    }
+  }, [client, config.adminToken]);
 
   const refresh = useCallback(async () => {
     setBusy(true);
     setNote(null);
     try {
+      await refreshPublishFeed();
       const statusOp = await client.invokeConnector("webcal", "getStatus", {});
       const statusResult = statusOp.result as {
         feeds?: WebcalFeedSummary[];
@@ -71,12 +95,54 @@ export function WebCalSettingsPanel({
       setNote(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(false);
+      onFeedsChanged?.();
     }
-  }, [client]);
+  }, [client, refreshPublishFeed, onFeedsChanged]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  async function copyText(label: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setNote(`${label} copied.`);
+    } catch {
+      setNote(`Could not copy ${label.toLowerCase()}.`);
+    }
+  }
+
+  async function rotatePublishToken() {
+    setBusy(true);
+    setNote("Rotating publish feed token…");
+    try {
+      const status = await client.rotateCalendarPublishFeedToken();
+      setPublishFeed(status);
+      setNote("Publish feed token rotated. Update subscriptions in your calendar app.");
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function syncPublishFeed() {
+    setBusy(true);
+    setNote("Syncing accepted meetings from inbox…");
+    try {
+      const result = await client.syncCalendarPublishFeed();
+      await refreshPublishFeed();
+      setNote(
+        result.added > 0
+          ? `Added ${result.added} accepted meeting${result.added === 1 ? "" : "s"} to publish feed.`
+          : "Publish feed is up to date.",
+      );
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function saveFeed() {
     const url = feedUrl.trim();
@@ -123,6 +189,51 @@ export function WebCalSettingsPanel({
         <p className="settings-note webcal-settings-warn">
           Connect your agent first to save calendar feeds.
         </p>
+      ) : null}
+      {config.adminToken ? (
+        <div className="webcal-publish-feed">
+          <h4>Publish accepted meetings</h4>
+          <p className="settings-note">
+            Subscribe in Google Calendar, Apple Calendar, or Outlook using the webcal link below.
+            Only meetings you accept in Atom appear in this feed.
+          </p>
+          {publishFeed ? (
+            <>
+              <p className="settings-note">
+                {publishFeed.eventCount} accepted meeting{publishFeed.eventCount === 1 ? "" : "s"} · token{" "}
+                {publishFeed.tokenHint}
+              </p>
+              <label className="atom-field">
+                <span className="atom-field-label">Subscribe URL (webcal)</span>
+                <input value={publishFeed.webcalUrl} readOnly disabled={busy} />
+              </label>
+              <div className="chrome-actions settings-section-actions">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void copyText("Subscribe URL", publishFeed.webcalUrl)}
+                >
+                  Copy webcal URL
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void copyText("HTTPS feed URL", publishFeed.feedUrl)}
+                >
+                  Copy https URL
+                </button>
+                <button type="button" disabled={busy} onClick={() => void syncPublishFeed()}>
+                  Sync from inbox
+                </button>
+                <button type="button" disabled={busy} onClick={() => void rotatePublishToken()}>
+                  Rotate token
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="settings-note">Loading publish feed…</p>
+          )}
+        </div>
       ) : null}
       <label className="atom-field">
         <span className="atom-field-label">Feed URL (https:// or webcal://)</span>

@@ -10,7 +10,7 @@ import {
 } from "./curator.js";
 
 export type { CuratorPassInput, CuratorPassResult, CuratorSignal, CuratorSignalKind, CuratorSplitProposal };
-export { buildCuratorPrompt, parseCuratorResponse, defaultGuardForCategory } from "./curator.js";
+export { buildCuratorPrompt, parseCuratorResponse, defaultGuardForCategory, shouldCurateTranscript } from "./curator.js";
 
 /**
  * Background extraction pass over a completed turn. Proposals and evidence

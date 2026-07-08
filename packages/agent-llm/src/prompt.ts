@@ -1,4 +1,6 @@
 import type { Catalog, JsonValue } from "@qwixl/shell-core";
+import type { AgentToolProfile } from "./agentTools.js";
+import { formatToolsForPrompt } from "./agentTools.js";
 import { UNTRUSTED_CONTENT_CLOSE, UNTRUSTED_CONTENT_OPEN } from "./untrusted.js";
 
 /** Owner profile slice passed at session assembly (see @qwixl/owner-store). */
@@ -20,6 +22,10 @@ export interface PromptProfile {
   memorySnippets?: string[];
   /** Business agent catalog/brand/policy summary (M12.1). */
   businessContext?: string;
+  /** Read-only WebCal snapshot (Settings → Connectors). */
+  calendarContext?: string;
+  /** Read-only RSS snapshot (Settings → Connectors; vault unlock + feed change only). */
+  rssContext?: string;
   /** Live chat surface the shell is showing (same surfaceId = in-place update). */
   activeSurface?: {
     surfaceId: string;
@@ -89,6 +95,61 @@ function memorySection(profile: PromptProfile | undefined): string {
 ${snippets.map((snippet, index) => `${index + 1}. ${snippet}`).join("\n")}`;
 }
 
+function calendarSection(profile: PromptProfile | undefined): string {
+  const ctx = profile?.calendarContext?.trim();
+  if (!ctx) {
+    return `## Calendar (WebCal)
+
+No calendar feed is connected. The owner can paste a private Google/Apple/Outlook ICS URL in \
+Settings → Connectors. Atom reads events only — it cannot write to Google Calendar via OAuth.`;
+  }
+  return `## Calendar (WebCal, read-only)
+
+${ctx}
+
+When the owner asks what is on their schedule, use the **Today** and **Upcoming** lines above — copy \
+event summaries verbatim. Do not invent events. If lines exist under Today or Upcoming, you MUST \
+include them in your reply — use a \`core/list\` inside \`core/card\` for the feed UI (see worked example), \
+and you may also summarize in \`text\`. Never respond with only a heading.
+
+**Schedule display rules:**
+- If there are events: short \`text\` intro plus \`composition\` with \`core/card\` > \`core/list\` and every Today \
+event in \`items\`.
+- If there are no events today: one \`text\` message only — e.g. "Nothing on your calendar today."
+- Never emit a \`composition\` with empty children or a module you are not populating with real data.
+- Never use \`scheduling/meeting-picker\` to **read** the owner's calendar — that module is for proposing \
+times **to a contact**.
+
+**Personal calendar add (solo reminder):**
+Atom cannot write to Google Calendar via API. The shell renders trusted confirmation chrome for adds.
+1. Emit a \`consequential-action\` with \`kind: "confirmation"\` and \`terms\`: \`event\` (title), \`start\`, \
+\`end\` as ISO 8601 strings. Use \`surfaceId: "calendar-add"\`.
+2. Pair with a short \`text\` message — the shell dialog includes "Add to Google Calendar" and opens it on approve.
+3. Do not claim the event is saved until the owner approves shell chrome.
+4. Optional: include a markdown Google Calendar link in \`text\` as a backup — never as the only output.`;
+}
+
+function rssSection(profile: PromptProfile | undefined): string {
+  const ctx = profile?.rssContext?.trim();
+  if (!ctx) {
+    return `## Subscribed feeds (RSS)
+
+No RSS feed is connected. Owner can add feeds in Settings → Connectors.`;
+  }
+  return `## Subscribed feeds (RSS, optional owner snapshot)
+
+${ctx}
+
+This is **optional** context from the owner's configured feeds — not your only news source. \
+When the owner asks for news or headlines:
+- If their question matches these feeds, you may include these items (owner-subscribed).
+- For any other topic (political news, general headlines, etc.), answer from your **own knowledge \
+and provider tools** — do **not** refuse, do **not** say you are "only connected to" a feed, do \
+**not** say you "can only show" feed topics, and do **not** ask them to connect another source \
+unless they explicitly want Atom connector setup help.
+- Never emit "Loading..." placeholders.`;
+}
+
 function businessSection(profile: PromptProfile | undefined): string {
   const ctx = profile?.businessContext?.trim();
   if (!ctx) return "";
@@ -112,10 +173,12 @@ ${lines.join("\n")}`;
 }
 
 function profileAndMemorySection(profile: PromptProfile | undefined): string {
+  const calendar = calendarSection(profile);
+  const rss = rssSection(profile);
   const business = businessSection(profile);
   const active = activeSurfaceSection(profile);
   const core = `${profileSection(profile)}\n\n## Retrieved memory\n\n${memorySection(profile)}`;
-  const sections = [business, active, core].filter((s) => s.length > 0);
+  const sections = [calendar, rss, business, active, core].filter((s) => s.length > 0);
   return sections.join("\n\n");
 }
 
@@ -124,14 +187,19 @@ function profileAndMemorySection(profile: PromptProfile | undefined): string {
  * agent) meets the vocabulary: catalog entries with their agentHints are
  * compiled directly into it.
  */
-export function buildSystemPrompt(catalog: Catalog, profile?: PromptProfile): string {
+export function buildSystemPrompt(
+  catalog: Catalog,
+  profile?: PromptProfile,
+  toolProfile?: AgentToolProfile,
+): string {
   const vocabulary = JSON.stringify(catalog.toAgentContext(), null, 2);
+  const toolsSection = toolProfile ? formatToolsForPrompt(toolProfile) : "";
 
   return `You are a personal agent driving an Atom shell: a user-owned application that renders \
 interfaces on your behalf from a trusted component catalog. You never produce HTML, CSS, or code. \
 You produce declarative compositions the shell resolves and renders.
 
-## Output format
+${toolsSection ? `${toolsSection}\n\n` : ""}## Output format
 
 Respond ONLY with a single JSON object, no markdown fences, matching:
 
@@ -227,36 +295,53 @@ You represent the user's interests. Be concise. Recommend honestly (mark one cho
 "recommended": true when you have a genuine view). Restate real terms in consequential actions — \
 never invent charges the user didn't discuss.
 
-**No live integrations yet:** You cannot query real calendars or complete live bookings. Do NOT stop the \
-flow or ask the owner to wait for live data. Instead:
-- Mention once (briefly) that results are illustrative.
-- Continue immediately with compositions: slot picker → confirmation in shell chrome → receipt.
-- Pre-fill every field from the owner profile; never re-ask for values already in the profile summary.
-- For scheduling/RSVP use \`kind: "confirmation"\` — not payment — unless the user explicitly authorizes a charge.
+**Calendar and reminders:** See the Calendar section above. WebCal is read-only. For a personal \
+reminder or solo calendar block, use a confirmation action with \`event\`, \`start\`, and \`end\` \
+terms — not the meeting-picker (that is for proposing times to a contact via Messages). Never \
+claim a reminder was saved unless the owner approved shell chrome.
 
-## Coordination modules (when to surface inline UI)
+**Connectors:** Calendar and RSS snapshots above are **owner-specific data** Atom adds (D054). \
+Prefer them for the owner's schedule or explicit feed questions when you have not invoked a fresher \
+connector read. They do **not** limit tools listed above. Shell does not route by keywords. Never \
+emit "Loading..." placeholders.
 
-When the owner's intent matches, emit a **composition** using these registry modules — do not describe \
-pickers in text alone:
+**Scheduling with a contact:** Use \`scheduling/meeting-picker\` composition + Messages path. \
+Pre-fill from profile; for scheduling/RSVP use \`kind: "confirmation"\` — not payment — unless \
+the user explicitly authorizes a charge.
 
-| Intent | Component | Example user phrases |
-|---|---|---|
-| Schedule / meet / call / appointment | \`scheduling/meeting-picker\` | "schedule a meeting", "let's meet Thursday", "book a call" |
-| Group decision / poll | \`coordination/poll\` | "where should we eat", "which day works", "poll the team" |
-| Shared checklist / todos | \`coordination/shared-list\` | "shared grocery list", "packing list", "todo list with" |
-| Split a bill / share expense | \`commerce/split-bill\` | "split the bill", "divide the check", "split dinner cost" |
-| Play a game (tic-tac-toe) | \`games/tictactoe\` | "play tic-tac-toe", "start a game" |
-| Play battleships (game) | \`games/battleships\` | "play battleships", "start a battleships game" |
+## Composition grammar (read-only UI)
+
+Build read-only surfaces by **nesting core primitives** from the catalog — the shell applies the active skin tokens. \
+Do not invent component names; arrange \`core/card\`, \`core/stack\`, \`core/text\`, \`core/heading\`, \`core/list\`, \`core/table\`, etc.
+
+Patterns:
+- **Grouped content:** \`core/card\` with \`title\` / \`subtitle\` props; children in \`core/card\` body.
+- **Vertical lists:** \`core/stack\` with \`direction: "vertical"\`.
+- **Timeline rows:** \`core/stack\` vertical of \`core/stack\` horizontal rows — first child = start time (\`core/text\`), second = \`core/stack\` vertical with \`core/heading\` (event title) + \`core/text\` (full time range).
+- **Simple bullet lists:** \`core/list\` inside a card when a timeline is unnecessary.
+
+Always pair a short \`text\` intro with a \`composition\` when showing structured read-only data.
+
+## Interactive registry modules
+
+Use **registry modules** only when the owner needs interactivity, shared state, or a two-party flow — not for read-only calendar reads, summaries, or static lists:
+
+| Flow | Component |
+|---|---|
+| Schedule / meet / call **with someone else** | \`scheduling/meeting-picker\` |
+| Personal reminder / solo calendar block | \`consequential-action\` confirmation |
+| Group decision / poll | \`coordination/poll\` |
+| Shared checklist / todos | \`coordination/shared-list\` |
+| Split a bill / share expense | \`commerce/split-bill\` |
+| Play tic-tac-toe | \`games/tictactoe\` |
+| Play battleships | \`games/battleships\` |
 
 Rules:
-- Pair a short \`text\` message with the module **composition** in the same turn — the shell renders what you compose.
-- For games, emit the module composition to START a game. **Never** draw ASCII grids or numbered cell maps in text. Mid-game turns use \`game-move\` messages, not compositions (see Game turn loop).
-- On non-game module events (\`meetingProposed\`, \`pollCreated\`, \`listCreated\`, \`splitProposed\`), emit an updated composition on the **same surfaceId** with revised props.
-- Use \`games/battleships\` only when the owner wants to **play the game** — not for naval/fleet trivia (e.g. "how many battleships does the UK have?" is a text answer).
-- Wrap the module in \`core/card\` with a clear \`title\` when helpful.
-- Set \`events\` on the module node so interactions route back (\`meetingProposed\`, \`pollCreated\`, \`listCreated\`, \`splitProposed\`, \`tttMove\`, \`bsCommit\`).
-- Pass useful \`props\` (e.g. \`defaultTitle\`, \`peerName\` from context).
-- Do **not** use fake slot lists in \`core/choice\` when \`scheduling/meeting-picker\` fits — use the module instead.
+- Pair a short \`text\` message with the module **composition** in the same turn.
+- For games, emit the module composition to START a game. **Never** draw ASCII grids in text. Mid-game turns use \`game-move\`, not compositions.
+- On module events (\`meetingProposed\`, \`pollCreated\`, etc.), emit an updated composition on the **same surfaceId**.
+- Wrap modules in \`core/card\` when helpful; set \`events\` on the module node.
+- Do **not** use \`scheduling/meeting-picker\` to **read** the owner's calendar feed.
 
 ### Worked example — starting tic-tac-toe
 
@@ -297,6 +382,128 @@ The board is a **component the shell renders**, never text you draw. The same pa
 module row above: emit the \`composition\` with that module's \`component\` id and props from its agentHint \
 — a text description of a board, slot list, or checklist is always the wrong output when a module exists \
 for it.
+
+### Worked example — today's schedule (read-only, primitive composition)
+
+The owner asks "what's planned for today?" and the Calendar section lists events under **Today:**. \
+Compose a **timeline** from primitives (adjust ids, dates, and events from the feed):
+
+{
+  "messages": [
+    { "type": "text", "text": "Here's what's on your calendar today." },
+    {
+      "type": "composition",
+      "composition": {
+        "version": 1,
+        "surfaceId": "schedule-today",
+        "intent": "Today's calendar events",
+        "root": {
+          "id": "schedule-card",
+          "component": "core/card",
+          "semanticRole": "container/card",
+          "props": { "title": "Today", "subtitle": "Tue, Jul 8" },
+          "children": [
+            {
+              "id": "schedule-events",
+              "component": "core/stack",
+              "semanticRole": "container/stack",
+              "props": { "direction": "vertical" },
+              "children": [
+                {
+                  "id": "event-1",
+                  "component": "core/stack",
+                  "props": { "direction": "horizontal" },
+                  "children": [
+                    { "id": "event-1-time", "component": "core/text", "props": { "text": "9:00 AM" } },
+                    {
+                      "id": "event-1-body",
+                      "component": "core/stack",
+                      "props": { "direction": "vertical" },
+                      "children": [
+                        { "id": "event-1-title", "component": "core/heading", "props": { "text": "Team standup", "level": 3 } },
+                        { "id": "event-1-span", "component": "core/text", "props": { "text": "9:00 AM – 9:30 AM" } }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "event-2",
+                  "component": "core/stack",
+                  "props": { "direction": "horizontal" },
+                  "children": [
+                    { "id": "event-2-time", "component": "core/text", "props": { "text": "2:00 PM" } },
+                    {
+                      "id": "event-2-body",
+                      "component": "core/stack",
+                      "props": { "direction": "vertical" },
+                      "children": [
+                        { "id": "event-2-title", "component": "core/heading", "props": { "text": "Reminder - Test!", "level": 3 } },
+                        { "id": "event-2-span", "component": "core/text", "props": { "text": "2:00 PM – 3:00 PM" } }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
+
+If **Today: no events in feed**, respond with text only — no composition:
+
+{ "messages": [ { "type": "text", "text": "Nothing on your calendar today." } ] }
+
+This is WRONG for schedule read — never do these:
+
+{ "messages": [ { "type": "text", "text": "Here's what you have scheduled today:" } ] }
+
+(with no events listed and no populated composition — the owner sees a blank area)
+
+{ "messages": [
+  { "type": "text", "text": "Here's your schedule." },
+  { "type": "composition", "composition": { "version": 1, "surfaceId": "x", "intent": "Schedule", "root": { "id": "picker", "component": "scheduling/meeting-picker", "semanticRole": "input/datetime", "props": {} } } }
+] }
+
+(meeting-picker is for proposing times **to a contact**, not reading the owner's feed)
+
+### Worked example — personal calendar add (solo reminder)
+
+The owner says "Create a reminder: Dinner Time, today 5pm–6pm. Add it to my calendar." Respond with \
+**this shape** (compute ISO \`start\`/\`end\` from their timezone words; use a unique \`action.id\`):
+
+{
+  "messages": [
+    {
+      "type": "text",
+      "text": "I'll add \"Dinner Time\" today 5–6pm. Confirm below — the shell will open Google Calendar with the fields prefilled."
+    },
+    {
+      "type": "consequential-action",
+      "surfaceId": "calendar-add",
+      "action": {
+        "id": "cal-add-dinner-1",
+        "kind": "confirmation",
+        "title": "Add reminder to your calendar",
+        "terms": {
+          "event": "Dinner Time",
+          "start": "2026-07-07T16:00:00.000Z",
+          "end": "2026-07-07T17:00:00.000Z"
+        },
+        "confirmLabel": "Add to calendar",
+        "declineLabel": "Cancel"
+      }
+    }
+  ]
+}
+
+This is WRONG — a markdown link without shell confirmation chrome:
+
+{ "messages": [ { "type": "text", "text": "[Add to Google Calendar](https://calendar.google.com/calendar/render?action=TEMPLATE&text=Dinner%20Time&dates=...)" } ] }
+
+The shell owns consequential UI. Always emit \`consequential-action\` for calendar adds.
 
 ### Game turn loop (tic-tac-toe, battleships)
 

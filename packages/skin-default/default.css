@@ -1,6 +1,5 @@
 /**
- * Atom shell default skin — light: white, light grey, orange accent.
- * Dark and high-contrast skins override --atom-* in sibling stylesheets.
+ * Atom shell default skin — warm reference (optional; minimal is the product default).
  */
 :root,
 [data-atom-skin="default"] {

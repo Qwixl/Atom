@@ -179,10 +179,23 @@ export class ConversationRuntime {
           this.options.shouldReplaceSurface &&
           !this.options.shouldReplaceSurface(output.composition, this.feed)
         ) {
+          if (typeof console !== "undefined") {
+            console.warn(
+              "[ConversationRuntime] composition dropped by shouldReplaceSurface",
+              output.composition.surfaceId,
+            );
+          }
           break;
         }
         this.feed = upsertFeedSurface(this.feed, surface, id);
         this.turnHadComposition = true;
+        if (typeof console !== "undefined") {
+          console.debug(
+            "[ConversationRuntime] surface upserted",
+            output.composition.surfaceId,
+            surface.root.node.component,
+          );
+        }
         break;
       }
       case "consequential-action":
@@ -214,12 +227,33 @@ export class ConversationRuntime {
     this.notify();
   }
 
+  private enqueueAgentOutput(output: AgentOutput): void {
+    this.outputChain = this.outputChain
+      .then(() => this.handleAgentOutput(output))
+      .catch((error) => {
+        console.error("[ConversationRuntime] failed to handle agent output:", error);
+      });
+  }
+
   /** Subscribe session output to this runtime; returns unsubscribe. */
   wireSession(session: AgentSession): () => void {
-    return session.subscribe((output) => {
-      this.outputChain = this.outputChain.then(() => this.handleAgentOutput(output));
-    });
+    return session.subscribe((output) => this.enqueueAgentOutput(output));
   }
+
+  /**
+   * Attach a session without dropping in-flight outputs from the prior session.
+   * Defers unsubscribing the previous listener so synchronous emits finishing a
+   * turn still reach the output chain.
+   */
+  bindSession(session: AgentSession): void {
+    const listener = (output: AgentOutput) => this.enqueueAgentOutput(output);
+    const unsub = session.subscribe(listener);
+    const prev = this.sessionUnsub;
+    this.sessionUnsub = unsub;
+    if (prev) queueMicrotask(prev);
+  }
+
+  private sessionUnsub: (() => void) | null = null;
 
   private nextId(): string {
     return `item-${++this.idCounter}`;

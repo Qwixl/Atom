@@ -59,6 +59,15 @@ export function parseIcalDateTime(value: string): string {
     const s = trimmed.slice(13, 15);
     return `${y}-${mo}-${d}T${h}:${mi}:${s}.000Z`;
   }
+  if (/^\d{8}T\d{6}$/.test(trimmed)) {
+    const year = Number(trimmed.slice(0, 4));
+    const month = Number(trimmed.slice(4, 6)) - 1;
+    const day = Number(trimmed.slice(6, 8));
+    const hour = Number(trimmed.slice(9, 11));
+    const minute = Number(trimmed.slice(11, 13));
+    const second = Number(trimmed.slice(13, 15));
+    return new Date(year, month, day, hour, minute, second).toISOString();
+  }
   if (/^\d{8}$/.test(trimmed)) {
     const y = trimmed.slice(0, 4);
     const mo = trimmed.slice(4, 6);
@@ -72,16 +81,21 @@ export function parseIcalDateTime(value: string): string {
   return trimmed;
 }
 
+function parseIcalProperty(block: string, name: string): string | undefined {
+  const match = block.match(new RegExp(`^${name}(?:;[^:\\n]*)?:(.+)$`, "m"));
+  return match?.[1]?.trim();
+}
+
 export function unescapeIcalText(value: string): string {
   return value.replace(/\\n/g, "\n").replace(/\\,/g, ",").replace(/\\;/g, ";").replace(/\\\\/g, "\\");
 }
 
 export function parseVEventBlock(lines: string[]): CalendarEventSummary | null {
   const block = lines.join("\n");
-  const uid = block.match(/^UID:(.+)$/m)?.[1]?.trim();
-  const summaryRaw = block.match(/^SUMMARY:(.+)$/m)?.[1]?.trim();
-  const dtStart = block.match(/^DTSTART(?::;[^:]*)?:(.+)$/m)?.[1]?.trim();
-  const dtEnd = block.match(/^DTEND(?::;[^:]*)?:(.+)$/m)?.[1]?.trim();
+  const uid = parseIcalProperty(block, "UID");
+  const summaryRaw = parseIcalProperty(block, "SUMMARY");
+  const dtStart = parseIcalProperty(block, "DTSTART");
+  const dtEnd = parseIcalProperty(block, "DTEND");
   if (!uid || !summaryRaw || !dtStart) return null;
   const end = dtEnd ?? dtStart;
   return {

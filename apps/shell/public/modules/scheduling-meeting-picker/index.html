@@ -6,7 +6,7 @@
   <title>Meeting picker</title>
   <style>
     * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
-    body { margin: 0; padding: 10px 12px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
+    body { margin: 0; padding: 10px 12px; min-height: 120px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
     .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     input, select, button { font: inherit; }
     input, select {
@@ -89,6 +89,10 @@
     function emit(name, payload) {
       if (shellOrigin) window.parent.postMessage({ type:"event", name, payload }, shellOrigin);
     }
+    function reportHeight() {
+      const height = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, 120);
+      window.parent.postMessage({ type: "resize", height }, "*");
+    }
     document.getElementById("send").addEventListener("click", () => {
       const title = document.getElementById("title").value.trim() || "Meeting";
       const startLocal = document.getElementById("start").value;
@@ -110,8 +114,11 @@
       document.getElementById("start").value = props.defaultStart || defaultStart();
       if (props.peerName) document.getElementById("title").placeholder = "Meeting with " + props.peerName;
       updateConflict();
+      reportHeight();
     });
     window.parent.postMessage({ type: "ready" }, "*");
+    reportHeight();
+    window.addEventListener("resize", reportHeight);
   </script>
 </body>
 </html>

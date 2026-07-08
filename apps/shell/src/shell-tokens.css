@@ -1,6 +1,7 @@
 /* Atom shell — monochrome light / dark (exact inverse). Orange = active status only. */
 
 :root,
+[data-atom-skin="minimal"],
 [data-atom-skin="default"] {
   --shell-sidebar-bg: #ffffff;
   --shell-main-bg: #f5f5f5;
@@ -118,6 +119,7 @@
 }
 
 .shell,
+.atom-app,
 .atom-marketing,
 .atom-auth-modal {
   --bg: var(--shell-main-bg);

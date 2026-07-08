@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   AttestationLog,
   Catalog,
@@ -35,8 +35,21 @@ import { bridgeChatModuleEvent } from "./comms/moduleBridge.js";
 import { CommsPanel } from "./CommsPanel.js";
 import { ChatFeedSurface } from "./chat/ChatFeedSurface.js";
 import { GameModal } from "./chat/GameModal.js";
-import { withModulePropDefaults } from "./chat/moduleEmbedDefaults.js";
-import { LlmAgentSession, runCuratorPass, listOpenAiCompatibleModels, type LlmConfig } from "@qwixl/agent-llm";
+import { FeedAgentText } from "./chat/FeedAgentText.js";
+import { findModuleEmbed, withModulePropDefaults } from "./chat/moduleEmbedDefaults.js";
+import {
+  LlmAgentSession,
+  runCuratorPass,
+  listOpenAiCompatibleModels,
+  discoverModelCapabilities,
+  inferModelCapabilities,
+  normalizeModelCapabilityProfile,
+  formatNativeToolsLabel,
+  shouldCurateTranscript,
+  type LlmConfig,
+  type ModelCapabilityProfile,
+  type AtomToolExecutor,
+} from "@qwixl/agent-llm";
 import { AgUiAgentSession, type AgUiAgentConfig } from "@qwixl/ag-ui-adapter";
 import {
   OwnerStore,
@@ -84,9 +97,22 @@ import { loadFirstRunDone, markFirstRunDone, resetFirstRunDone } from "./firstRu
 import { navigate } from "./navigation.js";
 import { DemoBootstrap } from "./DemoBootstrap.js";
 import { PersonalDemoWalkthrough } from "./PersonalDemoWalkthrough.js";
-import { buildGoogleCalendarAddUrl } from "./calendarAddLink.js";
+import { calendarAddUrlFromAction } from "./calendarAddLink.js";
 import { type DemoCalendarEvent } from "./demoScheduling.js";
 import { CommsAgentClient } from "./comms/client.js";
+import {
+  formatCalendarContextForPrompt,
+  isWebcalConnected,
+  loadWebcalBusyEvents,
+  loadWebcalEvents,
+  partitionEventsByToday,
+  type WebcalBusyEvent,
+} from "./comms/icalExport.js";
+import {
+  formatRssContextForPrompt,
+  isRssConnected,
+  loadRssItems,
+} from "./comms/rssContext.js";
 import { syncContactsToAgent } from "./comms/contactSync.js";
 import {
   applyDemoPersona,
@@ -95,6 +121,8 @@ import {
 } from "./demoPersonas.js";
 import { CustodySecurityPanel } from "./custody/CustodySecurityPanel.js";
 import { WebCalSettingsPanel } from "./connectors/WebCalSettingsPanel.js";
+import { RssSettingsPanel } from "./connectors/RssSettingsPanel.js";
+import { BookmarksSettingsPanel } from "./connectors/BookmarksSettingsPanel.js";
 import {
   ConnectorModuleHost,
   WEBCAL_CONNECTOR_MODULE_ID,
@@ -128,7 +156,7 @@ import {
 } from "./hostConfig.js";
 import { AGUI_CONFIG_KEY, DEFAULT_AGUI_URL, agUiAuthHeaders, loadAgUiConfig, saveAgUiConfigForAgent } from "./agUiConfig.js";
 import { validateProductionAgUiUrl } from "./productionGuard.js";
-import { applyAtomSkin, ATOM_SKINS, type AtomSkinId } from "@qwixl/skin-default/tokens";
+import { applyAtomSkin, ATOM_SKINS, isAtomSkinId, type AtomSkinId } from "@qwixl/skin-default/tokens";
 import { FieldLabelWithHint, LlmApiKeyHintContent } from "./ui/FieldHint.js";
 import { updateHostedLlmApiKey, signOutSupabase, fetchHostedAccountStatus } from "./auth/hostedAccount.js";
 import { ShellComposer } from "./shell/ShellComposer.js";
@@ -482,7 +510,17 @@ export function App() {
   );
   const llmConfig = useMemo((): LlmConfig | null => {
     if (!llmConnection) return null;
-    return resolveLlmConfig(llmConnection, secretStore);
+    const resolved = resolveLlmConfig(llmConnection, secretStore);
+    if (!resolved) return null;
+    return {
+      baseUrl: resolved.baseUrl,
+      apiKey: resolved.apiKey,
+      model: resolved.model,
+      capabilities: normalizeModelCapabilityProfile(
+        resolved.capabilities as Partial<ModelCapabilityProfile> | undefined,
+        { baseUrl: resolved.baseUrl, model: resolved.model },
+      ),
+    };
   }, [llmConnection, secretStore]);
   const savedLlmKeyHint = useMemo(() => {
     if (!llmConnection) return null;
@@ -543,6 +581,22 @@ export function App() {
   const [demoCalendarAdded, setDemoCalendarAdded] = useState(false);
   const [demoWebcalReady, setDemoWebcalReady] = useState(false);
   const [demoCalendarEvents, setDemoCalendarEvents] = useState<DemoCalendarEvent[]>([]);
+  const [webcalBusyEvents, setWebcalBusyEvents] = useState<WebcalBusyEvent[]>([]);
+  const [calendarContext, setCalendarContext] = useState<string | undefined>(undefined);
+  const calendarContextRef = useRef<string | undefined>(undefined);
+  const webcalRefreshInFlight = useRef<Promise<void> | null>(null);
+  const [rssContext, setRssContext] = useState<string | undefined>(undefined);
+  const rssContextRef = useRef<string | undefined>(undefined);
+  const rssRefreshInFlight = useRef<Promise<void> | null>(null);
+
+  const applyCalendarContext = useCallback((value: string | undefined) => {
+    calendarContextRef.current = value;
+    setCalendarContext(value);
+  }, []);
+  const applyRssContext = useCallback((value: string | undefined) => {
+    rssContextRef.current = value;
+    setRssContext(value);
+  }, []);
   /** Set when user picks a provider that needs configuration first. */
   const [settingsIntent, setSettingsIntent] = useState<Provider | null>(null);
   const [input, setInput] = useState("");
@@ -677,11 +731,21 @@ export function App() {
           sessionContextTags: sessionContextTagsRef.current,
         }),
       );
+      const calendar =
+        calendarContextRef.current ??
+        "Not connected. Owner can add a private ICS feed URL in Settings → Connectors.";
+      const rss =
+        rssContextRef.current ??
+        "Not connected. Owner can add a public RSS/Atom feed URL in Settings → Connectors.";
+      const withCalendar = { ...base, calendarContext: calendar, rssContext: rss };
       const active = activeGameContext(findActiveGameInFeed(chatFeedRef.current));
-      return active ? { ...base, activeSurface: active } : base;
+      return active ? { ...withCalendar, activeSurface: active } : withCalendar;
     },
     [ownerStore, conversationMemory],
   );
+  const buildContextRef = useRef(buildContext);
+  buildContextRef.current = buildContext;
+  const profileProvider = useCallback(() => buildContextRef.current(), []);
 
   const registry = useMemo(
     () => new ModuleRegistry({ indexUrl: registryUrl, trust: registryTrust }),
@@ -691,43 +755,150 @@ export function App() {
   const loadDemoWebcalEvents = useCallback(async (): Promise<DemoCalendarEvent[]> => {
     const config = loadCommsAgentConfig();
     const client = new CommsAgentClient(config.adminUrl, config.adminToken);
-    const status = await client.invokeConnector("webcal", "getStatus", {});
-    const connected = Boolean((status.result as { connected?: boolean }).connected);
-    if (!connected) return [];
-    const now = new Date();
-    const twoWeeks = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-    const listed = await client.invokeConnector("webcal", "listEvents", {
-      timeMin: now.toISOString(),
-      timeMax: twoWeeks.toISOString(),
-    });
-    return (listed.result as { events?: DemoCalendarEvent[] }).events ?? [];
+    return loadWebcalBusyEvents(client);
+  }, []);
+  const demoWebcalReadyRef = useRef(demoWebcalReady);
+  demoWebcalReadyRef.current = demoWebcalReady;
+  const loadDemoWebcalEventsRef = useRef(loadDemoWebcalEvents);
+  loadDemoWebcalEventsRef.current = loadDemoWebcalEvents;
+  const mockWebcalEventsProvider = useCallback(async () => {
+    if (!demoWebcalReadyRef.current) return [];
+    return loadDemoWebcalEventsRef.current();
   }, []);
 
-  const refreshDemoWebcalState = useCallback(async () => {
+  const refreshWebcalState = useCallback(async () => {
+    if (webcalRefreshInFlight.current) {
+      await webcalRefreshInFlight.current;
+      return;
+    }
+
+    const run = async () => {
+    const config = vaultUnlocked
+      ? await loadCommsAgentConfigSecure()
+      : loadCommsAgentConfig();
+    if (!config.adminToken?.trim()) {
+      setDemoWebcalReady(false);
+      setDemoCalendarEvents([]);
+      setWebcalBusyEvents([]);
+      applyCalendarContext(
+        formatCalendarContextForPrompt({
+          connected: false,
+          todayEvents: [],
+          upcomingEvents: [],
+        }),
+      );
+      return;
+    }
     try {
-      const statusResult = await (async () => {
-        const config = loadCommsAgentConfig();
-        const client = new CommsAgentClient(config.adminUrl, config.adminToken);
-        return client.invokeConnector("webcal", "getStatus", {});
-      })();
-      const connected = Boolean((statusResult.result as { connected?: boolean }).connected);
+      const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+      const connected = await isWebcalConnected(client);
       setDemoWebcalReady(connected);
       if (!connected) {
         setDemoCalendarEvents([]);
+        setWebcalBusyEvents([]);
+        applyCalendarContext(formatCalendarContextForPrompt({
+          connected: false,
+          todayEvents: [],
+          upcomingEvents: [],
+        }));
         return;
       }
-      const events = await loadDemoWebcalEvents();
-      setDemoCalendarEvents(events);
-    } catch {
+      const now = new Date();
+      const startOfDay = new Date(now);
+      startOfDay.setHours(0, 0, 0, 0);
+      const week = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const allEvents = await loadWebcalEvents(client, startOfDay, week);
+      const { todayEvents, upcomingEvents } = partitionEventsByToday(allEvents, now);
+      setDemoCalendarEvents(allEvents);
+      setWebcalBusyEvents(allEvents);
+      applyCalendarContext(
+        formatCalendarContextForPrompt({ connected: true, todayEvents, upcomingEvents }),
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       setDemoWebcalReady(false);
       setDemoCalendarEvents([]);
+      setWebcalBusyEvents([]);
+      applyCalendarContext(
+        formatCalendarContextForPrompt({
+          connected: false,
+          todayEvents: [],
+          upcomingEvents: [],
+          error: message,
+        }),
+      );
     }
-  }, [loadDemoWebcalEvents]);
+    };
+
+    const task = run().finally(() => {
+      webcalRefreshInFlight.current = null;
+    });
+    webcalRefreshInFlight.current = task;
+    await task;
+  }, [vaultUnlocked, applyCalendarContext]);
+
+  const refreshRssState = useCallback(async () => {
+    if (rssRefreshInFlight.current) {
+      await rssRefreshInFlight.current;
+      return;
+    }
+
+    const run = async () => {
+      const config = vaultUnlocked
+        ? await loadCommsAgentConfigSecure()
+        : loadCommsAgentConfig();
+      if (!config.adminToken?.trim()) {
+        applyRssContext(
+          formatRssContextForPrompt({
+            connected: false,
+            items: [],
+          }),
+        );
+        return;
+      }
+      try {
+        const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+        const connected = await isRssConnected(client);
+        if (!connected) {
+          applyRssContext(formatRssContextForPrompt({ connected: false, items: [] }));
+          return;
+        }
+        const { items, feedLabels } = await loadRssItems(client, 25);
+        applyRssContext(formatRssContextForPrompt({ connected: true, items, feedLabels }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        applyRssContext(
+          formatRssContextForPrompt({
+            connected: false,
+            items: [],
+            error: message,
+          }),
+        );
+      }
+    };
+
+    const task = run().finally(() => {
+      rssRefreshInFlight.current = null;
+    });
+    rssRefreshInFlight.current = task;
+    await task;
+  }, [vaultUnlocked, applyRssContext]);
+
+  const refreshDemoWebcalState = useCallback(async () => {
+    await refreshWebcalState();
+  }, [refreshWebcalState]);
 
   useEffect(() => {
     if (!IS_DEMO_MODE) return;
     applyDemoPersona(loadDemoPersona());
   }, []);
+
+  useEffect(() => {
+    if (IS_DEMO_MODE) return;
+    if (!vaultUnlocked) return;
+    void refreshWebcalState();
+    void refreshRssState();
+  }, [vaultUnlocked, refreshWebcalState, refreshRssState]);
 
   useEffect(() => {
     if (!IS_DEMO_MODE || !demoReady) return;
@@ -811,27 +982,44 @@ export function App() {
     }
   }, [ownerStore, curatorAutoAcceptOpen]);
 
+  const atomToolExecutor = useCallback<AtomToolExecutor>(async (call) => {
+    const config = vaultUnlocked
+      ? await loadCommsAgentConfigSecure()
+      : loadCommsAgentConfig();
+    if (!config.adminToken?.trim()) {
+      throw new Error("Agent backend not configured");
+    }
+    const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+    const response = await client.invokeConnector(
+      call.connectorId,
+      call.operation,
+      call.input ?? {},
+    );
+    return response.result;
+  }, [vaultUnlocked]);
+
+  const agUiSessionKey = provider === "ag-ui" ? agUiConfig.url : null;
+
   const session: ShellSession = useMemo(() => {
     if (provider === "llm" && llmConfig) {
-      // Live provider: the slice is reassembled from the store on every
-      // model call, so guarding/unguarding a record applies from the
-      // agent's next turn (earlier transcript influence remains).
-      return new LlmAgentSession(llmConfig, catalog, buildContext);
+      return new LlmAgentSession(llmConfig, catalog, profileProvider, {
+        atomToolExecutor,
+        atomConnectorsAvailable: agentConnectionReady && !IS_DEMO_MODE,
+      });
     }
     if (provider === "ag-ui") {
       const comms = loadCommsAgentConfig();
       return new AgUiAgentSession({
         ...agUiConfig,
         headers: agUiAuthHeaders(comms.adminToken),
-        profileProvider: buildContext,
+        profileProvider,
       });
     }
     return new MockAgentSession({
-      profileProvider: buildContext,
-      webcalEventsProvider: IS_DEMO_MODE && demoWebcalReady ? loadDemoWebcalEvents : undefined,
+      profileProvider,
+      webcalEventsProvider: mockWebcalEventsProvider,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, llmConfig, agUiConfig, catalog, ownerStore, conversationMemory, buildContext, demoWebcalReady, loadDemoWebcalEvents, agentConnectionReady, vaultUnlocked]);
+  }, [provider, llmConfig, agUiSessionKey, catalog, profileProvider, mockWebcalEventsProvider, atomToolExecutor, agentConnectionReady]);
 
   const sessionRef = useRef(session);
   sessionRef.current = session;
@@ -905,6 +1093,7 @@ export function App() {
             return;
           }
           if (transcript.length < 2) return;
+          if (!shouldCurateTranscript(transcript)) return;
           void runCuratorPass(activeLlmConfig, {
             transcript,
             existingRecords: activeOwnerStore.list().map((record) => {
@@ -1033,15 +1222,14 @@ export function App() {
     activeChatGame && gameModalDismissedId !== activeChatGame.surface.surfaceId,
   );
 
-  useEffect(() => {
-    if (prevSessionRef.current && prevSessionRef.current !== session) {
-      prevSessionRef.current.dispose?.();
-      conversationRef.current.setBusy(false);
-    }
+  useLayoutEffect(() => {
+    conversation.bindSession(session);
+    const prev = prevSessionRef.current;
     prevSessionRef.current = session;
-  }, [session]);
-
-  useEffect(() => conversation.wireSession(session), [session, conversation]);
+    if (prev && prev !== session) {
+      queueMicrotask(() => prev.dispose?.());
+    }
+  }, [session, conversation]);
 
   useEffect(() => {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
@@ -1101,7 +1289,15 @@ export function App() {
     turnTranscript.current = [];
     conversationRef.current.appendUser(trimmed);
     setInput("");
-    sessionRef.current.sendUserMessage(trimmed);
+    conversationRef.current.setBusy(true);
+    try {
+      sessionRef.current.sendUserMessage(trimmed);
+    } catch (error) {
+      conversationRef.current.appendLocalAgentText(
+        error instanceof Error ? error.message : String(error),
+      );
+      conversationRef.current.setBusy(false);
+    }
   }
 
   async function handleChatDiscoverDm(result: DiscoverChatResult): Promise<void> {
@@ -1187,15 +1383,6 @@ export function App() {
 
   async function decide(decision: "approved" | "declined") {
     if (!pending) return;
-    if (decision === "approved") {
-      setCustodyError(null);
-      try {
-        await requireCustodyApproval(pending.action);
-      } catch (error) {
-        setCustodyError(error instanceof Error ? error.message : String(error));
-        return;
-      }
-    }
     const entry = await attestationLog.append({
       surfaceId: pending.surfaceId,
       action: pending.action,
@@ -1206,19 +1393,12 @@ export function App() {
     );
     setAttestations([...attestationLog.list()]);
     const { dataRequest } = pending;
-    if (
-      IS_DEMO_MODE &&
-      decision === "approved" &&
-      typeof pending.action.terms.start === "string" &&
-      typeof pending.action.terms.end === "string"
-    ) {
-      const url = buildGoogleCalendarAddUrl({
-        title: String(pending.action.terms.event ?? pending.action.title),
-        start: pending.action.terms.start,
-        end: pending.action.terms.end,
-      });
-      window.open(url, "_blank", "noopener,noreferrer");
-      setDemoCalendarAdded(true);
+    if (decision === "approved") {
+      const calendarUrl = calendarAddUrlFromAction(pending.action);
+      if (calendarUrl) {
+        window.open(calendarUrl, "_blank", "noopener,noreferrer");
+        if (IS_DEMO_MODE) setDemoCalendarAdded(true);
+      }
     }
     conversationRef.current.clearPending();
     conversationRef.current.setBusy(true);
@@ -1254,7 +1434,10 @@ export function App() {
     if (decision === "approved" && activeAction) {
       setCustodyError(null);
       try {
-        const custody = await requireCustodyApproval(activeAction);
+        const config = vaultUnlocked
+          ? await loadCommsAgentConfigSecure()
+          : loadCommsAgentConfig();
+        const custody = await requireCustodyApproval(activeAction, config);
         approvalRef = custody.approvalRef;
       } catch (error) {
         setCustodyError(error instanceof Error ? error.message : String(error));
@@ -1465,8 +1648,8 @@ export function App() {
               </div>
               {provider === "llm" ? (
                 <p className="shell-empty-note">
-                  Live agent: composes unscripted from the catalog vocabulary. It has no live data
-                  integrations yet, so content is illustrative.
+                  Live agent: composes from the catalog. Connect WebCal in Settings → Connectors for
+                  calendar context.
                 </p>
               ) : null}
               {provider === "ag-ui" && !agUiConfig.url.trim() ? (
@@ -1487,11 +1670,7 @@ export function App() {
                 );
               }
               if (item.kind === "agent-text") {
-                return (
-                  <div key={item.id} className="feed-agent">
-                    {item.text}
-                  </div>
-                );
+                return <FeedAgentText key={item.id} text={item.text} />;
               }
               return (
                 <ChatFeedSurface
@@ -1499,6 +1678,7 @@ export function App() {
                   surface={item.surface}
                   catalog={catalog}
                   registry={registry}
+                  busyEvents={webcalBusyEvents}
                   onEvent={handleUiEvent}
                   onResumeGame={() => setGameModalDismissedId(null)}
                 />
@@ -1672,7 +1852,9 @@ export function App() {
           footnote={
             IS_DEMO_MODE
               ? "Demo mode — this approval is logged locally, then Google Calendar opens in a new tab."
-              : "Approving requires your passkey (biometric or PIN). This decision is recorded in your attestation log."
+              : calendarAddUrlFromAction(chromePending.action)
+                ? "Approve to open Google Calendar with these fields prefilled (no write access from Atom). This decision is recorded in your attestation log."
+                : "Approving requires your passkey (biometric or PIN). This decision is recorded in your attestation log."
           }
           error={custodyError}
           onDecline={() => void decideChrome("declined")}
@@ -1712,7 +1894,10 @@ export function App() {
       {!IS_DEMO_MODE && agentConnectionReady && !vaultUnlocked ? (
         <VaultUnlockGate
           onUnlocked={() => {
-            void refreshCommsConfigCache().then(() => setVaultUnlocked(true));
+            void refreshCommsConfigCache().then(() => {
+              setVaultUnlocked(true);
+              void refreshWebcalState();
+            });
           }}
         />
       ) : null}
@@ -1735,6 +1920,8 @@ export function App() {
           chatProvider={provider}
           chatProviderSummary={chatProviderSummary}
           allowBrowserLlm={ALLOW_BROWSER_LLM}
+          onWebcalFeedsChanged={() => void refreshWebcalState()}
+          onRssFeedsChanged={() => void refreshRssState()}
           resolveLlmApiKey={() =>
             llmConnection ? secretStore.get(llmConnection.secretRef) ?? null : null
           }
@@ -1826,6 +2013,8 @@ function SettingsDialog({
   chatProvider,
   chatProviderSummary,
   allowBrowserLlm,
+  onWebcalFeedsChanged,
+  onRssFeedsChanged,
   resolveLlmApiKey,
   onSwitchChatProvider,
   onClose,
@@ -1855,6 +2044,8 @@ function SettingsDialog({
   chatProvider: Provider;
   chatProviderSummary: string;
   allowBrowserLlm: boolean;
+  onWebcalFeedsChanged?: () => void;
+  onRssFeedsChanged?: () => void;
   resolveLlmApiKey: () => string | null;
   onSwitchChatProvider: (provider: Provider) => void;
   onClose: () => void;
@@ -1874,6 +2065,17 @@ function SettingsDialog({
   const [model, setModel] = useState(llmConnectionInitial?.model ?? "");
   const modelRef = useRef(model);
   modelRef.current = model;
+  const [modelCapabilities, setModelCapabilities] = useState<ModelCapabilityProfile | null>(() => {
+    const stored = llmConnectionInitial?.capabilities;
+    if (stored && typeof stored === "object") {
+      return normalizeModelCapabilityProfile(stored as Partial<ModelCapabilityProfile>, {
+        baseUrl: llmConnectionInitial?.baseUrl ?? "https://api.openai.com/v1",
+        model: llmConnectionInitial?.model ?? "",
+      });
+    }
+    return null;
+  });
+  const [capabilitiesLoading, setCapabilitiesLoading] = useState(false);
   const [modelOptions, setModelOptions] = useState<string[]>([]);
   const [modelOptionsLoading, setModelOptionsLoading] = useState(false);
   /** null = no key yet; true = provider returned models; false = use text input fallback */
@@ -1957,9 +2159,40 @@ function SettingsDialog({
       baseUrl: baseUrl.trim(),
       model: model.trim(),
       secretRef: llmConnectionInitial?.secretRef ?? DEFAULT_LLM_SECRET_REF,
+      capabilities:
+        modelCapabilities ??
+        inferModelCapabilities(baseUrl.trim(), model.trim()),
     };
     onSaveLlm(connection, hasSavedKey ? undefined : apiKey.trim());
   }
+
+  const discoverCapabilities = useCallback(async () => {
+    const key = hasSavedKey ? resolveLlmApiKey() : apiKey.trim();
+    if (!baseUrl.trim() || !model.trim() || !key) {
+      setModelCapabilities(null);
+      return;
+    }
+    setCapabilitiesLoading(true);
+    try {
+      const profile = await discoverModelCapabilities({
+        baseUrl: baseUrl.trim(),
+        apiKey: key,
+        model: model.trim(),
+        probe: true,
+      });
+      setModelCapabilities(profile);
+    } catch {
+      setModelCapabilities(inferModelCapabilities(baseUrl.trim(), model.trim()));
+    } finally {
+      setCapabilitiesLoading(false);
+    }
+  }, [apiKey, baseUrl, hasSavedKey, model, resolveLlmApiKey]);
+
+  useEffect(() => {
+    if (!allowBrowserLlm) return;
+    const timer = setTimeout(() => void discoverCapabilities(), 400);
+    return () => clearTimeout(timer);
+  }, [allowBrowserLlm, discoverCapabilities]);
 
   const loadModelOptions = useCallback(async () => {
     const key = hasSavedKey ? resolveLlmApiKey() : apiKey.trim();
@@ -2182,6 +2415,21 @@ function SettingsDialog({
               {hasApiKey && !modelOptionsLoading && modelsFromApi && !model.trim() ? (
                 <p className="settings-note">Please select a model</p>
               ) : null}
+              {hasApiKey && model.trim() ? (
+                capabilitiesLoading ? (
+                  <p className="settings-note">Discovering model tools…</p>
+                ) : modelCapabilities ? (
+                  <p className="settings-note">
+                    Model family: {modelCapabilities.modelFamily}. Provider tools:{" "}
+                    {formatNativeToolsLabel(modelCapabilities)}
+                    {modelCapabilities.source === "provider-metadata" ? " (from provider metadata)" : ""}
+                    {modelCapabilities.source === "probe" ? " (from probe)" : ""}.
+                    {modelCapabilities.chatComposeNote
+                      ? ` ${modelCapabilities.chatComposeNote}`
+                      : " Atom adds connector invoke (calendar, RSS, news search, bookmarks) when your agent is connected."}
+                  </p>
+                ) : null
+              ) : null}
             </label>
             {!intent ? (
               <div className="chrome-actions settings-section-actions">
@@ -2251,8 +2499,8 @@ function SettingsDialog({
     return (
       <>
         <p className="settings-note">
-          Paste your private calendar subscription link (from Google, Apple, or Outlook). It is stored
-          encrypted on your agent — not in this browser.
+          Connectors store URLs encrypted on your agent — not in this browser. WebCal for calendar;
+          RSS for public feeds; bookmarks for pages your agent can read on request.
         </p>
         {modulesActive && catalog && registry ? (
           <ConnectorModuleHost
@@ -2262,8 +2510,14 @@ function SettingsDialog({
             modulesEnabled={modulesActive}
           />
         ) : (
-          <WebCalSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
+          <WebCalSettingsPanel
+            vaultUnlocked={vaultUnlocked}
+            embedded
+            onFeedsChanged={onWebcalFeedsChanged}
+          />
         )}
+        <RssSettingsPanel vaultUnlocked={vaultUnlocked} embedded onFeedsChanged={onRssFeedsChanged} />
+        <BookmarksSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
       </>
     );
   }
@@ -2531,8 +2785,7 @@ function SettingsDialog({
 
 function SkinPicker() {
   const saved = loadStringFromStorage(SKIN_STORAGE_KEY);
-  const initial: AtomSkinId =
-    saved === "dark" || saved === "high-contrast" || saved === "default" ? saved : "default";
+  const initial: AtomSkinId = isAtomSkinId(saved) ? saved : "minimal";
   const [skinId, setSkinId] = useState<AtomSkinId>(initial);
 
   function applySkin(next: AtomSkinId) {

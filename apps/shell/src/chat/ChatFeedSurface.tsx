@@ -1,12 +1,13 @@
 import type { Catalog, ModuleRegistry, ResolvedSurface, UiEvent } from "@qwixl/shell-core";
 import { SurfaceRenderer } from "@qwixl/renderer-web";
 import { CommsModuleEmbed } from "../comms/CommsModuleEmbed.js";
+import type { WebcalBusyEvent } from "../comms/icalExport.js";
 import { GameFeedChip } from "./GameFeedChip.js";
 import { isGameModule } from "./gameModules.js";
 import { findModuleEmbed, withModulePropDefaults } from "./moduleEmbedDefaults.js";
 
 function minHeightForModule(moduleId: string): number {
-  if (moduleId === "scheduling/meeting-picker") return 120;
+  if (moduleId === "scheduling/meeting-picker") return 300;
   return 160;
 }
 
@@ -15,12 +16,14 @@ export function ChatFeedSurface({
   surface,
   catalog,
   registry,
+  busyEvents = [],
   onEvent,
   onResumeGame,
 }: {
   surface: ResolvedSurface;
   catalog: Catalog;
   registry: ModuleRegistry;
+  busyEvents?: WebcalBusyEvent[];
   onEvent: (event: UiEvent) => void;
   onResumeGame?: () => void;
 }) {
@@ -37,7 +40,7 @@ export function ChatFeedSurface({
       );
     }
 
-    const props = withModulePropDefaults(embed.moduleId, embed.props);
+    const props = withModulePropDefaults(embed.moduleId, embed.props, { busyEvents });
     return (
       <div className="feed-surface feed-surface--module">
         <CommsModuleEmbed
@@ -67,3 +70,4 @@ export function ChatFeedSurface({
     </div>
   );
 }
+

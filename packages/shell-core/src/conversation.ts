@@ -1,5 +1,6 @@
 import type { ResolvedNode, ResolvedSurface } from "./resolver.js";
 import type { JsonObject } from "./types.js";
+import { findModuleEmbed, isInteractiveSurface } from "./games/feed.js";
 
 /** Active module surface on the chat feed (for agent context). */
 export interface ActiveFeedSurface {
@@ -15,27 +16,35 @@ export type FeedItem =
   | { kind: "surface"; id: string; surface: ResolvedSurface };
 
 /**
- * Shell feed policy: one active surface. Reuse surfaceId to update in place;
- * a new surfaceId replaces the previous surface. Text messages always append.
+ * Shell feed policy:
+ * - Read-only surfaces (schedule, cards, etc.) append and stay in chat history.
+ * - Interactive game surfaces are singular: update by surfaceId, replace prior games.
+ * Text messages always append.
  */
 export function upsertFeedSurface(
   feed: FeedItem[],
   surface: ResolvedSurface,
   id: string,
 ): FeedItem[] {
-  const existing = feed.findIndex(
+  if (!isInteractiveSurface(surface)) {
+    return [...feed, { kind: "surface", id, surface }];
+  }
+
+  const existingIdx = feed.findIndex(
     (item) => item.kind === "surface" && item.surface.surfaceId === surface.surfaceId,
   );
-  if (existing >= 0) {
-    const prev = feed[existing];
+  if (existingIdx >= 0) {
+    const prev = feed[existingIdx];
     if (prev?.kind === "surface") {
-      const next = [...feed];
-      next[existing] = { kind: "surface", id: prev.id, surface };
-      return next;
+      const next = feed.filter((_, index) => index !== existingIdx);
+      return [...next, { kind: "surface", id: prev.id, surface }];
     }
   }
-  const withoutSurfaces = feed.filter((item) => item.kind !== "surface");
-  return [...withoutSurfaces, { kind: "surface", id, surface }];
+
+  const withoutGames = feed.filter(
+    (item) => item.kind !== "surface" || !isInteractiveSurface(item.surface),
+  );
+  return [...withoutGames, { kind: "surface", id, surface }];
 }
 
 export function appendAgentText(feed: FeedItem[], id: string, text: string): FeedItem[] {

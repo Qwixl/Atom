@@ -29,6 +29,28 @@ PRs to the reference registry must pass `pnpm registry:verify --require-integrit
 
 **New listings (M-TS-03):** include `signatureUrl` pointing at a Sigstore bundle JSON beside the manifest. Existing modules may omit signatures until re-published; CI warns today and will enforce `--require-signatures` once all curated modules are signed.
 
+## Commerce modules (M-TS-05)
+
+The reference registry rejects commerce modules whose primary purpose is:
+
+- Regulated goods without required licensing (firearms, prescription drugs, alcohol where prohibited)
+- Illegal services (see prohibited-use list above)
+- Deceptive pricing or hidden subscription traps in module UI
+
+Commerce modules must use shell consequential-action chrome for payment authorization; modules must not collect card data in the iframe sandbox.
+
+## Registry trust policy (M-TS-10)
+
+Self-hosted shells may configure trust when loading a custom registry index:
+
+| Policy field | Default | Effect |
+|---|---|---|
+| `requireIntegrity` | `true` | Refuse install when index/manifest hashes missing or mismatched |
+| `requireSignature` | `false` | Refuse install when manifest omits `signatureUrl` or Sigstore digest fails |
+| `trustedPublishers` | unset | When set, only manifests whose `publisher` DID is in the list may install |
+
+Production shell (`atom.qwixl.com`) pins the reference registry and does not expose custom index URLs. Enterprise embedders set policy via host config — see [SECURITY.md](./SECURITY.md) § Registry install checks.
+
 ## Scaffold
 
 ```bash

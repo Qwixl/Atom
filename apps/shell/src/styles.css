@@ -441,6 +441,16 @@ body {
   word-break: break-all;
 }
 
+.settings-registry-category {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: capitalize;
+}
+
+.settings-registry-filter {
+  margin: 8px 0 4px;
+}
+
 .settings-registry-purchase {
   font-size: 11px;
   color: var(--accent);
@@ -830,12 +840,41 @@ body {
   line-height: 1.6;
 }
 
+.feed-agent-text a {
+  color: var(--shell-accent);
+  font-weight: 500;
+}
+
+.feed-calendar-add {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--shell-border);
+}
+
+.feed-calendar-add-link {
+  display: inline-block;
+  padding: 8px 14px;
+  border-radius: var(--shell-radius-sm);
+  background: var(--shell-accent);
+  color: var(--shell-bg);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.feed-calendar-add-link:hover {
+  opacity: 0.92;
+}
+
 .feed-surface {
   align-self: stretch;
   border: 1px solid var(--shell-border);
   border-radius: var(--shell-radius);
   background: var(--shell-raised-bg);
   overflow: hidden;
+  /* Prevent flex shrink collapsing surfaces to ~0px in long feeds (overflow:hidden + min-height:auto). */
+  flex-shrink: 0;
+  min-height: min-content;
 }
 
 .feed-surface--module {
@@ -845,6 +884,7 @@ body {
 .feed-surface--module .comms-module-iframe {
   border-radius: var(--shell-radius-sm);
   background: var(--shell-raised-bg);
+  min-height: 300px;
 }
 
 .feed-surface--game-chip {
@@ -1040,211 +1080,7 @@ body {
   min-width: 84px;
 }
 
-/* ---------- rendered surfaces (primitives) ---------- */
-
-.atom-surface {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.atom-node {
-  display: contents;
-}
-
-.atom-card {
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.atom-card-header {
-  padding: 14px 18px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.atom-card-title {
-  font-weight: 600;
-  font-size: 16px;
-}
-
-.atom-card-subtitle {
-  color: var(--text-dim);
-  font-size: 13px;
-}
-
-.atom-card-body {
-  padding: 14px 18px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.atom-text {
-  margin: 0;
-  line-height: 1.55;
-}
-
-.atom-heading {
-  margin: 0;
-}
-
-.atom-list {
-  margin: 0;
-  padding-left: 22px;
-  line-height: 1.7;
-}
-
-.atom-table-wrap {
-  overflow-x: auto;
-}
-
-.atom-table {
-  border-collapse: collapse;
-  width: 100%;
-  font-size: 14px;
-}
-
-.atom-table th,
-.atom-table td {
-  text-align: left;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.atom-table th {
-  color: var(--text-dim);
-  font-weight: 500;
-}
-
-.atom-choice {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.atom-choice-option {
-  text-align: left;
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  padding: 12px 16px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  transition: border-color 120ms;
-}
-
-.atom-choice-option:hover:not(:disabled) {
-  border-color: var(--accent);
-}
-
-.atom-choice-option.selected {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.atom-choice-option:disabled:not(.selected) {
-  opacity: 0.45;
-}
-
-.atom-choice-form {
-  border: none;
-  padding: 0;
-  margin: 0;
-}
-
-.atom-choice-legend {
-  font-size: 13px;
-  color: var(--text-dim);
-  padding: 0 0 6px;
-}
-
-.atom-choice-option-input {
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 10px;
-  cursor: pointer;
-}
-
-.atom-choice-option-input input {
-  margin-top: 3px;
-  accent-color: var(--accent);
-}
-
-.atom-choice-option-input:has(input:checked) {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.atom-choice-option-body {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.atom-choice-label {
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.atom-choice-recommended {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--good);
-  border: 1px solid rgba(63, 202, 124, 0.4);
-  border-radius: 4px;
-  padding: 1px 6px;
-}
-
-.atom-choice-description {
-  color: var(--text-dim);
-  font-size: 13px;
-}
-
-.atom-choice-detail {
-  font-size: 13px;
-  color: var(--accent);
-}
-
-.atom-form-fields {
-  border: none;
-  padding: 0;
-  margin: 0 0 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.atom-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-}
-
-.atom-field input {
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  padding: 9px 12px;
-}
-
-.atom-field select {
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  padding: 9px 12px;
-}
+/* Composition primitives: @qwixl/skin-default/primitives.css */
 
 .settings-model-row {
   display: flex;
@@ -1275,212 +1111,6 @@ body {
 .shell-registry-error {
   color: var(--danger, #f85149);
   cursor: help;
-}
-
-.atom-button {
-  background: var(--shell-cta-bg);
-  color: var(--shell-cta-text);
-  border: none;
-  border-radius: var(--shell-radius-sm);
-  padding: 9px 18px;
-  font-weight: 600;
-  cursor: pointer;
-  align-self: flex-start;
-}
-
-.atom-button-secondary {
-  background: transparent;
-  color: var(--accent);
-  border: 1px solid var(--accent);
-}
-
-.atom-status {
-  font-size: 13px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-}
-
-.atom-status-success {
-  color: var(--good);
-  border-color: rgba(63, 202, 124, 0.35);
-}
-
-.atom-status-warn {
-  color: var(--warn);
-  border-color: rgba(230, 179, 77, 0.35);
-}
-
-.atom-status-error {
-  color: var(--bad);
-  border-color: rgba(239, 106, 106, 0.35);
-}
-
-.atom-progress-track {
-  height: 6px;
-  border-radius: 999px;
-  background: var(--bg-inset);
-  overflow: hidden;
-}
-
-.atom-progress-bar {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 999px;
-}
-
-.atom-progress-bar.indeterminate {
-  width: 35%;
-  animation: slide 1.2s infinite;
-}
-
-@keyframes slide {
-  from {
-    margin-left: -35%;
-  }
-  to {
-    margin-left: 100%;
-  }
-}
-
-.atom-chart svg {
-  width: 100%;
-  height: auto;
-  background: var(--bg-inset);
-  border-radius: 8px;
-}
-
-.atom-chart-series {
-  stroke-width: 2.5;
-}
-
-.atom-chart-series-0 {
-  stroke: var(--accent);
-  color: var(--accent);
-}
-
-.atom-chart-series-1 {
-  stroke: var(--good);
-  color: var(--good);
-}
-
-.atom-chart-series-2 {
-  stroke: var(--warn);
-  color: var(--warn);
-}
-
-.atom-chart-series-3 {
-  stroke: var(--bad);
-  color: var(--bad);
-}
-
-.atom-chart-legend {
-  display: flex;
-  gap: 14px;
-  margin-top: 6px;
-  font-size: 12px;
-}
-
-.atom-stack {
-  display: flex;
-  gap: 10px;
-}
-
-.atom-stack-vertical {
-  flex-direction: column;
-}
-
-.atom-stack-horizontal {
-  flex-direction: row;
-  flex-wrap: wrap;
-}
-
-.atom-disclosure {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 14px;
-}
-
-.atom-disclosure summary {
-  cursor: pointer;
-  color: var(--text-dim);
-}
-
-.atom-disclosure-body {
-  padding-top: 10px;
-}
-
-.atom-image img {
-  max-width: 100%;
-  border-radius: 8px;
-}
-
-/* ---------- fallback + substitution ---------- */
-
-.atom-fallback {
-  border: 1px dashed var(--border-strong);
-  border-radius: 8px;
-  padding: 10px 14px;
-  font-size: 13px;
-}
-
-.atom-fallback-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-dim);
-}
-
-.atom-fallback-badge {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--warn);
-  border: 1px solid rgba(230, 179, 77, 0.4);
-  border-radius: 4px;
-  padding: 1px 6px;
-}
-
-.atom-fallback-data {
-  margin: 8px 0 0;
-  background: var(--bg-inset);
-  border-radius: 6px;
-  padding: 10px;
-  overflow-x: auto;
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.atom-substitution-notice {
-  font-size: 11px;
-  color: var(--warn);
-  margin-bottom: 4px;
-}
-
-.atom-module {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: var(--bg-inset);
-}
-
-.atom-module-badge {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--accent);
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-raised);
-}
-
-.atom-module-frame {
-  display: block;
-  width: 100%;
-  min-height: 280px;
-  border: none;
-  background: transparent;
 }
 
 .shell-log-toggle.active {

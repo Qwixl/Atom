@@ -1,0 +1,428 @@
+/**
+ * Atom composition primitives — styled via skin tokens (--atom-*, --bg, --text, …).
+ * Shell chrome styles stay in apps/shell; this file is for agent-composed surfaces only.
+ */
+
+.atom-surface {
+  display: flex;
+  flex-direction: column;
+  gap: var(--atom-space-md, 12px);
+  font-family: var(--atom-font-sans, inherit);
+  color: var(--text);
+}
+
+.atom-node {
+  display: flex;
+  flex-direction: column;
+  gap: inherit;
+}
+
+.atom-card {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+}
+
+.atom-card-header {
+  padding: var(--atom-space-lg, 16px) var(--atom-space-lg, 16px) var(--atom-space-sm, 8px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.atom-card-title {
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.atom-card-subtitle {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.atom-card-body {
+  padding: var(--atom-space-md, 12px) var(--atom-space-lg, 16px) var(--atom-space-lg, 16px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--atom-space-md, 12px);
+}
+
+.atom-text {
+  margin: 0;
+  line-height: 1.55;
+  font-size: 14px;
+}
+
+.atom-heading {
+  margin: 0;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.atom-list {
+  margin: 0;
+  padding-left: 22px;
+  line-height: 1.7;
+  font-size: 14px;
+}
+
+.atom-table-wrap {
+  overflow-x: auto;
+}
+
+.atom-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 14px;
+}
+
+.atom-table th,
+.atom-table td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.atom-table th {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.atom-choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--atom-space-sm, 8px);
+}
+
+.atom-choice-option {
+  text-align: left;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 12px 16px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color 120ms;
+  font: inherit;
+}
+
+.atom-choice-option:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.atom-choice-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.atom-choice-option:disabled:not(.selected) {
+  opacity: 0.45;
+}
+
+.atom-choice-form {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.atom-choice-legend {
+  font-size: 13px;
+  color: var(--text-dim);
+  padding: 0 0 6px;
+}
+
+.atom-choice-option-input {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.atom-choice-option-input input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.atom-choice-option-input:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.atom-choice-option-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.atom-choice-label {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.atom-choice-recommended {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.atom-choice-description {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.atom-choice-detail {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.atom-form-fields {
+  border: none;
+  padding: 0;
+  margin: 0 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.atom-button {
+  background: var(--accent);
+  color: var(--bg-raised);
+  border: none;
+  border-radius: var(--atom-radius-sm, 6px);
+  padding: 9px 18px;
+  font-weight: 600;
+  cursor: pointer;
+  align-self: flex-start;
+  font: inherit;
+}
+
+.atom-button-secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.atom-status {
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: var(--atom-radius-sm, 6px);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.atom-status-success {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.atom-status-warn {
+  color: var(--text-dim);
+  border-color: var(--border-strong);
+}
+
+.atom-status-error {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.atom-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+
+.atom-progress-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.atom-progress-bar.indeterminate {
+  width: 35%;
+  animation: atom-progress-slide 1.2s infinite;
+}
+
+@keyframes atom-progress-slide {
+  from {
+    margin-left: -35%;
+  }
+  to {
+    margin-left: 100%;
+  }
+}
+
+.atom-chart svg {
+  width: 100%;
+  height: auto;
+  background: var(--bg-inset);
+  border-radius: var(--atom-radius-sm, 6px);
+}
+
+.atom-chart-series {
+  stroke-width: 2.5;
+}
+
+.atom-chart-series-0 {
+  stroke: var(--accent);
+  color: var(--accent);
+}
+
+.atom-chart-series-1 {
+  stroke: var(--text-dim);
+  color: var(--text-dim);
+}
+
+.atom-chart-series-2 {
+  stroke: var(--text);
+  color: var(--text);
+}
+
+.atom-chart-series-3 {
+  stroke: var(--border-strong);
+  color: var(--border-strong);
+}
+
+.atom-chart-legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.atom-stack {
+  display: flex;
+  gap: var(--atom-space-md, 12px);
+}
+
+.atom-stack-vertical {
+  flex-direction: column;
+}
+
+.atom-stack-horizontal {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+
+/* Timeline-style rows: time column + event body (schedule via composition) */
+.atom-card-body > .atom-stack-vertical > .atom-stack-horizontal {
+  padding: var(--atom-space-sm, 8px) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.atom-card-body > .atom-stack-vertical > .atom-stack-horizontal:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.atom-card-body > .atom-stack-vertical > .atom-stack-horizontal > .atom-text:first-child,
+.atom-card-body > .atom-stack-vertical > .atom-stack-horizontal > .atom-heading:first-child {
+  flex-shrink: 0;
+  min-width: 4.75rem;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.atom-card-body > .atom-stack-vertical > .atom-stack-horizontal > .atom-stack-vertical .atom-text:last-child {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.atom-disclosure {
+  border: 1px solid var(--border);
+  border-radius: var(--atom-radius-sm, 6px);
+  padding: 10px 14px;
+}
+
+.atom-disclosure summary {
+  cursor: pointer;
+  color: var(--text-dim);
+}
+
+.atom-disclosure-body {
+  padding-top: 10px;
+}
+
+.atom-image img {
+  max-width: 100%;
+  border-radius: var(--atom-radius-sm, 6px);
+}
+
+.atom-fallback {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--atom-radius-sm, 6px);
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.atom-fallback-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+}
+
+.atom-fallback-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.atom-fallback-data {
+  margin: 8px 0 0;
+  background: var(--bg-inset);
+  border-radius: 6px;
+  padding: 10px;
+  overflow-x: auto;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.atom-substitution-notice {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.atom-module {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-inset);
+}
+
+.atom-module-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+}
+
+.atom-module-frame {
+  display: block;
+  width: 100%;
+  min-height: 280px;
+  border: none;
+  background: transparent;
+}

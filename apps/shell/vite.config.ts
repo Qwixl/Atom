@@ -80,6 +80,14 @@ export default defineConfig(({ mode }) => {
     },
     resolve: {
       conditions: ["development", "import", "module", "browser", "default"],
+      alias: {
+        "@qwixl/shell-core": path.join(repoRoot, "packages/shell-core/src/index.ts"),
+        "@qwixl/agent-llm": path.join(repoRoot, "packages/agent-llm/src/index.ts"),
+        "@qwixl/renderer-web": path.join(repoRoot, "packages/renderer-web/src/index.tsx"),
+      },
+    },
+    optimizeDeps: {
+      exclude: ["@qwixl/shell-core", "@qwixl/agent-llm", "@qwixl/renderer-web"],
     },
     server: {
       port: 5200,

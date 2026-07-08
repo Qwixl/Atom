@@ -30,6 +30,7 @@ export function findModuleEmbed(surface: ResolvedSurface): ModuleEmbedTarget | n
 export function withModulePropDefaults(
   moduleId: string,
   props: JsonObject,
+  options: { busyEvents?: Array<{ uid: string; summary: string; start: string; end: string }> } = {},
 ): JsonObject {
   if (moduleId === "games/tictactoe") {
     const hasBoard = props.board !== undefined;
@@ -47,7 +48,11 @@ export function withModulePropDefaults(
     }
   }
   if (moduleId === "scheduling/meeting-picker") {
-    return { defaultTitle: "Meeting", ...props };
+    return {
+      defaultTitle: "Meeting",
+      busyEvents: options.busyEvents ?? [],
+      ...props,
+    };
   }
   if (moduleId === "coordination/poll" && props.mode === undefined) {
     return { mode: "compose", ...props };

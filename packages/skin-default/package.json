@@ -5,18 +5,23 @@
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
+    "./minimal.css": "./minimal.css",
     "./default.css": "./default.css",
     "./dark.css": "./dark.css",
     "./high-contrast.css": "./high-contrast.css",
+    "./primitives.css": "./primitives.css",
     "./tokens": {
       "development": "./src/tokens.ts",
       "import": "./src/tokens.ts"
     }
   },
   "files": [
+    "minimal.css",
     "default.css",
     "dark.css",
     "high-contrast.css",
+    "primitives.css",
+    "tokens",
     "src"
   ],
   "publishConfig": {

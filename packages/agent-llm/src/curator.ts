@@ -23,6 +23,28 @@ export function defaultGuardForCategory(category: string): boolean {
   return GUARD_BY_DEFAULT_CATEGORIES.has(category.trim().toLowerCase());
 }
 
+/** Skip curator on turns that are informational lookups, not owner self-disclosure. */
+export function shouldCurateTranscript(
+  transcript: Array<{ role: "user" | "assistant"; text: string }>,
+): boolean {
+  const userText = transcript
+    .filter((t) => t.role === "user")
+    .map((t) => t.text.trim())
+    .join("\n");
+  if (!userText) return false;
+
+  const looksLikeLookup =
+    /^(what|who|when|where|why|how|can you|could you|search|find|look up|tell me about|what happened|latest|news about|headlines)/i.test(
+      userText,
+    ) || /\?\s*$/.test(userText);
+  const ownerSelfDisclosure = /\b(i |my |me |i'm |i've |i'd |we |our |i prefer|i like|i want|i need|i am |i was )/i.test(
+    userText,
+  );
+
+  if (looksLikeLookup && !ownerSelfDisclosure) return false;
+  return true;
+}
+
 function parseContextTags(raw: unknown): string[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const tags = raw
@@ -105,9 +127,12 @@ export function buildCuratorPrompt(input: CuratorPassInput): string {
   return `You are a curator for an owner profile store. Extract durable facts the owner would want remembered, and update evidence on existing records when the transcript supports it.
 
 Rules:
-- Propose ONLY facts explicitly stated or clearly corrected by the owner in this transcript.
+- Propose ONLY facts explicitly stated or clearly corrected by the **owner (USER lines)** in this transcript.
 - Do NOT infer preferences the owner did not state.
-- Skip ephemeral task details (one-off searches, temporary choices).
+- Skip ephemeral task details (one-off searches, temporary choices, news lookups, current-events Q&A).
+- **Never** extract from ASSISTANT lines: web search results, headlines, public figures' actions, or retrieved news are NOT owner profile facts — even if the assistant stated them clearly.
+- Informational questions (e.g. "what happened with X today", "news about Y") with no owner self-disclosure → return empty proposals.
+- Do NOT store third-party politics, celebrities, or news subjects as owner constraints/preferences.
 - Categories: use lowercase kebab-case. Put durable travel/dining habits in **preferences**, not travel-history (travel-history is for past trips taken).
 - guarded: true for identity, payment, health, credentials, trusted-agents, or when uncertain (fail-safe).
 - Do NOT propose aggregate JSON blobs — one atomic label per fact (e.g. "preferred-airline": "ANA", not a combined object).
