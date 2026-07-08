@@ -171,6 +171,7 @@ import { RssSettingsPanel } from "./connectors/RssSettingsPanel.js";
 import { McpSettingsPanel } from "./connectors/McpSettingsPanel.js";
 import { TokenConnectorsSettingsPanel } from "./connectors/TokenConnectorsSettingsPanel.js";
 import { CalDavSettingsPanel } from "./connectors/CalDavSettingsPanel.js";
+import { CardDavSettingsPanel } from "./connectors/CardDavSettingsPanel.js";
 import { BookmarksSettingsPanel } from "./connectors/BookmarksSettingsPanel.js";
 import {
   ConnectorModuleHost,
@@ -2955,6 +2956,7 @@ function SettingsDialog({
         <McpSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
         <TokenConnectorsSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
         <CalDavSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
+        <CardDavSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
         <BookmarksSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
       </>
     );

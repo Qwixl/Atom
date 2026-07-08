@@ -12,9 +12,12 @@ export interface StoredMcpServer {
   url?: string;
   /** Optional HTTP headers (e.g. Authorization). Agent-local only. */
   headers?: Record<string, string>;
-  /** Empty = all tools from server are permitted until owner tightens. */
+  /** Empty = all tools from server are permitted once trusted (until owner tightens). */
   allowedTools: string[];
   enabled: boolean;
+  /** Owner consented to invoke tools from this server. Omitted on legacy rows = trusted (BK-19). */
+  trusted?: boolean;
+  trustedAt?: number;
   addedAt: number;
 }
 
@@ -29,7 +32,13 @@ export interface McpServerPublicView {
   hasAuthHeaders: boolean;
   allowedTools: string[];
   enabled: boolean;
+  trusted: boolean;
+  trustedAt?: number;
   addedAt: number;
+}
+
+export function isMcpServerTrusted(server: StoredMcpServer): boolean {
+  return server.trusted !== false;
 }
 
 export function resolveMcpTransport(server: StoredMcpServer): McpTransportKind {
@@ -49,6 +58,8 @@ export function toMcpServerPublicView(server: StoredMcpServer): McpServerPublicV
     hasAuthHeaders: Boolean(server.headers && Object.keys(server.headers).length > 0),
     allowedTools: server.allowedTools,
     enabled: server.enabled,
+    trusted: isMcpServerTrusted(server),
+    trustedAt: server.trustedAt,
     addedAt: server.addedAt,
   };
 }

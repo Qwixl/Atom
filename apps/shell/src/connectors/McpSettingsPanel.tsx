@@ -13,6 +13,7 @@ type McpServerSummary = {
   url?: string;
   hasAuthHeaders?: boolean;
   allowedTools: string[];
+  trusted: boolean;
 };
 
 type McpToolSummary = {
@@ -124,6 +125,29 @@ export function McpSettingsPanel({
     }
   }
 
+  async function trustServer(serverId: string, serverLabel: string) {
+    const ok = window.confirm(
+      `Trust "${serverLabel}"?\n\nMCP tools can read data and trigger actions on your machine or remote services. Tool output is untrusted content — the agent wraps it before use, but only trust servers you run or explicitly approve.`,
+    );
+    if (!ok) return;
+    setBusy(true);
+    setNote("Recording MCP trust consent…");
+    try {
+      const approvalRef = await approvalRefForConnectorWrite(
+        "Trust MCP server",
+        { serverId, label: serverLabel },
+        config,
+      );
+      await client.trustMcpServer(serverId, approvalRef);
+      setNote("Server trusted — Chat may invoke its tools.");
+      await refresh();
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function allowlistDiscoveredTools(serverId: string) {
     if (tools.length === 0) return;
     setBusy(true);
@@ -156,8 +180,9 @@ export function McpSettingsPanel({
     <section className={embedded ? "settings-subpanel" : "settings-panel"}>
       <h3 className="settings-subtitle">MCP servers</h3>
       <p className="settings-note">
-        Owner-run MCP servers on your agent backend — stdio spawn or remote Streamable HTTP. Chat uses{" "}
-        <code>atom_mcp_invoke</code> when servers are configured. Empty allowlist = all tools permitted until you tighten.
+        Owner-run MCP servers on your agent backend — stdio spawn or remote Streamable HTTP. New servers stay
+        untrusted until you approve them here. Chat uses <code>atom_mcp_invoke</code> only on trusted servers.
+        Empty allowlist = all tools permitted on a trusted server until you tighten.
       </p>
       <div className="settings-form-row">
         <label>
@@ -231,12 +256,22 @@ export function McpSettingsPanel({
                 <code>{server.command}</code> {server.args.join(" ")}
               </>
             )}
+            {server.trusted ? (
+              <span> · trusted</span>
+            ) : (
+              <span> · awaiting trust</span>
+            )}
             {server.allowedTools.length > 0 ? (
               <span> · allowlist: {server.allowedTools.join(", ")}</span>
             ) : (
               <span> · allowlist: all tools</span>
             )}
             <div className="settings-inline-actions">
+              {!server.trusted ? (
+                <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void trustServer(server.id, server.label)}>
+                  Trust server
+                </button>
+              ) : null}
               <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void loadTools(server.id)}>
                 List tools
               </button>

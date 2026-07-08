@@ -117,6 +117,7 @@ export function registerMcpAdminRoutes(adminApp: Express, config: McpAdminConfig
         headers,
         allowedTools: Array.isArray(body.allowedTools) ? body.allowedTools.map(String) : [],
         enabled: true,
+        trusted: false,
         addedAt: Date.now(),
       };
       await store.add(server);
@@ -190,6 +191,23 @@ export function registerMcpAdminRoutes(adminApp: Express, config: McpAdminConfig
       await store.updateAllowedTools(id, body.allowedTools.map(String));
       const server = store.get(id);
       res.json({ server: server ? toMcpServerPublicView(server) : null });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/mcp/servers/:serverId/trust", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertMcpWriteApproval(req);
+      const id = serverIdParam(req);
+      await store.trustServer(id);
+      const server = store.get(id);
+      if (!server) {
+        res.status(404).json({ error: "MCP server not found" });
+        return;
+      }
+      res.json({ server: toMcpServerPublicView(server) });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
     }

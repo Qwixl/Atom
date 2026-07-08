@@ -8,6 +8,7 @@ import { TODOIST_CONNECTOR_ID } from "./todoistConnector.js";
 import { GITHUB_CONNECTOR_ID } from "./githubConnector.js";
 import { NOTION_CONNECTOR_ID } from "./notionConnector.js";
 import { CALDAV_CONNECTOR_ID } from "./caldavConnector.js";
+import { CARDDAV_CONNECTOR_ID } from "./carddavConnector.js";
 import { WEATHER_CONNECTOR_ID } from "./weatherConnector.js";
 
 describe("connectorRegistry", () => {
@@ -21,6 +22,7 @@ describe("connectorRegistry", () => {
         GITHUB_CONNECTOR_ID,
         NOTION_CONNECTOR_ID,
         CALDAV_CONNECTOR_ID,
+        CARDDAV_CONNECTOR_ID,
         WEATHER_CONNECTOR_ID,
       ]),
     );

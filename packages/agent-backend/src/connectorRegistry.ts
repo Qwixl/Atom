@@ -42,6 +42,12 @@ import {
   invokeCalDavConnector,
 } from "./caldavConnector.js";
 import {
+  CARDDAV_CONNECTOR_ID,
+  CARDDAV_CONNECTOR_OPERATIONS,
+  carddavConnectorOperation,
+  invokeCardDavConnector,
+} from "./carddavConnector.js";
+import {
   WEATHER_CONNECTOR_ID,
   WEATHER_CONNECTOR_OPERATIONS,
   invokeWeatherConnector,
@@ -271,6 +277,35 @@ const CONNECTOR_BACKENDS = new Map<string, ConnectorBackend>([
       },
       operationSpec(operation) {
         return caldavConnectorOperation(operation);
+      },
+    },
+  ],
+  [
+    CARDDAV_CONNECTOR_ID,
+    {
+      id: CARDDAV_CONNECTOR_ID,
+      moduleId: "connectors/carddav",
+      provider: "carddav",
+      label: "CardDAV",
+      async status(vault) {
+        const accounts = vault.getCardDavAccounts();
+        return {
+          connectorId: CARDDAV_CONNECTOR_ID,
+          moduleId: "connectors/carddav",
+          provider: "carddav",
+          label: "CardDAV",
+          configured: accounts.length > 0,
+          accountCount: accounts.length,
+          accounts: accounts.map((account) => ({ id: account.id, label: account.label })),
+          vaultOnly: true,
+          operations: CARDDAV_CONNECTOR_OPERATIONS,
+        };
+      },
+      async invoke(vault, operation, input) {
+        return invokeCardDavConnector({ vault }, operation, input);
+      },
+      operationSpec(operation) {
+        return carddavConnectorOperation(operation);
       },
     },
   ],
