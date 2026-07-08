@@ -55,10 +55,17 @@ export interface StoredBookmark {
   addedAt: number;
 }
 
+/** Personal API token for token-based connectors (Todoist, GitHub, Notion). */
+export interface StoredApiToken {
+  token: string;
+  configuredAt: number;
+}
+
 interface ConnectorVaultPayload {
   schemaVersion: 1;
   oauth?: Record<string, StoredOAuthTokens>;
   oauthClients?: Record<string, StoredOAuthClient>;
+  apiTokens?: Record<string, StoredApiToken>;
   webcalFeeds?: StoredWebcalFeed[];
   rssFeeds?: StoredRssFeed[];
   bookmarks?: StoredBookmark[];
@@ -156,6 +163,30 @@ export class ConnectorVault {
   async clearOAuth(provider: string): Promise<void> {
     if (this.payload.oauth?.[provider]) {
       delete this.payload.oauth[provider];
+      await this.persist();
+    }
+  }
+
+  getApiToken(connectorId: string): StoredApiToken | undefined {
+    return this.payload.apiTokens?.[connectorId];
+  }
+
+  async setApiToken(connectorId: string, token: string): Promise<void> {
+    const trimmed = token.trim();
+    if (!trimmed) {
+      throw new Error("token required");
+    }
+    this.payload.apiTokens ??= {};
+    this.payload.apiTokens[connectorId] = {
+      token: trimmed,
+      configuredAt: Date.now(),
+    };
+    await this.persist();
+  }
+
+  async clearApiToken(connectorId: string): Promise<void> {
+    if (this.payload.apiTokens?.[connectorId]) {
+      delete this.payload.apiTokens[connectorId];
       await this.persist();
     }
   }

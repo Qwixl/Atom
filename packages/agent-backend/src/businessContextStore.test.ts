@@ -22,5 +22,6 @@ describe("BusinessContextStore", () => {
     const lines = store.brandPolicyLines();
     expect(lines.brandLines).toEqual(["Tone: Warm, concise, community-first."]);
     expect(lines.policyLines).toEqual(["House rules: Be kind; no spam; respect privacy."]);
+    await store.flush();
   });
 });

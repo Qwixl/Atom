@@ -18,6 +18,24 @@ import {
   rssConnectorOperation,
 } from "./rssConnector.js";
 import {
+  GITHUB_CONNECTOR_ID,
+  GITHUB_CONNECTOR_OPERATIONS,
+  githubConnectorOperation,
+  invokeGithubConnector,
+} from "./githubConnector.js";
+import {
+  NOTION_CONNECTOR_ID,
+  NOTION_CONNECTOR_OPERATIONS,
+  invokeNotionConnector,
+  notionConnectorOperation,
+} from "./notionConnector.js";
+import {
+  TODOIST_CONNECTOR_ID,
+  TODOIST_CONNECTOR_OPERATIONS,
+  invokeTodoistConnector,
+  todoistConnectorOperation,
+} from "./todoistConnector.js";
+import {
   WEBCAL_CONNECTOR_ID,
   WEBCAL_CONNECTOR_OPERATIONS,
   connectorOperation,
@@ -145,12 +163,76 @@ const newsSearchBackend: ConnectorBackend = {
   },
 };
 
+function tokenConnectorBackend(
+  id: string,
+  label: string,
+  operations: ConnectorOperationSpec[],
+  invoke: typeof invokeTodoistConnector,
+  operationLookup: (operation: string) => ConnectorOperationSpec | undefined,
+): ConnectorBackend {
+  return {
+    id,
+    moduleId: `connectors/${id}`,
+    provider: id,
+    label,
+    async status(vault) {
+      const stored = vault.getApiToken(id);
+      return {
+        connectorId: id,
+        moduleId: `connectors/${id}`,
+        provider: id,
+        label,
+        configured: Boolean(stored?.token),
+        configuredAt: stored?.configuredAt,
+        vaultOnly: true,
+        operations,
+      };
+    },
+    async invoke(vault, operation, input) {
+      return invoke({ vault }, operation, input);
+    },
+    operationSpec(operation) {
+      return operationLookup(operation);
+    },
+  };
+}
+
 /** Registered connector backends. Add Google Calendar, etc. here without changing route shapes. */
 const CONNECTOR_BACKENDS = new Map<string, ConnectorBackend>([
   [WEBCAL_CONNECTOR_ID, webcalBackend],
   [RSS_CONNECTOR_ID, rssBackend],
   [BOOKMARKS_CONNECTOR_ID, bookmarksBackend],
   [NEWS_SEARCH_CONNECTOR_ID, newsSearchBackend],
+  [
+    TODOIST_CONNECTOR_ID,
+    tokenConnectorBackend(
+      TODOIST_CONNECTOR_ID,
+      "Todoist",
+      TODOIST_CONNECTOR_OPERATIONS,
+      invokeTodoistConnector,
+      todoistConnectorOperation,
+    ),
+  ],
+  [
+    GITHUB_CONNECTOR_ID,
+    tokenConnectorBackend(
+      GITHUB_CONNECTOR_ID,
+      "GitHub",
+      GITHUB_CONNECTOR_OPERATIONS,
+      invokeGithubConnector,
+      githubConnectorOperation,
+    ),
+  ],
+  [
+    NOTION_CONNECTOR_ID,
+    tokenConnectorBackend(
+      NOTION_CONNECTOR_ID,
+      "Notion",
+      NOTION_CONNECTOR_OPERATIONS,
+      invokeNotionConnector,
+      notionConnectorOperation,
+    ),
+  ],
 ]);
 
 export function getConnectorBackend(connectorId: string): ConnectorBackend | undefined {

@@ -79,7 +79,7 @@ export function atomGameMoveEvent(surfaceId: string, move: JsonValue): CustomEve
   };
 }
 
-export type AtomConnectorId = "webcal" | "rss" | "news-search" | "bookmarks";
+export type AtomConnectorId = "webcal" | "rss" | "news-search" | "bookmarks" | "todoist" | "github" | "notion";
 
 export type AtomConnectorInvokeRequest = {
   callId: string;
