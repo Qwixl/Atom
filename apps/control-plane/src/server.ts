@@ -60,6 +60,9 @@ let fleet: FleetProvisioner | null = null;
 const signupRateLimit = createRateLimiter(15 * 60 * 1000, 5);
 const handleCheckRateLimit = createRateLimiter(60 * 1000, 30);
 const moduleFeedbackRateLimit = createRateLimiter(60 * 1000, 10);
+const moduleAbuseRateLimit = createRateLimiter(60 * 1000, 5);
+const commsAbuseRateLimit = createRateLimiter(60 * 1000, 5);
+const reportAbuseRateLimit = createRateLimiter(60 * 1000, 5);
 const provisionSecret = process.env.ATOM_PROVISION_SECRET?.trim();
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -261,9 +264,13 @@ app.delete("/agents/:id", async (req, res) => {
   res.json({ deleted: req.params.id });
 });
 
-app.post("/report-abuse", (req, res) => {
-  const target = String((req.body as { agentUrl?: string; reason?: string }).agentUrl ?? "").trim();
-  const reason = String((req.body as { reason?: string }).reason ?? "").trim();
+app.post("/report-abuse", reportAbuseRateLimit, (req, res) => {
+  const target = String((req.body as { agentUrl?: string; reason?: string }).agentUrl ?? "")
+    .trim()
+    .slice(0, 500);
+  const reason = String((req.body as { reason?: string }).reason ?? "")
+    .trim()
+    .slice(0, 2000);
   if (!target) {
     res.status(400).json({ error: "agentUrl required" });
     return;
@@ -279,10 +286,10 @@ app.post("/module-feedback", moduleFeedbackRateLimit, (req, res) => {
     rating?: number;
     comment?: string;
   };
-  const moduleId = String(body.moduleId ?? "").trim();
-  const version = String(body.version ?? "").trim();
+  const moduleId = String(body.moduleId ?? "").trim().slice(0, 200);
+  const version = String(body.version ?? "").trim().slice(0, 200);
   const rating = typeof body.rating === "number" ? body.rating : Number(body.rating);
-  const comment = String(body.comment ?? "").trim();
+  const comment = String(body.comment ?? "").trim().slice(0, 2000);
   if (!moduleId || !version) {
     res.status(400).json({ error: "moduleId and version required" });
     return;
@@ -295,6 +302,103 @@ app.post("/module-feedback", moduleFeedbackRateLimit, (req, res) => {
     `[module-feedback] ${moduleId}@${version} rating=${rating} comment=${comment || "(none)"}`,
   );
   res.json({ received: true, moduleId, version, rating, status: "queued" });
+});
+
+const MODULE_ABUSE_CATEGORIES = new Set([
+  "malware",
+  "phishing",
+  "prohibited-content",
+  "privacy",
+  "spam",
+  "other",
+]);
+
+/** M-TS-04: owner reports against a curated/third-party catalog listing. */
+app.post("/module-abuse-report", moduleAbuseRateLimit, (req, res) => {
+  const body = req.body as {
+    moduleId?: string;
+    version?: string;
+    category?: string;
+    details?: string;
+    publisher?: string;
+  };
+  const moduleId = String(body.moduleId ?? "").trim();
+  const version = String(body.version ?? "").trim();
+  const category = String(body.category ?? "").trim();
+  const details = String(body.details ?? "").trim().slice(0, 2000);
+  const publisher = String(body.publisher ?? "").trim().slice(0, 200);
+  if (!moduleId || !version) {
+    res.status(400).json({ error: "moduleId and version required" });
+    return;
+  }
+  if (!MODULE_ABUSE_CATEGORIES.has(category)) {
+    res.status(400).json({
+      error: `category must be one of: ${[...MODULE_ABUSE_CATEGORIES].join(", ")}`,
+    });
+    return;
+  }
+  console.log(
+    `[module-abuse] ${moduleId}@${version} category=${category} publisher=${publisher || "(none)"} details=${details || "(none)"}`,
+  );
+  res.json({
+    received: true,
+    moduleId,
+    version,
+    category,
+    status: "queued",
+    next: "Operators review logs, update registry revocations.json, redeploy index; shells evict via syncRevocations()",
+  });
+});
+
+const COMMS_ABUSE_CATEGORIES = new Set([
+  "harassment",
+  "spam",
+  "scam",
+  "illegal-content",
+  "csam",
+  "impersonation",
+  "other",
+]);
+
+/** M-TS-08: peer/contact report. Metadata only — no MLS plaintext. */
+app.post("/comms-abuse-report", commsAbuseRateLimit, (req, res) => {
+  const body = req.body as {
+    peerDid?: string;
+    category?: string;
+    details?: string;
+    peerEndpoint?: string;
+    peerHandle?: string;
+    peerName?: string;
+    roomId?: string;
+    alsoBlock?: boolean;
+  };
+  const peerDid = String(body.peerDid ?? "").trim();
+  const category = String(body.category ?? "").trim();
+  const details = String(body.details ?? "").trim().slice(0, 2000);
+  const peerEndpoint = String(body.peerEndpoint ?? "").trim().slice(0, 500);
+  const peerHandle = String(body.peerHandle ?? "").trim().slice(0, 120);
+  const peerName = String(body.peerName ?? "").trim().slice(0, 120);
+  const roomId = String(body.roomId ?? "").trim().slice(0, 200);
+  if (!peerDid) {
+    res.status(400).json({ error: "peerDid required" });
+    return;
+  }
+  if (!COMMS_ABUSE_CATEGORIES.has(category)) {
+    res.status(400).json({
+      error: `category must be one of: ${[...COMMS_ABUSE_CATEGORIES].join(", ")}`,
+    });
+    return;
+  }
+  console.log(
+    `[comms-abuse] peerDid=${peerDid} category=${category} handle=${peerHandle || "(none)"} endpoint=${peerEndpoint || "(none)"} room=${roomId || "(none)"} alsoBlock=${body.alsoBlock === true} details=${details || "(none)"} name=${peerName || "(none)"}`,
+  );
+  res.json({
+    received: true,
+    peerDid,
+    category,
+    status: "queued",
+    next: "Operators triage logs; metadata-only. Escalate hosted agents via POST /agents/:id/suspend when peerEndpoint matches fleet.",
+  });
 });
 
 const port = Number(process.env.PORT ?? 5300);

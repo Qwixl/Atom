@@ -437,6 +437,42 @@
   border: 1px solid var(--shell-accent-border);
 }
 
+.discover-trust {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: var(--shell-radius-full);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--shell-border);
+  color: var(--shell-text-muted);
+  background: var(--shell-surface-muted, transparent);
+}
+
+.discover-trust--curated {
+  color: var(--shell-success, #1a7f37);
+  border-color: color-mix(in srgb, var(--shell-success, #1a7f37) 35%, var(--shell-border));
+  background: color-mix(in srgb, var(--shell-success, #1a7f37) 12%, transparent);
+}
+
+.discover-trust--third-party {
+  color: var(--shell-accent);
+  border-color: var(--shell-accent-border);
+  background: var(--shell-accent-soft);
+}
+
+.discover-trust--unverified {
+  color: var(--shell-warning, #9a6700);
+  border-color: color-mix(in srgb, var(--shell-warning, #9a6700) 35%, var(--shell-border));
+  background: color-mix(in srgb, var(--shell-warning, #9a6700) 12%, transparent);
+}
+
+.discover-publisher {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  word-break: break-all;
+}
+
 .discover-row-meta {
   margin-top: 4px;
   font-size: 12px;
@@ -867,6 +903,25 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.comms-abuse-report-form {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--shell-border);
+  border-radius: var(--shell-radius, 8px);
+  background: var(--shell-sidebar-bg, transparent);
+}
+
+a.settings-donate-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: inherit;
 }
 
 .comms-contact-section-title {

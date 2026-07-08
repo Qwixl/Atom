@@ -42,6 +42,15 @@ export interface VerifyOptions {
   verifySignatures?: boolean;
   /** Fail when verifySignatures is on and a manifest omits signatureUrl (M-TS-03). */
   requireSignatures?: boolean;
+  /**
+   * Soft-fail Sigstore for rows without signatureUrl (CI default until all modules are signed).
+   * Still fails when a listing includes a broken/mismatched signatureUrl.
+   */
+  softRequireSignatures?: boolean;
+  /** Fail when curated listings omit a publisher DID (M-TS-03 identity baseline). */
+  requirePublisher?: boolean;
+  /** When set, fail if publisher is outside this allowlist. */
+  trustedPublishers?: readonly string[];
   /** Run bundle malware heuristics after integrity checks (M-TS-02). */
   scanBundles?: boolean;
   /** Treat external script/fetch patterns as errors (default: warnings only). */
@@ -163,6 +172,14 @@ export async function verifyRegistry(options: VerifyOptions): Promise<void> {
   }
 }
 
+function normalizeCategories(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+    .map((entry) => entry.trim())
+    .sort((a, b) => a.localeCompare(b));
+}
+
 async function verifyEntry(
   entry: RegistryModuleEntry,
   options: VerifyOptions,
@@ -227,6 +244,18 @@ async function verifyEntry(
     errors.push(`${entry.id}: index publisher mismatch`);
   }
 
+  const publisher = (manifest.publisher ?? entry.publisher)?.trim() ?? "";
+  if (options.requirePublisher && !publisher) {
+    errors.push(`${entry.id}: missing publisher DID (M-TS-03 curated store requires publisher)`);
+  }
+  if (options.trustedPublishers && options.trustedPublishers.length > 0) {
+    if (!publisher || !options.trustedPublishers.includes(publisher)) {
+      errors.push(
+        `${entry.id}: publisher ${publisher || "(none)"} is outside trustedPublishers allowlist`,
+      );
+    }
+  }
+
   if (entry.tier && manifest.tier && entry.tier !== manifest.tier) {
     errors.push(`${entry.id}: index/manifest tier mismatch`);
   }
@@ -237,14 +266,20 @@ async function verifyEntry(
     errors.push(`${entry.id}: index pricing mismatch with manifest`);
   }
 
+  const indexCategories = normalizeCategories(entry.categories);
+  const manifestCategories = normalizeCategories(manifest.categories);
+  if (JSON.stringify(indexCategories) !== JSON.stringify(manifestCategories)) {
+    errors.push(`${entry.id}: index categories mismatch with manifest`);
+  }
+
   if (options.verifySignatures) {
     const signatureUrl = manifest.signatureUrl ?? entry.signatureUrl;
     if (!signatureUrl) {
-      if (options.requireSignatures) {
+      if (options.requireSignatures && !options.softRequireSignatures) {
         errors.push(`${entry.id}: missing signatureUrl (required for curated registry listings)`);
       } else {
         console.warn(
-          `Warning: ${entry.id}@${entry.version} has no signatureUrl (M-TS-03: required for new curated listings)`,
+          `Warning: ${entry.id}@${entry.version} has no signatureUrl (M-TS-03: Sigstore pending; publisher DID is required)`,
         );
       }
     } else {
@@ -348,6 +383,10 @@ export async function publishModule(options: PublishOptions): Promise<void> {
     bundleIntegrity,
     publisher: updatedManifest.publisher,
     ...(updatedManifest.pricing ? { pricing: updatedManifest.pricing } : {}),
+    ...(updatedManifest.categories?.length
+      ? { categories: [...updatedManifest.categories] }
+      : {}),
+    ...(updatedManifest.tier ? { tier: updatedManifest.tier } : {}),
   };
 
   index.modules = index.modules.filter(

@@ -5,6 +5,7 @@ import {
   type BusinessIndexEntry,
   type IndexEntryKind,
 } from "@qwixl/business-index";
+import { validateHttpsUrl } from "@qwixl/shell-core";
 import { CommsAgentClient, type ResolvedDiscoverTarget } from "./comms/client.js";
 import { saveContacts } from "./comms/storage.js";
 import type { AgentContact } from "./comms/types.js";
@@ -23,7 +24,8 @@ export async function resolveDiscoverEntryForClient(
   client: CommsAgentClient,
   entry: BusinessIndexEntry,
 ): Promise<ResolvedDiscoverTarget> {
-  const hostUrl = entry.hostUrl?.trim();
+  const hostUrlRaw = entry.hostUrl?.trim();
+  const hostUrl = hostUrlRaw ? validateHttpsUrl(hostUrlRaw) : null;
   if (hostUrl) {
     try {
       const resp = await fetch(`${hostUrl.replace(/\/$/, "")}/discover/capabilities`);

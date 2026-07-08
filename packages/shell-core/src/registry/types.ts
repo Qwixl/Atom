@@ -18,6 +18,8 @@ export interface RegistryModuleEntry {
   pricing?: ModulePricing;
   /** `system` modules are core platform defaults — pinned, not rated. */
   tier?: "system" | "community";
+  /** Discoverable tags from the module manifest (mirrored at publish). */
+  categories?: string[];
 }
 export interface RegistryIndex {
   registryVersion: 1;

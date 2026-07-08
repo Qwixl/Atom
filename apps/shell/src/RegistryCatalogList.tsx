@@ -4,15 +4,21 @@ import {
   fetchRegistryRatings,
   formatStarRating,
   modulePriceLabel,
+  validateHttpsUrl,
   type ModuleRatingSummary,
   type RegistryModuleEntry,
   type RegistryRatings,
 } from "@qwixl/shell-core";
-import { submitModuleFeedback } from "./moduleFeedback.js";
+import {
+  MODULE_ABUSE_CATEGORIES,
+  submitModuleAbuseReport,
+  submitModuleFeedback,
+  type ModuleAbuseCategory,
+} from "./moduleFeedback.js";
 import {
   filterRegistryModulesByCategory,
   formatRegistryCategoryLabel,
-  moduleRegistryCategory,
+  moduleRegistryTags,
   uniqueRegistryCategories,
 } from "./moduleRegistryCategories.js";
 
@@ -53,9 +59,11 @@ function ModuleCatalogRow({
   onFeedbackSent: (note: string) => void;
 }) {
   const isSystem = entry.tier === "system";
-  const [expanded, setExpanded] = useState(false);
+  const [panel, setPanel] = useState<"none" | "rate" | "report">("none");
   const [userRating, setUserRating] = useState(0);
   const [comment, setComment] = useState("");
+  const [abuseCategory, setAbuseCategory] = useState<ModuleAbuseCategory>("other");
+  const [abuseDetails, setAbuseDetails] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function sendFeedback() {
@@ -69,8 +77,28 @@ function ModuleCatalogRow({
         comment,
       });
       setComment("");
-      setExpanded(false);
+      setPanel("none");
       onFeedbackSent("Thanks — your feedback was received.");
+    } catch (error) {
+      onFeedbackSent(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendAbuseReport() {
+    setBusy(true);
+    try {
+      await submitModuleAbuseReport({
+        moduleId: entry.id,
+        version: entry.version,
+        category: abuseCategory,
+        details: abuseDetails,
+        publisher: entry.publisher,
+      });
+      setAbuseDetails("");
+      setPanel("none");
+      onFeedbackSent("Abuse report queued for registry operators. Thank you.");
     } catch (error) {
       onFeedbackSent(error instanceof Error ? error.message : String(error));
     } finally {
@@ -106,33 +134,48 @@ function ModuleCatalogRow({
         <span className="settings-registry-publisher">{entry.publisher}</span>
       ) : null}
       <span className="settings-registry-category">
-        {formatRegistryCategoryLabel(moduleRegistryCategory(entry.id))}
+        {moduleRegistryTags(entry)
+          .map((tag) => formatRegistryCategoryLabel(tag))
+          .join(" · ")}
       </span>
-      {entry.pricing?.model === "paid" && entry.pricing.purchaseUrl ? (
-        <a
-          className="settings-registry-purchase"
-          href={entry.pricing.purchaseUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Purchase (external)
-        </a>
-      ) : null}
+      {entry.pricing?.model === "paid" && entry.pricing.purchaseUrl
+        ? (() => {
+            const purchaseUrl = validateHttpsUrl(entry.pricing.purchaseUrl);
+            return purchaseUrl ? (
+              <a
+                className="settings-registry-purchase"
+                href={purchaseUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Purchase (external)
+              </a>
+            ) : null;
+          })()
+        : null}
       {!isSystem ? (
         <div className="settings-registry-feedback">
           <button
             type="button"
             className="panel-btn panel-btn-ghost"
-            onClick={() => setExpanded((current) => !current)}
+            onClick={() => setPanel((current) => (current === "rate" ? "none" : "rate"))}
           >
-            {expanded ? "Cancel" : "Rate & feedback"}
+            {panel === "rate" ? "Cancel" : "Rate & feedback"}
           </button>
-          {expanded ? (
+          <button
+            type="button"
+            className="panel-btn panel-btn-ghost"
+            onClick={() => setPanel((current) => (current === "report" ? "none" : "report"))}
+          >
+            {panel === "report" ? "Cancel" : "Report"}
+          </button>
+          {panel === "rate" ? (
             <div className="settings-registry-feedback-form">
               <StarInput value={userRating} onChange={setUserRating} disabled={busy} />
               <textarea
                 className="panel-textarea"
                 rows={2}
+                maxLength={2000}
                 placeholder="Optional comment…"
                 value={comment}
                 onChange={(event) => setComment(event.target.value)}
@@ -145,6 +188,42 @@ function ModuleCatalogRow({
                 onClick={() => void sendFeedback()}
               >
                 Submit
+              </button>
+            </div>
+          ) : null}
+          {panel === "report" ? (
+            <div className="settings-registry-feedback-form">
+              <label className="atom-field">
+                <span className="atom-field-label">Category</span>
+                <select
+                  className="panel-select"
+                  value={abuseCategory}
+                  disabled={busy}
+                  onChange={(event) => setAbuseCategory(event.target.value as ModuleAbuseCategory)}
+                >
+                  {MODULE_ABUSE_CATEGORIES.map((entry) => (
+                    <option key={entry.id} value={entry.id}>
+                      {entry.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <textarea
+                className="panel-textarea"
+                rows={3}
+                maxLength={2000}
+                placeholder="What happened? Include URLs or steps if relevant…"
+                value={abuseDetails}
+                onChange={(event) => setAbuseDetails(event.target.value)}
+                disabled={busy}
+              />
+              <button
+                type="button"
+                className="panel-btn"
+                disabled={busy}
+                onClick={() => void sendAbuseReport()}
+              >
+                Submit report
               </button>
             </div>
           ) : null}

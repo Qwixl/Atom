@@ -1,11 +1,13 @@
 import type { BusinessIndexEntry, IndexEntryKind } from "@qwixl/business-index";
 import type { ResolvedDiscoverTarget } from "./comms/client.js";
 import { entryTitle } from "./discoverActions.js";
+import { discoverTrustSignals } from "./discoverTrust.js";
 
 export interface DiscoverChatResult {
   entry: BusinessIndexEntry;
   resolved: ResolvedDiscoverTarget;
   indexLabel: string;
+  indexUrl?: string;
 }
 
 interface DiscoverChatResultsProps {
@@ -34,6 +36,7 @@ export function DiscoverChatResults({
       <ul className="discover-results">
         {results.map((result) => {
           const { entry } = result;
+          const trust = discoverTrustSignals(entry, result.indexLabel, result.indexUrl);
           const subtitle =
             entry.handle?.trim() && entry.displayName.trim() && entry.handle !== entry.displayName
               ? entry.displayName
@@ -49,6 +52,14 @@ export function DiscoverChatResults({
                 <div className="discover-row-title">
                   <span>{entryTitle(entry)}</span>
                   <span className="discover-kind">{kindLabel(entry.kind)}</span>
+                  <span
+                    className={`discover-trust discover-trust--${trust.badge}`}
+                    title={
+                      trust.publisherDid ? `${trust.label} · ${trust.publisherDid}` : trust.label
+                    }
+                  >
+                    {trust.label}
+                  </span>
                 </div>
                 {subtitle ? <p className="discover-row-meta">{subtitle}</p> : null}
               </div>

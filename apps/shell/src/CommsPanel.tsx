@@ -51,6 +51,7 @@ import {
 import { DemoSessionRoleSwitcher, highlightRoleForDemoStep } from "./demo/DemoSessionRoleSwitcher.js";
 import type { DemoSessionRole } from "./demo/demoSessionStorage.js";
 import { ATOM_BROWSER_MODE, IS_PRODUCTION_HOST } from "./hostConfig.js";
+import { ContactAbuseReportForm } from "./ContactAbuseReportForm.js";
 
 export type CommsConfirmationResult =
   | { decision: "declined" }
@@ -178,6 +179,7 @@ export function CommsPanel({
   const [inlineModuleId, setInlineModuleId] = useState<string | null>(null);
   const [contactSearch, setContactSearch] = useState("");
   const [webcalBusyEvents, setWebcalBusyEvents] = useState<WebcalBusyEvent[]>([]);
+  const [abuseReportOpen, setAbuseReportOpen] = useState(false);
 
   useEffect(() => {
     if (focusContactId && contacts.some((c) => c.id === focusContactId)) {
@@ -199,6 +201,10 @@ export function CommsPanel({
     setAgentUrl(agentConfigOverride.adminUrl);
     setAdminToken(agentConfigOverride.adminToken ?? "");
   }, [agentConfigOverride]);
+
+  useEffect(() => {
+    setAbuseReportOpen(false);
+  }, [selectedId]);
 
   function persistContacts(next: AgentContact[]) {
     if (onPersistContacts) onPersistContacts(next);
@@ -2005,6 +2011,13 @@ export function CommsPanel({
                     </button>
                     <button
                       type="button"
+                      className="panel-btn panel-btn-ghost"
+                      onClick={() => setAbuseReportOpen((open) => !open)}
+                    >
+                      {abuseReportOpen ? "Cancel report" : "Report"}
+                    </button>
+                    <button
+                      type="button"
                       className="panel-btn panel-btn-danger comms-peer-remove"
                       aria-label={`Remove ${selected.name}`}
                       onClick={() => removeContact(selected.id)}
@@ -2017,6 +2030,24 @@ export function CommsPanel({
                       </p>
                     ) : null}
                   </div>
+                  {abuseReportOpen ? (
+                    <ContactAbuseReportForm
+                      target={{
+                        did: selected.did,
+                        endpoint: selected.endpoint,
+                        handle: selected.handle,
+                        name: selected.name,
+                      }}
+                      onReported={(note, alsoBlock) => {
+                        setActionNote(note);
+                        setAbuseReportOpen(false);
+                        if (alsoBlock && !selected.blocked) {
+                          updateContactPolicy({ blocked: true });
+                        }
+                      }}
+                      onCancel={() => setAbuseReportOpen(false)}
+                    />
+                  ) : null}
                   {ownerCategories.length > 0 ? (
                     <section className="comms-contact-section">
                       <h3 className="comms-contact-section-title">Disclosure</h3>

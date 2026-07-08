@@ -37,6 +37,45 @@ import { CommsPanel } from "./CommsPanel.js";
 import { ChatFeedSurface } from "./chat/ChatFeedSurface.js";
 import { GameModal } from "./chat/GameModal.js";
 import { FeedAgentText } from "./chat/FeedAgentText.js";
+import {
+  buildLinkIntentMessage,
+  friendlyLinkIntentLabel,
+  type LinkIntentPayload,
+} from "./chat/linkIntent.js";
+import { DiscoveryBreadcrumb } from "./discovery/DiscoveryBreadcrumb.js";
+import {
+  appendDiscoveryStep,
+  clearActiveDiscoveryPathId,
+  enrichLinkIntentPayload,
+  findDiscoveryPath,
+  formatDiscoveryPathForPrompt,
+  loadActiveDiscoveryPathId,
+  loadDiscoveryPaths,
+  saveActiveDiscoveryPathId,
+  saveDiscoveryPaths,
+  truncateDiscoveryPathToStep,
+  type DiscoveryPath,
+  type DiscoveryPathStep,
+} from "./discovery/discoveryPath.js";
+import { isDiscoveryTopicChange } from "./discovery/topicChange.js";
+import {
+  emergingInterestThemes,
+  formatInterestConnectionsForPrompt,
+  loadInterestConnections,
+  saveInterestConnections,
+  strengthenInterestConnection,
+  themeFromTitle,
+  type InterestConnection,
+} from "./discovery/interestConnections.js";
+import {
+  buildPathIntersectOwnerMessage,
+  detectPathIntersection,
+  formatPathIntersectionForPrompt,
+  loadDismissedIntersections,
+  markIntersectionDismissed,
+  mergeDiscoveryPaths,
+  type PathIntersection,
+} from "./discovery/pathIntersection.js";
 import { findModuleEmbed, withModulePropDefaults } from "./chat/moduleEmbedDefaults.js";
 import {
   LlmAgentSession,
@@ -85,7 +124,7 @@ import {
   type SecretStore,
 } from "@qwixl/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
-import { loadBriefingPreferences, BRIEFING_OPEN_MESSAGE, applyCuratorBriefingTopics } from "./briefing/briefingPreferences.js";
+import { loadBriefingPreferences, BRIEFING_OPEN_MESSAGE, applyCuratorBriefingTopics, formatBriefingContextForPrompt } from "./briefing/briefingPreferences.js";
 import { BriefingSettingsPanel } from "./briefing/BriefingSettingsPanel.js";
 import { ProfilePanel } from "./ProfilePanel.js";
 import { DiscoverPanel } from "./DiscoverPanel.js";
@@ -99,7 +138,7 @@ import { PersonalDemoWalkthrough } from "./PersonalDemoWalkthrough.js";
 import { calendarAddUrlFromAction } from "./calendarAddLink.js";
 import { type DemoCalendarEvent } from "./demoScheduling.js";
 import { CommsAgentClient } from "./comms/client.js";
-import { commsClientAuth, mintChatSessionToken, setChatSessionToken } from "./comms/chatSessionToken.js";
+import { commsClientAuth, mintChatSessionToken, refreshChatSessionToken, setChatSessionToken } from "./comms/chatSessionToken.js";
 import {
   formatCalendarContextForPrompt,
   isWebcalConnected,
@@ -147,6 +186,7 @@ import type { AgentContact } from "./comms/types.js";
 import {
   ALLOW_BROWSER_LLM,
   ATOM_BROWSER_MODE,
+  BUY_ME_A_COFFEE_URL,
   IS_PRODUCTION_HOST,
   MANAGED_HOSTING,
   PRODUCTION_REGISTRY_TRUST,
@@ -192,10 +232,18 @@ function loadRegistryUrl(): string {
 function loadRegistryTrust(): RegistryTrustPolicy {
   if (IS_PRODUCTION_HOST) return PRODUCTION_REGISTRY_TRUST;
   const parsed = loadJsonFromStorage<RegistryTrustPolicy>(REGISTRY_TRUST_KEY);
-  if (!parsed) return { requireIntegrity: true };
+  if (!parsed) {
+    return {
+      requireIntegrity: true,
+      trustedPublishers: PRODUCTION_REGISTRY_TRUST.trustedPublishers,
+    };
+  }
   return {
     requireIntegrity: parsed.requireIntegrity !== false,
     requireSignature: parsed.requireSignature === true,
+    blockedIds: parsed.blockedIds?.filter(Boolean),
+    trustedPublishers:
+      parsed.trustedPublishers?.filter(Boolean) ?? PRODUCTION_REGISTRY_TRUST.trustedPublishers,
   };
 }
 
@@ -754,6 +802,34 @@ export function App() {
   const [registryError, setRegistryError] = useState<string | null>(null);
   const [revokedModules, setRevokedModules] = useState<readonly RegistryRevocation[]>([]);
   const feedRef = useRef<HTMLDivElement>(null);
+  const [discoveryPaths, setDiscoveryPaths] = useState<DiscoveryPath[]>(() => loadDiscoveryPaths());
+  const [activeDiscoveryPathId, setActiveDiscoveryPathId] = useState<string | null>(() =>
+    loadActiveDiscoveryPathId(),
+  );
+  const activeDiscoveryPath = useMemo(
+    () => findDiscoveryPath(discoveryPaths, activeDiscoveryPathId),
+    [discoveryPaths, activeDiscoveryPathId],
+  );
+  const discoveryPathContextRef = useRef<string>("");
+  discoveryPathContextRef.current = formatDiscoveryPathForPrompt(activeDiscoveryPath);
+  const [interestConnections, setInterestConnections] = useState<InterestConnection[]>(() =>
+    loadInterestConnections(),
+  );
+  const interestConnectionsRef = useRef(interestConnections);
+  interestConnectionsRef.current = interestConnections;
+  const interestConnectionsContextRef = useRef("");
+  interestConnectionsContextRef.current = formatInterestConnectionsForPrompt(interestConnections);
+  const [dismissedIntersections, setDismissedIntersections] = useState<Set<string>>(() =>
+    loadDismissedIntersections(),
+  );
+  const pendingIntersectionRef = useRef<PathIntersection | null>(null);
+  const pathIntersectionContextRef = useRef("");
+  const activeIntersection = useMemo(
+    () => detectPathIntersection(activeDiscoveryPath, discoveryPaths, dismissedIntersections),
+    [activeDiscoveryPath, discoveryPaths, dismissedIntersections],
+  );
+  pendingIntersectionRef.current = activeIntersection;
+  pathIntersectionContextRef.current = formatPathIntersectionForPrompt(activeIntersection);
   const turnTranscript = useRef<Array<{ role: "user" | "assistant"; text: string }>>([]);
   const lastUserMessageRef = useRef("");
   const sessionContextTagsRef = useRef<string[]>([]);
@@ -790,10 +866,22 @@ export function App() {
 
   const buildContext = useCallback(
     () => {
+      const briefing = loadBriefingPreferences();
+      const interestHints = emergingInterestThemes(interestConnectionsRef.current, 5).map(
+        (entry) => entry.theme,
+      );
+      const memoryQuery =
+        lastUserMessageRef.current.trim() ||
+        (briefing.topics.length > 0
+          ? `briefing interests: ${briefing.topics.join(", ")}`
+          : interestHints.length > 0
+            ? `briefing interests: ${interestHints.join(", ")}`
+            : undefined);
       const base = mergeBusinessContextIntoProfile(
         ownerStore,
-        buildPersonalAgentContext(ownerStore, conversationMemory, lastUserMessageRef.current, {
+        buildPersonalAgentContext(ownerStore, conversationMemory, memoryQuery, {
           sessionContextTags: sessionContextTagsRef.current,
+          memoryLimit: 5,
         }),
       );
       const calendar =
@@ -803,16 +891,24 @@ export function App() {
         rssContextRef.current ??
         "Not connected. Owner can add a public RSS/Atom feed URL in Settings → Connectors.";
       const withCalendar = { ...base, calendarContext: calendar, rssContext: rss };
-      const briefing = loadBriefingPreferences();
-      const briefingContext =
-        briefing.enabled && briefing.topics.length > 0
-          ? `Owner cares about these briefing topics: ${briefing.topics.join(", ")}.`
-          : undefined;
+      const briefingContext = formatBriefingContextForPrompt(briefing, interestHints);
       const withBriefing = briefingContext
         ? { ...withCalendar, briefingContext }
         : withCalendar;
+      const discoveryPathContext = discoveryPathContextRef.current.trim();
+      const withDiscovery = discoveryPathContext
+        ? { ...withBriefing, discoveryPathContext }
+        : withBriefing;
+      const interestConnectionsContext = interestConnectionsContextRef.current.trim();
+      const withInterests = interestConnectionsContext
+        ? { ...withDiscovery, interestConnectionsContext }
+        : withDiscovery;
+      const pathIntersectionContext = pathIntersectionContextRef.current.trim();
+      const withIntersection = pathIntersectionContext
+        ? { ...withInterests, pathIntersectionContext }
+        : withInterests;
       const active = activeGameContext(findActiveGameInFeed(chatFeedRef.current));
-      return active ? { ...withBriefing, activeSurface: active } : withBriefing;
+      return active ? { ...withIntersection, activeSurface: active } : withIntersection;
     },
     [ownerStore, conversationMemory],
   );
@@ -1064,13 +1160,24 @@ export function App() {
         "Atom connectors need your Messages agent running (pnpm start:agent) and connected in Settings.",
       );
     }
-    const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
-    const response = await client.invokeConnector(
-      call.connectorId,
-      call.operation,
-      call.input ?? {},
-    );
-    return response.result;
+    const invokeOnce = async () => {
+      const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
+      const response = await client.invokeConnector(
+        call.connectorId,
+        call.operation,
+        call.input ?? {},
+      );
+      return response.result;
+    };
+    try {
+      return await invokeOnce();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/unauthorized|401|403|session token|expired/i.test(message)) throw error;
+      const refreshed = await refreshChatSessionToken(config);
+      if (!refreshed) throw error;
+      return await invokeOnce();
+    }
   }, [vaultUnlocked]);
 
   const agUiSessionKey = provider === "ag-ui" ? agUiConfig.url : null;
@@ -1235,6 +1342,27 @@ export function App() {
                 }
               }
               applyCuratorBriefingTopics(result.proposals);
+              // F7-3: owner-stated theme interest → strengthen a manual edge against emerging graph hubs.
+              const hubs = emergingInterestThemes(interestConnectionsRef.current, 3);
+              for (const proposal of result.proposals) {
+                if (proposal.category !== "briefing-topics" && proposal.category !== "briefing") {
+                  continue;
+                }
+                const theme =
+                  typeof proposal.value === "string" && proposal.value.trim()
+                    ? proposal.value.trim()
+                    : proposal.label.trim();
+                if (!theme) continue;
+                const peer =
+                  hubs.find((h) => h.theme !== themeFromTitle(theme))?.theme ?? "profile interests";
+                const { connections } = strengthenInterestConnection(
+                  interestConnectionsRef.current,
+                  { themeA: theme, themeB: peer, kind: "manual" },
+                );
+                interestConnectionsRef.current = connections;
+                setInterestConnections(connections);
+                saveInterestConnections(connections);
+              }
               setProfileRecordsRef.current(activeOwnerStore.list());
               setProfileProposalsRef.current(activeOwnerStore.listProposals());
               if (activeOwnerStore.listProposals().length > 0) {
@@ -1320,9 +1448,141 @@ export function App() {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
   }, [feed, busy]);
 
+  function recordInterestEdge(
+    themeA: string,
+    themeB: string,
+    kind: "tangent" | "return" | "explicit" | "manual",
+    pathId?: string,
+  ) {
+    const { connections } = strengthenInterestConnection(interestConnectionsRef.current, {
+      themeA,
+      themeB,
+      kind,
+      pathId,
+    });
+    interestConnectionsRef.current = connections;
+    setInterestConnections(connections);
+    saveInterestConnections(connections);
+  }
+
+  function dismissDiscoveryPath() {
+    if (!activeDiscoveryPathId) return;
+    setActiveDiscoveryPathId(null);
+    clearActiveDiscoveryPathId();
+  }
+
+  function resumeDiscoveryPath(pathId: string) {
+    const path = findDiscoveryPath(discoveryPaths, pathId);
+    if (!path || path.steps.length === 0) return;
+    setActiveDiscoveryPathId(pathId);
+    saveActiveDiscoveryPathId(pathId);
+  }
+
+  function selectDiscoveryStep(step: DiscoveryPathStep) {
+    const pathBefore = findDiscoveryPath(discoveryPaths, activeDiscoveryPathId);
+    const leaving = pathBefore?.steps[pathBefore.steps.length - 1];
+    if (leaving && leaving.id !== step.id) {
+      recordInterestEdge(
+        themeFromTitle(leaving.title),
+        themeFromTitle(step.title),
+        "return",
+        pathBefore?.id,
+      );
+    }
+    const truncated = truncateDiscoveryPathToStep(discoveryPaths, activeDiscoveryPathId, step.id);
+    if (!truncated) return;
+    setDiscoveryPaths(truncated.paths);
+    setActiveDiscoveryPathId(truncated.path.id);
+    saveDiscoveryPaths(truncated.paths);
+    saveActiveDiscoveryPathId(truncated.path.id);
+    const payload: LinkIntentPayload = {
+      url: step.url,
+      title: step.title,
+      intent: step.intent,
+    };
+    const enriched = enrichLinkIntentPayload(payload, truncated.path, truncated.step);
+    let message: string;
+    try {
+      message = buildLinkIntentMessage(enriched);
+    } catch (error) {
+      conversationRef.current.appendLocalAgentText(
+        error instanceof Error ? error.message : String(error),
+      );
+      return;
+    }
+    turnTranscript.current = [];
+    conversationRef.current.appendUser(friendlyLinkIntentLabel(payload));
+    conversationRef.current.setBusy(true);
+    try {
+      sessionRef.current.sendUserMessage(message);
+    } catch (error) {
+      conversationRef.current.appendLocalAgentText(
+        error instanceof Error ? error.message : String(error),
+      );
+      conversationRef.current.setBusy(false);
+    }
+  }
+
+  function submitLinkIntent(payload: LinkIntentPayload) {
+    const prior = findDiscoveryPath(discoveryPaths, activeDiscoveryPathId);
+    const priorTheme = prior?.steps.length
+      ? themeFromTitle(prior.steps[prior.steps.length - 1]!.title)
+      : prior
+        ? themeFromTitle(prior.label)
+        : null;
+    const nextTheme = themeFromTitle(payload.title);
+    const appended = appendDiscoveryStep(discoveryPaths, activeDiscoveryPathId, payload);
+    setDiscoveryPaths(appended.paths);
+    setActiveDiscoveryPathId(appended.path.id);
+    saveDiscoveryPaths(appended.paths);
+    saveActiveDiscoveryPathId(appended.path.id);
+    if (payload.intent === "explore" && priorTheme) {
+      recordInterestEdge(priorTheme, nextTheme, "tangent", appended.path.id);
+    } else if (
+      payload.intent === "explore" &&
+      !priorTheme &&
+      nextTheme.split(" ").length >= 2
+    ) {
+      // Seed first explore hop against its leading token as a coarse theme hub.
+      const hub = nextTheme.split(" ")[0]!;
+      recordInterestEdge(hub, nextTheme, "tangent", appended.path.id);
+    }
+    const enriched = enrichLinkIntentPayload(payload, appended.path, appended.step);
+    let message: string;
+    try {
+      message = buildLinkIntentMessage(enriched);
+    } catch (error) {
+      conversationRef.current.appendLocalAgentText(
+        error instanceof Error ? error.message : String(error),
+      );
+      return;
+    }
+    turnTranscript.current = [];
+    conversationRef.current.appendUser(friendlyLinkIntentLabel(payload));
+    conversationRef.current.setBusy(true);
+    try {
+      sessionRef.current.sendUserMessage(message);
+    } catch (error) {
+      conversationRef.current.appendLocalAgentText(
+        error instanceof Error ? error.message : String(error),
+      );
+      conversationRef.current.setBusy(false);
+    }
+  }
+
   function submitMessage(text: string) {
     const trimmed = text.trim();
     if (!trimmed) return;
+    if (
+      activeDiscoveryPath &&
+      isDiscoveryTopicChange(
+        trimmed,
+        activeDiscoveryPath.label,
+        activeDiscoveryPath.steps.map((step) => step.title),
+      )
+    ) {
+      dismissDiscoveryPath();
+    }
     if (provider === "llm" && !llmConfig) {
       conversationRef.current.appendUserAndAgentText(
         trimmed,
@@ -1353,6 +1613,50 @@ export function App() {
     }
   }
 
+  function applyPathIntersectDecision(decision: "merge" | "keep-separate") {
+    const hit = pendingIntersectionRef.current;
+    if (!hit) return;
+    const nextDismissed = markIntersectionDismissed(
+      dismissedIntersections,
+      hit.activePathId,
+      hit.relatedPathId,
+    );
+    setDismissedIntersections(nextDismissed);
+    pendingIntersectionRef.current = null;
+    pathIntersectionContextRef.current = "";
+
+    if (decision === "merge") {
+      const merged = mergeDiscoveryPaths(discoveryPaths, hit.activePathId, hit.relatedPathId);
+      setDiscoveryPaths(merged);
+      saveDiscoveryPaths(merged);
+      setActiveDiscoveryPathId(hit.activePathId);
+      saveActiveDiscoveryPathId(hit.activePathId);
+      recordInterestEdge(
+        themeFromTitle(hit.relatedLabel),
+        themeFromTitle(activeDiscoveryPath?.label ?? hit.relatedLabel),
+        "explicit",
+        hit.activePathId,
+      );
+    }
+
+    const note = buildPathIntersectOwnerMessage(decision, hit);
+    turnTranscript.current = [];
+    conversationRef.current.appendUser(
+      decision === "merge"
+        ? `Merge with: ${hit.relatedLabel}`
+        : `Keep separate from: ${hit.relatedLabel}`,
+    );
+    conversationRef.current.setBusy(true);
+    try {
+      sessionRef.current.sendUserMessage(note);
+    } catch (error) {
+      conversationRef.current.appendLocalAgentText(
+        error instanceof Error ? error.message : String(error),
+      );
+      conversationRef.current.setBusy(false);
+    }
+  }
+
   function handleUiEvent(event: UiEvent) {
     if (recordUiPreferenceFeedback(ownerStore, event) > 0) {
       setProfileRecords(ownerStore.list());
@@ -1361,6 +1665,16 @@ export function App() {
       event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
         ? (event.payload as Record<string, unknown>)
         : undefined;
+
+    if (
+      event.name === "selected" &&
+      typeof payload?.optionId === "string" &&
+      pendingIntersectionRef.current &&
+      (payload.optionId === "merge" || payload.optionId === "keep-separate")
+    ) {
+      applyPathIntersectDecision(payload.optionId);
+      return;
+    }
 
     if (activeChatGame && activeGameEngine) {
       const props = withModulePropDefaults(activeChatGame.embed.moduleId, activeChatGame.embed.props);
@@ -1568,6 +1882,17 @@ export function App() {
           setSettingsIntent(null);
           setSettingsOpen(true);
         }}
+        banner={
+          showMainFeed && activeDiscoveryPath && activeDiscoveryPath.steps.length > 0 ? (
+            <DiscoveryBreadcrumb
+              path={activeDiscoveryPath}
+              history={discoveryPaths}
+              onStepSelect={selectDiscoveryStep}
+              onDismiss={dismissDiscoveryPath}
+              onResumePath={resumeDiscoveryPath}
+            />
+          ) : undefined
+        }
         headerActions={
           usesSupabaseHostedAuth() ? (
             <button
@@ -1678,7 +2003,9 @@ export function App() {
                 );
               }
               if (item.kind === "agent-text") {
-                return <FeedAgentText key={item.id} text={item.text} />;
+                return (
+                  <FeedAgentText key={item.id} text={item.text} onLinkIntent={submitLinkIntent} />
+                );
               }
               return (
                 <ChatFeedSurface
@@ -1688,6 +2015,7 @@ export function App() {
                   registry={registry}
                   busyEvents={webcalBusyEvents}
                   onEvent={handleUiEvent}
+                  onLinkIntent={submitLinkIntent}
                   onResumeGame={() => setGameModalDismissedId(null)}
                 />
               );
@@ -1917,10 +2245,6 @@ export function App() {
           onWebcalFeedsChanged={() => void refreshWebcalState()}
           onRssFeedsChanged={() => void refreshRssState()}
           agentConnectionReady={agentConnectionReady}
-          onTestBriefing={() => {
-            sessionRef.current.sendUserMessage(BRIEFING_OPEN_MESSAGE);
-            closeSettings();
-          }}
           resolveLlmApiKey={() =>
             llmConnection ? secretStore.get(llmConnection.secretRef) ?? null : null
           }
@@ -2015,7 +2339,6 @@ function SettingsDialog({
   onWebcalFeedsChanged,
   onRssFeedsChanged,
   agentConnectionReady,
-  onTestBriefing,
   resolveLlmApiKey,
   onSwitchChatProvider,
   onClose,
@@ -2048,7 +2371,6 @@ function SettingsDialog({
   onWebcalFeedsChanged?: () => void;
   onRssFeedsChanged?: () => void;
   agentConnectionReady: boolean;
-  onTestBriefing?: () => void;
   resolveLlmApiKey: () => string | null;
   onSwitchChatProvider: (provider: Provider) => void;
   onClose: () => void;
@@ -2089,6 +2411,9 @@ function SettingsDialog({
   const [registryIndexUrl, setRegistryIndexUrl] = useState(registryInitial);
   const [requireIntegrity, setRequireIntegrity] = useState(trustInitial.requireIntegrity !== false);
   const [requireSignature, setRequireSignature] = useState(trustInitial.requireSignature === true);
+  const [blockedIdsText, setBlockedIdsText] = useState(
+    (trustInitial.blockedIds ?? []).join("\n"),
+  );
   const [curatorOn, setCuratorOn] = useState(curatorInitial);
   const [curatorAutoAcceptOn, setCuratorAutoAcceptOn] = useState(curatorAutoAcceptInitial);
   const [stripeSecretKey, setStripeSecretKey] = useState("");
@@ -2114,7 +2439,15 @@ function SettingsDialog({
   const [hostedLlmError, setHostedLlmError] = useState<string | null>(null);
   const [moduleCatalogNote, setModuleCatalogNote] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<
-    "agent" | "briefing" | "security" | "connectors" | "appearance" | "modules" | "payments" | "developer"
+    | "agent"
+    | "briefing"
+    | "security"
+    | "connectors"
+    | "appearance"
+    | "modules"
+    | "payments"
+    | "developer"
+    | "donations"
   >("agent");
 
   const navItems = useMemo(() => {
@@ -2129,6 +2462,7 @@ function SettingsDialog({
       { id: "connectors", label: "Connectors", hint: "Calendar and integrations" },
       { id: "appearance", label: "Appearance", hint: "Theme and skin" },
       { id: "modules", label: "Modules", hint: "Catalog and registry" },
+      { id: "donations", label: "Donations", hint: "Support Atom development" },
     ];
     if (!productionLocked) {
       items.splice(4, 0, { id: "payments", label: "Payments", hint: "Stripe and commerce" });
@@ -2488,15 +2822,7 @@ function SettingsDialog({
   }
 
   function renderBriefingPanel() {
-    return (
-      <BriefingSettingsPanel
-        embedded
-        chatProvider={chatProvider}
-        vaultUnlocked={vaultUnlocked}
-        agentConnectionReady={agentConnectionReady}
-        onTestBriefing={onTestBriefing}
-      />
-    );
+    return <BriefingSettingsPanel embedded />;
   }
 
   function renderSecurityPanel() {
@@ -2615,6 +2941,10 @@ function SettingsDialog({
       return (
         <>
           <p className="settings-note">Browse modules from the trusted catalog for this site.</p>
+          <p className="settings-note">
+            Registry URL, integrity checks, and publisher allowlist are pinned. Soft Sigstore until curated
+            modules carry signatures (`registry:verify:strict`).
+          </p>
           {moduleCatalogNote ? <p className="settings-note">{moduleCatalogNote}</p> : null}
           <RegistryCatalogList
             indexUrl={PRODUCTION_REGISTRY_URL}
@@ -2649,12 +2979,30 @@ function SettingsDialog({
           />
           <span>Require signed manifests</span>
         </label>
+        <label className="atom-field">
+          <span className="atom-field-label">Blocked module ids (one per line)</span>
+          <textarea
+            className="panel-textarea"
+            rows={3}
+            value={blockedIdsText}
+            onChange={(e) => setBlockedIdsText(e.target.value)}
+            placeholder="games/untrusted-mod"
+          />
+        </label>
         <div className="chrome-actions settings-section-actions">
           <button
             className="chrome-approve"
             disabled={!registryIndexUrl.trim()}
             onClick={() =>
-              onSaveRegistry(registryIndexUrl.trim(), { requireIntegrity, requireSignature })
+              onSaveRegistry(registryIndexUrl.trim(), {
+                requireIntegrity,
+                requireSignature,
+                blockedIds: blockedIdsText
+                  .split(/[\n,]/)
+                  .map((value) => value.trim())
+                  .filter(Boolean),
+                trustedPublishers: trustInitial.trustedPublishers,
+              })
             }
           >
             Save registry settings
@@ -2711,6 +3059,35 @@ function SettingsDialog({
     );
   }
 
+  function renderDonationsPanel() {
+    return (
+      <>
+        <p className="settings-note">
+          Atom is free, open-source software. There is no account fee to use the shell or self-host an
+          agent — we believe that tools for talking with your own agent should stay owned by you.
+        </p>
+        <p className="settings-note">
+          If Atom has been useful, we are grateful for any support. Voluntary donations through Buy Me
+          a Coffee help fund ongoing platform work: hardening, new modules, connectors, and the
+          hosted infrastructure that keeps the open registry and demo environments available.
+        </p>
+        <p className="settings-note">
+          Support is entirely optional. Atom stays Apache-licensed whether you donate or not.
+        </p>
+        <div className="chrome-actions settings-section-actions">
+          <a
+            className="chrome-approve settings-donate-link"
+            href={BUY_ME_A_COFFEE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Support on Buy Me a Coffee
+          </a>
+        </div>
+      </>
+    );
+  }
+
   function renderActivePanel() {
     switch (activeSection) {
       case "agent":
@@ -2729,6 +3106,8 @@ function SettingsDialog({
         return renderModulesPanel();
       case "developer":
         return renderDeveloperPanel();
+      case "donations":
+        return renderDonationsPanel();
       default:
         return renderAgentPanel();
     }

@@ -51,8 +51,20 @@ Optional owner policy (self-hosted / dev Settings only):
 |---|---|
 | `requireSignature` | Refuse install when manifest has no valid Sigstore bundle |
 | `trustedPublishers` | Allowlist of publisher DIDs; manifests from other publishers are rejected |
+| `blockedIds` | Owner denylist of module ids (also editable in Settings → Registry) |
 
-Precedent: npm `only-allow` publisher allowlists + browser extension store curation.
+Curated-store CI (`pnpm registry:verify`) requires publisher DIDs on the allowlist and soft-warns unsigned manifests; `registry:verify:strict` hard-requires Sigstore. Precedent: npm `only-allow` publisher allowlists + browser extension store curation.
+
+## Custom agent / SLM posture (M-TS-06)
+
+Self-host and local-SLM owners choose their own model; Atom does not claim token-level filtering of every reply. Hosted fleet may set:
+
+| Env | Effect |
+|---|---|
+| `ATOM_SAFETY_PREFIX` | Prepended to AG-UI system prompt |
+| `ATOM_MODEL_ALLOWLIST` | Comma-separated model ids; rejects turns outside the list |
+
+Shell chrome (catalog composition, consequential approval, D031 quarantine) remains the structural backstop. Full note: `docs/04-security/07-custom-agent-slm-posture.md` (private working tree).
 
 ## Module sandbox (web v1)
 
@@ -129,6 +141,24 @@ Hosted production hardening is tracked in the private roadmap (`docs/09-roadmap.
 ## Reporting
 
 Security issues: [GitHub security advisories](https://github.com/Qwixl/Atom/security/advisories) on `Qwixl/Atom`.
+
+**Abuse / LE contact (curated store & hosted fleet):**
+
+| Channel | Use |
+|---|---|
+| Settings → Registry / Messages → **Report** | Queued control-plane intake (`/module-abuse-report`, `/comms-abuse-report`) |
+| Email | `abuse@qwixl.dev` (same as AUP) |
+| GitHub | Security advisories for vulnerability reports |
+
+**SLA (curated reference registry / managed hosting):** `csam` and malware/phishing → same-day triage goal; illegal-content / scam → within a few business days; spam/other → best-effort queue. Federated third-party indexes remain owner-controlled — Atom cannot globally revoke them (Q23). Law-enforcement requests against hosted agents: metadata + suspend history only (no MLS plaintext).
+
+**Module / registry abuse (M-TS-04):** owners can **Report** a catalog listing from Settings → Registry. Control plane logs `POST /module-abuse-report`. Operators follow `docs/04-security/06-registry-revocation-runbook.md` (update `revocations.json`, redeploy; shells evict via `syncRevocations()`).
+
+**Comms / contact abuse (M-TS-08):** Messages → Contact → **Report** (or room member menu). Control plane logs `POST /comms-abuse-report` (metadata only — no MLS plaintext). Block/Mute already enforced on agent backends. Operators follow `docs/04-security/08-comms-abuse-runbook.md`; hosted peers may escalate to suspend.
+
+**Module ratings (M-TS-11):** Settings → Registry stars from `ratings.json`; `POST /module-feedback` queues curator updates — see `docs/04-security/09-module-ratings-feedback-runbook.md`.
+
+**Sigstore:** Soft-required in CI (`registry:verify`); hard-required via `registry:verify:strict` once every curated listing carries a valid `signatureUrl`.
 
 ## References
 

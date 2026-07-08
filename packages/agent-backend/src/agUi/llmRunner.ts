@@ -19,6 +19,10 @@ export interface LlmAgUiConfig {
   profile?: PromptProfile;
   /** Server-side business catalog summary when ATOM_BUSINESS_MODE (M12). */
   businessContext?: string;
+  /** Optional prefix prepended to the system prompt (M-TS-06 hosted safety framing). */
+  safetyPrefix?: string;
+  /** When non-empty, model must be in this list (M-TS-06). */
+  modelAllowlist?: readonly string[];
 }
 
 const REQUEST_TIMEOUT_MS = 120_000;
@@ -127,11 +131,16 @@ async function callChatCompletions(
 export function loadLlmAgUiConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LlmAgUiConfig | null {
   const apiKey = env.LLM_API_KEY?.trim() || env.OPENAI_API_KEY?.trim();
   if (!apiKey) return null;
+  const modelAllowlist = env.ATOM_MODEL_ALLOWLIST?.split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
   return {
     apiKey,
     baseUrl: env.LLM_BASE_URL?.trim() || "https://api.openai.com/v1",
     model: env.LLM_MODEL?.trim() || "gpt-4o-mini",
     temperature: env.LLM_TEMPERATURE ? Number(env.LLM_TEMPERATURE) : undefined,
+    safetyPrefix: env.ATOM_SAFETY_PREFIX?.trim() || undefined,
+    modelAllowlist: modelAllowlist?.length ? modelAllowlist : undefined,
   };
 }
 
@@ -140,6 +149,15 @@ export async function* runLlmAgUiEvents(
   input: RunAgentInput,
   config: LlmAgUiConfig,
 ): AsyncGenerator<BaseEvent> {
+  if (config.modelAllowlist && config.modelAllowlist.length > 0) {
+    if (!config.modelAllowlist.includes(config.model)) {
+      yield* textAgUiEvents(
+        uuid(),
+        `Model "${config.model}" is not on this agent's allowlist. Set LLM_MODEL to an allowed model or clear ATOM_MODEL_ALLOWLIST.`,
+      );
+      return;
+    }
+  }
   const catalog = new Catalog();
   registerCorePrimitives(catalog);
   registerEcosystemModules(catalog);
@@ -158,10 +176,14 @@ export async function* runLlmAgUiEvents(
     : config.businessContext?.trim()
       ? { open: [], guardedCategories: [], businessContext: config.businessContext.trim() }
       : undefined;
+  const baseSystem = buildSystemPrompt(catalog, mergedProfile);
+  const systemContent = config.safetyPrefix?.trim()
+    ? `${config.safetyPrefix.trim()}\n\n${baseSystem}`
+    : baseSystem;
   const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
     {
       role: "system",
-      content: buildSystemPrompt(catalog, mergedProfile),
+      content: systemContent,
     },
     ...history,
   ];

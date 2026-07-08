@@ -10,6 +10,7 @@ import { loadRoomAttendance, saveRoomAttendance, type RoomAttendanceMode } from 
 import { formatRoomActivity, moduleBundleUrl, COFFEE_SHOP_ROOM_ID } from "./roomUtils.js";
 import { formatRoomMemberLabel, formatRoomSenderLabel, loadOwnerHandle, ownerHandleForRooms } from "./ownerHandle.js";
 import { IconLeave, IconRefresh } from "./shell/ShellIcons.js";
+import { ContactAbuseReportForm } from "./ContactAbuseReportForm.js";
 
 interface RoomDescriptorWire {
   roomId: string;
@@ -79,6 +80,7 @@ export function RoomsPanel({
   const [members, setMembers] = useState<RoomMemberWire[]>([]);
   const [attendance, setAttendance] = useState<RoomAttendanceMode>("present");
   const [memberMenuDid, setMemberMenuDid] = useState<string | null>(null);
+  const [memberReportDid, setMemberReportDid] = useState<string | null>(null);
   const [compose, setCompose] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -581,6 +583,38 @@ export function RoomsPanel({
                                 >
                                   {contact?.blocked ? "Unblock" : "Block"}
                                 </button>
+                                <button
+                                  type="button"
+                                  className="panel-btn panel-btn-ghost"
+                                  onClick={() =>
+                                    setMemberReportDid((current) =>
+                                      current === member.did ? null : member.did,
+                                    )
+                                  }
+                                >
+                                  {memberReportDid === member.did ? "Cancel report" : "Report"}
+                                </button>
+                                {memberReportDid === member.did ? (
+                                  <ContactAbuseReportForm
+                                    target={{
+                                      did: member.did,
+                                      endpoint: member.endpoint ?? contact?.endpoint,
+                                      handle: contact?.handle,
+                                      name: memberLabel(member, localDid, ownerHandle),
+                                      roomId: selectedId ?? undefined,
+                                    }}
+                                    onReported={(note, alsoBlock) => {
+                                      setStatus(note);
+                                      setMemberReportDid(null);
+                                      setMemberMenuDid(null);
+                                      if (alsoBlock && !contact?.blocked) {
+                                        updateMemberPolicy(member, { blocked: true });
+                                      }
+                                      onActivity?.(note);
+                                    }}
+                                    onCancel={() => setMemberReportDid(null)}
+                                  />
+                                ) : null}
                               </div>
                             ) : null}
                           </li>

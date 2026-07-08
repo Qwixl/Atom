@@ -58,6 +58,7 @@ const errors = [];
 
 for (const file of walk(shellSrc)) {
   const rel = path.relative(shellSrc, file).replace(/\\/g, "/");
+  if (/\.test\.(ts|tsx)$/.test(rel) || /\.spec\.(ts|tsx)$/.test(rel)) continue;
   const text = readFileSync(file, "utf8");
   const lines = text.split("\n");
 
