@@ -57,7 +57,7 @@ export type { PendingChrome } from "./chrome.js";
 export { ConversationRuntime } from "./ConversationRuntime.js";
 export type { ConversationSnapshot, ConversationRuntimeOptions, TurnCompleteInfo } from "./ConversationRuntime.js";
 
-export { getGameEngine, registerGameEngine } from "./games/registry.js";
+export { getGameEngine, registerGameEngine, listGameModuleIds } from "./games/registry.js";
 export { TictactoeEngine } from "./games/tictactoe.js";
 export {
   BattleshipsEngine,

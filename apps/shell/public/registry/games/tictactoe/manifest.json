@@ -25,5 +25,6 @@
   "categories": [
     "games"
   ],
+  "tier": "system",
   "bundleIntegrity": "sha256:aaf396f17137d3f1403d5ae64d5399484c467df26dd986a8a2ab91b8ecfac5f0"
 }
