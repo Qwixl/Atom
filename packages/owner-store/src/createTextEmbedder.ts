@@ -1,5 +1,6 @@
 import { hashEmbedText, type TextEmbedder } from "./textEmbedding.js";
 import { parseEmbedderBackendKind } from "./v1Scope.js";
+import { createApiTextEmbedder } from "./apiTextEmbedding.js";
 
 export interface CreateTextEmbedderOptions {
   kind?: import("./v1Scope.js").EmbedderBackendKind;
@@ -15,9 +16,7 @@ export function createTextEmbedder(options: CreateTextEmbedderOptions = {}): Tex
     case "hash":
       return hashEmbedText;
     case "api":
-      throw new Error(
-        "ATOM_EMBEDDER=api is not implemented yet. Planned: configurable embedding API for semantic retrieval. Use hash (default).",
-      );
+      return createApiTextEmbedder();
     default:
       return hashEmbedText;
   }

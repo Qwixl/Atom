@@ -23,6 +23,8 @@ export interface LlmAgUiConfig {
   safetyPrefix?: string;
   /** When non-empty, model must be in this list (M-TS-06). */
   modelAllowlist?: readonly string[];
+  /** Optional LLM spend meter (D066 budget ledger). */
+  onUsage?: (usage: { promptTokens?: number; completionTokens?: number; model: string }) => void;
 }
 
 const REQUEST_TIMEOUT_MS = 120_000;
@@ -94,7 +96,7 @@ function protocolMessageToOutput(message: unknown): AgentOutput | null {
 async function callChatCompletions(
   config: LlmAgUiConfig,
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
-): Promise<string> {
+): Promise<{ content: string; promptTokens?: number; completionTokens?: number }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -119,10 +121,15 @@ async function callChatCompletions(
     }
     const data = (await response.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
     const content = data.choices?.[0]?.message?.content;
     if (typeof content !== "string") throw new Error("endpoint returned no message content");
-    return content;
+    return {
+      content,
+      promptTokens: data.usage?.prompt_tokens,
+      completionTokens: data.usage?.completion_tokens,
+    };
   } finally {
     clearTimeout(timeout);
   }
@@ -190,7 +197,13 @@ export async function* runLlmAgUiEvents(
 
   let raw: string;
   try {
-    raw = await callChatCompletions(config, messages);
+    const result = await callChatCompletions(config, messages);
+    raw = result.content;
+    config.onUsage?.({
+      promptTokens: result.promptTokens,
+      completionTokens: result.completionTokens,
+      model: config.model,
+    });
   } catch (error) {
     yield* textAgUiEvents(
       uuid(),

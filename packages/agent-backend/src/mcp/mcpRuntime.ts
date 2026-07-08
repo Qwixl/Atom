@@ -1,5 +1,8 @@
 import { isMcpToolAllowed, withMcpServerSession, type McpToolDescriptor } from "@qwixl/mcp-client";
 import { resolveMcpTransport, isMcpServerTrusted, type StoredMcpServer } from "./types.js";
+import { mcpAppsToolToRegistryRef, type McpAppsToolDescriptor } from "../mcpAppsAdapter.js";
+
+export { mcpAppsToolToRegistryRef };
 
 function sessionOptions(server: StoredMcpServer) {
   const transport = resolveMcpTransport(server);

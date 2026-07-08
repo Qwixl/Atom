@@ -1,0 +1,14 @@
+{
+  "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
+  "dsseEnvelope": {
+    "payload": "eyJfdHlwZSI6Imh0dHBzOi8vaW4tdG90by5pby9TdGF0ZW1lbnQvdjEiLCJzdWJqZWN0IjpbeyJuYW1lIjoibWFuaWZlc3QuanNvbiIsImRpZ2VzdCI6eyJzaGEyNTYiOiIxYWI5Mjg1ZGJmZWFmNTNlMzBhMGFkYTI1YmMwYWY4ZjY4MTljOWE5NzJkMjI3NGEyODQzOGMwNDU3ZTQ4MDIyIn19XSwicHJlZGljYXRlVHlwZSI6Imh0dHBzOi8vYXRvbS5xd2l4bC5kZXYvYXR0ZXN0YXRpb24vbW9kdWxlLW1hbmlmZXN0L3YxIiwicHJlZGljYXRlIjp7ImJ1aWxkZXIiOnsiaWQiOiJhdG9tLXJlZ2lzdHJ5LXNpZ24ifSwibm90ZSI6ImF0b20tcmVnaXN0cnkgZGlnZXN0LWFuY2hvcmVkIFNpZ3N0b3JlIERTU0UgKE0tVFMtMDMgY3VyYXRlZCBzdG9yZTsgRnVsY2lvIG9wdGlvbmFsIHZpYSAtLWZ1bGNpbykifX0",
+    "payloadType": "application/vnd.in-toto+json",
+    "signatures": [
+      {
+        "sig": "MEUCIDVtE8eoh_uKi8gc29U5gOsoQw7qwlGivMIYmPxGWVOLAiEA0jCn6sUB3oj7ByqiNLJ2Jvast9_ILRP-j5gDen7VUv8",
+        "keyid": "",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEv54+1j9VnZ19HhQBv1OIM5l5PgFB\nySq0muGpp3flRSxWS3WEpDTfMbQ66762UXRZPTZEeAnanSLyhh+pWl6X9Q==\n-----END PUBLIC KEY-----\n"
+      }
+    ]
+  }
+}
