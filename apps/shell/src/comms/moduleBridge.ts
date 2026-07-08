@@ -11,6 +11,13 @@ export type CommsModuleBridge =
       items: Array<{ id: string; text: string; done: boolean }>;
     }
   | {
+      action: "locationPinCreated";
+      label: string;
+      lat: number;
+      lng: number;
+      note?: string;
+    }
+  | {
       action: "splitProposed";
       label: string;
       totalMinor: number;
@@ -77,6 +84,15 @@ export function bridgeChatModuleEvent(
       : [];
     if (items.length === 0) return false;
     queueCommsModuleBridge({ action: "listCreated", title, items });
+    return true;
+  }
+  if (name === "locationPinCreated") {
+    const label = typeof payload?.label === "string" ? payload.label : "Meeting point";
+    const lat = typeof payload?.lat === "number" ? payload.lat : Number.NaN;
+    const lng = typeof payload?.lng === "number" ? payload.lng : Number.NaN;
+    const note = typeof payload?.note === "string" ? payload.note : undefined;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+    queueCommsModuleBridge({ action: "locationPinCreated", label, lat, lng, note });
     return true;
   }
   if (name === "splitProposed") {

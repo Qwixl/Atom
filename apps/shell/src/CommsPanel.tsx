@@ -358,6 +358,8 @@ export function CommsPanel({
       void sendPoll(bridge.question, bridge.options);
     } else if (bridge.action === "listCreated") {
       void sendSharedList(bridge.title, bridge.items);
+    } else if (bridge.action === "locationPinCreated") {
+      void sendLocationPin(bridge.label, bridge.lat, bridge.lng, bridge.note);
     } else if (bridge.action === "splitProposed") {
       void sendSplitBill(
         bridge.label,
@@ -754,6 +756,48 @@ export function CommsPanel({
       setInlineModuleId(null);
       setConversationPane("chat");
       setActionNote("List sent.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendLocationPin(label: string, lat: number, lng: number, note?: string) {
+    if (!selected || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    setBusy(true);
+    setActionNote(null);
+    const pinId = crypto.randomUUID();
+    try {
+      const { objectId } = await client.sendLocationPin({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        pinId,
+        label,
+        lat,
+        lng,
+        note,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "location-pin",
+          id: objectId,
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          pinId,
+          label,
+          lat,
+          lng,
+          note,
+        },
+      ]);
+      setInlineModuleId(null);
+      setConversationPane("chat");
+      setActionNote("Location pin sent.");
       await refreshInbox();
     } catch (error) {
       setActionNote(error instanceof Error ? error.message : String(error));
@@ -1192,6 +1236,14 @@ export function CommsPanel({
           )
         : [];
       if (items.length > 0) void sendSharedList(title, items);
+      return;
+    }
+    if (name === "locationPinCreated") {
+      const label = typeof payload.label === "string" ? payload.label : "Meeting point";
+      const lat = typeof payload.lat === "number" ? payload.lat : Number.NaN;
+      const lng = typeof payload.lng === "number" ? payload.lng : Number.NaN;
+      const note = typeof payload.note === "string" ? payload.note : undefined;
+      if (Number.isFinite(lat) && Number.isFinite(lng)) void sendLocationPin(label, lat, lng, note);
     }
   }
 
@@ -2250,6 +2302,7 @@ export function CommsPanel({
                         mode:
                           inlineModuleId === "coordination/poll" ||
                           inlineModuleId === "coordination/shared-list" ||
+                          inlineModuleId === "family/location-pin" ||
                           inlineModuleId === "commerce/split-bill"
                             ? "compose"
                             : undefined,

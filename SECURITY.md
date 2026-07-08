@@ -158,7 +158,7 @@ Security issues: [GitHub security advisories](https://github.com/Qwixl/Atom/secu
 
 **Module ratings (M-TS-11):** Settings → Registry stars from `ratings.json`; `POST /module-feedback` queues curator updates — see `docs/04-security/09-module-ratings-feedback-runbook.md`.
 
-**Sigstore (M-TS-03):** CI `pnpm registry:verify` requires `signatureUrl` on every curated listing (digest-anchored DSSE via `atom-registry sign` / `pnpm registry:sign-all`). `registry:verify:strict` adds `--fulcio` for Fulcio/Rekor crypto when bundles are keyless-signed.
+**Sigstore (M-TS-03):** CI `pnpm registry:verify` requires `signatureUrl` on every curated listing (digest-anchored DSSE via `atom-registry sign` / `pnpm registry:sign-all`). Fulcio/Rekor keyless signing: `atom-registry sign --fulcio` (OIDC / `SIGSTORE_ID_TOKEN` / GitHub Actions `id-token`) and weekly smoke `.github/workflows/registry-fulcio-smoke.yml`. `registry:verify:strict` / `--fulcio` verify crypto when bundles are Fulcio-signed.
 
 ## References
 

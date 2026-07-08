@@ -1,0 +1,69 @@
+# Optional Fulcio/Rekor keyless smoke (BK-01).
+# Does not replace digest-anchored curated signatures on main CI.
+# Manual or weekly: proves OIDC → Fulcio → Rekor → crypto verify for one module.
+name: Registry Fulcio smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  fulcio-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.32.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @qwixl/shell-core build
+      - run: pnpm --filter @qwixl/registry-tools build
+
+      - name: Fulcio-sign contact-card (ephemeral)
+        run: |
+          pnpm --filter @qwixl/registry-tools exec node dist/cli.js sign \
+            --module-dir apps/shell/public/registry/core-examples/contact-card \
+            --fulcio
+
+      - name: Crypto-verify only the Fulcio-signed module
+        run: |
+          node --input-type=module <<'EOF'
+          import { readFile } from "node:fs/promises";
+          import { createHash } from "node:crypto";
+          import { verify } from "sigstore";
+          import {
+            bundleStatementReferencesDigest,
+            isSigstoreBundleShape,
+          } from "@qwixl/shell-core";
+
+          const manifestPath = "apps/shell/public/registry/core-examples/contact-card/manifest.json";
+          const sigPath = "apps/shell/public/registry/core-examples/contact-card/signature.sigstore.json";
+          const bytes = await readFile(manifestPath);
+          const digest = createHash("sha256").update(bytes).digest("hex");
+          const bundle = JSON.parse(await readFile(sigPath, "utf8"));
+          if (!isSigstoreBundleShape(bundle)) throw new Error("bad bundle shape");
+          if (!bundleStatementReferencesDigest(bundle, digest)) {
+            throw new Error("digest mismatch in in-toto subject");
+          }
+          await verify(bundle, bytes);
+          console.log("Fulcio smoke OK for core-examples/contact-card");
+          EOF
+
+      - name: Restore working tree (do not persist Fulcio overwrite)
+        if: always()
+        run: |
+          git checkout -- \
+            apps/shell/public/registry/core-examples/contact-card/signature.sigstore.json \
+            apps/shell/public/registry/index.json || true

@@ -27,13 +27,13 @@ Usage:
   atom-registry scaffold --id <namespace/name> --out <dir> [--publisher <did>]
   atom-registry hash <file>
   atom-registry verify [--registry-dir <dir>] [--bundle-base <dir>] [--require-integrity] [--signatures] [--fulcio] [--require-signatures|--soft-require-signatures] [--require-publisher] [--trusted-publishers <did,...>] [--scan-bundles] [--scan-strict-external]
-  atom-registry sign [--registry-dir <dir>] [--module-dir <dir>]
-  atom-registry sign-all [--registry-dir <dir>]
+  atom-registry sign [--registry-dir <dir>] [--module-dir <dir>] [--fulcio]
+  atom-registry sign-all [--registry-dir <dir>] [--fulcio]
   atom-registry publish [--registry-dir <dir>] [--module-dir <dir>] [--bundle-base <dir>]
   atom-registry publish-all [--registry-dir <dir>] [--bundle-base <dir>]
 
   --signatures  Verify Sigstore bundle shape + in-toto subject digest match against the manifest.
-  --fulcio  With --signatures, also run sigstore-js Fulcio/Rekor crypto verify (requires Fulcio-signed bundles).
+  --fulcio  On verify: also run sigstore-js Fulcio/Rekor crypto. On sign/sign-all: keyless Fulcio/Rekor (needs OIDC / SIGSTORE_ID_TOKEN / GitHub Actions id-token).
   --require-signatures  Fail when a manifest omits signatureUrl (use with --signatures; hard gate).
   --soft-require-signatures  Warn (do not fail) when signatureUrl is missing; still fail on broken signature bundles.
   --require-publisher  Fail when curated listings omit a publisher DID (M-TS-03 identity baseline).
@@ -109,11 +109,14 @@ async function main(): Promise<void> {
     const registryDir = path.resolve(readFlag(args, "--registry-dir") ?? defaultRegistryDir);
     const moduleDir =
       readFlag(args, "--module-dir") ?? path.join(registryDir, "travel/seat-map");
+    const fulcio = args.includes("--fulcio");
     const result = await signModule({
       registryDir,
       moduleDir: path.resolve(moduleDir),
+      fulcio,
+      identityToken: process.env.SIGSTORE_ID_TOKEN,
     });
-    console.log(`Signed ${result.moduleId}@${result.version}`);
+    console.log(`Signed ${result.moduleId}@${result.version}${fulcio ? " (Fulcio)" : ""}`);
     console.log(`  signature: ${result.signaturePath}`);
     console.log(`  index signatureUrl: ${result.signatureUrl}`);
     return;
@@ -121,12 +124,20 @@ async function main(): Promise<void> {
 
   if (command === "sign-all") {
     const registryDir = path.resolve(readFlag(args, "--registry-dir") ?? defaultRegistryDir);
+    const fulcio = args.includes("--fulcio");
     const moduleDirs = await findManifestDirs(registryDir);
     for (const moduleDir of moduleDirs.sort()) {
-      const result = await signModule({ registryDir, moduleDir });
-      console.log(`Signed ${result.moduleId}@${result.version} → ${result.signatureUrl}`);
+      const result = await signModule({
+        registryDir,
+        moduleDir,
+        fulcio,
+        identityToken: process.env.SIGSTORE_ID_TOKEN,
+      });
+      console.log(
+        `Signed ${result.moduleId}@${result.version} → ${result.signatureUrl}${fulcio ? " (Fulcio)" : ""}`,
+      );
     }
-    console.log(`Signed ${moduleDirs.length} module(s).`);
+    console.log(`Signed ${moduleDirs.length} module(s)${fulcio ? " with Fulcio" : ""}.`);
     return;
   }
 

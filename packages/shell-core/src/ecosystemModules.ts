@@ -183,6 +183,25 @@ export const ECOSYSTEM_MODULE_MANIFESTS: ModuleManifest[] = [
     tier: "system",
   },
   {
+    id: "family/location-pin",
+    version: "1.0.0",
+    publisher: "did:key:z6Mkatomexamples01",
+    targets: ["web"],
+    bundleUrl: "/modules/family-location-pin/index.html",
+    components: [
+      {
+        name: "family/location-pin",
+        semanticRole: "input/location-pin",
+        events: [{ name: "locationPinCreated" }],
+        agentHint:
+          "Share a meeting point (label + lat/lng) with a contact. Use for meet here, pickup spot, family rendezvous. Props: { mode?: 'compose', defaultLabel? }. Emits locationPinCreated with { label, lat, lng, note? }.",
+      },
+    ],
+    capabilities: [],
+    categories: ["family", "friends", "coordination"],
+    tier: "system",
+  },
+  {
     id: "commerce/split-bill",
     version: "1.0.0",
     publisher: "did:key:z6Mkatomexamples01",

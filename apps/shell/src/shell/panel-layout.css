@@ -391,6 +391,11 @@
 
 /* Discover results — compact rows, not tall cards */
 
+.discover-view > .discover-lede {
+  margin: 0;
+  padding: 12px 20px 0;
+}
+
 .discover-results {
   list-style: none;
   margin: 0;

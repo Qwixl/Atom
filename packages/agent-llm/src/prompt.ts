@@ -569,6 +569,7 @@ Use **registry modules** only when the owner needs interactivity, shared state, 
 | Personal reminder / solo calendar block | \`consequential-action\` confirmation |
 | Group decision / poll | \`coordination/poll\` |
 | Shared checklist / todos | \`coordination/shared-list\` |
+| Meet here / pickup spot | \`family/location-pin\` |
 | Split a bill / share expense | \`commerce/split-bill\` |
 | Play tic-tac-toe | \`games/tictactoe\` |
 | Play battleships | \`games/battleships\` |

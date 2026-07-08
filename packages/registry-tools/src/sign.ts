@@ -1,6 +1,7 @@
 import { createHash, createSign, generateKeyPairSync } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { attest } from "sigstore";
 import {
   formatIntegrity,
   validateModuleManifest,
@@ -11,6 +12,9 @@ import {
 /** Local curated-store signing note (demo — Fulcio OIDC is the production path). */
 const CURATED_SIGNING_NOTE =
   "atom-registry digest-anchored Sigstore DSSE (M-TS-03 curated store; Fulcio optional via --fulcio)";
+
+const FULCIO_SIGNING_NOTE =
+  "atom-registry Fulcio/Rekor keyless Sigstore DSSE (M-TS-03; verify with --fulcio)";
 
 function sha256Hex(bytes: Buffer): string {
   return createHash("sha256").update(bytes).digest("hex");
@@ -24,7 +28,11 @@ function toBase64Url(bytes: Buffer): string {
     .replace(/=+$/g, "");
 }
 
-function buildInTotoStatement(manifestDigest: string, manifestName: string): Record<string, unknown> {
+function buildInTotoStatement(
+  manifestDigest: string,
+  manifestName: string,
+  note: string,
+): Record<string, unknown> {
   return {
     _type: "https://in-toto.io/Statement/v1",
     subject: [
@@ -36,7 +44,7 @@ function buildInTotoStatement(manifestDigest: string, manifestName: string): Rec
     predicateType: "https://atom.qwixl.dev/attestation/module-manifest/v1",
     predicate: {
       builder: { id: "atom-registry-sign" },
-      note: CURATED_SIGNING_NOTE,
+      note,
     },
   };
 }
@@ -50,7 +58,7 @@ export function buildDigestAnchoredSigstoreBundle(
   manifestName = "manifest.json",
 ): Record<string, unknown> {
   const digest = sha256Hex(manifestBytes);
-  const statement = buildInTotoStatement(digest, manifestName);
+  const statement = buildInTotoStatement(digest, manifestName, CURATED_SIGNING_NOTE);
   const payload = Buffer.from(JSON.stringify(statement), "utf8");
   const payloadB64 = toBase64Url(payload);
 
@@ -80,10 +88,32 @@ export function buildDigestAnchoredSigstoreBundle(
   };
 }
 
+/**
+ * Keyless Fulcio/Rekor signing via sigstore-js.
+ * Requires OIDC: `SIGSTORE_ID_TOKEN`, interactive provider, or GitHub Actions `id-token: write`.
+ */
+export async function buildFulcioSigstoreBundle(
+  manifestBytes: Buffer,
+  manifestName = "manifest.json",
+  options?: { identityToken?: string },
+): Promise<Record<string, unknown>> {
+  const digest = sha256Hex(manifestBytes);
+  const statement = buildInTotoStatement(digest, manifestName, FULCIO_SIGNING_NOTE);
+  const statementBytes = Buffer.from(JSON.stringify(statement), "utf8");
+  const identityToken = options?.identityToken ?? process.env.SIGSTORE_ID_TOKEN;
+  const bundle = await attest(statementBytes, "application/vnd.in-toto+json", {
+    ...(identityToken ? { identityToken } : {}),
+  });
+  return bundle as Record<string, unknown>;
+}
+
 export interface SignModuleOptions {
   registryDir: string;
   moduleDir: string;
   signatureFileName?: string;
+  /** When true, Fulcio/Rekor keyless sign (needs OIDC). Default: local digest-anchored DSSE. */
+  fulcio?: boolean;
+  identityToken?: string;
 }
 
 export interface SignModuleResult {
@@ -101,7 +131,11 @@ export async function signModule(options: SignModuleOptions): Promise<SignModule
   const manifestBytes = await readFile(manifestPath);
   const manifest = validateModuleManifest(JSON.parse(manifestBytes.toString("utf8")));
   const signaturePath = path.join(options.moduleDir, signatureFileName);
-  const bundle = buildDigestAnchoredSigstoreBundle(manifestBytes, "manifest.json");
+  const bundle = options.fulcio
+    ? await buildFulcioSigstoreBundle(manifestBytes, "manifest.json", {
+        identityToken: options.identityToken,
+      })
+    : buildDigestAnchoredSigstoreBundle(manifestBytes, "manifest.json");
   await writeFile(signaturePath, `${JSON.stringify(bundle, null, 2)}\n`);
 
   const signatureUrl = signatureFileName;

@@ -31,6 +31,7 @@
     "registry:verify:strict": "pnpm --filter @qwixl/registry-tools verify -- --require-integrity --signatures --require-signatures --fulcio --require-publisher --trusted-publishers did:key:z6Mkatomexamples01,did:key:z6Mkdemotravel0001 --scan-bundles",
     "registry:verify:soft": "pnpm --filter @qwixl/registry-tools verify -- --require-integrity --signatures --require-signatures --soft-require-signatures --require-publisher --trusted-publishers did:key:z6Mkatomexamples01,did:key:z6Mkdemotravel0001 --scan-bundles",
     "registry:sign-all": "pnpm --filter @qwixl/registry-tools exec node dist/cli.js sign-all",
+    "registry:sign-all:fulcio": "pnpm --filter @qwixl/registry-tools exec node dist/cli.js sign-all --fulcio",
     "registry:publish": "pnpm --filter @qwixl/registry-tools publish-module",
     "registry:publish-all": "pnpm --filter @qwixl/registry-tools publish-all",
     "registry:scaffold": "pnpm --filter @qwixl/registry-tools scaffold",

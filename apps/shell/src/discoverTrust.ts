@@ -38,7 +38,7 @@ export function discoverTrustSignals(
   if (curated && verificationTier >= 1) {
     return {
       badge: "curated",
-      label: entry.tierLabel?.trim() || `Verified · tier ${verificationTier}`,
+      label: entry.tierLabel?.trim() || `Curated · tier ${verificationTier}`,
       verificationTier,
       publisherDid,
       indexLabel,
@@ -47,7 +47,7 @@ export function discoverTrustSignals(
   if (curated) {
     return {
       badge: "curated",
-      label: "Curated index",
+      label: "Curated",
       verificationTier,
       publisherDid,
       indexLabel,
@@ -56,7 +56,7 @@ export function discoverTrustSignals(
   if (trustedPublisher && verificationTier >= 1) {
     return {
       badge: "third-party",
-      label: entry.tierLabel?.trim() || `Third-party · tier ${verificationTier}`,
+      label: entry.tierLabel?.trim() || `Owner index · tier ${verificationTier}`,
       verificationTier,
       publisherDid,
       indexLabel,
@@ -64,7 +64,7 @@ export function discoverTrustSignals(
   }
   return {
     badge: "unverified",
-    label: "Unverified index",
+    label: "Unverified",
     verificationTier,
     publisherDid,
     indexLabel,

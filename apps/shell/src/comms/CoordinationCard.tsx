@@ -514,6 +514,27 @@ export function CoordinationCard({
     );
   }
 
+  if (item.kind === "location-pin") {
+    const mapsUrl = `https://www.openstreetmap.org/?mlat=${item.lat}&mlon=${item.lng}#map=16/${item.lat}/${item.lng}`;
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
+        <div className="shell-comms-coord-head">
+          <strong>{item.label}</strong>
+        </div>
+        <p className="shell-comms-coord-meta">
+          {item.lat.toFixed(5)}, {item.lng.toFixed(5)}
+        </p>
+        {item.note ? <p className="shell-comms-coord-meta">{item.note}</p> : null}
+        <p>
+          <a href={mapsUrl} target="_blank" rel="noreferrer">
+            Open map
+          </a>
+        </p>
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
   return null;
 }
 

@@ -271,6 +271,18 @@ export type CommsThreadItem =
       items: Array<{ id: string; text: string; done: boolean }>;
     }
   | {
+      kind: "location-pin";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      pinId: string;
+      label: string;
+      lat: number;
+      lng: number;
+      note?: string;
+    }
+  | {
       kind: "split-proposal";
       id: string;
       direction: "in" | "out";
