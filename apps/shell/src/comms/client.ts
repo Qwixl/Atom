@@ -414,6 +414,35 @@ export class CommsAgentClient {
     return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
   }
 
+  async sendLocationPin(opts: {
+    peerUrl: string;
+    peerDid: string;
+    pinId: string;
+    label: string;
+    lat: number;
+    lng: number;
+    note?: string;
+    encrypt?: boolean;
+  }): Promise<{ objectId: string }> {
+    const result = await postJson<{ sent?: { objectId?: string } }>(
+      this.base(),
+      "/coordination/location-pin",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        pinId: opts.pinId,
+        label: opts.label,
+        lat: opts.lat,
+        lng: opts.lng,
+        note: opts.note,
+        encrypt: opts.encrypt ?? true,
+      },
+      this.auth,
+      true,
+    );
+    return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
+  }
+
   async sendSharedListUpdate(opts: {
     peerUrl: string;
     peerDid: string;

@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-08T13:12:31.663Z",
+  "updatedAt": "2026-07-08T13:50:19.532Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
@@ -204,6 +204,20 @@
         "coordination"
       ],
       "tier": "system",
+      "signatureUrl": "signature.sigstore.json"
+    },
+    {
+      "id": "family/location-pin",
+      "version": "1.0.0",
+      "manifestUrl": "family/location-pin/manifest.json",
+      "integrity": "sha256:9d00f2bc9f0087c844f9161d434221e39094c59eae3c1677c97850dc3eace1f1",
+      "bundleIntegrity": "sha256:b9ab03ab3824ba792d59b63419360e1702bfd872b41a7b14af39721b40a248bc",
+      "publisher": "did:key:z6Mkatomexamples01",
+      "categories": [
+        "family",
+        "friends",
+        "coordination"
+      ],
       "signatureUrl": "signature.sigstore.json"
     }
   ]

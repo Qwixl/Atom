@@ -9,6 +9,7 @@ import {
   COORDINATION_POLL_VOTE_PURPOSE,
   COORDINATION_SHARED_LIST_PURPOSE,
   COORDINATION_SHARED_LIST_UPDATE_PURPOSE,
+  COORDINATION_LOCATION_PIN_PURPOSE,
   DEFAULT_COORDINATION_TTL_SECONDS,
   GAME_BS_SHOT_PURPOSE,
   GAME_BS_STATE_PURPOSE,
@@ -16,6 +17,7 @@ import {
   GAME_TTT_STATE_PURPOSE,
   BS_SHOT_SCHEMA,
   BS_STATE_SCHEMA,
+  LOCATION_PIN_SCHEMA,
   POLL_REQUEST_SCHEMA,
   POLL_VOTE_SCHEMA,
   SHARED_LIST_SCHEMA,
@@ -105,6 +107,17 @@ export interface SharedListUpdatePayload {
   listId: string;
   title?: string;
   items: SharedListItem[];
+  threadId?: string;
+}
+
+export interface LocationPinPayload {
+  pinId: string;
+  label: string;
+  /** WGS84 latitude. */
+  lat: number;
+  /** WGS84 longitude. */
+  lng: number;
+  note?: string;
   threadId?: string;
 }
 
@@ -394,4 +407,38 @@ export async function verifySharedListUpdate(
       items: parseSharedListItems(payload.items),
     },
   };
+}
+
+function assertFiniteCoord(value: number, field: string, min: number, max: number): void {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) {
+    throw new Error(`Payload field "${field}" must be a finite number between ${min} and ${max}`);
+  }
+}
+
+export async function createLocationPin(opts: {
+  identity: AgentKeyPair;
+  payload: LocationPinPayload;
+  ttlSeconds?: number;
+}): Promise<DataObject> {
+  assertNonEmptyString(opts.payload.pinId, "pinId");
+  assertNonEmptyString(opts.payload.label, "label");
+  assertFiniteCoord(opts.payload.lat, "lat", -90, 90);
+  assertFiniteCoord(opts.payload.lng, "lng", -180, 180);
+  return signGroupObject(opts.identity, {
+    schema: LOCATION_PIN_SCHEMA,
+    purpose: COORDINATION_LOCATION_PIN_PURPOSE,
+    payload: opts.payload as unknown as Record<string, unknown>,
+    ttlSeconds: opts.ttlSeconds,
+  });
+}
+
+export async function verifyLocationPin(object: DataObject): Promise<{ payload: LocationPinPayload }> {
+  const verified = await verifyDataObject(object);
+  if (verified.governance.purpose !== COORDINATION_LOCATION_PIN_PURPOSE) {
+    throw new Error("Not a location pin object");
+  }
+  const payload = verified.payload as unknown as LocationPinPayload;
+  assertFiniteCoord(payload.lat, "lat", -90, 90);
+  assertFiniteCoord(payload.lng, "lng", -180, 180);
+  return { payload };
 }

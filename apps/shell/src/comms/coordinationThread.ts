@@ -7,6 +7,7 @@ import {
   COORDINATION_POLL_VOTE_PURPOSE,
   COORDINATION_SHARED_LIST_PURPOSE,
   COORDINATION_SHARED_LIST_UPDATE_PURPOSE,
+  COORDINATION_LOCATION_PIN_PURPOSE,
   GAME_TTT_STATE_PURPOSE,
   GAME_TTT_MOVE_PURPOSE,
   GAME_BS_STATE_PURPOSE,
@@ -428,6 +429,24 @@ export function inboxEntryToThreadItem(
       listId: String(payload.listId ?? ""),
       title: typeof payload.title === "string" ? payload.title : undefined,
       items,
+    };
+  }
+
+  if (purpose === COORDINATION_LOCATION_PIN_PURPOSE) {
+    const lat = typeof payload.lat === "number" ? payload.lat : Number.NaN;
+    const lng = typeof payload.lng === "number" ? payload.lng : Number.NaN;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return {
+      kind: "location-pin",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      pinId: String(payload.pinId ?? id),
+      label: typeof payload.label === "string" ? payload.label : "Meeting point",
+      lat,
+      lng,
+      note: typeof payload.note === "string" ? payload.note : undefined,
     };
   }
 

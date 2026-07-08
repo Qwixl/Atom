@@ -8,6 +8,7 @@ import {
   createSchedulingResponse,
   createSharedList,
   createSharedListUpdate,
+  createLocationPin,
   createSplitProposal,
   createTttMove,
   createTttState,
@@ -277,6 +278,41 @@ export function registerCoordinationAdminRoutes(adminApp: Express, deps: Coordin
           listId: body.listId.trim(),
           title: body.title?.trim() || undefined,
           items: body.items,
+          threadId: body.threadId?.trim() || undefined,
+        },
+      });
+      await sendCoordinationObject(deps, res, body, object);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/coordination/location-pin", async (req, res) => {
+    const body = req.body as PeerSendBody & {
+      pinId?: string;
+      label?: string;
+      lat?: number;
+      lng?: number;
+      note?: string;
+    };
+    if (
+      !body.pinId?.trim() ||
+      !body.label?.trim() ||
+      typeof body.lat !== "number" ||
+      typeof body.lng !== "number"
+    ) {
+      res.status(400).json({ error: "pinId, label, lat, and lng required" });
+      return;
+    }
+    try {
+      const object = await createLocationPin({
+        identity: deps.identity,
+        payload: {
+          pinId: body.pinId.trim(),
+          label: body.label.trim(),
+          lat: body.lat,
+          lng: body.lng,
+          note: body.note?.trim() || undefined,
           threadId: body.threadId?.trim() || undefined,
         },
       });

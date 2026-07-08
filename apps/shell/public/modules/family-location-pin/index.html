@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Location pin</title>
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body { margin: 0; padding: 10px 12px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
+    label { display: block; font-size: 12px; margin-bottom: 4px; color: var(--atom-color-text-dim, #666); }
+    input[type="text"], input[type="number"], textarea {
+      width: 100%; padding: 8px 10px; margin-bottom: 8px;
+      border: 1px solid var(--atom-color-border, #ccc); border-radius: 6px; font: inherit;
+    }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    button { padding: 8px 14px; border: none; border-radius: 6px; background: var(--atom-color-accent, #111); color: var(--atom-color-bg, #fff); cursor: pointer; font: inherit; }
+    button.secondary { background: transparent; color: inherit; border: 1px solid var(--atom-color-border, #ccc); margin-right: 8px; }
+    button:disabled { opacity: 0.45; }
+    .hint { font-size: 11px; color: var(--atom-color-text-dim, #666); margin: 0 0 8px; }
+  </style>
+</head>
+<body>
+  <div id="compose">
+    <label>Label</label>
+    <input id="label" type="text" placeholder="School gate" />
+    <div class="row">
+      <div>
+        <label>Latitude</label>
+        <input id="lat" type="number" step="any" placeholder="51.5074" />
+      </div>
+      <div>
+        <label>Longitude</label>
+        <input id="lng" type="number" step="any" placeholder="-0.1278" />
+      </div>
+    </div>
+    <p class="hint">Coords stay in the signed A2A object — no map API key required.</p>
+    <label>Note (optional)</label>
+    <textarea id="note" rows="2" placeholder="I'll wait by the blue door"></textarea>
+    <button type="button" class="secondary" id="useLocation">Use my location</button>
+    <button type="button" id="sendPin">Send pin</button>
+  </div>
+  <script>
+    let shellOrigin = null;
+    function emit(name, payload) {
+      if (shellOrigin) window.parent.postMessage({ type: "event", name, payload }, shellOrigin);
+    }
+    document.getElementById("useLocation").addEventListener("click", () => {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          document.getElementById("lat").value = String(pos.coords.latitude);
+          document.getElementById("lng").value = String(pos.coords.longitude);
+        },
+        () => {},
+        { enableHighAccuracy: false, maximumAge: 60000, timeout: 8000 },
+      );
+    });
+    document.getElementById("sendPin").addEventListener("click", () => {
+      const label = document.getElementById("label").value.trim() || "Meeting point";
+      const lat = Number(document.getElementById("lat").value);
+      const lng = Number(document.getElementById("lng").value);
+      const note = document.getElementById("note").value.trim() || undefined;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
+      emit("locationPinCreated", { label, lat, lng, note });
+    });
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "init") return;
+      shellOrigin = event.origin;
+      const props = data.props || {};
+      if (props.defaultLabel) document.getElementById("label").value = props.defaultLabel;
+    });
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>
