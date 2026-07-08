@@ -54,6 +54,18 @@ import {
   homeAssistantConnectorOperation,
 } from "./homeAssistantConnector.js";
 import {
+  BLUESKY_CONNECTOR_ID,
+  BLUESKY_CONNECTOR_OPERATIONS,
+  invokeBlueskyConnector,
+  blueskyConnectorOperation,
+} from "./blueskyConnector.js";
+import {
+  MASTODON_CONNECTOR_ID,
+  MASTODON_CONNECTOR_OPERATIONS,
+  invokeMastodonConnector,
+  mastodonConnectorOperation,
+} from "./mastodonConnector.js";
+import {
   CALDAV_CONNECTOR_ID,
   CALDAV_CONNECTOR_OPERATIONS,
   caldavConnectorOperation,
@@ -332,6 +344,62 @@ const CONNECTOR_BACKENDS = new Map<string, ConnectorBackend>([
       },
       operationSpec(operation) {
         return homeAssistantConnectorOperation(operation);
+      },
+    },
+  ],
+  [
+    BLUESKY_CONNECTOR_ID,
+    {
+      id: BLUESKY_CONNECTOR_ID,
+      moduleId: "connectors/bluesky",
+      provider: "bluesky",
+      label: "Bluesky",
+      async status(vault) {
+        const stored = vault.getBlueskyAccount();
+        return {
+          connectorId: BLUESKY_CONNECTOR_ID,
+          moduleId: "connectors/bluesky",
+          provider: "bluesky",
+          label: "Bluesky",
+          configured: Boolean(stored?.handle && stored.appPassword),
+          configuredAt: stored?.configuredAt,
+          vaultOnly: true,
+          operations: BLUESKY_CONNECTOR_OPERATIONS,
+        };
+      },
+      async invoke(vault, operation, input) {
+        return invokeBlueskyConnector({ vault }, operation, input);
+      },
+      operationSpec(operation) {
+        return blueskyConnectorOperation(operation);
+      },
+    },
+  ],
+  [
+    MASTODON_CONNECTOR_ID,
+    {
+      id: MASTODON_CONNECTOR_ID,
+      moduleId: "connectors/mastodon",
+      provider: "mastodon",
+      label: "Mastodon",
+      async status(vault) {
+        const stored = vault.getMastodonInstance();
+        return {
+          connectorId: MASTODON_CONNECTOR_ID,
+          moduleId: "connectors/mastodon",
+          provider: "mastodon",
+          label: "Mastodon",
+          configured: Boolean(stored?.instanceUrl && stored.accessToken),
+          configuredAt: stored?.configuredAt,
+          vaultOnly: true,
+          operations: MASTODON_CONNECTOR_OPERATIONS,
+        };
+      },
+      async invoke(vault, operation, input) {
+        return invokeMastodonConnector({ vault }, operation, input);
+      },
+      operationSpec(operation) {
+        return mastodonConnectorOperation(operation);
       },
     },
   ],

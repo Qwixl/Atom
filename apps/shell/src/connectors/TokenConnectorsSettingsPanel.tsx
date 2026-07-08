@@ -37,13 +37,15 @@ export function TokenConnectorsSettingsPanel({
   const { config, client } = useAgentConfig(vaultUnlocked);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const [connected, setConnected] = useState<Record<SimpleTokenConnectorId | "trello" | "home-assistant", boolean>>({
+  const [connected, setConnected] = useState<Record<SimpleTokenConnectorId | "trello" | "home-assistant" | "bluesky" | "mastodon", boolean>>({
     todoist: false,
     github: false,
     notion: false,
     linear: false,
     trello: false,
     "home-assistant": false,
+    bluesky: false,
+    mastodon: false,
   });
   const [draftTokens, setDraftTokens] = useState<Record<SimpleTokenConnectorId, string>>({
     todoist: "",
@@ -55,6 +57,11 @@ export function TokenConnectorsSettingsPanel({
   const [trelloToken, setTrelloToken] = useState("");
   const [haBaseUrl, setHaBaseUrl] = useState("");
   const [haToken, setHaToken] = useState("");
+  const [bskyHandle, setBskyHandle] = useState("");
+  const [bskyPassword, setBskyPassword] = useState("");
+  const [bskyPdsUrl, setBskyPdsUrl] = useState("");
+  const [mastoInstanceUrl, setMastoInstanceUrl] = useState("");
+  const [mastoToken, setMastoToken] = useState("");
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -67,13 +74,17 @@ export function TokenConnectorsSettingsPanel({
         linear: false,
         trello: false,
         "home-assistant": false,
-      } as Record<SimpleTokenConnectorId | "trello" | "home-assistant", boolean>;
+        bluesky: false,
+        mastodon: false,
+      } as Record<SimpleTokenConnectorId | "trello" | "home-assistant" | "bluesky" | "mastodon", boolean>;
       for (const connector of SIMPLE_TOKEN_CONNECTORS) {
         const status = await client.connectorStatus(connector.id);
         next[connector.id] = Boolean(status.configured);
       }
       next.trello = Boolean((await client.connectorStatus("trello")).configured);
       next["home-assistant"] = Boolean((await client.connectorStatus("home-assistant")).configured);
+      next.bluesky = Boolean((await client.connectorStatus("bluesky")).configured);
+      next.mastodon = Boolean((await client.connectorStatus("mastodon")).configured);
       setConnected(next);
     } catch (error) {
       setNote(error instanceof Error ? error.message : String(error));
@@ -199,6 +210,78 @@ export function TokenConnectorsSettingsPanel({
     }
   }
 
+  async function saveBluesky() {
+    const handle = bskyHandle.trim();
+    const appPassword = bskyPassword.trim();
+    if (!handle || !appPassword) return;
+    setBusy(true);
+    setNote("Saving Bluesky credentials to your agent vault…");
+    try {
+      const approvalRef = await approvalRefForConnectorWrite("Save Bluesky credentials", { connectorId: "bluesky" }, config);
+      await client.saveBlueskyCredentials({
+        handle,
+        appPassword,
+        pdsUrl: bskyPdsUrl.trim() || undefined,
+        approvalRef,
+      });
+      setBskyHandle("");
+      setBskyPassword("");
+      setBskyPdsUrl("");
+      setNote(null);
+      await refresh();
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+      setBusy(false);
+    }
+  }
+
+  async function removeBluesky() {
+    setBusy(true);
+    setNote("Removing Bluesky credentials…");
+    try {
+      const approvalRef = await approvalRefForConnectorWrite("Remove Bluesky credentials", { connectorId: "bluesky" }, config);
+      await client.clearBlueskyCredentials(approvalRef);
+      setNote(null);
+      await refresh();
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+      setBusy(false);
+    }
+  }
+
+  async function saveMastodon() {
+    const instanceUrl = mastoInstanceUrl.trim();
+    const accessToken = mastoToken.trim();
+    if (!instanceUrl || !accessToken) return;
+    setBusy(true);
+    setNote("Saving Mastodon credentials to your agent vault…");
+    try {
+      const approvalRef = await approvalRefForConnectorWrite("Save Mastodon credentials", { connectorId: "mastodon" }, config);
+      await client.saveMastodonCredentials({ instanceUrl, accessToken, approvalRef });
+      setMastoInstanceUrl("");
+      setMastoToken("");
+      setNote(null);
+      await refresh();
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+      setBusy(false);
+    }
+  }
+
+  async function removeMastodon() {
+    setBusy(true);
+    setNote("Removing Mastodon credentials…");
+    try {
+      const approvalRef = await approvalRefForConnectorWrite("Remove Mastodon credentials", { connectorId: "mastodon" }, config);
+      await client.clearMastodonCredentials(approvalRef);
+      setNote(null);
+      await refresh();
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+      setBusy(false);
+    }
+  }
+
   return (
     <section className={embedded ? "connectors-subpanel" : "connectors-panel"}>
       {!embedded ? (
@@ -210,7 +293,7 @@ export function TokenConnectorsSettingsPanel({
         <>
           <h4>Token connectors</h4>
           <p className="connectors-hint">
-            Todoist, GitHub, Notion, Linear, Trello, and Home Assistant via owner-supplied tokens.
+            Todoist, GitHub, Notion, Linear, Trello, Home Assistant, Bluesky, and Mastodon via owner-supplied tokens.
           </p>
         </>
       )}
@@ -313,6 +396,88 @@ export function TokenConnectorsSettingsPanel({
           </button>
           {connected["home-assistant"] ? (
             <button type="button" disabled={busy || !vaultUnlocked} onClick={() => void removeHomeAssistant()}>
+              Remove
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="connectors-token-row">
+        <div className="connectors-token-head">
+          <strong>Bluesky</strong>
+          <span>{connected.bluesky ? "Connected" : "Not configured"}</span>
+        </div>
+        <p className="connectors-hint">
+          Handle and app password from Bluesky → Settings → App passwords. Optional custom PDS URL (defaults to bsky.social).
+        </p>
+        <div className="connectors-token-actions">
+          <input
+            placeholder="Handle (user.bsky.social)"
+            value={bskyHandle}
+            onChange={(event) => setBskyHandle(event.target.value)}
+            disabled={busy || !vaultUnlocked}
+          />
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="App password"
+            value={bskyPassword}
+            onChange={(event) => setBskyPassword(event.target.value)}
+            disabled={busy || !vaultUnlocked}
+          />
+          <input
+            placeholder="PDS URL (optional)"
+            value={bskyPdsUrl}
+            onChange={(event) => setBskyPdsUrl(event.target.value)}
+            disabled={busy || !vaultUnlocked}
+          />
+          <button
+            type="button"
+            disabled={busy || !vaultUnlocked || !bskyHandle.trim() || !bskyPassword.trim()}
+            onClick={() => void saveBluesky()}
+          >
+            Save
+          </button>
+          {connected.bluesky ? (
+            <button type="button" disabled={busy || !vaultUnlocked} onClick={() => void removeBluesky()}>
+              Remove
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="connectors-token-row">
+        <div className="connectors-token-head">
+          <strong>Mastodon</strong>
+          <span>{connected.mastodon ? "Connected" : "Not configured"}</span>
+        </div>
+        <p className="connectors-hint">
+          Instance HTTPS URL and access token from your instance → Preferences → Development → New application.
+        </p>
+        <div className="connectors-token-actions">
+          <input
+            placeholder="Instance URL (https://…)"
+            value={mastoInstanceUrl}
+            onChange={(event) => setMastoInstanceUrl(event.target.value)}
+            disabled={busy || !vaultUnlocked}
+          />
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="Access token"
+            value={mastoToken}
+            onChange={(event) => setMastoToken(event.target.value)}
+            disabled={busy || !vaultUnlocked}
+          />
+          <button
+            type="button"
+            disabled={busy || !vaultUnlocked || !mastoInstanceUrl.trim() || !mastoToken.trim()}
+            onClick={() => void saveMastodon()}
+          >
+            Save
+          </button>
+          {connected.mastodon ? (
+            <button type="button" disabled={busy || !vaultUnlocked} onClick={() => void removeMastodon()}>
               Remove
             </button>
           ) : null}

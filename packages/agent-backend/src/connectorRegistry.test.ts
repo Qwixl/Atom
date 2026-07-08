@@ -12,6 +12,8 @@ import { CARDDAV_CONNECTOR_ID } from "./carddavConnector.js";
 import { LINEAR_CONNECTOR_ID } from "./linearConnector.js";
 import { TRELLO_CONNECTOR_ID } from "./trelloConnector.js";
 import { HOME_ASSISTANT_CONNECTOR_ID } from "./homeAssistantConnector.js";
+import { BLUESKY_CONNECTOR_ID } from "./blueskyConnector.js";
+import { MASTODON_CONNECTOR_ID } from "./mastodonConnector.js";
 import { WEATHER_CONNECTOR_ID } from "./weatherConnector.js";
 
 describe("connectorRegistry", () => {
@@ -27,6 +29,8 @@ describe("connectorRegistry", () => {
         LINEAR_CONNECTOR_ID,
         TRELLO_CONNECTOR_ID,
         HOME_ASSISTANT_CONNECTOR_ID,
+        BLUESKY_CONNECTOR_ID,
+        MASTODON_CONNECTOR_ID,
         CALDAV_CONNECTOR_ID,
         CARDDAV_CONNECTOR_ID,
         WEATHER_CONNECTOR_ID,
