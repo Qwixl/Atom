@@ -2,11 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import { approvalRefForConnectorWrite } from "./connectorWriteApproval.js";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
 
+type McpTransportKind = "stdio" | "streamable-http";
+
 type McpServerSummary = {
   id: string;
   label: string;
-  command: string;
+  transport: McpTransportKind;
+  command?: string;
   args: string[];
+  url?: string;
+  hasAuthHeaders?: boolean;
   allowedTools: string[];
 };
 
@@ -23,9 +28,12 @@ export function McpSettingsPanel({
   embedded?: boolean;
 }) {
   const { config, client } = useAgentConfig(vaultUnlocked);
+  const [transport, setTransport] = useState<McpTransportKind>("stdio");
   const [label, setLabel] = useState("");
   const [command, setCommand] = useState("");
   const [argsText, setArgsText] = useState("");
+  const [url, setUrl] = useState("");
+  const [authHeader, setAuthHeader] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [servers, setServers] = useState<McpServerSummary[]>([]);
@@ -50,25 +58,31 @@ export function McpSettingsPanel({
   }, [refresh]);
 
   async function saveServer() {
-    const cmd = command.trim();
-    if (!label.trim() || !cmd) return;
+    if (!label.trim()) return;
+    if (transport === "stdio" && !command.trim()) return;
+    if (transport === "streamable-http" && !url.trim()) return;
     setBusy(true);
     setNote("Saving MCP server on your agent…");
     try {
       const approvalRef = await approvalRefForConnectorWrite(
         "Add MCP server",
-        { command: cmd, label: label.trim() },
+        transport === "stdio" ? { command: command.trim(), label: label.trim() } : { url: url.trim(), label: label.trim() },
         config,
       );
       await client.addMcpServer({
         label: label.trim(),
-        command: cmd,
-        args: argsText.trim() || undefined,
+        transport,
+        command: transport === "stdio" ? command.trim() : undefined,
+        args: transport === "stdio" ? argsText.trim() || undefined : undefined,
+        url: transport === "streamable-http" ? url.trim() : undefined,
+        authHeader: transport === "streamable-http" ? authHeader.trim() || undefined : undefined,
         approvalRef,
       });
       setLabel("");
       setCommand("");
       setArgsText("");
+      setUrl("");
+      setAuthHeader("");
       setNote(null);
       await refresh();
     } catch (error) {
@@ -134,27 +148,69 @@ export function McpSettingsPanel({
     }
   }
 
+  const canSave =
+    label.trim() &&
+    ((transport === "stdio" && command.trim()) || (transport === "streamable-http" && url.trim()));
+
   return (
     <section className={embedded ? "settings-subpanel" : "settings-panel"}>
-      <h3 className="settings-subtitle">MCP servers (stdio)</h3>
+      <h3 className="settings-subtitle">MCP servers</h3>
       <p className="settings-note">
-        Owner-run MCP servers spawn on your agent backend. Chat uses <code>atom_mcp_invoke</code> when
-        servers are configured. Empty allowlist = all tools permitted until you tighten.
+        Owner-run MCP servers on your agent backend — stdio spawn or remote Streamable HTTP. Chat uses{" "}
+        <code>atom_mcp_invoke</code> when servers are configured. Empty allowlist = all tools permitted until you tighten.
       </p>
       <div className="settings-form-row">
+        <label>
+          Transport
+          <select
+            value={transport}
+            onChange={(event) => setTransport(event.target.value as McpTransportKind)}
+            disabled={busy}
+          >
+            <option value="stdio">stdio (local command)</option>
+            <option value="streamable-http">Streamable HTTP (remote URL)</option>
+          </select>
+        </label>
         <label>
           Label
           <input value={label} onChange={(event) => setLabel(event.target.value)} disabled={busy} />
         </label>
-        <label>
-          Command
-          <input value={command} onChange={(event) => setCommand(event.target.value)} disabled={busy} />
-        </label>
-        <label>
-          Args (space-separated)
-          <input value={argsText} onChange={(event) => setArgsText(event.target.value)} disabled={busy} />
-        </label>
-        <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void saveServer()}>
+        {transport === "stdio" ? (
+          <>
+            <label>
+              Command
+              <input value={command} onChange={(event) => setCommand(event.target.value)} disabled={busy} />
+            </label>
+            <label>
+              Args (space-separated)
+              <input value={argsText} onChange={(event) => setArgsText(event.target.value)} disabled={busy} />
+            </label>
+          </>
+        ) : (
+          <>
+            <label>
+              Server URL
+              <input
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+                disabled={busy}
+                placeholder="https://example.com/mcp"
+              />
+            </label>
+            <label>
+              Authorization header (optional)
+              <input
+                value={authHeader}
+                onChange={(event) => setAuthHeader(event.target.value)}
+                disabled={busy}
+                placeholder="Bearer …"
+                type="password"
+                autoComplete="off"
+              />
+            </label>
+          </>
+        )}
+        <button type="button" className="btn btn-primary" disabled={busy || !canSave} onClick={() => void saveServer()}>
           Add MCP server
         </button>
       </div>
@@ -162,8 +218,19 @@ export function McpSettingsPanel({
       <ul className="settings-list">
         {servers.map((server) => (
           <li key={server.id}>
-            <strong>{server.label}</strong> ({server.id}) — <code>{server.command}</code>{" "}
-            {server.args.join(" ")}
+            <strong>{server.label}</strong> ({server.id}) — {server.transport}
+            {server.transport === "streamable-http" ? (
+              <>
+                {" "}
+                <code>{server.url}</code>
+                {server.hasAuthHeaders ? " · auth configured" : null}
+              </>
+            ) : (
+              <>
+                {" "}
+                <code>{server.command}</code> {server.args.join(" ")}
+              </>
+            )}
             {server.allowedTools.length > 0 ? (
               <span> · allowlist: {server.allowedTools.join(", ")}</span>
             ) : (

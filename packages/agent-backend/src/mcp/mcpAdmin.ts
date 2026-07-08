@@ -65,16 +65,37 @@ export function registerMcpAdminRoutes(adminApp: Express, config: McpAdminConfig
       const body = req.body as {
         id?: string;
         label?: string;
+        transport?: "stdio" | "streamable-http";
         command?: string;
         args?: string[] | string;
         cwd?: string;
+        url?: string;
+        authHeader?: string;
         allowedTools?: string[];
       };
       const label = String(body.label ?? "").trim();
+      const transport = body.transport === "streamable-http" ? "streamable-http" : "stdio";
       const command = String(body.command ?? "").trim();
-      if (!label || !command) {
-        res.status(400).json({ error: "label and command are required" });
+      const url = String(body.url ?? "").trim();
+      if (!label) {
+        res.status(400).json({ error: "label is required" });
         return;
+      }
+      if (transport === "stdio" && !command) {
+        res.status(400).json({ error: "command is required for stdio transport" });
+        return;
+      }
+      if (transport === "streamable-http" && !url) {
+        res.status(400).json({ error: "url is required for streamable-http transport" });
+        return;
+      }
+      if (transport === "streamable-http") {
+        try {
+          new URL(url);
+        } catch {
+          res.status(400).json({ error: "url must be a valid HTTP(S) URL" });
+          return;
+        }
       }
       const args =
         typeof body.args === "string"
@@ -82,13 +103,18 @@ export function registerMcpAdminRoutes(adminApp: Express, config: McpAdminConfig
           : Array.isArray(body.args)
             ? body.args.map((arg) => String(arg))
             : [];
+      const authHeader = String(body.authHeader ?? "").trim();
+      const headers = authHeader ? { Authorization: authHeader } : undefined;
       const id = String(body.id ?? slugServerId(label)).trim();
       const server: StoredMcpServer = {
         id,
         label,
-        command,
+        transport,
+        command: transport === "stdio" ? command : undefined,
         args,
         cwd: body.cwd?.trim() || undefined,
+        url: transport === "streamable-http" ? url : undefined,
+        headers,
         allowedTools: Array.isArray(body.allowedTools) ? body.allowedTools.map(String) : [],
         enabled: true,
         addedAt: Date.now(),

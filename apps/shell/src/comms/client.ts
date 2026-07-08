@@ -683,9 +683,12 @@ export class CommsAgentClient {
     servers: Array<{
       id: string;
       label: string;
-      command: string;
+      transport: "stdio" | "streamable-http";
+      command?: string;
       args: string[];
       cwd?: string;
+      url?: string;
+      hasAuthHeaders: boolean;
       allowedTools: string[];
       enabled: boolean;
       addedAt: number;
@@ -696,9 +699,12 @@ export class CommsAgentClient {
 
   async addMcpServer(input: {
     label: string;
-    command: string;
+    transport?: "stdio" | "streamable-http";
+    command?: string;
     args?: string[] | string;
     cwd?: string;
+    url?: string;
+    authHeader?: string;
     allowedTools?: string[];
     approvalRef?: string;
   }): Promise<{ server: { id: string; label: string } }> {
