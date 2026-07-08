@@ -2,37 +2,121 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Audio player</title>
+  <title>Podcast player</title>
   <style>
     * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
-    body { margin: 0; padding: 12px; background: var(--atom-color-bg, #111); color: var(--atom-color-text, #eee); }
-    .title { font-weight: 600; margin-bottom: 8px; }
-    audio { width: 100%; margin-bottom: 8px; }
-    .meta { font-size: 0.8rem; color: var(--atom-color-text-dim, #aaa); }
+    body {
+      margin: 0;
+      padding: 12px;
+      background: var(--atom-color-bg, #111);
+      color: var(--atom-color-text, #eee);
+    }
+    .feed {
+      font-size: 0.75rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--atom-color-text-dim, #aaa);
+      margin-bottom: 4px;
+    }
+    .title {
+      font-weight: 600;
+      font-size: 1rem;
+      margin: 0 0 6px;
+      line-height: 1.35;
+    }
+    .description {
+      font-size: 0.85rem;
+      color: var(--atom-color-text-dim, #bbb);
+      margin: 0 0 10px;
+      line-height: 1.45;
+    }
+    audio {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .meta {
+      font-size: 0.75rem;
+      color: var(--atom-color-text-dim, #888);
+    }
+    .empty {
+      font-size: 0.85rem;
+      color: var(--atom-color-text-dim, #aaa);
+      padding: 8px 0;
+    }
   </style>
 </head>
 <body>
-  <div class="title" id="title">Audio</div>
-  <audio id="player" controls></audio>
+  <p class="feed" id="feed" hidden></p>
+  <h1 class="title" id="title">Podcast episode</h1>
+  <p class="description" id="description" hidden></p>
+  <audio id="player" controls preload="metadata" hidden></audio>
+  <p class="empty" id="empty" hidden>No audio URL — fetch episodes via RSS first.</p>
   <p class="meta" id="meta"></p>
   <script>
     let shellOrigin = null;
     const player = document.getElementById("player");
+    const emptyEl = document.getElementById("empty");
+
     function emit(name, payload) {
       if (shellOrigin) window.parent.postMessage({ type: "event", name, payload }, shellOrigin);
     }
+
+    function formatPublishedAt(value) {
+      if (!value) return "";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+    }
+
+    function resolveSrc(props) {
+      return props.src || props.enclosureUrl || props.url || "";
+    }
+
     player.addEventListener("play", () => emit("playbackStarted", { currentTime: player.currentTime }));
     player.addEventListener("pause", () => emit("playbackPaused", { currentTime: player.currentTime }));
     player.addEventListener("ended", () => emit("playbackEnded", {}));
+
     window.addEventListener("message", (e) => {
       if (!e.data || e.data.type !== "init") return;
       shellOrigin = e.origin;
       const props = e.data.props || {};
-      document.getElementById("title").textContent = props.title || "Audio clip";
-      document.getElementById("meta").textContent = props.artist || props.description || "";
-      if (props.src) player.src = props.src;
-      else player.src = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+      const src = resolveSrc(props);
+      const title = props.title || props.label || "Podcast episode";
+      const description = props.description || props.summary || "";
+      const feedLabel = props.feedLabel || props.feed || "";
+      const publishedAt = formatPublishedAt(props.publishedAt || props.pubDate);
+
+      document.getElementById("title").textContent = title;
+      const feedEl = document.getElementById("feed");
+      if (feedLabel) {
+        feedEl.textContent = feedLabel;
+        feedEl.hidden = false;
+      } else {
+        feedEl.hidden = true;
+      }
+      const descriptionEl = document.getElementById("description");
+      if (description) {
+        descriptionEl.textContent = description;
+        descriptionEl.hidden = false;
+      } else {
+        descriptionEl.hidden = true;
+      }
+      const metaParts = [];
+      if (publishedAt) metaParts.push(publishedAt);
+      if (props.mimeType || props.enclosureType) metaParts.push(props.mimeType || props.enclosureType);
+      document.getElementById("meta").textContent = metaParts.join(" · ");
+
+      if (src) {
+        player.src = src;
+        player.hidden = false;
+        emptyEl.hidden = true;
+      } else {
+        player.removeAttribute("src");
+        player.hidden = true;
+        emptyEl.hidden = false;
+      }
     });
+
     window.parent.postMessage({ type: "ready" }, "*");
   </script>
 </body>
