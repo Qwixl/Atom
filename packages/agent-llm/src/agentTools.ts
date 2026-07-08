@@ -4,8 +4,17 @@ import { ATOM_MCP_INVOKE_TOOL } from "./mcpTools.js";
 
 export type AtomToolId = "connector_invoke" | "mcp_invoke";
 
+export type AtomConnectorId =
+  | "webcal"
+  | "rss"
+  | "news-search"
+  | "bookmarks"
+  | "todoist"
+  | "github"
+  | "notion";
+
 export interface AtomConnectorInvokeInput {
-  connectorId: "webcal" | "rss" | "news-search" | "bookmarks";
+  connectorId: AtomConnectorId;
   operation: string;
   input?: Record<string, unknown>;
 }
@@ -57,20 +66,23 @@ export const ATOM_CONNECTOR_INVOKE_TOOL = {
     name: "atom_connector_invoke",
     description:
       "Read owner-specific data via Atom connectors. Use for calendar (webcal), subscribed RSS feeds, " +
-      "ephemeral news search (news-search), or saved bookmarks. Agent-led only — never triggered by shell keywords.",
+      "ephemeral news search (news-search), saved bookmarks, Todoist tasks, GitHub notifications/issues, " +
+      "or Notion search. Agent-led only — never triggered by shell keywords.",
     parameters: {
       type: "object",
       properties: {
         connectorId: {
           type: "string",
-          enum: ["webcal", "rss", "news-search", "bookmarks"],
+          enum: ["webcal", "rss", "news-search", "bookmarks", "todoist", "github", "notion"],
           description: "Connector id.",
         },
         operation: {
           type: "string",
           description:
             "Operation id. webcal: getStatus, listEvents. rss: getStatus, listItems. " +
-            "news-search: searchItems (requires input.query; optional input.limit). bookmarks: getStatus, listItems, readUrl.",
+            "news-search: searchItems (input.query). bookmarks: getStatus, listBookmarks, readBookmark. " +
+            "todoist: getStatus, listTasks (input.filter), listProjects. " +
+            "github: getStatus, listNotifications, listAssignedIssues. notion: getStatus, search (input.query).",
         },
         input: {
           type: "object",
@@ -144,7 +156,7 @@ export function formatToolsForPrompt(profile: AgentToolProfile): string {
   }
   if (profile.atom.includes("connector_invoke")) {
     lines.push(
-      "- **atom_connector_invoke** (Atom): owner calendar, RSS, **news-search** (topic headlines for briefings), bookmarks — call for fresh owner data",
+      "- **atom_connector_invoke** (Atom): owner calendar, RSS, **news-search**, bookmarks, **Todoist**, **GitHub**, **Notion** — call for fresh owner data",
     );
     lines.push(
       "  Prefer this tool over passive Calendar/RSS snapshots when answering schedule, feed, bookmark, or briefing-topic questions.",

@@ -166,6 +166,7 @@ import { CustodySecurityPanel } from "./custody/CustodySecurityPanel.js";
 import { WebCalSettingsPanel } from "./connectors/WebCalSettingsPanel.js";
 import { RssSettingsPanel } from "./connectors/RssSettingsPanel.js";
 import { McpSettingsPanel } from "./connectors/McpSettingsPanel.js";
+import { TokenConnectorsSettingsPanel } from "./connectors/TokenConnectorsSettingsPanel.js";
 import { BookmarksSettingsPanel } from "./connectors/BookmarksSettingsPanel.js";
 import {
   ConnectorModuleHost,
@@ -2927,6 +2928,7 @@ function SettingsDialog({
         )}
         <RssSettingsPanel vaultUnlocked={vaultUnlocked} embedded onFeedsChanged={onRssFeedsChanged} />
         <McpSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
+        <TokenConnectorsSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
         <BookmarksSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
       </>
     );

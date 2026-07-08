@@ -18,6 +18,15 @@ import { addRssFeedToVault, removeRssFeedFromVault, RSS_CONNECTOR_ID } from "./r
 
 import { addWebcalFeedToVault, removeWebcalFeedFromVault, WEBCAL_CONNECTOR_ID } from "./webcalConnector.js";
 
+import {
+  createTodoistTask,
+  TODOIST_CONNECTOR_ID,
+} from "./todoistConnector.js";
+
+import { GITHUB_CONNECTOR_ID } from "./githubConnector.js";
+
+import { NOTION_CONNECTOR_ID } from "./notionConnector.js";
+
 import { getConnectorBackend } from "./connectorRegistry.js";
 
 import { invalidateConnectorCache, invokeConnectorCached } from "./connectorInvoke.js";
@@ -37,6 +46,12 @@ export interface ConnectorAdminConfig {
 
 
 export { WEBCAL_CONNECTOR_ID, RSS_CONNECTOR_ID, BOOKMARKS_CONNECTOR_ID };
+
+export const TOKEN_CONNECTOR_IDS = new Set([
+  TODOIST_CONNECTOR_ID,
+  GITHUB_CONNECTOR_ID,
+  NOTION_CONNECTOR_ID,
+]);
 
 
 
@@ -450,6 +465,87 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
 
     res.json({ removed: true, bookmarkId });
 
+  });
+
+
+
+  adminApp.post("/connectors/:connectorId/token", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const connectorId = connectorIdParam(req);
+    if (!TOKEN_CONNECTOR_IDS.has(connectorId)) {
+      res.status(404).json({ error: `Connector "${connectorId}" does not accept vault tokens` });
+      return;
+    }
+    const body = req.body as { token?: string };
+    const token = body.token?.trim();
+    if (!token) {
+      res.status(400).json({ error: "token required" });
+      return;
+    }
+    try {
+      await config.vault.setApiToken(connectorId, token);
+      invalidateConnectorCache(connectorId);
+      res.json({ connectorId, configured: true });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+
+
+  adminApp.delete("/connectors/:connectorId/token", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const connectorId = connectorIdParam(req);
+    if (!TOKEN_CONNECTOR_IDS.has(connectorId)) {
+      res.status(404).json({ error: `Connector "${connectorId}" does not accept vault tokens` });
+      return;
+    }
+    await config.vault.clearApiToken(connectorId);
+    invalidateConnectorCache(connectorId);
+    res.json({ connectorId, removed: true });
+  });
+
+
+
+  adminApp.post("/connectors/todoist/tasks", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const body = req.body as { content?: string; projectId?: string; dueString?: string };
+    const content = body.content?.trim();
+    if (!content) {
+      res.status(400).json({ error: "content required" });
+      return;
+    }
+    try {
+      const task = await createTodoistTask(config.vault, {
+        content,
+        projectId: body.projectId,
+        dueString: body.dueString,
+      });
+      invalidateConnectorCache(TODOIST_CONNECTOR_ID);
+      res.json({ task });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const status = /not configured|required/i.test(message) ? 400 : 502;
+      res.status(status).json({ error: message });
+    }
   });
 
 }

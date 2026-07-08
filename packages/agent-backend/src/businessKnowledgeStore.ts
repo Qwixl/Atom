@@ -122,6 +122,7 @@ export class BusinessKnowledgeStore implements BusinessKnowledgeBackend {
   private chunks: KnowledgeChunk[] = [];
   private readonly filePath: string;
   private readonly embedder: TextEmbedder;
+  private persistQueue: Promise<void> = Promise.resolve();
 
   constructor(filePath: string, embedder: TextEmbedder = createTextEmbedder()) {
     this.filePath = filePath;
@@ -178,7 +179,7 @@ export class BusinessKnowledgeStore implements BusinessKnowledgeBackend {
     this.chunks = this.chunks.filter((chunk) => chunk.documentId !== id);
     this.chunks.push(...indexDocument(doc, this.embedder));
     warnIfCorpusLarge(this.documents.values());
-    void this.persist();
+    this.persist();
     return doc;
   }
 
@@ -195,7 +196,7 @@ export class BusinessKnowledgeStore implements BusinessKnowledgeBackend {
     const removed = this.documents.delete(documentId);
     if (!removed) return false;
     this.chunks = this.chunks.filter((chunk) => chunk.documentId !== documentId);
-    void this.persist();
+    this.persist();
     return true;
   }
 
@@ -214,7 +215,7 @@ export class BusinessKnowledgeStore implements BusinessKnowledgeBackend {
     }
     this.reindex();
     warnIfCorpusLarge(this.documents.values());
-    void this.persist();
+    this.persist();
   }
 
   retrieve(query: string, limit = 6): string[] {
@@ -236,12 +237,24 @@ export class BusinessKnowledgeStore implements BusinessKnowledgeBackend {
     this.chunks = [...this.documents.values()].flatMap((doc) => indexDocument(doc, this.embedder));
   }
 
-  private async persist(): Promise<void> {
-    const payload: KnowledgeFile = {
-      schemaVersion: SCHEMA_VERSION,
-      documents: this.list(),
-      chunks: this.chunks,
-    };
-    await atomicWriteJson(this.filePath, payload);
+  private persist(): void {
+    this.persistQueue = this.persistQueue
+      .then(async () => {
+        const payload: KnowledgeFile = {
+          schemaVersion: SCHEMA_VERSION,
+          documents: this.list(),
+          chunks: this.chunks,
+        };
+        await atomicWriteJson(this.filePath, payload);
+      })
+      .catch((error) => {
+        console.warn(
+          `[business-knowledge] persist failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+  }
+
+  async flush(): Promise<void> {
+    await this.persistQueue;
   }
 }
