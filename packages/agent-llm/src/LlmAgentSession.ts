@@ -20,6 +20,7 @@ import { buildSystemPrompt, type PromptProfile } from "./prompt.js";
 import { wrapUntrustedContent } from "./untrusted.js";
 import { callResponsesApi } from "./responsesApi.js";
 import { buildImageResultProtocol } from "./imageProtocol.js";
+import { formatLlmProviderError, isResponsesApiFallbackEligible } from "./llmProviderErrors.js";
 
 export interface LlmConfig {
   /** OpenAI-compatible base URL, e.g. "https://api.openai.com/v1". */
@@ -189,7 +190,7 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
     } catch (error) {
       this.emit({
         type: "text",
-        text: `I couldn't reach the model endpoint: ${error instanceof Error ? error.message : String(error)}`,
+        text: `I couldn't reach the model endpoint: ${formatLlmProviderError(error)}`,
       });
       return;
     }
@@ -269,7 +270,15 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
   private async callModel(): Promise<string> {
     this.messages[0] = { role: "system", content: this.currentSystemPrompt() };
     if (this.toolProfile.useResponsesApi) {
-      return this.callResponsesPath();
+      try {
+        return await this.callResponsesPath();
+      } catch (error) {
+        if (!isResponsesApiFallbackEligible(error)) throw error;
+        if (this.toolProfile.atom.includes("connector_invoke")) {
+          return this.callChatCompletionsToolLoop();
+        }
+        return this.callChatCompletionsPlain();
+      }
     }
     if (this.toolProfile.useAtomToolLoop) {
       return this.callChatCompletionsToolLoop();
