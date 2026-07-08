@@ -29,4 +29,16 @@ describe("buildSystemPrompt calendar guidance", () => {
     expect(prompt).toContain("Never use `scheduling/meeting-picker` to **read**");
     expect(prompt).toContain("Nothing on your calendar today");
   });
+
+  it("includes location guidance for weather defaults", () => {
+    const prompt = buildSystemPrompt(catalog, {
+      open: [],
+      guardedCategories: [],
+      locationContext:
+        "Home location (owner-declared): Berlin\nWeather default: call atom_connector_invoke weather getForecast",
+    });
+    expect(prompt).toContain("## Location (weather defaults)");
+    expect(prompt).toContain("Berlin");
+    expect(prompt).toContain("family/location-pin");
+  });
 });
