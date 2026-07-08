@@ -42,6 +42,7 @@ export function shouldCurateTranscript(
   );
 
   if (looksLikeLookup && !ownerSelfDisclosure) return false;
+  if (/^\[briefing-open\]/i.test(userText)) return false;
   return true;
 }
 
@@ -143,6 +144,7 @@ Rules:
   - constraint: safety-critical or non-negotiable (allergies, accessibility, religious dietary rules) — apply from first mention
   - preference: durable defaults (seat choice, airline, hotel tier) — may be rare-domain
   - taste: ephemeral situational (today's lunch, this trip's mood) — cheap to override, decays fast
+- briefing-topics: when the owner states ongoing news/subject interests for daily roundups (e.g. "keep me posted on AI regulation"), propose { "category": "briefing-topics", "label": "topic", "value": "<short topic label>" } — not for one-off news lookups.
 - Return JSON only:
 {
   "proposals": [{ "category", "label", "value", "guarded", "tier", "reason", "contextTags"? }],
