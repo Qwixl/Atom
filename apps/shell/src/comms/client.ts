@@ -890,6 +890,47 @@ export class CommsAgentClient {
     return postJson(this.base(), "/business/catalog/sync", { items }, this.auth, true);
   }
 
+  async getBusinessStoreStatus(): Promise<{
+    shopify?: { configured: boolean; configuredAt?: number };
+    woocommerce?: { configured: boolean; configuredAt?: number };
+  }> {
+    return getJson(this.base(), "/business/store/status", this.auth, true);
+  }
+
+  async saveShopifyStore(input: {
+    shop: string;
+    accessToken: string;
+    approvalRef?: string;
+  }): Promise<{ configured: boolean }> {
+    return postJson(this.base(), "/business/store/shopify", input, this.auth, true);
+  }
+
+  async saveWooCommerceStore(input: {
+    storeUrl: string;
+    consumerKey: string;
+    consumerSecret: string;
+    approvalRef?: string;
+  }): Promise<{ configured: boolean }> {
+    return postJson(this.base(), "/business/store/woocommerce", input, this.auth, true);
+  }
+
+  async importShopifyCatalog(input?: {
+    limit?: number;
+    syncKnowledge?: boolean;
+    approvalRef?: string;
+  }): Promise<{ importedCount: number; currency: string; catalog: unknown[] }> {
+    return postJson(this.base(), "/business/catalog/import/shopify", input ?? {}, this.auth, true);
+  }
+
+  async importWooCommerceCatalog(input?: {
+    limit?: number;
+    currency?: string;
+    syncKnowledge?: boolean;
+    approvalRef?: string;
+  }): Promise<{ importedCount: number; currency: string; catalog: unknown[] }> {
+    return postJson(this.base(), "/business/catalog/import/woocommerce", input ?? {}, this.auth, true);
+  }
+
   async syncBusinessContext(
     records: Array<{ category: "business-brand" | "business-policy"; label: string; value: string }>,
   ): Promise<{ brand: unknown[]; policy: unknown[] }> {

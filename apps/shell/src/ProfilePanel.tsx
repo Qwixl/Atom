@@ -17,6 +17,7 @@ import {
 } from "@qwixl/owner-store";
 import { CommsAgentClient } from "./comms/client.js";
 import { loadCommsAgentConfig } from "./comms/storage.js";
+import { BusinessCatalogImportPanel } from "./business/BusinessCatalogImportPanel.js";
 
 /**
  * Owner profile editor: the user-visible face of the owner store. Everything
@@ -519,6 +520,7 @@ export function ProfilePanel({
         <p className="panel-section-note">
           Sellable items for commerce flows. Sync after editing; catalog is separate from brand voice.
         </p>
+        <BusinessCatalogImportPanel />
         <div className="panel-form-grid shell-profile-add">
           <input
             className="panel-input"

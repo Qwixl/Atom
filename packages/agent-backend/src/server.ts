@@ -424,6 +424,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     knowledge: businessKnowledgeStore,
     store: businessStore,
     verification: verificationStore,
+    vault: connectorVault,
   });
   registerConnectorAdminRoutes(adminApp, {
     vault: connectorVault,
