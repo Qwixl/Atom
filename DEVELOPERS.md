@@ -54,8 +54,13 @@ External specs Atom tracks but does not fork effort on until a concrete integrat
 
 | Watch | Trigger | Atom seam |
 |---|---|---|
-| **A2UI v1 `actionResponse`** (F4-3) | v1.0 stable | Compare to shell `ui-event` loop; extend `@qwixl/a2ui-adapter` if delta is small |
-| **MCP Apps `ui://` resources** (F4-4) | Host requests adapter or spec reaches parity with module iframe lifecycle | Map to registry manifest + postMessage bridge |
+| **A2UI v1 `actionResponse`** (F4-3) | v1.0 **stable** (not only RC) **and** a host needs correlated replies | Map client `action` → shell `UiEvent` (`surfaceId`/`nodeId`/`name`/`payload`); optional `wantResponse`+`actionId` would need a response channel Atom does not have today (agent emits a new composition instead). Extend `@qwixl/a2ui-adapter` only for inbound envelopes first. |
+| **MCP Apps `ui://` resources** (F4-4 / F5-10) | Host requests adapter **or** Apps HTML lifecycle matches module iframe install+init | Map `ui://` + tool metadata to registry `manifest`/`bundleUrl`; keep sandboxed iframe + shell chrome. MCP Apps = vendor-host widgets; Atom modules = owner-shell catalog (D055) — do not chase ChatGPT inventory. |
+
+**Skim log (2026-07-08):**
+
+- [A2UI Protocol v1.0](https://a2ui.org/specification/v1.0-a2ui) is **Candidate** (updated Jun 2026). Server stream keys include `actionResponse` for `wantResponse: true` client actions. Production note on a2ui.org still points many hosts at **v0.9.1**. Adapter remains outbound/assembler-only — no code change this pass.
+- MCP Apps ([SEP-1865](https://modelcontextprotocol.io/seps/1865-mcp-apps-interactive-user-interfaces-for-mcp)): `ui://` HTML (`text/html;profile=mcp-app`) in sandboxed iframes; UI↔host over MCP JSON-RPC. Spec live as extension; Atom stance unchanged — interoperability adapter **on request**, not UI strategy.
 
 Quarterly: skim A2UI and MCP Apps release notes. Prototype adapters only when a shipping host needs them.
 
