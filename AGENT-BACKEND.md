@@ -221,6 +221,13 @@ Business agents need **two layers** of non-catalog context:
 | `sqlite` | **Shipped** (BK-D1) | Larger corpora on agent volume — `node:sqlite` chunked index + hybrid retrieval (`business-knowledge.sqlite`) |
 | `remote` | Planned | Customer-operated or Qwixl-operated knowledge service (`ATOM_BUSINESS_KNOWLEDGE_REMOTE_URL`) |
 
+**Embeddings** (`ATOM_EMBEDDER`):
+
+| Value | Behavior |
+|---|---|
+| `hash` (default) | On-device feature-hash vectors; sync index + retrieve |
+| `api` | Sync path keeps hash fallback for immediate writes; `reindexAsync` / `retrieveAsync` call OpenAI-compatible `/embeddings` (`ATOM_EMBEDDER_API_KEY` or `LLM_API_KEY`) |
+
 Hosted vs self-hosted agents both use the same backend package; only **where the index file lives** changes (your disk vs your container volume). A future hosted knowledge **service** would plug in as `remote` without changing shell sync or admin routes.
 
 | Route | Purpose |

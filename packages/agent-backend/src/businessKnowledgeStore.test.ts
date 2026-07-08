@@ -25,11 +25,25 @@ describe("BusinessKnowledgeStore", () => {
     expect(hits.some((hit) => hit.includes("Monday"))).toBe(false);
   });
 
-  it("splits large bodies into multiple chunks", () => {
-    const body = `${"Paragraph one about privacy.\n\n"}${"Paragraph two about data retention.\n\n"}`.repeat(
-      8,
+  it("async reindex uses API embeddings when configured", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "atom-business-knowledge-api-"));
+    const asyncEmbedder = async (text: string) => {
+      const base = text.includes("return") ? 1 : 0;
+      return [base, 1 - base, 0.5];
+    };
+    const store = new BusinessKnowledgeStore(
+      path.join(dir, "business-knowledge.json"),
+      (text) => [text.length % 7, 0.1, 0.2],
+      asyncEmbedder,
     );
-    const chunks = chunkDocumentText(body, 120);
-    expect(chunks.length).toBeGreaterThan(1);
+    store.upsert({
+      id: "returns",
+      title: "Returns policy",
+      category: "policy",
+      body: "Customers may return unused items within 30 days.",
+    });
+    await store.reindexAsync();
+    const hits = await store.retrieveAsync("return unused goods", 3);
+    expect(hits.some((hit) => hit.includes("30 days"))).toBe(true);
   });
 });

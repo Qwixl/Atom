@@ -36,6 +36,7 @@ export {
   cosineSimilarity,
   hybridRetrievalScore,
   type TextEmbedder,
+  type AsyncTextEmbedder,
 } from "./textEmbedding.js";
 export { buildProfileSummaryByCategory } from "./profileSummary.js";
 export {
@@ -74,8 +75,12 @@ export {
   parseEmbedderBackendKind,
   type EmbedderBackendKind,
 } from "./v1Scope.js";
-export { createTextEmbedder } from "./createTextEmbedder.js";
-export { createApiTextEmbedder, embedTextAsync } from "./apiTextEmbedding.js";
+export { createTextEmbedder, createOptionalAsyncTextEmbedder } from "./createTextEmbedder.js";
+export {
+  createApiTextEmbedder,
+  createAsyncTextEmbedder,
+  embedTextAsync,
+} from "./apiTextEmbedding.js";
 export type { ApiTextEmbeddingOptions } from "./apiTextEmbedding.js";
 export { matchCatalogForIntent, type CatalogIntentMatchInput, type CatalogMatchResult } from "./matchCatalogIntent.js";
 export { activeContextTags } from "./evidenceHelpers.js";

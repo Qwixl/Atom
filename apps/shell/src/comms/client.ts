@@ -1254,6 +1254,64 @@ export class CommsAgentClient {
   }> {
     return getJson(this.base(), `/rooms/${encodeURIComponent(roomId)}/stats`, this.auth, true);
   }
+
+  async billingStatus(): Promise<{
+    betaFree: boolean;
+    platformFeeBps: number;
+    stripeConfigured: boolean;
+    connectOnboarding?: string;
+  }> {
+    return getJson(this.base(), "/billing/status", this.auth, true);
+  }
+
+  async getSpendPolicy(workspaceId: string): Promise<{
+    policy: {
+      workspaceId: string;
+      currency: string;
+      monthlyBudgetMinor: number;
+      perTransactionCeilingMinor: number;
+      chromeApprovalThresholdMinor: number;
+      allowedCategories: string[];
+      updatedAt: string;
+    };
+  }> {
+    return getJson(this.base(), `/billing/spend-policy/${encodeURIComponent(workspaceId)}`, this.auth, true);
+  }
+
+  async saveSpendPolicy(policy: {
+    workspaceId: string;
+    currency?: string;
+    monthlyBudgetMinor?: number;
+    perTransactionCeilingMinor?: number;
+    chromeApprovalThresholdMinor?: number;
+    allowedCategories?: string[];
+  }): Promise<{
+    policy: {
+      workspaceId: string;
+      currency: string;
+      monthlyBudgetMinor: number;
+      perTransactionCeilingMinor: number;
+      chromeApprovalThresholdMinor: number;
+      allowedCategories: string[];
+      updatedAt: string;
+    };
+  }> {
+    return postJson(this.base(), "/billing/spend-policy", policy, this.auth, true);
+  }
+
+  async billingLedger(workspaceId: string): Promise<{
+    entries: Array<{
+      id: string;
+      workspaceId: string;
+      category: string;
+      amountMinor: number;
+      currency: string;
+      description: string;
+      recordedAt: string;
+    }>;
+  }> {
+    return getJson(this.base(), `/billing/ledger/${encodeURIComponent(workspaceId)}`, this.auth, true);
+  }
 }
 
 export type { VerifiedContactInvite };

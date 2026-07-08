@@ -1,7 +1,9 @@
 import {
+  createOptionalAsyncTextEmbedder,
   createTextEmbedder,
   hybridRetrievalScore,
   scoreTokenOverlap,
+  type AsyncTextEmbedder,
   type TextEmbedder,
 } from "@qwixl/owner-store";
 import { atomicWriteJson, readJsonFile } from "@qwixl/owner-store/file-persistence";
@@ -83,6 +85,26 @@ function indexDocument(
   }));
 }
 
+async function indexDocumentAsync(
+  doc: BusinessKnowledgeDocument,
+  asyncEmbedder: AsyncTextEmbedder,
+): Promise<KnowledgeChunk[]> {
+  const parts = chunkDocumentText(doc.body);
+  const chunks: KnowledgeChunk[] = [];
+  for (let index = 0; index < parts.length; index += 1) {
+    const text = parts[index]!;
+    chunks.push({
+      id: `${doc.id}:${index}`,
+      documentId: doc.id,
+      title: doc.title,
+      category: doc.category,
+      text,
+      embedding: await asyncEmbedder(text),
+    });
+  }
+  return chunks;
+}
+
 function parseCategory(value: unknown): BusinessKnowledgeCategory {
   if (
     value === "policy" ||
@@ -122,11 +144,18 @@ export class BusinessKnowledgeStore implements BusinessKnowledgeBackend {
   private chunks: KnowledgeChunk[] = [];
   private readonly filePath: string;
   private readonly embedder: TextEmbedder;
+  private readonly asyncEmbedder: AsyncTextEmbedder | null;
   private persistQueue: Promise<void> = Promise.resolve();
+  private reindexQueue: Promise<void> = Promise.resolve();
 
-  constructor(filePath: string, embedder: TextEmbedder = createTextEmbedder()) {
+  constructor(
+    filePath: string,
+    embedder: TextEmbedder = createTextEmbedder(),
+    asyncEmbedder: AsyncTextEmbedder | null = createOptionalAsyncTextEmbedder(),
+  ) {
     this.filePath = filePath;
     this.embedder = embedder;
+    this.asyncEmbedder = asyncEmbedder;
   }
 
   async load(): Promise<void> {
@@ -146,6 +175,7 @@ export class BusinessKnowledgeStore implements BusinessKnowledgeBackend {
     this.chunks = Array.isArray(file.chunks) ? file.chunks : [];
     if (this.chunks.length === 0 && this.documents.size > 0) {
       this.reindex();
+      this.scheduleAsyncReindex();
     }
     warnIfCorpusLarge(this.documents.values());
   }
@@ -180,6 +210,7 @@ export class BusinessKnowledgeStore implements BusinessKnowledgeBackend {
     this.chunks.push(...indexDocument(doc, this.embedder));
     warnIfCorpusLarge(this.documents.values());
     this.persist();
+    this.scheduleAsyncReindex();
     return doc;
   }
 
@@ -216,6 +247,7 @@ export class BusinessKnowledgeStore implements BusinessKnowledgeBackend {
     this.reindex();
     warnIfCorpusLarge(this.documents.values());
     this.persist();
+    this.scheduleAsyncReindex();
   }
 
   retrieve(query: string, limit = 6): string[] {
@@ -231,6 +263,48 @@ export class BusinessKnowledgeStore implements BusinessKnowledgeBackend {
       .sort((a, b) => b.score - a.score || a.chunk.id.localeCompare(b.chunk.id))
       .slice(0, limit)
       .map((entry) => `[${entry.chunk.category}] ${entry.chunk.title}: ${entry.chunk.text}`);
+  }
+
+  async retrieveAsync(query: string, limit = 6): Promise<string[]> {
+    const trimmed = query.trim();
+    if (!trimmed || this.chunks.length === 0) return [];
+    await this.reindexQueue;
+    const queryEmbedding = this.asyncEmbedder
+      ? await this.asyncEmbedder(trimmed)
+      : this.embedder(trimmed);
+    return this.chunks
+      .map((chunk) => {
+        const lexical = scoreTokenOverlap(trimmed, chunk.text);
+        const score = hybridRetrievalScore(lexical, queryEmbedding, chunk.embedding);
+        return { chunk, score };
+      })
+      .filter((entry) => entry.score >= MIN_RETRIEVAL_SCORE)
+      .sort((a, b) => b.score - a.score || a.chunk.id.localeCompare(b.chunk.id))
+      .slice(0, limit)
+      .map((entry) => `[${entry.chunk.category}] ${entry.chunk.title}: ${entry.chunk.text}`);
+  }
+
+  async reindexAsync(): Promise<void> {
+    if (!this.asyncEmbedder) return;
+    const docs = [...this.documents.values()];
+    const next: KnowledgeChunk[] = [];
+    for (const doc of docs) {
+      next.push(...(await indexDocumentAsync(doc, this.asyncEmbedder)));
+    }
+    this.chunks = next;
+    this.persist();
+    await this.flush();
+  }
+
+  private scheduleAsyncReindex(): void {
+    if (!this.asyncEmbedder) return;
+    this.reindexQueue = this.reindexQueue
+      .then(() => this.reindexAsync())
+      .catch((error) => {
+        console.warn(
+          `[business-knowledge] async reindex failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
   }
 
   private reindex(): void {

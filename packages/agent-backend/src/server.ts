@@ -626,7 +626,11 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
           break;
         }
       }
-      const knowledgeSnippets = query ? businessKnowledgeStore.retrieve(query) : [];
+      const knowledgeSnippets = query
+        ? businessKnowledgeStore.retrieveAsync
+          ? await businessKnowledgeStore.retrieveAsync(query)
+          : businessKnowledgeStore.retrieve(query)
+        : [];
       serverBusinessContext = formatBusinessAgentPrompt({
         catalog: config.businessMode ? catalogStore.list() : [],
         brandLines,

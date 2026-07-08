@@ -1,6 +1,6 @@
-import { hashEmbedText, type TextEmbedder } from "./textEmbedding.js";
+import { hashEmbedText, type AsyncTextEmbedder, type TextEmbedder } from "./textEmbedding.js";
 import { parseEmbedderBackendKind } from "./v1Scope.js";
-import { createApiTextEmbedder } from "./apiTextEmbedding.js";
+import { createApiTextEmbedder, createAsyncTextEmbedder } from "./apiTextEmbedding.js";
 
 export interface CreateTextEmbedderOptions {
   kind?: import("./v1Scope.js").EmbedderBackendKind;
@@ -20,4 +20,16 @@ export function createTextEmbedder(options: CreateTextEmbedderOptions = {}): Tex
     default:
       return hashEmbedText;
   }
+}
+
+/**
+ * Optional async embedder when `ATOM_EMBEDDER=api`. Returns null for hash (sync-only).
+ * Business knowledge uses this for semantic reindex after upsert/load.
+ */
+export function createOptionalAsyncTextEmbedder(
+  options: CreateTextEmbedderOptions = {},
+): AsyncTextEmbedder | null {
+  const kind = options.kind ?? parseEmbedderBackendKind(process.env.ATOM_EMBEDDER);
+  if (kind !== "api") return null;
+  return createAsyncTextEmbedder();
 }
