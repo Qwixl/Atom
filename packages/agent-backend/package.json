@@ -48,6 +48,7 @@
     "@simplewebauthn/server": "^13.1.1",
     "@qwixl/ag-ui-adapter": "workspace:*",
     "@qwixl/agent-llm": "workspace:*",
+    "@qwixl/mcp-client": "workspace:*",
     "@qwixl/mls-session": "workspace:*",
     "@qwixl/owner-store": "workspace:*",
     "@qwixl/protocol": "workspace:*",

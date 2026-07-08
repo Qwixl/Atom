@@ -605,6 +605,79 @@ export class CommsAgentClient {
     );
   }
 
+  async listMcpServers(): Promise<{
+    servers: Array<{
+      id: string;
+      label: string;
+      command: string;
+      args: string[];
+      cwd?: string;
+      allowedTools: string[];
+      enabled: boolean;
+      addedAt: number;
+    }>;
+  }> {
+    return getJson(this.base(), "/mcp/servers", this.auth);
+  }
+
+  async addMcpServer(input: {
+    label: string;
+    command: string;
+    args?: string[] | string;
+    cwd?: string;
+    allowedTools?: string[];
+    approvalRef?: string;
+  }): Promise<{ server: { id: string; label: string } }> {
+    return postJson(this.base(), "/mcp/servers", input, this.auth, true);
+  }
+
+  async removeMcpServer(serverId: string, approvalRef?: string): Promise<{ ok: boolean }> {
+    const query = approvalRef?.trim() ? `?approvalRef=${encodeURIComponent(approvalRef.trim())}` : "";
+    const headers: Record<string, string> = {};
+    const token = this.bearer(true);
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const resp = await fetch(`${this.base()}/mcp/servers/${encodeURIComponent(serverId)}${query}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (!resp.ok) {
+      const err = (await resp.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? `Request failed (${resp.status})`);
+    }
+    return resp.json() as Promise<{ ok: boolean }>;
+  }
+
+  async listMcpTools(serverId: string): Promise<{ serverId: string; tools: Array<{ name: string; description?: string }> }> {
+    return getJson(this.base(), `/mcp/servers/${encodeURIComponent(serverId)}/tools`, this.auth);
+  }
+
+  async invokeMcpTool(
+    serverId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<{ serverId: string; toolName: string; result: unknown }> {
+    return postJson(
+      this.base(),
+      `/mcp/servers/${encodeURIComponent(serverId)}/tools/call`,
+      { toolName, arguments: args },
+      this.auth,
+    );
+  }
+
+  async setMcpAllowedTools(
+    serverId: string,
+    allowedTools: string[],
+    approvalRef?: string,
+  ): Promise<{ server: { id: string; allowedTools: string[] } | null }> {
+    return postJson(
+      this.base(),
+      `/mcp/servers/${encodeURIComponent(serverId)}/allowed-tools`,
+      { allowedTools, approvalRef },
+      this.auth,
+      true,
+    );
+  }
+
   async addWebcalFeed(url: string, label?: string, approvalRef?: string): Promise<{ feed: { id: string; label: string } }> {
     return postJson(this.base(), "/connectors/webcal/feeds", { url, label, approvalRef }, this.auth, true);
   }
