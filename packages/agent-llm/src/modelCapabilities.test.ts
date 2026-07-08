@@ -44,6 +44,12 @@ describe("modelCapabilities", () => {
     expect(profile.nativeTools).toEqual([]);
     expect(profile.responsesApi).toBe(false);
   });
+
+  it("wires image_generation for gpt-image models", () => {
+    const profile = inferModelCapabilities("https://api.openai.com/v1", "gpt-image-2");
+    expect(profile.providerHostedTools).toEqual(["image_generation"]);
+    expect(profile.responsesApi).toBe(true);
+  });
 });
 
 describe("agentTools", () => {
