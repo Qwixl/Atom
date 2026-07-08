@@ -35,6 +35,8 @@ import { registerDiscoverAdminRoutes, registerDiscoverPublicRoutes } from "./dis
 import { registerContactsAdminRoutes } from "./contactsAdmin.js";
 import { TrustedAgentsStore } from "./trustedAgentsStore.js";
 import { HandleCacheStore } from "./handleCache.js";
+import { BudgetLedgerStore } from "./budgetLedger.js";
+import { evaluateSpend, registerBillingAdminRoutes } from "./billingAdmin.js";
 import { connectMlsPeer, reconnectStoredMlsPeers } from "./mlsReconnect.js";
 import { registerActionAdminRoutes } from "./actionAdmin.js";
 import { registerConnectorAdminRoutes } from "./connectorAdmin.js";
@@ -107,6 +109,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   await peerRecords.load();
   const rooms = new RoomStore();
   const handleCache = new HandleCacheStore();
+  const budgetLedger = new BudgetLedgerStore();
   await rooms.load();
   const trustedAgents = new TrustedAgentsStore();
   await trustedAgents.load();
@@ -410,11 +413,38 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     stripeProductId: config.stripeProductId,
     paymentRail: options.paymentRail,
   });
+  registerBillingAdminRoutes(adminApp, {
+    budgetLedger,
+    stripeSecretKey: config.stripeSecretKey,
+    platformFeeBps: 0,
+  });
   registerTransactionAdminRoutes(adminApp, {
     stripeSecretKey: config.stripeSecretKey,
     stripeProductId: config.stripeProductId,
     paymentRail: options.paymentRail,
     store: transactionStore,
+    workspaceId: process.env.ATOM_WORKSPACE_ID?.trim() || "personal",
+    applicationFeeMinor: 0,
+    connectAccountId: process.env.ATOM_STRIPE_CONNECT_ACCOUNT_ID?.trim() || null,
+    evaluateCommerceSpend: ({ amountMinor, currency }) =>
+      evaluateSpend(
+        { budgetLedger, stripeSecretKey: config.stripeSecretKey, platformFeeBps: 0 },
+        {
+          workspaceId: process.env.ATOM_WORKSPACE_ID?.trim() || "personal",
+          category: "commerce",
+          amountMinor,
+          currency,
+        },
+      ),
+    recordCommerceSpend: ({ amountMinor, currency, description }) => {
+      budgetLedger.append({
+        workspaceId: process.env.ATOM_WORKSPACE_ID?.trim() || "personal",
+        category: "commerce",
+        amountMinor,
+        currency,
+        description,
+      });
+    },
   });
   registerQualifyAdminRoutes(adminApp, { store: qualifyStore });
   registerChannelAdminRoutes(adminApp, { store: channelStore });
@@ -603,6 +633,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
         knowledgeSnippets,
       });
     }
+    const { recordLlmInferenceSpend } = await import("./llmSpendMeter.js");
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
@@ -611,6 +642,13 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
         ? {
             ...llmConfig,
             businessContext: serverBusinessContext?.trim() || undefined,
+            onUsage: ({ promptTokens, completionTokens, model }) => {
+              recordLlmInferenceSpend(budgetLedger, {
+                promptTokens,
+                completionTokens,
+                model,
+              });
+            },
           }
         : undefined,
     });

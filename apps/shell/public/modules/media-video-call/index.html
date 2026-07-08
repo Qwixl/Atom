@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Video call</title>
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body {
+      margin: 0;
+      padding: 12px;
+      background: var(--atom-color-bg, #111);
+      color: var(--atom-color-text, #eee);
+    }
+    video {
+      width: 100%;
+      max-height: 240px;
+      background: #000;
+      border-radius: 6px;
+    }
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 8px 12px;
+      border: 1px solid var(--atom-color-border, #444);
+      background: var(--atom-color-surface, #222);
+      color: inherit;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .status {
+      font-size: 0.85rem;
+      color: var(--atom-color-text-dim, #aaa);
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <video id="local" autoplay playsinline muted></video>
+  <video id="remote" autoplay playsinline></video>
+  <div class="controls">
+    <button type="button" id="start">Start call</button>
+    <button type="button" id="hangup">Hang up</button>
+  </div>
+  <p class="status" id="status">Waiting for signaling (A2A Messages).</p>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const stun = params.get("stun") || "stun:stun.l.google.com:19302";
+    const statusEl = document.getElementById("status");
+    const localVideo = document.getElementById("local");
+    const remoteVideo = document.getElementById("remote");
+    let pc = null;
+    let localStream = null;
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+      parent.postMessage({ type: "atom-module-event", name: "statusChanged", payload: { text } }, "*");
+    }
+
+    async function startCall() {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
+      pc = new RTCPeerConnection({ iceServers: [{ urls: stun }] });
+      localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
+      pc.ontrack = (event) => {
+        remoteVideo.srcObject = event.streams[0];
+      };
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          parent.postMessage({
+            type: "atom-module-event",
+            name: "iceCandidate",
+            payload: { candidate: event.candidate },
+          }, "*");
+        }
+      };
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      setStatus("Offer created — send via Messages signaling");
+      parent.postMessage({
+        type: "atom-module-event",
+        name: "offerCreated",
+        payload: { sdp: offer },
+      }, "*");
+    }
+
+    function hangup() {
+      if (pc) pc.close();
+      pc = null;
+      if (localStream) localStream.getTracks().forEach((t) => t.stop());
+      localStream = null;
+      localVideo.srcObject = null;
+      remoteVideo.srcObject = null;
+      setStatus("Call ended");
+      parent.postMessage({ type: "atom-module-event", name: "callEnded", payload: {} }, "*");
+    }
+
+    document.getElementById("start").addEventListener("click", () => void startCall().catch((e) => setStatus(String(e))));
+    document.getElementById("hangup").addEventListener("click", hangup);
+
+    window.addEventListener("message", async (event) => {
+      const data = event.data;
+      if (!data || data.type !== "atom-module-command") return;
+      if (data.name === "applyAnswer" && pc && data.payload?.sdp) {
+        await pc.setRemoteDescription(data.payload.sdp);
+        setStatus("Remote answer applied");
+      }
+      if (data.name === "applyIce" && pc && data.payload?.candidate) {
+        await pc.addIceCandidate(data.payload.candidate);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -58,6 +58,12 @@ export class StripePaymentRail implements PaymentRail {
       "automatic_payment_methods[enabled]": false,
     };
     if (request.customerId) params.customer = request.customerId;
+    if (request.connectAccountId) {
+      params["transfer_data[destination]"] = request.connectAccountId;
+    }
+    if (request.applicationFeeMinor && request.applicationFeeMinor > 0) {
+      params.application_fee_amount = request.applicationFeeMinor;
+    }
 
     const metadata: Record<string, string> = {
       transaction_id: request.transactionId,

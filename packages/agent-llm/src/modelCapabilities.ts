@@ -10,7 +10,7 @@ export type NativeToolId =
   | "realtime"
   | "audio";
 
-export type ProviderKind = "openai" | "openai-compatible" | "ollama" | "unknown";
+export type ProviderKind = "openai" | "openai-compatible" | "anthropic" | "ollama" | "unknown";
 
 export type ModelFamily =
   | "chat"
@@ -63,11 +63,13 @@ export function inferProviderKind(baseUrl: string): ProviderKind {
   try {
     const host = new URL(normalized.startsWith("http") ? normalized : `https://${normalized}`).hostname;
     if (OPENAI_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return "openai";
+    if (host === "api.anthropic.com" || host.endsWith(".anthropic.com")) return "anthropic";
     if (host === "localhost" || host === "127.0.0.1" || host.includes("ollama")) return "ollama";
   } catch {
     /* fall through */
   }
   if (normalized.includes("ollama")) return "ollama";
+  if (normalized.includes("anthropic")) return "anthropic";
   return "openai-compatible";
 }
 

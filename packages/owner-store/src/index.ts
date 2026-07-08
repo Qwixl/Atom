@@ -75,6 +75,8 @@ export {
   type EmbedderBackendKind,
 } from "./v1Scope.js";
 export { createTextEmbedder } from "./createTextEmbedder.js";
+export { createApiTextEmbedder, embedTextAsync } from "./apiTextEmbedding.js";
+export type { ApiTextEmbeddingOptions } from "./apiTextEmbedding.js";
 export { matchCatalogForIntent, type CatalogIntentMatchInput, type CatalogMatchResult } from "./matchCatalogIntent.js";
 export { activeContextTags } from "./evidenceHelpers.js";
 export { recordUiPreferenceFeedback } from "./uiEvidence.js";

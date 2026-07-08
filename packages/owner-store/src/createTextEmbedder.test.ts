@@ -7,7 +7,17 @@ describe("createTextEmbedder", () => {
     expect(embed("hello world").length).toBeGreaterThan(10);
   });
 
-  it("rejects api embedder until implemented", () => {
-    expect(() => createTextEmbedder({ kind: "api" })).toThrow(/not implemented yet/i);
+  it("api embedder requires API key", () => {
+    const prior = process.env.LLM_API_KEY;
+    delete process.env.LLM_API_KEY;
+    delete process.env.ATOM_EMBEDDER_API_KEY;
+    expect(() => createTextEmbedder({ kind: "api" })).toThrow(/requires ATOM_EMBEDDER_API_KEY/i);
+    if (prior) process.env.LLM_API_KEY = prior;
+  });
+
+  it("api embedder returns hash fallback vectors when key is set", () => {
+    process.env.LLM_API_KEY = "test-key";
+    const embed = createTextEmbedder({ kind: "api" });
+    expect(embed("hello world").length).toBeGreaterThan(10);
   });
 });

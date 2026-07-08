@@ -283,11 +283,13 @@ export function registerAccountRoutes(
     const user = await requireUser(req, res);
     if (!user) return;
 
-    const llmKey = (req.body as { llmApiKey?: string }).llmApiKey?.trim();
+    const body = req.body as { llmApiKey?: string; llmProvider?: string };
+    const llmKey = body.llmApiKey?.trim();
     if (!llmKey) {
       res.status(400).json({ error: "LLM API key is required" });
       return;
     }
+    const provider = body.llmProvider?.trim() || "openai";
 
     try {
       const hosted = await loadHostedAgent(user.id);
@@ -299,7 +301,7 @@ export function registerAccountRoutes(
       const { error: llmError } = await supabaseAdmin().from("user_llm_settings").upsert(
         {
           user_id: user.id,
-          provider: "openai",
+          provider,
           api_key: llmKey,
         },
         { onConflict: "user_id" },

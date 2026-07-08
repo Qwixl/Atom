@@ -220,6 +220,30 @@ export const ECOSYSTEM_MODULE_MANIFESTS: ModuleManifest[] = [
     categories: ["commerce"],
     tier: "system",
   },
+  {
+    id: "media/video-call",
+    version: "1.0.0",
+    publisher: "did:key:z6Mkatomexamples01",
+    targets: ["web"],
+    bundleUrl: "/modules/media-video-call/index.html",
+    components: [
+      {
+        name: "media/video-call",
+        semanticRole: "display/video-call",
+        events: [
+          { name: "offerCreated" },
+          { name: "iceCandidate" },
+          { name: "callEnded" },
+          { name: "statusChanged" },
+        ],
+        agentHint:
+          "1:1 WebRTC video call between owners. Signaling via A2A Messages (offer/answer/ICE). Props: { peerLabel?, stunUrl? }. Use when the owner wants a video call with a contact.",
+      },
+    ],
+    capabilities: [],
+    categories: ["media", "video"],
+    tier: "system",
+  },
 ];
 
 export function registerEcosystemModules(catalog: Catalog): void {

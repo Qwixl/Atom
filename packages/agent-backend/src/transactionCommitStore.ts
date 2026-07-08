@@ -147,6 +147,8 @@ export class TransactionCommitStore {
     label?: string;
     subjectId?: string;
     encrypt?: boolean;
+    applicationFeeMinor?: number;
+    connectAccountId?: string;
   }): Promise<TransactionCommitRecord> {
     await this.sweepExpired();
     if (this.records.has(params.transactionId)) {
@@ -159,6 +161,8 @@ export class TransactionCommitStore {
       amount: params.amount,
       paymentMethodId: params.paymentMethodId,
       idempotencyKey: `hold-${params.transactionId}`,
+      applicationFeeMinor: params.applicationFeeMinor,
+      connectAccountId: params.connectAccountId,
     });
 
     const holdObject = await createActionHold({

@@ -28,6 +28,13 @@ import { callResponsesApi } from "./responsesApi.js";
 import { buildImageResultProtocol } from "./imageProtocol.js";
 import { formatLlmProviderError, isResponsesApiFallbackEligible } from "./llmProviderErrors.js";
 import { coalesceTurnMessages } from "./coalesceTurnMessages.js";
+import {
+  callAnthropicMessages,
+  openAiToolsToAnthropic,
+  parseAnthropicResponse,
+  splitAnthropicMessages,
+  usesAnthropicApi,
+} from "./anthropicMessages.js";
 
 export interface LlmConfig {
   /** OpenAI-compatible base URL, e.g. "https://api.openai.com/v1". */
@@ -74,6 +81,7 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
   private catalog: Catalog;
   private profileProvider?: () => PromptProfile;
   private toolProfile: AgentToolProfile;
+  private capabilities: ModelCapabilityProfile;
   private atomToolExecutor?: AtomToolExecutor;
   private mcpToolExecutor?: McpToolExecutor;
   private inFlight = false;
@@ -104,6 +112,7 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
       baseUrl: config.baseUrl,
       model: config.model,
     });
+    this.capabilities = capabilities;
     this.toolProfile = buildAgentToolProfile(capabilities, {
       atomConnectorsAvailable: Boolean(
         options?.atomConnectorsAvailable && options?.atomToolExecutor,
@@ -285,6 +294,12 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
 
   private async callModel(): Promise<string> {
     this.messages[0] = { role: "system", content: this.currentSystemPrompt() };
+    if (usesAnthropicApi(this.capabilities, this.config.baseUrl)) {
+      if (this.toolProfile.useAtomToolLoop) {
+        return this.callAnthropicToolLoop();
+      }
+      return this.callAnthropicPlain();
+    }
     if (this.toolProfile.useResponsesApi) {
       try {
         return await this.callResponsesPath();
@@ -317,6 +332,96 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
       "Content-Type": "application/json",
       Authorization: `Bearer ${this.config.apiKey}`,
     };
+  }
+
+  private async callAnthropicPlain(): Promise<string> {
+    const signal = this.beginRequest();
+    const timeout = setTimeout(() => this.abortController?.abort(), LlmAgentSession.REQUEST_TIMEOUT_MS);
+    try {
+      const { system, messages } = splitAnthropicMessages(this.messages);
+      const data = await callAnthropicMessages({
+        baseUrl: this.config.baseUrl,
+        apiKey: this.config.apiKey,
+        model: this.config.model,
+        system,
+        messages,
+        temperature: this.config.temperature ?? 0.4,
+        signal,
+      });
+      const { text, toolCalls } = parseAnthropicResponse(data);
+      if (toolCalls.length) {
+        throw new Error("Anthropic returned tool calls without tool loop configured");
+      }
+      if (!text.trim()) throw new Error("Anthropic returned no text");
+      return text;
+    } catch (error) {
+      if (signal.aborted) {
+        throw new Error(
+          this.disposed
+            ? "request cancelled"
+            : `request timed out after ${LlmAgentSession.REQUEST_TIMEOUT_MS / 1000}s`,
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async callAnthropicToolLoop(): Promise<string> {
+    const signal = this.beginRequest();
+    const timeout = setTimeout(() => this.abortController?.abort(), LlmAgentSession.REQUEST_TIMEOUT_MS);
+    const tools = openAiToolsToAnthropic(chatCompletionTools(this.toolProfile));
+    try {
+      for (let round = 0; round < LlmAgentSession.MAX_TOOL_ROUNDS; round += 1) {
+        const { system, messages } = splitAnthropicMessages(this.messages);
+        const data = await callAnthropicMessages({
+          baseUrl: this.config.baseUrl,
+          apiKey: this.config.apiKey,
+          model: this.config.model,
+          system,
+          messages,
+          tools: tools.length ? tools : undefined,
+          temperature: this.config.temperature ?? 0.4,
+          signal,
+        });
+        const { text, toolCalls } = parseAnthropicResponse(data);
+        if (toolCalls.length) {
+          this.messages.push({
+            role: "assistant",
+            content: text || null,
+            tool_calls: toolCalls.map((call) => ({
+              id: call.id,
+              type: "function" as const,
+              function: { name: call.name, arguments: call.arguments },
+            })),
+          });
+          for (const call of toolCalls) {
+            const output = await this.executeNamedTool(call.name, call.arguments);
+            this.messages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              content: output,
+            });
+          }
+          continue;
+        }
+        if (!text.trim()) throw new Error("Anthropic returned empty content after tool loop");
+        return text;
+      }
+      throw new Error("Anthropic tool loop exceeded maximum rounds");
+    } catch (error) {
+      if (signal.aborted) {
+        throw new Error(
+          this.disposed
+            ? "request cancelled"
+            : `request timed out after ${LlmAgentSession.REQUEST_TIMEOUT_MS / 1000}s`,
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   private async callChatCompletionsPlain(): Promise<string> {

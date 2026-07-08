@@ -2,6 +2,7 @@ import type { BusinessIndexEntry } from "@qwixl/business-index";
 import type { AgentBackendConfig } from "./config.js";
 import { COFFEE_SHOP_ROOM_ID } from "./communityCoffeeShop.js";
 import { HandleCacheStore, verifyCachedHandle } from "./handleCache.js";
+import { fetchHandleIndex, lookupHandleIndex } from "./handleIndex.js";
 import type { RoomStore } from "./roomStore.js";
 import { adminBaseFromPeerUrl } from "./mlsSessions.js";
 
@@ -204,6 +205,24 @@ async function resolveViaIndexUrl(agentCardUrl: string): Promise<ResolvedDiscove
   }
 }
 
+async function resolveViaHandleIndex(handle: string): Promise<ResolvedDiscoverTarget | null> {
+  const indexUrl =
+    process.env.ATOM_HANDLES_INDEX_URL?.trim() ||
+    `${process.env.ATOM_PUBLIC_BASE_URL?.replace(/\/$/, "") || ""}/registry/handles.json`;
+  if (!indexUrl.startsWith("http")) return null;
+  const doc = await fetchHandleIndex(indexUrl);
+  if (!doc) return null;
+  const hit = lookupHandleIndex(doc, handle);
+  if (!hit?.adminBase?.trim() || !hit.agentDid?.trim()) return null;
+  const adminBase = hit.adminBase.replace(/\/$/, "");
+  return {
+    adminBase,
+    agentCardUrl: hit.agentCardUrl?.trim() || `${adminBase}/.well-known/agent-card.json`,
+    did: hit.agentDid,
+    resolvedVia: "index-url",
+  };
+}
+
 export async function resolveDiscoverEntry(opts: {
   entry: BusinessIndexEntry;
   localCapabilities: AgentCapabilities;
@@ -216,6 +235,14 @@ export async function resolveDiscoverEntry(opts: {
     if (cached) {
       const verified = await verifyCachedHandle(cached);
       if (verified) return verified;
+    }
+  }
+
+  if (entry.handle?.trim()) {
+    const fromHandleIndex = await resolveViaHandleIndex(entry.handle);
+    if (fromHandleIndex) {
+      if (handleCache) handleCache.set(entry.handle, fromHandleIndex, entry.businessDomain);
+      return fromHandleIndex;
     }
   }
 

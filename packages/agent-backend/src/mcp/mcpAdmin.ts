@@ -4,6 +4,8 @@ import { hasSessionScope, isAdminAuth, type AuthenticatedRequest } from "../admi
 import type { McpRuntime } from "./mcpRuntime.js";
 import type { McpServersStore } from "./mcpServersStore.js";
 import { toMcpServerPublicView, type StoredMcpServer } from "./types.js";
+import { mcpAppsToolToRegistryRef, type McpAppsToolDescriptor } from "../mcpAppsAdapter.js";
+import type { McpToolDescriptor } from "@qwixl/mcp-client";
 
 export interface McpAdminConfig {
   store: McpServersStore;
@@ -151,7 +153,21 @@ export function registerMcpAdminRoutes(adminApp: Express, config: McpAdminConfig
     }
     try {
       const tools = await runtime.listTools(server);
-      res.json({ serverId: server.id, tools });
+      const withUiHints = tools.map((tool) => {
+        const meta = tool as McpToolDescriptor & {
+          _meta?: { ui?: McpAppsToolDescriptor["ui"] };
+          annotations?: { ui?: McpAppsToolDescriptor["ui"] };
+        };
+        const ui = meta._meta?.ui ?? meta.annotations?.ui;
+        const descriptor: McpAppsToolDescriptor = {
+          name: tool.name,
+          description: tool.description,
+          ui,
+        };
+        const registryRef = mcpAppsToolToRegistryRef(descriptor);
+        return registryRef ? { ...tool, atomModule: registryRef } : tool;
+      });
+      res.json({ serverId: server.id, tools: withUiHints });
     } catch (error) {
       res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
     }

@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-08T20:45:16.836Z",
+  "updatedAt": "2026-07-08T23:16:28.864Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
@@ -156,18 +156,6 @@
       "signatureUrl": "signature.sigstore.json"
     },
     {
-      "id": "travel/seat-map",
-      "version": "1.0.0",
-      "manifestUrl": "travel/seat-map/manifest.json",
-      "integrity": "sha256:2ec97da48f0a2be013c48110e5815936e40b98514754f926169f9b3e90d856ca",
-      "bundleIntegrity": "sha256:2143262eb8e3abacf7688735991f32defa348f2e1a262400684ee68be9efb968",
-      "publisher": "did:key:z6Mkdemotravel0001",
-      "categories": [
-        "travel"
-      ],
-      "signatureUrl": "signature.sigstore.json"
-    },
-    {
       "id": "scheduling/meeting-picker",
       "version": "1.0.0",
       "manifestUrl": "scheduling/meeting-picker/manifest.json",
@@ -219,6 +207,31 @@
         "games"
       ],
       "tier": "system",
+      "signatureUrl": "signature.sigstore.json"
+    },
+    {
+      "id": "travel/seat-map",
+      "version": "1.0.0",
+      "manifestUrl": "travel/seat-map/manifest.json",
+      "integrity": "sha256:2ec97da48f0a2be013c48110e5815936e40b98514754f926169f9b3e90d856ca",
+      "bundleIntegrity": "sha256:2143262eb8e3abacf7688735991f32defa348f2e1a262400684ee68be9efb968",
+      "publisher": "did:key:z6Mkdemotravel0001",
+      "categories": [
+        "travel"
+      ],
+      "signatureUrl": "signature.sigstore.json"
+    },
+    {
+      "id": "media/video-call",
+      "version": "1.0.0",
+      "manifestUrl": "media/video-call/manifest.json",
+      "integrity": "sha256:1ab9285dbfeaf53e30a0ada25bc0af8f6819c9a972d2274a28438c0457e48022",
+      "bundleIntegrity": "sha256:c9a17a61dcdc615f1e9aa6b68c1b45b872da55f1e834201e43444684ebb3789d",
+      "publisher": "did:key:z6Mkatomexamples01",
+      "categories": [
+        "media",
+        "video"
+      ],
       "signatureUrl": "signature.sigstore.json"
     }
   ]

@@ -1,0 +1,36 @@
+{
+  "id": "media/video-call",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/media-video-call/index.html",
+  "components": [
+    {
+      "name": "media/video-call",
+      "semanticRole": "display/video-call",
+      "events": [
+        {
+          "name": "offerCreated"
+        },
+        {
+          "name": "iceCandidate"
+        },
+        {
+          "name": "callEnded"
+        },
+        {
+          "name": "statusChanged"
+        }
+      ],
+      "agentHint": "1:1 WebRTC video call. Signaling via A2A Messages (offer/answer/ICE). Props: peerLabel, stunUrl (optional). Shell chrome arbitrates start/hang-up."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "media",
+    "video"
+  ],
+  "bundleIntegrity": "sha256:c9a17a61dcdc615f1e9aa6b68c1b45b872da55f1e834201e43444684ebb3789d"
+}
