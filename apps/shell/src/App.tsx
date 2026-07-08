@@ -2942,8 +2942,8 @@ function SettingsDialog({
         <>
           <p className="settings-note">Browse modules from the trusted catalog for this site.</p>
           <p className="settings-note">
-            Registry URL, integrity checks, and publisher allowlist are pinned. Soft Sigstore until curated
-            modules carry signatures (`registry:verify:strict`).
+            Registry URL, integrity checks, publisher allowlist, and signed manifests are pinned for
+            this site.
           </p>
           {moduleCatalogNote ? <p className="settings-note">{moduleCatalogNote}</p> : null}
           <RegistryCatalogList

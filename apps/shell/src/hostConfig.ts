@@ -34,8 +34,8 @@ export const REFERENCE_REGISTRY_PUBLISHER = "did:key:z6Mkatomexamples01";
 
 export const PRODUCTION_REGISTRY_TRUST: RegistryTrustPolicy = {
   requireIntegrity: true,
-  /** Soft until all curated modules carry Sigstore bundles; switch via registry:verify:strict. */
-  requireSignature: false,
+  /** Hard Sigstore digest/shape gate (M-TS-03); Fulcio/Rekor remains optional via registry:verify:strict --fulcio. */
+  requireSignature: true,
   trustedPublishers: [
     REFERENCE_REGISTRY_PUBLISHER,
     "did:key:z6Mkdemotravel0001",

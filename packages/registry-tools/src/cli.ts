@@ -4,6 +4,7 @@ import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { hashFile, publishModule, verifyRegistry } from "./verify.js";
+import { signModule } from "./sign.js";
 import { scaffoldModule } from "./scaffold.js";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -25,13 +26,16 @@ function usage(): never {
 Usage:
   atom-registry scaffold --id <namespace/name> --out <dir> [--publisher <did>]
   atom-registry hash <file>
-  atom-registry verify [--registry-dir <dir>] [--bundle-base <dir>] [--require-integrity] [--signatures] [--require-signatures|--soft-require-signatures] [--require-publisher] [--trusted-publishers <did,...>] [--scan-bundles] [--scan-strict-external]
+  atom-registry verify [--registry-dir <dir>] [--bundle-base <dir>] [--require-integrity] [--signatures] [--fulcio] [--require-signatures|--soft-require-signatures] [--require-publisher] [--trusted-publishers <did,...>] [--scan-bundles] [--scan-strict-external]
+  atom-registry sign [--registry-dir <dir>] [--module-dir <dir>]
+  atom-registry sign-all [--registry-dir <dir>]
   atom-registry publish [--registry-dir <dir>] [--module-dir <dir>] [--bundle-base <dir>]
   atom-registry publish-all [--registry-dir <dir>] [--bundle-base <dir>]
 
-  --signatures  Full Sigstore verification (Rekor + x509 chain) via sigstore-js, in addition to digest match.
-  --require-signatures  Fail when a manifest omits signatureUrl (use with --signatures; hard gate after all curated modules are signed).
-  --soft-require-signatures  Warn (do not fail) when signatureUrl is missing; still fail on broken signature bundles (M-TS-03 transition).
+  --signatures  Verify Sigstore bundle shape + in-toto subject digest match against the manifest.
+  --fulcio  With --signatures, also run sigstore-js Fulcio/Rekor crypto verify (requires Fulcio-signed bundles).
+  --require-signatures  Fail when a manifest omits signatureUrl (use with --signatures; hard gate).
+  --soft-require-signatures  Warn (do not fail) when signatureUrl is missing; still fail on broken signature bundles.
   --require-publisher  Fail when curated listings omit a publisher DID (M-TS-03 identity baseline).
   --trusted-publishers  Comma-separated publisher DID allowlist for curated verify.
   --scan-bundles  Heuristic bundle scan after integrity checks (eval, size cap, external scripts).
@@ -90,6 +94,7 @@ async function main(): Promise<void> {
       bundleBase: path.resolve(bundleBase),
       requireIntegrity: args.includes("--require-integrity"),
       verifySignatures: args.includes("--signatures"),
+      fulcioVerify: args.includes("--fulcio"),
       requireSignatures: args.includes("--require-signatures"),
       softRequireSignatures: args.includes("--soft-require-signatures"),
       requirePublisher: args.includes("--require-publisher"),
@@ -97,6 +102,31 @@ async function main(): Promise<void> {
       scanBundles: args.includes("--scan-bundles"),
       scanStrictExternal: args.includes("--scan-strict-external"),
     });
+    return;
+  }
+
+  if (command === "sign") {
+    const registryDir = path.resolve(readFlag(args, "--registry-dir") ?? defaultRegistryDir);
+    const moduleDir =
+      readFlag(args, "--module-dir") ?? path.join(registryDir, "travel/seat-map");
+    const result = await signModule({
+      registryDir,
+      moduleDir: path.resolve(moduleDir),
+    });
+    console.log(`Signed ${result.moduleId}@${result.version}`);
+    console.log(`  signature: ${result.signaturePath}`);
+    console.log(`  index signatureUrl: ${result.signatureUrl}`);
+    return;
+  }
+
+  if (command === "sign-all") {
+    const registryDir = path.resolve(readFlag(args, "--registry-dir") ?? defaultRegistryDir);
+    const moduleDirs = await findManifestDirs(registryDir);
+    for (const moduleDir of moduleDirs.sort()) {
+      const result = await signModule({ registryDir, moduleDir });
+      console.log(`Signed ${result.moduleId}@${result.version} → ${result.signatureUrl}`);
+    }
+    console.log(`Signed ${moduleDirs.length} module(s).`);
     return;
   }
 

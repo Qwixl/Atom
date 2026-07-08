@@ -41,7 +41,7 @@ Production deployments (`atom.qwixl.com`, npm `@qwixl/*`) are treated as product
 2. Not on revocation list
 3. Manifest bytes match index `integrity`
 4. Owner trust policy (`requireIntegrity` default **true**)
-5. Sigstore bundle digest match when `signatureUrl` present
+5. Sigstore bundle shape + in-toto subject digest match when `signatureUrl` present (required on production)
 6. Bundle bytes match `bundleIntegrity`
 7. `syncRevocations()` evicts installed modules when list updates
 
@@ -53,7 +53,7 @@ Optional owner policy (self-hosted / dev Settings only):
 | `trustedPublishers` | Allowlist of publisher DIDs; manifests from other publishers are rejected |
 | `blockedIds` | Owner denylist of module ids (also editable in Settings → Registry) |
 
-Curated-store CI (`pnpm registry:verify`) requires publisher DIDs on the allowlist and soft-warns unsigned manifests; `registry:verify:strict` hard-requires Sigstore. Precedent: npm `only-allow` publisher allowlists + browser extension store curation.
+Curated-store CI (`pnpm registry:verify`) requires publisher DIDs on the allowlist and a valid `signatureUrl` (digest-anchored Sigstore shape) on every listing; `registry:verify:strict` adds Fulcio/Rekor crypto (`--fulcio`). Precedent: npm `only-allow` publisher allowlists + browser extension store curation.
 
 ## Custom agent / SLM posture (M-TS-06)
 
@@ -158,7 +158,7 @@ Security issues: [GitHub security advisories](https://github.com/Qwixl/Atom/secu
 
 **Module ratings (M-TS-11):** Settings → Registry stars from `ratings.json`; `POST /module-feedback` queues curator updates — see `docs/04-security/09-module-ratings-feedback-runbook.md`.
 
-**Sigstore:** Soft-required in CI (`registry:verify`); hard-required via `registry:verify:strict` once every curated listing carries a valid `signatureUrl`.
+**Sigstore (M-TS-03):** CI `pnpm registry:verify` requires `signatureUrl` on every curated listing (digest-anchored DSSE via `atom-registry sign` / `pnpm registry:sign-all`). `registry:verify:strict` adds `--fulcio` for Fulcio/Rekor crypto when bundles are keyless-signed.
 
 ## References
 
