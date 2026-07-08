@@ -71,6 +71,16 @@ export interface StoredCalDavAccount {
   addedAt: number;
 }
 
+/** CardDAV address book with Basic auth (same providers as CalDAV). */
+export interface StoredCardDavAccount {
+  id: string;
+  label: string;
+  addressBookUrl: string;
+  username: string;
+  password: string;
+  addedAt: number;
+}
+
 export interface StoredShopifyStore {
   shop: string;
   accessToken: string;
@@ -90,6 +100,7 @@ interface ConnectorVaultPayload {
   oauthClients?: Record<string, StoredOAuthClient>;
   apiTokens?: Record<string, StoredApiToken>;
   caldavAccounts?: StoredCalDavAccount[];
+  carddavAccounts?: StoredCardDavAccount[];
   businessStores?: {
     shopify?: StoredShopifyStore;
     woocommerce?: StoredWooCommerceStore;
@@ -247,6 +258,38 @@ export class ConnectorVault {
     const next = existing.filter((account) => account.id !== accountId);
     if (next.length === existing.length) return false;
     this.payload.caldavAccounts = next;
+    await this.persist();
+    return true;
+  }
+
+  getCardDavAccounts(): StoredCardDavAccount[] {
+    return this.payload.carddavAccounts ?? [];
+  }
+
+  async addCardDavAccount(input: {
+    label: string;
+    addressBookUrl: string;
+    username: string;
+    password: string;
+  }): Promise<StoredCardDavAccount> {
+    const account: StoredCardDavAccount = {
+      id: crypto.randomUUID(),
+      label: input.label.trim() || "CardDAV",
+      addressBookUrl: input.addressBookUrl.trim(),
+      username: input.username.trim(),
+      password: input.password,
+      addedAt: Date.now(),
+    };
+    this.payload.carddavAccounts = [...this.getCardDavAccounts(), account];
+    await this.persist();
+    return account;
+  }
+
+  async removeCardDavAccount(accountId: string): Promise<boolean> {
+    const existing = this.getCardDavAccounts();
+    const next = existing.filter((account) => account.id !== accountId);
+    if (next.length === existing.length) return false;
+    this.payload.carddavAccounts = next;
     await this.persist();
     return true;
   }

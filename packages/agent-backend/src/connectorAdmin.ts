@@ -20,13 +20,18 @@ import { addWebcalFeedToVault, removeWebcalFeedFromVault, WEBCAL_CONNECTOR_ID } 
 
 import {
   CALDAV_CONNECTOR_ID,
-  CALDAV_CONNECTOR_OPERATIONS,
   addCalDavAccountToVault,
   caldavConnectorOperation,
   createCalDavEvent,
   invokeCalDavConnector,
   removeCalDavAccountFromVault,
 } from "./caldavConnector.js";
+
+import {
+  CARDDAV_CONNECTOR_ID,
+  addCardDavAccountToVault,
+  removeCardDavAccountFromVault,
+} from "./carddavConnector.js";
 
 import {
   createTodoistTask,
@@ -659,6 +664,63 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
       const status = /not configured|required|Unknown/i.test(message) ? 400 : 502;
       res.status(status).json({ error: message });
     }
+  });
+
+  adminApp.post("/connectors/carddav/accounts", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const body = req.body as {
+      label?: string;
+      addressBookUrl?: string;
+      username?: string;
+      password?: string;
+    };
+    const addressBookUrl = body.addressBookUrl?.trim();
+    const username = body.username?.trim();
+    const password = body.password?.trim();
+    if (!addressBookUrl || !username || !password) {
+      res.status(400).json({ error: "addressBookUrl, username, and password required" });
+      return;
+    }
+    try {
+      const account = await addCardDavAccountToVault(config.vault, {
+        label: body.label,
+        addressBookUrl,
+        username,
+        password,
+      });
+      invalidateConnectorCache(CARDDAV_CONNECTOR_ID);
+      res.json({ account });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.delete("/connectors/carddav/accounts/:accountId", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const accountId = req.params.accountId?.trim();
+    if (!accountId) {
+      res.status(400).json({ error: "accountId required" });
+      return;
+    }
+    const removed = await removeCardDavAccountFromVault(config.vault, accountId);
+    if (!removed) {
+      res.status(404).json({ error: "account not found" });
+      return;
+    }
+    invalidateConnectorCache(CARDDAV_CONNECTOR_ID);
+    res.json({ removed: true, accountId });
   });
 
 }
