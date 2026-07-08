@@ -474,6 +474,17 @@ export class BattleshipsEngine implements GameEngine<BattleshipsState, Battleshi
     };
   }
 
+  /** Filtered boards for A2A seating (A = owner seat, B = agent seat). */
+  toSeatBoardView(
+    state: BattleshipsState,
+    seat: "A" | "B",
+  ): { own: Array<"empty" | "ship" | "hit" | "miss">; foe: Array<"unknown" | "hit" | "miss"> } {
+    const myShips = seat === "A" ? state.ownerShips : state.agentShips;
+    const shotsAgainstMe = seat === "A" ? state.agentShots : state.ownerShots;
+    const shotsIFired = seat === "A" ? state.ownerShots : state.agentShots;
+    return boardView(state.size, myShips, shotsAgainstMe, shotsIFired, true);
+  }
+
   fromProps(props: JsonObject): BattleshipsState {
     const raw = props._state;
     if (raw && typeof raw === "object" && !Array.isArray(raw)) {

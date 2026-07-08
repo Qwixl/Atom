@@ -70,9 +70,13 @@ export const TTT_MOVE_SCHEMA = "https://atom.qwixl.dev/schema/TicTacToeMove";
 export const GAME_BS_STATE_PURPOSE = "game:battleships-state";
 export const BS_STATE_SCHEMA = "https://atom.qwixl.dev/schema/BattleshipsState";
 
-/** M-ECO-06 — battleships shot (either player). */
+/** M-ECO-06 — battleships shot (legacy commit-reveal path). */
 export const GAME_BS_SHOT_PURPOSE = "game:battleships-shot";
 export const BS_SHOT_SCHEMA = "https://atom.qwixl.dev/schema/BattleshipsShot";
+
+/** M-ECO-06 / BK-10 — engine-backed move proposal (guest → host). */
+export const GAME_BS_MOVE_PURPOSE = "game:battleships-move";
+export const BS_MOVE_SCHEMA = "https://atom.qwixl.dev/schema/BattleshipsMove";
 
 /** M-ECO-04 — shared checklist (either contact). */
 export const COORDINATION_SHARED_LIST_PURPOSE = "coordination:shared-list";
@@ -91,6 +95,7 @@ export const GAME_PURPOSES = [
   GAME_TTT_MOVE_PURPOSE,
   GAME_BS_STATE_PURPOSE,
   GAME_BS_SHOT_PURPOSE,
+  GAME_BS_MOVE_PURPOSE,
 ] as const;
 
 /** All M8 coordination purposes (receiver allowlists). */

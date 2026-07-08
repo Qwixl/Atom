@@ -12,6 +12,7 @@ import {
   GAME_TTT_MOVE_PURPOSE,
   GAME_BS_STATE_PURPOSE,
   GAME_BS_SHOT_PURPOSE,
+  GAME_BS_MOVE_PURPOSE,
   ACTION_RESERVE_PURPOSE,
   ACTION_HOLD_PURPOSE,
   ACTION_CONFIRM_PURPOSE,
@@ -29,6 +30,7 @@ import {
   type SchedulingResponseKind,
   type SchedulingSlot,
 } from "@qwixl/a2a-transport";
+import { parseBattleshipsPublicState } from "@qwixl/shell-core";
 import type { CommsThreadItem, InboxEntryWire } from "./types.js";
 
 function entryAt(entry: InboxEntryWire): string {
@@ -374,6 +376,7 @@ export function inboxEntryToThreadItem(
 
   if (purpose === GAME_BS_STATE_PURPOSE) {
     const shots = parseBsShots(payload.shots);
+    const publicState = parseBattleshipsPublicState(payload.publicState) ?? undefined;
     return {
       kind: "bs-state",
       id,
@@ -388,6 +391,24 @@ export function inboxEntryToThreadItem(
       commitB: typeof payload.commitB === "string" ? payload.commitB : undefined,
       shots,
       winner: payload.winner === "A" || payload.winner === "B" ? payload.winner : undefined,
+      publicState,
+    };
+  }
+
+  if (purpose === GAME_BS_MOVE_PURPOSE) {
+    return {
+      kind: "bs-move",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      gameId: String(payload.gameId ?? ""),
+      player: payload.player === "B" ? "B" : "A",
+      action: payload.action === "fire" ? "fire" : "place",
+      cells: Array.isArray(payload.cells)
+        ? payload.cells.filter((cell): cell is number => typeof cell === "number")
+        : undefined,
+      cell: typeof payload.cell === "number" ? payload.cell : undefined,
     };
   }
 

@@ -530,6 +530,7 @@ export class CommsAgentClient {
     commitB?: string;
     shots: Array<{ cell: number; shooter: "A" | "B"; hit: boolean }>;
     winner?: "A" | "B";
+    publicState?: Record<string, unknown>;
     encrypt?: boolean;
   }): Promise<{ objectId: string }> {
     const result = await postJson<{ sent?: { objectId?: string } }>(
@@ -545,6 +546,36 @@ export class CommsAgentClient {
         commitB: opts.commitB,
         shots: opts.shots,
         winner: opts.winner,
+        publicState: opts.publicState,
+        encrypt: opts.encrypt ?? true,
+      },
+      this.auth,
+      true,
+    );
+    return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
+  }
+
+  async sendBsMove(opts: {
+    peerUrl: string;
+    peerDid: string;
+    gameId: string;
+    player: "A" | "B";
+    action: "place" | "fire";
+    cells?: number[];
+    cell?: number;
+    encrypt?: boolean;
+  }): Promise<{ objectId: string }> {
+    const result = await postJson<{ sent?: { objectId?: string } }>(
+      this.base(),
+      "/coordination/bs-move",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        gameId: opts.gameId,
+        player: opts.player,
+        action: opts.action,
+        cells: opts.cells,
+        cell: opts.cell,
         encrypt: opts.encrypt ?? true,
       },
       this.auth,

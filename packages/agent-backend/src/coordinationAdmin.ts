@@ -14,6 +14,7 @@ import {
   createTttState,
   createBattleshipsState,
   createBattleshipsShot,
+  createBattleshipsMove,
   type RsvpAnswer,
   type SchedulingResponseKind,
   type SchedulingSlot,
@@ -387,6 +388,7 @@ export function registerCoordinationAdminRoutes(adminApp: Express, deps: Coordin
       commitB?: string;
       shots?: BsShot[];
       winner?: BsPlayer;
+      publicState?: Record<string, unknown>;
     };
     if (!body.gameId?.trim()) {
       res.status(400).json({ error: "gameId required" });
@@ -403,6 +405,40 @@ export function registerCoordinationAdminRoutes(adminApp: Express, deps: Coordin
           commitB: body.commitB?.trim() || undefined,
           shots: Array.isArray(body.shots) ? body.shots : [],
           winner: body.winner === "A" || body.winner === "B" ? body.winner : undefined,
+          publicState:
+            body.publicState && typeof body.publicState === "object" && !Array.isArray(body.publicState)
+              ? body.publicState
+              : undefined,
+          threadId: body.threadId?.trim() || undefined,
+        },
+      });
+      await sendCoordinationObject(deps, res, body, object);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/coordination/bs-move", async (req, res) => {
+    const body = req.body as PeerSendBody & {
+      gameId?: string;
+      player?: BsPlayer;
+      action?: "place" | "fire";
+      cells?: number[];
+      cell?: number;
+    };
+    if (!body.gameId?.trim()) {
+      res.status(400).json({ error: "gameId required" });
+      return;
+    }
+    try {
+      const object = await createBattleshipsMove({
+        identity: deps.identity,
+        payload: {
+          gameId: body.gameId.trim(),
+          player: body.player === "B" ? "B" : "A",
+          action: body.action === "fire" ? "fire" : "place",
+          cells: Array.isArray(body.cells) ? body.cells : undefined,
+          cell: typeof body.cell === "number" ? body.cell : undefined,
           threadId: body.threadId?.trim() || undefined,
         },
       });

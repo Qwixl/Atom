@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { verifyContactInvite } from "@qwixl/a2a-transport";
 import type { OwnerRecord, OwnerStore } from "@qwixl/owner-store";
 import type { ActionReserveRefKind, MonetaryAmount, RsvpAnswer, SchedulingSlot } from "@qwixl/a2a-transport";
-import type { AttestationEntry, Catalog, ModuleRegistry } from "@qwixl/shell-core";
+import type { AttestationEntry, Catalog, ModuleRegistry, BattleshipsMove } from "@qwixl/shell-core";
+import { BattleshipsA2AHost } from "@qwixl/shell-core";
 import { ThreadItemView, useRespondedProposalIds, useRespondedTransactionIds, threadItemNeedsActions } from "./comms/CoordinationCard.js";
 import { CommsAgentClient } from "./comms/client.js";
 import { CommsModuleEmbed } from "./comms/CommsModuleEmbed.js";
@@ -23,6 +24,13 @@ import {
   shotAlreadyFired,
   validateShipPlacement,
 } from "./comms/bsLogic.js";
+import {
+  getOrCreateBsHost,
+  latestEngineBsState,
+  modulePropsFromEngineState,
+  parseBsMoveFromThreadItem,
+  persistBsHost,
+} from "./comms/bsA2a.js";
 import {
   exportAcceptedSchedulingToIcs,
   loadWebcalBusyEvents,
@@ -168,6 +176,8 @@ export function CommsPanel({
   const [acceptedOfferIds, setAcceptedOfferIds] = useState<Set<string>>(() => new Set());
   const persistedReceiptIds = useRef(new Set<string>());
   const processedBsShotsRef = useRef(new Set<string>());
+  const processedBsMovesRef = useRef(new Set<string>());
+  const bsHostsRef = useRef(new Map<string, BattleshipsA2AHost>());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showSetup, setShowSetup] = useState(
     () => !demoMode && !ATOM_BROWSER_MODE && !IS_PRODUCTION_HOST && contacts.length === 0,
@@ -317,6 +327,16 @@ export function CommsPanel({
   );
 
   const bsInlineProps = useMemo(() => {
+    const engineState = [...thread]
+      .reverse()
+      .find(
+        (item): item is Extract<CommsThreadItem, { kind: "bs-state" }> =>
+          item.kind === "bs-state" && Boolean(item.publicState?.engine),
+      );
+    if (engineState?.publicState) {
+      const mySeat = myPlayerFromThread(engineState.gameId, thread);
+      return modulePropsFromEngineState(engineState.gameId, engineState.publicState, mySeat);
+    }
     const state = [...thread]
       .reverse()
       .find(
@@ -372,6 +392,8 @@ export function CommsPanel({
       void startTttGame(bridge.gameId);
     } else if (bridge.action === "bsStart") {
       void startBsGame(bridge.gameId);
+    } else if (bridge.action === "bsMove") {
+      void submitBsEngineMove(bridge.gameId, bridge.move);
     } else if (bridge.action === "bsCommit") {
       void commitBsShips(bridge.gameId, bridge.cells);
     }
@@ -942,38 +964,112 @@ export function CommsPanel({
     }
   }
 
+  async function publishBsEngineState(host: BattleshipsA2AHost, gameId: string, note?: string) {
+    if (!selected) return;
+    persistBsHost(gameId, host);
+    bsHostsRef.current.set(gameId, host);
+    const publicState = host.toPublicState();
+    const { objectId } = await client.sendBsState({
+      peerUrl: selected.endpoint,
+      peerDid: selected.did,
+      gameId,
+      phase: publicState.phase,
+      turn: publicState.turn,
+      shots: [],
+      winner: publicState.winner ?? undefined,
+      publicState: publicState as unknown as Record<string, unknown>,
+      encrypt: sessionReady,
+    });
+    setOutbound((current) => [
+      ...current,
+      {
+        kind: "bs-state",
+        id: objectId,
+        direction: "out",
+        at: new Date().toISOString(),
+        peerDid: selected.did,
+        gameId,
+        phase: publicState.phase,
+        turn: publicState.turn,
+        shots: [],
+        winner: publicState.winner ?? undefined,
+        publicState,
+      },
+    ]);
+    if (note) setActionNote(note);
+    await refreshInbox();
+  }
+
+  async function submitBsEngineMove(gameId: string, move: BattleshipsMove) {
+    if (!selected) return;
+    const mySeat = myPlayerFromThread(gameId, thread);
+    setBusy(true);
+    setActionNote(null);
+    try {
+      if (mySeat === "A") {
+        const host = bsHostsRef.current.get(gameId) ?? getOrCreateBsHost(gameId);
+        const result = host.applyMove(mySeat, move);
+        if (!result.ok) {
+          setActionNote(result.reason);
+          return;
+        }
+        const pub = host.toPublicState();
+        const note =
+          pub.phase === "won"
+            ? `${pub.winner === mySeat ? "You" : "Opponent"} win!`
+            : pub.phase === "battle"
+              ? "Battle update sent."
+              : "Ships placed.";
+        await publishBsEngineState(host, gameId, note);
+      } else {
+        const { objectId } = await client.sendBsMove({
+          peerUrl: selected.endpoint,
+          peerDid: selected.did,
+          gameId,
+          player: mySeat,
+          action: move.action,
+          cells: move.action === "place" ? move.cells : undefined,
+          cell: move.action === "fire" ? move.cell : undefined,
+          encrypt: sessionReady,
+        });
+        setOutbound((current) => [
+          ...current,
+          {
+            kind: "bs-move",
+            id: objectId,
+            direction: "out",
+            at: new Date().toISOString(),
+            peerDid: selected.did,
+            gameId,
+            player: mySeat,
+            action: move.action,
+            cells: move.action === "place" ? move.cells : undefined,
+            cell: move.action === "fire" ? move.cell : undefined,
+          },
+        ]);
+        setActionNote("Move sent to host.");
+        await refreshInbox();
+      }
+      setInlineModuleId("games/battleships");
+      setConversationPane("chat");
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function startBsGame(gameId: string) {
     if (!selected) return;
     setBusy(true);
     setActionNote(null);
     try {
-      const { objectId } = await client.sendBsState({
-        peerUrl: selected.endpoint,
-        peerDid: selected.did,
-        gameId,
-        phase: "setup",
-        turn: "A",
-        shots: [],
-        encrypt: sessionReady,
-      });
-      setOutbound((current) => [
-        ...current,
-        {
-          kind: "bs-state",
-          id: objectId,
-          direction: "out",
-          at: new Date().toISOString(),
-          peerDid: selected.did,
-          gameId,
-          phase: "setup",
-          turn: "A",
-          shots: [],
-        },
-      ]);
-      setInlineModuleId(null);
+      const host = BattleshipsA2AHost.create();
+      bsHostsRef.current.set(gameId, host);
+      persistBsHost(gameId, host);
+      await publishBsEngineState(host, gameId, "Battleships started — place your ships.");
+      setInlineModuleId("games/battleships");
       setConversationPane("chat");
-      setActionNote("Battleships game started — place your ships.");
-      await refreshInbox();
     } catch (error) {
       setActionNote(error instanceof Error ? error.message : String(error));
     } finally {
@@ -1144,8 +1240,9 @@ export function CommsPanel({
     if (!selected || demoMode || busy) return;
     for (const item of thread) {
       if (item.kind !== "bs-shot" || item.direction !== "in") continue;
-      if (processedBsShotsRef.current.has(item.id)) continue;
       const stateItem = latestBsState(item.gameId, thread);
+      if (stateItem?.publicState?.engine) continue;
+      if (processedBsShotsRef.current.has(item.id)) continue;
       if (!stateItem || stateItem.phase === "won") continue;
       const answered = stateItem.shots.some(
         (shot) => shot.cell === item.cell && shot.shooter === item.shooter,
@@ -1161,6 +1258,32 @@ export function CommsPanel({
       if (!ships) continue;
       processedBsShotsRef.current.add(item.id);
       void respondToBsShot(item, stateItem, myPlayer, ships);
+    }
+  }, [thread, selected, demoMode, busy]);
+
+  useEffect(() => {
+    if (!selected || demoMode || busy) return;
+    for (const item of thread) {
+      if (item.kind !== "bs-move" || item.direction !== "in") continue;
+      if (processedBsMovesRef.current.has(item.id)) continue;
+      if (myPlayerFromThread(item.gameId, thread) !== "A") continue;
+      const move = parseBsMoveFromThreadItem(item);
+      if (!move) {
+        processedBsMovesRef.current.add(item.id);
+        continue;
+      }
+      const host = bsHostsRef.current.get(item.gameId) ?? getOrCreateBsHost(item.gameId);
+      const result = host.applyMove(item.player, move);
+      processedBsMovesRef.current.add(item.id);
+      if (!result.ok) {
+        setActionNote(result.reason);
+        continue;
+      }
+      void publishBsEngineState(
+        host,
+        item.gameId,
+        host.toPublicState().phase === "won" ? "Game over." : "Opponent move applied.",
+      );
     }
   }, [thread, selected, demoMode, busy]);
 
@@ -1215,6 +1338,32 @@ export function CommsPanel({
       const gameId = typeof payload.gameId === "string" ? payload.gameId : `bs-${Date.now()}`;
       void startBsGame(gameId);
       return;
+    }
+    if (name === "bsMove") {
+      const gameId = typeof payload.gameId === "string" ? payload.gameId : "";
+      const action = payload.action === "fire" ? "fire" : payload.action === "place" ? "place" : null;
+      if (!gameId || !action) return;
+      const latest = latestEngineBsState(gameId, thread);
+      if (latest) {
+        const move =
+          action === "place"
+            ? {
+                action: "place" as const,
+                cells: Array.isArray(payload.cells)
+                  ? payload.cells.filter((cell): cell is number => typeof cell === "number")
+                  : [],
+              }
+            : {
+                action: "fire" as const,
+                cell: typeof payload.cell === "number" ? payload.cell : -1,
+              };
+        if (action === "place" && move.action === "place" && move.cells.length > 0) {
+          void submitBsEngineMove(gameId, move);
+        } else if (action === "fire" && move.action === "fire" && move.cell >= 0) {
+          void submitBsEngineMove(gameId, move);
+        }
+        return;
+      }
     }
     if (name === "bsCommit") {
       const gameId = typeof payload.gameId === "string" ? payload.gameId : "";

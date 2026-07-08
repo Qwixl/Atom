@@ -156,7 +156,7 @@ export const ECOSYSTEM_MODULE_MANIFESTS: ModuleManifest[] = [
         semanticRole: "input/game-board",
         events: [{ name: "bsStart" }, { name: "bsMove" }, { name: "bsCommit" }],
         agentHint:
-          "Shell-arbitrated battleships (Chat). Engine owns fleets and hit/miss. Emits bsStart (restart) or bsMove { action:'place'|'fire', cells?|cell }. Messages A2A still accepts bsCommit for legacy peers.",
+          "Shell-arbitrated battleships (Chat + Messages A2A). Engine owns fleets and hit/miss. Emits bsStart (restart) or bsMove { action:'place'|'fire', cells?|cell }. Host (seat A) runs authoritative engine; guest sends bs-move proposals.",
       },
     ],
     capabilities: [],
