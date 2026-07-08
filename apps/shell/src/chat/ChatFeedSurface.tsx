@@ -11,6 +11,7 @@ import { renderRichTextWithLinks } from "./renderRichText.js";
 
 function minHeightForModule(moduleId: string): number {
   if (moduleId === "scheduling/meeting-picker") return 300;
+  if (moduleId === "games/battleships") return 320;
   return 160;
 }
 

@@ -5,7 +5,7 @@ import { findActiveGameInFeed, isGameModule, isGameEnded } from "./gameModules.j
 describe("gameModules", () => {
   it("recognises shell-arbitrated game module ids", () => {
     expect(isGameModule("games/tictactoe")).toBe(true);
-    expect(isGameModule("games/battleships")).toBe(false);
+    expect(isGameModule("games/battleships")).toBe(true);
     expect(isGameModule("scheduling/meeting-picker")).toBe(false);
   });
 
