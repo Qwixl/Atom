@@ -28,6 +28,8 @@
     "scaffold": "node dist/cli.js scaffold",
     "verify": "node dist/cli.js verify",
     "test": "vitest run",
+    "sign": "node dist/cli.js sign",
+    "sign-all": "node dist/cli.js sign-all",
     "publish-module": "node dist/cli.js publish",
     "publish-all": "node dist/cli.js publish-all"
   },

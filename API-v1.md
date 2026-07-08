@@ -85,7 +85,7 @@ Required fields:
 | `bundleIntegrity` | `sha256:<hex>` — set by `atom-registry publish` |
 | `pricing` | Optional — `{ model: "free" \| "paid", priceCents?, purchaseUrl? }` (USD; external checkout in v1) |
 
-Optional: `signatureUrl` (Sigstore bundle JSON). Runtime verifies bundle structure and that the in-toto statement subject digest matches manifest bytes; use `atom-registry verify --signatures` at publish time. Full Rekor/x509 verification is deferred.
+Optional on third-party indexes; **required** on the curated reference store: `signatureUrl` (Sigstore-shaped DSSE JSON). Runtime verifies bundle structure and that the in-toto statement subject digest matches manifest bytes (`atom-registry verify --signatures --require-signatures`). Fulcio/Rekor crypto is optional (`--fulcio` / `registry:verify:strict`). Sign curated modules with `atom-registry sign` / `pnpm registry:sign-all` (index mirrors `signatureUrl` so manifest digests stay stable).
 
 ## Revocations
 
