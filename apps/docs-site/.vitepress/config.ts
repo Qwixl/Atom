@@ -3,6 +3,7 @@ import { defineConfig } from "vitepress";
 export default defineConfig({
   title: "Atom",
   description: "A browser for the agent web — developer docs (M14.3)",
+  ignoreDeadLinks: [/^https?:\/\/localhost(?::\d+)?\//, /^https?:\/\/127\.0\.0\.1(?::\d+)?\//],
   themeConfig: {
     nav: [
       { text: "Concepts", link: "/concepts/overview" },
