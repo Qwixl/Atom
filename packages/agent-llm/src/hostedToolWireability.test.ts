@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterWireableHostedTools, isWireableHostedToolType } from "./hostedToolWireability.js";
+import { filterWireableHostedTools, isWireableHostedToolType, buildResponsesHostedTool } from "./hostedToolWireability.js";
 import { formatNativeToolsLabel, normalizeModelCapabilityProfile } from "./modelCapabilities.js";
 
 describe("hostedToolWireability", () => {
@@ -13,6 +13,14 @@ describe("hostedToolWireability", () => {
       "web_search",
       "image_generation",
     ]);
+  });
+
+  it("builds code_interpreter with required container", () => {
+    expect(buildResponsesHostedTool("code_interpreter")).toEqual({
+      type: "code_interpreter",
+      container: { type: "auto" },
+    });
+    expect(buildResponsesHostedTool("web_search")).toEqual({ type: "web_search" });
   });
 });
 

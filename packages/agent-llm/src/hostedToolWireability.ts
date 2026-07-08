@@ -37,3 +37,13 @@ export function filterWireableHostedTools(toolTypes: readonly string[]): string[
   }
   return out;
 }
+
+/** Build a Responses API tool object with required provider fields. */
+export function buildResponsesHostedTool(type: string): unknown | null {
+  const id = type === "web_search_preview" ? "web_search" : type.trim();
+  if (!id || !isWireableHostedToolType(id)) return null;
+  if (id === "code_interpreter") {
+    return { type: "code_interpreter", container: { type: "auto" } };
+  }
+  return { type: id };
+}
