@@ -12,11 +12,14 @@ import { createModuleBridge, MODULE_IFRAME_SANDBOX, resolveModuleBundleUrl } fro
 export interface SurfaceRendererProps {
   surface: ResolvedSurface;
   onEvent: (event: UiEvent) => void;
+  /** Optional inline text renderer (e.g. markdown links with link tool menu). */
+  renderInlineText?: (text: string) => ReactNode;
 }
 
 interface RenderContext {
   surfaceId: string;
   emit: (node: ResolvedNode, name: string, payload?: JsonValue) => void;
+  renderInlineText?: (text: string) => ReactNode;
 }
 
 function str(props: JsonObject | undefined, key: string, fallback = ""): string {
@@ -327,7 +330,13 @@ function renderResolved(resolved: ResolvedNode, context: RenderContext): ReactNo
 
   switch (resolved.entry.spec.name) {
     case "core/text":
-      return <p className="atom-text">{str(props, "text")}</p>;
+      return (
+        <p className="atom-text">
+          {context.renderInlineText
+            ? context.renderInlineText(str(props, "text"))
+            : str(props, "text")}
+        </p>
+      );
 
     case "core/heading": {
       const level = num(props, "level") ?? 2;
@@ -359,7 +368,13 @@ function renderResolved(resolved: ResolvedNode, context: RenderContext): ReactNo
       return (
         <ListTag className="atom-list">
           {items.map((item, index) => (
-            <li key={index}>{typeof item === "string" ? item : JSON.stringify(item)}</li>
+            <li key={index}>
+              {typeof item === "string"
+                ? context.renderInlineText
+                  ? context.renderInlineText(item)
+                  : item
+                : JSON.stringify(item)}
+            </li>
           ))}
         </ListTag>
       );
@@ -504,9 +519,10 @@ function RenderNode({ resolved, context }: { resolved: ResolvedNode; context: Re
   );
 }
 
-export function SurfaceRenderer({ surface, onEvent }: SurfaceRendererProps) {
+export function SurfaceRenderer({ surface, onEvent, renderInlineText }: SurfaceRendererProps) {
   const context: RenderContext = {
     surfaceId: surface.surfaceId,
+    renderInlineText,
     emit: (resolved, name, payload) => {
       // Enforce the sandbox contract: drop events the catalog spec does not declare.
       if (resolved.kind !== "fallback") {

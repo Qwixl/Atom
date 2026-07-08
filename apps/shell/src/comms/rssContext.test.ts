@@ -13,6 +13,21 @@ describe("formatRssContextForPrompt", () => {
     expect(text).toContain("Optional owner RSS");
   });
 
+  it("includes markdown link when item has url", () => {
+    const text = formatRssContextForPrompt({
+      connected: true,
+      items: [
+        {
+          id: "1",
+          title: "City beat rivals",
+          link: "https://example.com/story",
+          feedId: "f1",
+        },
+      ],
+    });
+    expect(text).toContain("[City beat rivals](https://example.com/story)");
+  });
+
   it("states not connected when no feeds", () => {
     const text = formatRssContextForPrompt({
       connected: false,

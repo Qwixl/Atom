@@ -29,6 +29,13 @@ export async function mintChatSessionToken(config: CommsAgentConfig): Promise<st
   return body.token?.trim() || null;
 }
 
+/** Mint + store a fresh read-scoped session token (F6-4 / M21.4). */
+export async function refreshChatSessionToken(config: CommsAgentConfig): Promise<string | null> {
+  const token = await mintChatSessionToken(config);
+  setChatSessionToken(token);
+  return token;
+}
+
 export function commsClientAuth(config: CommsAgentConfig): {
   readToken?: string;
   adminToken?: string;
