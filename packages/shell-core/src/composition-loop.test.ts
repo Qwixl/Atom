@@ -83,9 +83,10 @@ describe("composition loop feed policy", () => {
     ];
     feed = upsertFeedSurface(feed, mockSurface("ttt-1"), "s2");
 
-    expect(feed[feed.length - 1]?.kind).toBe("surface");
-    if (feed[feed.length - 1]?.kind === "surface") {
-      expect(feed[feed.length - 1].surface.surfaceId).toBe("ttt-1");
+    const last = feed[feed.length - 1];
+    expect(last?.kind).toBe("surface");
+    if (last?.kind === "surface") {
+      expect(last.surface.surfaceId).toBe("ttt-1");
     }
   });
 
