@@ -1,5 +1,5 @@
 import { isMcpToolAllowed, withMcpServerSession, type McpToolDescriptor } from "@qwixl/mcp-client";
-import { resolveMcpTransport, type StoredMcpServer } from "./types.js";
+import { resolveMcpTransport, isMcpServerTrusted, type StoredMcpServer } from "./types.js";
 
 function sessionOptions(server: StoredMcpServer) {
   const transport = resolveMcpTransport(server);
@@ -39,6 +39,9 @@ export class McpRuntime {
     args: Record<string, unknown>,
   ): Promise<unknown> {
     if (!server.enabled) throw new Error(`MCP server disabled: ${server.id}`);
+    if (!isMcpServerTrusted(server)) {
+      throw new Error(`MCP server not trusted — approve it in Settings → Connectors → MCP: ${server.id}`);
+    }
     const name = toolName.trim();
     if (!isMcpToolAllowed(name, server.allowedTools)) {
       throw new Error(`Tool not allowlisted on server ${server.id}: ${name}`);

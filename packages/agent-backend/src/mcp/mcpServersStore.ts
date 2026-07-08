@@ -1,6 +1,7 @@
 import { loadJsonStore, createJsonStoreWriter } from "../persistedJsonStore.js";
 import { resolveDataPath } from "../dataDir.js";
 import type { StoredMcpServer } from "./types.js";
+import { isMcpServerTrusted } from "./types.js";
 
 const FILE = "mcp-servers.json";
 
@@ -30,7 +31,11 @@ export class McpServersStore {
   }
 
   listEnabled(): StoredMcpServer[] {
-    return this.servers.filter((server) => server.enabled);
+    return this.servers.filter((server) => server.enabled && isMcpServerTrusted(server));
+  }
+
+  listTrusted(): StoredMcpServer[] {
+    return this.servers.filter((server) => isMcpServerTrusted(server));
   }
 
   get(id: string): StoredMcpServer | undefined {
@@ -59,6 +64,15 @@ export class McpServersStore {
     const server = this.get(id);
     if (!server) throw new Error(`Unknown MCP server: ${id}`);
     server.allowedTools = [...allowedTools];
+    this.writer.persist();
+    await this.writer.flush();
+  }
+
+  async trustServer(id: string): Promise<void> {
+    const server = this.get(id);
+    if (!server) throw new Error(`Unknown MCP server: ${id}`);
+    server.trusted = true;
+    server.trustedAt = Date.now();
     this.writer.persist();
     await this.writer.flush();
   }

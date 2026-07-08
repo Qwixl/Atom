@@ -51,4 +51,39 @@ describe("McpServersStore", () => {
     await store.updateAllowedTools("demo", ["search", "fetch"]);
     expect(store.get("demo")?.allowedTools).toEqual(["search", "fetch"]);
   });
+
+  it("trusts a server", async () => {
+    const store = new McpServersStore();
+    await store.load();
+    await store.add({
+      id: "demo",
+      label: "Demo",
+      command: "node",
+      args: [],
+      allowedTools: [],
+      enabled: true,
+      trusted: false,
+      addedAt: 1,
+    });
+    await store.trustServer("demo");
+    expect(store.get("demo")?.trusted).toBe(true);
+    expect(store.get("demo")?.trustedAt).toBeTypeOf("number");
+    expect(store.listEnabled()).toHaveLength(1);
+  });
+
+  it("excludes untrusted servers from listEnabled", async () => {
+    const store = new McpServersStore();
+    await store.load();
+    await store.add({
+      id: "demo",
+      label: "Demo",
+      command: "node",
+      args: [],
+      allowedTools: [],
+      enabled: true,
+      trusted: false,
+      addedAt: 1,
+    });
+    expect(store.listEnabled()).toHaveLength(0);
+  });
 });

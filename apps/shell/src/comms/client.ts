@@ -710,6 +710,29 @@ export class CommsAgentClient {
     return postJson(this.base(), "/connectors/caldav/events", { ...input, approvalRef }, this.auth, true);
   }
 
+  async addCardDavAccount(
+    input: { label?: string; addressBookUrl: string; username: string; password: string },
+    approvalRef?: string,
+  ): Promise<{ account: { id: string; label: string } }> {
+    return postJson(this.base(), "/connectors/carddav/accounts", { ...input, approvalRef }, this.auth, true);
+  }
+
+  async removeCardDavAccount(accountId: string, approvalRef?: string): Promise<{ removed: boolean; accountId: string }> {
+    const query = approvalRef?.trim() ? `?approvalRef=${encodeURIComponent(approvalRef.trim())}` : "";
+    const headers: Record<string, string> = {};
+    const bearer = this.bearer(true);
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    const resp = await fetch(`${this.base()}/connectors/carddav/accounts/${encodeURIComponent(accountId)}${query}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (!resp.ok) {
+      const err = (await resp.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? `Request failed (${resp.status})`);
+    }
+    return resp.json() as Promise<{ removed: boolean; accountId: string }>;
+  }
+
   async listMcpServers(): Promise<{
     servers: Array<{
       id: string;
@@ -722,6 +745,8 @@ export class CommsAgentClient {
       hasAuthHeaders: boolean;
       allowedTools: string[];
       enabled: boolean;
+      trusted: boolean;
+      trustedAt?: number;
       addedAt: number;
     }>;
   }> {
@@ -784,6 +809,19 @@ export class CommsAgentClient {
       this.base(),
       `/mcp/servers/${encodeURIComponent(serverId)}/allowed-tools`,
       { allowedTools, approvalRef },
+      this.auth,
+      true,
+    );
+  }
+
+  async trustMcpServer(
+    serverId: string,
+    approvalRef?: string,
+  ): Promise<{ server: { id: string; trusted: boolean; trustedAt?: number } }> {
+    return postJson(
+      this.base(),
+      `/mcp/servers/${encodeURIComponent(serverId)}/trust`,
+      { approvalRef },
       this.auth,
       true,
     );
