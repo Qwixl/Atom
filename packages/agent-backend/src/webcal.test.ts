@@ -50,6 +50,40 @@ describe("webcal", () => {
     expect(events[1]?.summary).toBe("Long title thatcontinues");
   });
 
+  it("parses Google-style DTSTART with TZID", () => {
+    const ics = [
+      "BEGIN:VCALENDAR",
+      "BEGIN:VEVENT",
+      "UID:google-1",
+      "SUMMARY:Dinner Time",
+      "DTSTART;TZID=Europe/London:20260707T170000",
+      "DTEND;TZID=Europe/London:20260707T180000",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+    const events = parseVEventsFromCalendar(ics);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.summary).toBe("Dinner Time");
+    expect(events[0]?.start).toMatch(/2026-07-07T/);
+    expect(events[0]?.end).toMatch(/2026-07-07T/);
+  });
+
+  it("parses all-day VALUE=DATE events", () => {
+    const ics = [
+      "BEGIN:VCALENDAR",
+      "BEGIN:VEVENT",
+      "UID:allday-1",
+      "SUMMARY:Holiday",
+      "DTSTART;VALUE=DATE:20260707",
+      "DTEND;VALUE=DATE:20260708",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+    const events = parseVEventsFromCalendar(ics);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.start).toBe("2026-07-07T00:00:00.000Z");
+  });
+
   it("queries events in a time range from feeds", async () => {
     vi.stubGlobal(
       "fetch",

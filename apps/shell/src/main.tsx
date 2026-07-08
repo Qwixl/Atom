@@ -1,9 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import "@qwixl/skin-default/minimal.css";
 import "@qwixl/skin-default/default.css";
 import "@qwixl/skin-default/dark.css";
 import "@qwixl/skin-default/high-contrast.css";
-import { applyAtomSkin } from "@qwixl/skin-default/tokens";
+import "@qwixl/skin-default/primitives.css";
+import { applyAtomSkin, isAtomSkinId } from "@qwixl/skin-default/tokens";
 import { loadStringFromStorage } from "@qwixl/shell-core";
 import { RootApp } from "./RootApp.js";
 import "./fonts.css";
@@ -20,12 +22,12 @@ import { initDocumentTheme } from "./theme/ThemeToggle.js";
 
 const SKIN_KEY = "atom-shell-skin";
 const savedSkin = loadStringFromStorage(SKIN_KEY);
-if (savedSkin === "dark" || savedSkin === "high-contrast" || savedSkin === "default") {
+if (isAtomSkinId(savedSkin)) {
   applyAtomSkin(savedSkin);
 } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
   applyAtomSkin("dark");
 } else {
-  applyAtomSkin("default");
+  applyAtomSkin("minimal");
 }
 
 initDocumentTheme();

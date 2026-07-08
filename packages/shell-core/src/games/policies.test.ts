@@ -56,7 +56,7 @@ describe("game policies", () => {
     expect(tttComposition.root.props?.status).toBe("active");
   });
 
-  it("blocks compositions while an active game is on the feed", () => {
+  it("blocks new game compositions while an active game is on the feed", () => {
     const feed: FeedItem[] = [
       {
         kind: "surface",
@@ -65,6 +65,33 @@ describe("game policies", () => {
       },
     ];
     expect(allowCompositionDuringGame(tttComposition, feed)).toBe(false);
+  });
+
+  it("allows non-game compositions while an active game is on the feed", () => {
+    const scheduleComposition: Composition = {
+      version: 1,
+      surfaceId: "schedule-today",
+      root: {
+        id: "schedule-card",
+        component: "core/card",
+        props: { title: "Today" },
+        children: [
+          {
+            id: "schedule-list",
+            component: "core/list",
+            props: { items: ["Standup 9am"] },
+          },
+        ],
+      },
+    };
+    const feed: FeedItem[] = [
+      {
+        kind: "surface",
+        id: "s1",
+        surface: mockSurface("ttt-1", { status: "active", board: Array(9).fill(null) }),
+      },
+    ];
+    expect(allowCompositionDuringGame(scheduleComposition, feed)).toBe(true);
   });
 
   it("allows compositions after the game ends", () => {

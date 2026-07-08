@@ -1282,12 +1282,19 @@ export function CommsPanel({
           end: slot.end,
         });
       }
+      const proposal = thread.find(
+        (item): item is Extract<CommsThreadItem, { kind: "scheduling-proposal" }> =>
+          item.kind === "scheduling-proposal" && item.id === proposalId,
+      );
       await client.sendSchedulingResponse({
         peerUrl: selected.endpoint,
         peerDid: selected.did,
         proposalId,
         response,
         slotId: slot?.id,
+        title: response === "accept" ? proposal?.title : undefined,
+        start: response === "accept" ? slot?.start : undefined,
+        end: response === "accept" ? slot?.end : undefined,
         encrypt: sessionReady,
       });
       setOutbound((current) => [

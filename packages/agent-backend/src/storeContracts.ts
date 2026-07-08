@@ -105,4 +105,10 @@ export const AGENT_STORE_REGISTRY: Record<string, AgentStoreMeta> = {
     productionBackend: "json",
     v1Note: "Pending WebAuthn approvals in memory.",
   },
+  calendarFeed: {
+    id: "calendarFeed",
+    durability: "json-v1",
+    productionBackend: "json",
+    v1Note: "Accepted meetings + proposal cache for subscribe-only webcal feed (M-ECO-08).",
+  },
 };

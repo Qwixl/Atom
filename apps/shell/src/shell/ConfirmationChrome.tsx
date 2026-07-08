@@ -1,5 +1,6 @@
 import type { ConsequentialAction } from "@qwixl/shell-core";
 import { IconClose } from "./ShellIcons.js";
+import { calendarAddUrlFromAction } from "../calendarAddLink.js";
 
 type ConfirmationChromeProps = {
   action: ConsequentialAction;
@@ -19,6 +20,8 @@ export function ConfirmationChrome({
   onDecline,
   onApprove,
 }: ConfirmationChromeProps) {
+  const calendarUrl = calendarAddUrlFromAction(action);
+
   return (
     <div className="chrome-overlay" role="dialog" aria-modal="true" aria-labelledby="chrome-dialog-title">
       <div className="chrome-dialog">
@@ -41,6 +44,15 @@ export function ConfirmationChrome({
               </div>
             ))}
           </dl>
+          {calendarUrl ? (
+            <p className="chrome-calendar-link">
+              <a href={calendarUrl} target="_blank" rel="noopener noreferrer">
+                Open prefilled event in Google Calendar
+              </a>
+              {" · "}
+              Or approve below to open it automatically.
+            </p>
+          ) : null}
         </div>
 
         <footer className="chrome-dialog-footer">

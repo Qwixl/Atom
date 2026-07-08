@@ -41,11 +41,27 @@ export interface StoredWebcalFeed {
   addedAt: number;
 }
 
+export interface StoredRssFeed {
+  id: string;
+  label: string;
+  url: string;
+  addedAt: number;
+}
+
+export interface StoredBookmark {
+  id: string;
+  label: string;
+  url: string;
+  addedAt: number;
+}
+
 interface ConnectorVaultPayload {
   schemaVersion: 1;
   oauth?: Record<string, StoredOAuthTokens>;
   oauthClients?: Record<string, StoredOAuthClient>;
   webcalFeeds?: StoredWebcalFeed[];
+  rssFeeds?: StoredRssFeed[];
+  bookmarks?: StoredBookmark[];
   dpopKey?: DpopKeyPair;
   webauthn?: StoredWebAuthnCredential[];
   ownerRecords?: unknown[];
@@ -165,6 +181,56 @@ export class ConnectorVault {
     const next = existing.filter((feed) => feed.id !== feedId);
     if (next.length === existing.length) return false;
     this.payload.webcalFeeds = next;
+    await this.persist();
+    return true;
+  }
+
+  getRssFeeds(): StoredRssFeed[] {
+    return this.payload.rssFeeds ?? [];
+  }
+
+  async addRssFeed(input: { label: string; url: string }): Promise<StoredRssFeed> {
+    const feed: StoredRssFeed = {
+      id: crypto.randomUUID(),
+      label: input.label.trim() || "News feed",
+      url: input.url.trim(),
+      addedAt: Date.now(),
+    };
+    this.payload.rssFeeds = [...this.getRssFeeds(), feed];
+    await this.persist();
+    return feed;
+  }
+
+  async removeRssFeed(feedId: string): Promise<boolean> {
+    const existing = this.getRssFeeds();
+    const next = existing.filter((feed) => feed.id !== feedId);
+    if (next.length === existing.length) return false;
+    this.payload.rssFeeds = next;
+    await this.persist();
+    return true;
+  }
+
+  getBookmarks(): StoredBookmark[] {
+    return this.payload.bookmarks ?? [];
+  }
+
+  async addBookmark(input: { label: string; url: string }): Promise<StoredBookmark> {
+    const item: StoredBookmark = {
+      id: crypto.randomUUID(),
+      label: input.label.trim() || "Bookmark",
+      url: input.url.trim(),
+      addedAt: Date.now(),
+    };
+    this.payload.bookmarks = [...this.getBookmarks(), item];
+    await this.persist();
+    return item;
+  }
+
+  async removeBookmark(bookmarkId: string): Promise<boolean> {
+    const existing = this.getBookmarks();
+    const next = existing.filter((item) => item.id !== bookmarkId);
+    if (next.length === existing.length) return false;
+    this.payload.bookmarks = next;
     await this.persist();
     return true;
   }

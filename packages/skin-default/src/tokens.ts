@@ -38,14 +38,19 @@ export function readAtomThemeTokens(from: Element = document.documentElement): A
   return tokens;
 }
 
-export type AtomSkinId = "default" | "dark" | "high-contrast";
+export type AtomSkinId = "minimal" | "default" | "dark" | "high-contrast";
 
 export const ATOM_SKINS: { id: AtomSkinId; label: string }[] = [
-  { id: "default", label: "Default" },
+  { id: "minimal", label: "Minimal (template)" },
+  { id: "default", label: "Default (warm)" },
   { id: "dark", label: "Dark" },
   { id: "high-contrast", label: "High contrast" },
 ];
 
 export function applyAtomSkin(skinId: AtomSkinId): void {
   document.documentElement.dataset.atomSkin = skinId;
+}
+
+export function isAtomSkinId(value: string | null | undefined): value is AtomSkinId {
+  return value === "minimal" || value === "default" || value === "dark" || value === "high-contrast";
 }

@@ -1,0 +1,44 @@
+/**
+ * Atom skin-minimal — black/white template intent (D055).
+ * Deliberately sparse: a starting point skins and tokens expand upon.
+ */
+:root,
+[data-atom-skin="minimal"] {
+  --atom-color-bg: #f5f5f5;
+  --atom-color-bg-raised: #ffffff;
+  --atom-color-bg-inset: #fafafa;
+  --atom-color-border: #e0e0e0;
+  --atom-color-border-strong: #cccccc;
+  --atom-color-text: #000000;
+  --atom-color-text-dim: #666666;
+  --atom-color-accent: #000000;
+  --atom-color-accent-soft: rgb(0 0 0 / 0.06);
+  --atom-color-good: #000000;
+  --atom-color-warn: #666666;
+  --atom-color-bad: #000000;
+  --atom-radius-md: 8px;
+  --atom-radius-sm: 6px;
+  --atom-space-sm: 8px;
+  --atom-space-md: 12px;
+  --atom-space-lg: 16px;
+  --atom-font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --bg: var(--atom-color-bg);
+  --bg-raised: var(--atom-color-bg-raised);
+  --bg-inset: var(--atom-color-bg-inset);
+  --border: var(--atom-color-border);
+  --border-strong: var(--atom-color-border-strong);
+  --text: var(--atom-color-text);
+  --text-dim: var(--atom-color-text-dim);
+  --accent: var(--atom-color-accent);
+  --accent-soft: var(--atom-color-accent-soft);
+  --good: var(--atom-color-good);
+  --warn: var(--atom-color-warn);
+  --bad: var(--atom-color-bad);
+  --radius: var(--atom-radius-md);
+}
+
+[data-atom-skin="minimal"] .atom-surface {
+  font-family: var(--atom-font-sans);
+  color: var(--atom-color-text);
+}

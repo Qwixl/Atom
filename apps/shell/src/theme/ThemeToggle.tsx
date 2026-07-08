@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { applyAtomSkin, type AtomSkinId } from "@qwixl/skin-default/tokens";
+import { applyAtomSkin, isAtomSkinId, type AtomSkinId } from "@qwixl/skin-default/tokens";
 import { loadStringFromStorage, saveStringToStorage } from "@qwixl/shell-core";
 import { IconMoon, IconSun } from "./ThemeIcons.js";
 
@@ -11,8 +11,8 @@ function syncDataTheme(skin: AtomSkinId) {
 
 function readTheme(): AtomSkinId {
   const saved = loadStringFromStorage(SKIN_KEY);
-  if (saved === "dark" || saved === "high-contrast" || saved === "default") return saved;
-  return "default";
+  if (isAtomSkinId(saved)) return saved;
+  return "minimal";
 }
 
 export function ThemeToggle({ className }: { className?: string }) {
@@ -26,7 +26,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
       title={isDark ? "Light mode" : "Dark mode"}
       onClick={() => {
-        const next: AtomSkinId = isDark ? "default" : "dark";
+        const next: AtomSkinId = isDark ? "minimal" : "dark";
         applyAtomSkin(next);
         saveStringToStorage(SKIN_KEY, next);
         syncDataTheme(next);

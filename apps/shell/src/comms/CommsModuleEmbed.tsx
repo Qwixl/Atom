@@ -31,6 +31,7 @@ export function CommsModuleEmbed({
 
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [frameHeight, setFrameHeight] = useState(minHeight);
 
   const manifest = catalog.getModuleManifest(moduleId);
   const bundleUrl = manifest ? catalog.getModuleBundle(moduleId) : undefined;
@@ -71,7 +72,12 @@ export function CommsModuleEmbed({
     const handler = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) return;
       if (!bridge.isAllowedMessageOrigin(event.origin)) return;
-      const data = event.data as { type?: string; name?: string; payload?: Record<string, unknown> };
+      const data = event.data as {
+        type?: string;
+        name?: string;
+        payload?: Record<string, unknown>;
+        height?: number;
+      };
       if (data?.type === "ready") {
         const win = iframeRef.current?.contentWindow;
         if (win) bridge.sendInit(win, propsRef.current);
@@ -79,11 +85,20 @@ export function CommsModuleEmbed({
       }
       if (data?.type === "event" && typeof data.name === "string") {
         onEventRef.current?.(data.name, data.payload ?? {});
+        return;
+      }
+      if (data?.type === "resize" && typeof data.height === "number" && data.height > 0) {
+        const nextHeight = Math.ceil(data.height);
+        setFrameHeight((current) => Math.max(minHeight, current, nextHeight));
       }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [bridge]);
+  }, [bridge, minHeight]);
+
+  useEffect(() => {
+    setFrameHeight(minHeight);
+  }, [minHeight, moduleId]);
 
   if (loadError) {
     return <p className="comms-module-error">{loadError}</p>;
@@ -99,7 +114,14 @@ export function CommsModuleEmbed({
       title={manifest.id}
       src={resolveBundleUrl(bundleUrl)}
       sandbox={MODULE_IFRAME_SANDBOX}
-      style={{ height: minHeight, width: "100%", border: "none", display: "block", overflow: "hidden" }}
+      style={{
+        height: frameHeight,
+        minHeight,
+        width: "100%",
+        border: "none",
+        display: "block",
+        overflow: "hidden",
+      }}
     />
   );
 }

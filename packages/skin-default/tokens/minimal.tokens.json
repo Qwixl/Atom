@@ -1,0 +1,29 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "$description": "Atom skin-minimal — monochrome template (D055). Source: minimal.css",
+  "color": {
+    "bg": { "$value": "#f5f5f5", "$type": "color" },
+    "bg-raised": { "$value": "#ffffff", "$type": "color" },
+    "bg-inset": { "$value": "#fafafa", "$type": "color" },
+    "border": { "$value": "#e0e0e0", "$type": "color" },
+    "border-strong": { "$value": "#cccccc", "$type": "color" },
+    "text": { "$value": "#000000", "$type": "color" },
+    "text-dim": { "$value": "#666666", "$type": "color" },
+    "accent": { "$value": "#000000", "$type": "color" }
+  },
+  "radius": {
+    "md": { "$value": "8px", "$type": "dimension" },
+    "sm": { "$value": "6px", "$type": "dimension" }
+  },
+  "space": {
+    "sm": { "$value": "8px", "$type": "dimension" },
+    "md": { "$value": "12px", "$type": "dimension" },
+    "lg": { "$value": "16px", "$type": "dimension" }
+  },
+  "font": {
+    "sans": {
+      "$value": "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+      "$type": "fontFamily"
+    }
+  }
+}

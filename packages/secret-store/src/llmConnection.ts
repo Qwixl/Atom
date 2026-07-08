@@ -5,6 +5,8 @@ export interface LlmConnectionConfig {
   baseUrl: string;
   model: string;
   secretRef: SecretRef;
+  /** Cached native model capabilities from discoverModelCapabilities (@qwixl/agent-llm). */
+  capabilities?: unknown;
 }
 
 /** Runtime LLM config after resolving secretRef from a SecretStore. */
@@ -12,6 +14,7 @@ export interface ResolvedLlmConfig {
   baseUrl: string;
   model: string;
   apiKey: string;
+  capabilities?: unknown;
 }
 
 export const DEFAULT_LLM_SECRET_REF = "atom.llm.primary";
@@ -29,6 +32,7 @@ export function resolveLlmConfig(
     baseUrl: connection.baseUrl.trim(),
     model: connection.model.trim(),
     apiKey: apiKey.trim(),
+    capabilities: connection.capabilities,
   };
 }
 
@@ -90,6 +94,7 @@ export function loadAndMigrateLlmConnection(
         baseUrl: parsed.baseUrl.trim(),
         model: parsed.model.trim(),
         secretRef: parsed.secretRef.trim(),
+        capabilities: parsed.capabilities,
       };
     }
 
