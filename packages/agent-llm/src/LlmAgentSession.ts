@@ -18,6 +18,7 @@ import type { ModelCapabilityProfile } from "./modelCapabilities.js";
 import { inferModelCapabilities, normalizeModelCapabilityProfile } from "./modelCapabilities.js";
 import { buildSystemPrompt, type PromptProfile } from "./prompt.js";
 import { callResponsesApi } from "./responsesApi.js";
+import { buildImageResultProtocol } from "./imageProtocol.js";
 
 export interface LlmConfig {
   /** OpenAI-compatible base URL, e.g. "https://api.openai.com/v1". */
@@ -171,6 +172,10 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
       } catch {
         /* fall through — repair may still help */
       }
+    }
+
+    if (!extractJson(raw) && /^https?:\/\//.test(raw.trim())) {
+      raw = buildImageResultProtocol([raw.trim()]);
     }
 
     this.messages.push({ role: "assistant", content: raw });
@@ -402,7 +407,10 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
         });
 
         if (result.functionCalls.length === 0) {
-          if (!result.text.trim()) throw new Error("Responses API returned no text");
+          if (result.imageUrls.length > 0) {
+            return buildImageResultProtocol(result.imageUrls, result.text);
+          }
+          if (!result.text.trim()) throw new Error("Responses API returned no text or images");
           return result.text;
         }
 

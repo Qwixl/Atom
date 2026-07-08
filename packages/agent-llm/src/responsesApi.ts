@@ -1,9 +1,11 @@
 import type { LlmConfig } from "./LlmAgentSession.js";
 import type { AgentToolProfile } from "./agentTools.js";
 import { responsesApiTools } from "./agentTools.js";
+import { extractImageUrlsFromResponse } from "./imageProtocol.js";
 
 export interface ResponsesCallResult {
   text: string;
+  imageUrls: string[];
   functionCalls: Array<{ callId: string; name: string; arguments: string }>;
 }
 
@@ -86,6 +88,7 @@ export async function callResponsesApi(opts: {
   const data = (await res.json()) as Record<string, unknown>;
   return {
     text: extractOutputText(data),
+    imageUrls: extractImageUrlsFromResponse(data),
     functionCalls: extractFunctionCalls(data),
     responseId: typeof data.id === "string" ? data.id : undefined,
   };

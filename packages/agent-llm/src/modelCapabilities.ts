@@ -103,12 +103,11 @@ export function inferModelCapabilities(
   const providerKind = inferProviderKind(baseUrl);
   const modelFamily = inferModelFamily(model);
   const nativeTools = inferNativeTools(model, providerKind, modelFamily);
-  const providerHostedTools = nativeTools.includes("web_search") ? ["web_search"] : [];
+  const providerHostedTools = filterWireableHostedTools(nativeTools);
 
   let chatComposeNote: string | undefined;
   if (modelFamily === "image") {
-    chatComposeNote =
-      "Image model — use Images/Responses API (image_generation), not Atom chat compose.";
+    chatComposeNote = "Image model — generates via Responses API (image_generation).";
   } else if (modelFamily === "realtime") {
     chatComposeNote = "Realtime model — use Realtime API (/v1/realtime), not Atom chat compose.";
   } else if (modelFamily === "audio") {
@@ -157,7 +156,6 @@ async function probeHostedTool(
   return res.ok;
 }
 
-/** Fill defaults for profiles persisted before providerHostedTools existed; strip tools that need extra config. */
 export function normalizeModelCapabilityProfile(
   profile: Partial<ModelCapabilityProfile> | null | undefined,
   ctx: { baseUrl: string; model: string },
@@ -179,6 +177,24 @@ export function normalizeModelCapabilityProfile(
     supportedMethods: profile.supportedMethods ?? [],
     responsesApi: providerHostedTools.length > 0,
   };
+}
+
+/** True when persisted capabilities should be re-discovered (schema drift or heuristic-only). */
+export function capabilitiesNeedRefresh(
+  profile: ModelCapabilityProfile | undefined,
+  ctx: { baseUrl: string; model: string },
+): boolean {
+  if (!profile) return false;
+  if (normalizeModelId(profile.model) !== normalizeModelId(ctx.model)) return true;
+  if (!Array.isArray(profile.providerHostedTools) || !Array.isArray(profile.providerFeatures)) {
+    return true;
+  }
+  if (profile.source === "heuristic" && profile.providerKind === "openai") return true;
+  const normalized = normalizeModelCapabilityProfile(profile, ctx);
+  if (normalized.providerHostedTools.join(",") !== profile.providerHostedTools.join(",")) {
+    return true;
+  }
+  return false;
 }
 
 export async function discoverModelCapabilities(

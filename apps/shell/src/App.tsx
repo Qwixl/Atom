@@ -44,6 +44,7 @@ import {
   discoverModelCapabilities,
   inferModelCapabilities,
   normalizeModelCapabilityProfile,
+  capabilitiesNeedRefresh,
   formatNativeToolsLabel,
   shouldCurateTranscript,
   type LlmConfig,
@@ -83,13 +84,9 @@ import {
   type SecretStore,
 } from "@qwixl/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
+import { loadBriefingPreferences } from "./briefing/briefingPreferences.js";
 import { ProfilePanel } from "./ProfilePanel.js";
 import { DiscoverPanel } from "./DiscoverPanel.js";
-import { DiscoverChatResults, type DiscoverChatResult } from "./DiscoverChatResults.js";
-import { connectDiscoverEntry, joinDiscoverRoom } from "./discoverActions.js";
-import { ownerHandleForRooms } from "./ownerHandle.js";
-import { extractDiscoverTerms, isDiscoverQuery } from "./discoverQuery.js";
-import { loadDiscoverIndexes } from "./discoverIndexStorage.js";
 import { RoomsPanel } from "./RoomsPanel.js";
 import { tryReconnectHostedAgent } from "./auth/completeSetup.js";
 import { loadAccountType, saveAccountType, clearAccountType } from "./accountType.js";
@@ -522,6 +519,41 @@ export function App() {
       ),
     };
   }, [llmConnection, secretStore]);
+
+  useEffect(() => {
+    if (!ALLOW_BROWSER_LLM || provider !== "llm" || !llmConnection) return;
+    const resolved = resolveLlmConfig(llmConnection, secretStore);
+    if (!resolved?.apiKey.trim()) return;
+    const current = resolved.capabilities as ModelCapabilityProfile | undefined;
+    if (
+      !capabilitiesNeedRefresh(current, {
+        baseUrl: resolved.baseUrl,
+        model: resolved.model,
+      })
+    ) {
+      return;
+    }
+    let cancelled = false;
+    void discoverModelCapabilities({
+      baseUrl: resolved.baseUrl,
+      apiKey: resolved.apiKey,
+      model: resolved.model,
+      probe: true,
+    })
+      .then((profile) => {
+        if (cancelled) return;
+        const connection: LlmConnectionConfig = { ...llmConnection, capabilities: profile };
+        persistLlmConnection(connection);
+        setLlmConnection(connection);
+      })
+      .catch(() => {
+        /* keep normalized fallback */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [llmConnection, provider, secretStore]);
+
   const savedLlmKeyHint = useMemo(() => {
     if (!llmConnection) return null;
     const key = secretStore.get(llmConnection.secretRef);
@@ -623,8 +655,6 @@ export function App() {
   }, []);
   const [roomsFocusId, setRoomsFocusId] = useState<string | null>(null);
   const [commsFocusId, setCommsFocusId] = useState<string | null>(null);
-  const [chatDiscoverResults, setChatDiscoverResults] = useState<DiscoverChatResult[] | null>(null);
-  const [discoverActionBusy, setDiscoverActionBusy] = useState(false);
   const [commsContacts, setCommsContacts] = useState<AgentContact[]>(() =>
     loadContacts(ownerRecordsPersistence.load()),
   );
@@ -738,8 +768,16 @@ export function App() {
         rssContextRef.current ??
         "Not connected. Owner can add a public RSS/Atom feed URL in Settings → Connectors.";
       const withCalendar = { ...base, calendarContext: calendar, rssContext: rss };
+      const briefing = loadBriefingPreferences();
+      const briefingContext =
+        briefing.enabled && briefing.topics.length > 0
+          ? `Owner cares about these briefing topics: ${briefing.topics.join(", ")}.`
+          : undefined;
+      const withBriefing = briefingContext
+        ? { ...withCalendar, briefingContext }
+        : withCalendar;
       const active = activeGameContext(findActiveGameInFeed(chatFeedRef.current));
-      return active ? { ...withCalendar, activeSurface: active } : withCalendar;
+      return active ? { ...withBriefing, activeSurface: active } : withBriefing;
     },
     [ownerStore, conversationMemory],
   );
@@ -987,7 +1025,9 @@ export function App() {
       ? await loadCommsAgentConfigSecure()
       : loadCommsAgentConfig();
     if (!config.adminToken?.trim()) {
-      throw new Error("Agent backend not configured");
+      throw new Error(
+        "Atom connectors need your Messages agent running (pnpm start:agent) and connected in Settings.",
+      );
     }
     const client = new CommsAgentClient(config.adminUrl, config.adminToken);
     const response = await client.invokeConnector(
@@ -1254,38 +1294,6 @@ export function App() {
       setInput("");
       return;
     }
-    if (
-      !IS_DEMO_MODE &&
-      panel === "none" &&
-      agentConnectionReady &&
-      isDiscoverQuery(trimmed)
-    ) {
-      turnTranscript.current = [];
-      conversationRef.current.appendUser(trimmed);
-      setInput("");
-      setChatDiscoverResults(null);
-      conversationRef.current.setBusy(true);
-      void (async () => {
-        try {
-          const config = loadCommsAgentConfig();
-          const client = new CommsAgentClient(config.adminUrl, config.adminToken);
-          const { summary, results } = await client.discoverSearch({
-            terms: extractDiscoverTerms(trimmed),
-            indexBaseUrl: window.location.origin,
-            indexes: loadDiscoverIndexes(),
-          });
-          conversationRef.current.appendLocalAgentText(summary);
-          setChatDiscoverResults(results);
-        } catch (error) {
-          conversationRef.current.appendLocalAgentText(
-            error instanceof Error ? error.message : String(error),
-          );
-        } finally {
-          conversationRef.current.setBusy(false);
-        }
-      })();
-      return;
-    }
     turnTranscript.current = [];
     conversationRef.current.appendUser(trimmed);
     setInput("");
@@ -1297,51 +1305,6 @@ export function App() {
         error instanceof Error ? error.message : String(error),
       );
       conversationRef.current.setBusy(false);
-    }
-  }
-
-  async function handleChatDiscoverDm(result: DiscoverChatResult): Promise<void> {
-    setDiscoverActionBusy(true);
-    try {
-      const config = loadCommsAgentConfig();
-      const client = new CommsAgentClient(config.adminUrl, config.adminToken);
-      const { contact, contacts } = await connectDiscoverEntry({
-        client,
-        entry: { ...result.entry, resolved: result.resolved },
-        contacts: commsContacts,
-      });
-      setCommsContacts(contacts);
-      setCommsFocusId(contact.id);
-      setChatDiscoverResults(null);
-      setPanel("comms");
-    } catch (error) {
-      conversationRef.current.appendLocalAgentText(
-        error instanceof Error ? error.message : String(error),
-      );
-    } finally {
-      setDiscoverActionBusy(false);
-    }
-  }
-
-  async function handleChatDiscoverJoin(result: DiscoverChatResult): Promise<void> {
-    setDiscoverActionBusy(true);
-    try {
-      const config = loadCommsAgentConfig();
-      const client = new CommsAgentClient(config.adminUrl, config.adminToken);
-      const roomId = await joinDiscoverRoom({
-        client,
-        entry: { ...result.entry, resolved: result.resolved },
-        memberName: ownerHandleForRooms(),
-      });
-      setRoomsFocusId(roomId);
-      setChatDiscoverResults(null);
-      setPanel("rooms");
-    } catch (error) {
-      conversationRef.current.appendLocalAgentText(
-        error instanceof Error ? error.message : String(error),
-      );
-    } finally {
-      setDiscoverActionBusy(false);
     }
   }
 
@@ -1685,20 +1648,6 @@ export function App() {
               );
             })
           )}
-          {chatDiscoverResults && chatDiscoverResults.length > 0 ? (
-            <div className="feed-discover-bundle">
-              <DiscoverChatResults
-                results={chatDiscoverResults}
-                busy={discoverActionBusy || busy}
-                onDm={(result) => void handleChatDiscoverDm(result)}
-                onJoinRoom={(result) => void handleChatDiscoverJoin(result)}
-                onOpenDiscover={() => {
-                  setChatDiscoverResults(null);
-                  setPanel("discover");
-                }}
-              />
-            </div>
-          ) : null}
           {busy ? <div className="feed-busy">agent working…</div> : null}
         </main>
         ) : null}

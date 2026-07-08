@@ -139,6 +139,9 @@ export function formatToolsForPrompt(profile: AgentToolProfile): string {
   lines.push(
     "After web search or connector reads, always emit Atom JSON with headline/list content in `text` and/or `core/list` — never stop at an empty intro.",
   );
+  lines.push(
+    "When atom_connector_invoke fails, tell the owner to start their Messages agent (pnpm start:agent) — connectors run on the agent backend, not in the browser alone.",
+  );
   return lines.join("\n");
 }
 
