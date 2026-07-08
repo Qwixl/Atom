@@ -27,6 +27,7 @@ export type CommsModuleBridge =
     }
   | { action: "tttStart"; gameId: string }
   | { action: "bsStart"; gameId: string }
+  | { action: "bsMove"; gameId: string; move: { action: "place"; cells: number[] } | { action: "fire"; cell: number } }
   | { action: "bsCommit"; gameId: string; cells: number[] };
 
 export function queueCommsModuleBridge(payload: CommsModuleBridge): void {
@@ -120,6 +121,23 @@ export function bridgeChatModuleEvent(
   if (name === "bsStart") {
     const gameId = typeof payload?.gameId === "string" ? payload.gameId : `bs-${Date.now()}`;
     queueCommsModuleBridge({ action: "bsStart", gameId });
+    return true;
+  }
+  if (name === "bsMove") {
+    const gameId = typeof payload?.gameId === "string" ? payload.gameId : "";
+    const action = payload?.action === "fire" ? "fire" : payload?.action === "place" ? "place" : null;
+    if (!gameId || !action) return false;
+    if (action === "place") {
+      const cells = Array.isArray(payload?.cells)
+        ? payload.cells.filter((cell): cell is number => typeof cell === "number")
+        : [];
+      if (cells.length === 0) return false;
+      queueCommsModuleBridge({ action: "bsMove", gameId, move: { action: "place", cells } });
+      return true;
+    }
+    const cell = typeof payload?.cell === "number" ? payload.cell : -1;
+    if (cell < 0) return false;
+    queueCommsModuleBridge({ action: "bsMove", gameId, move: { action: "fire", cell } });
     return true;
   }
   if (name === "bsCommit") {

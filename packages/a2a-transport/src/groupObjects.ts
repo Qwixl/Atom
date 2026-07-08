@@ -13,8 +13,10 @@ import {
   DEFAULT_COORDINATION_TTL_SECONDS,
   GAME_BS_SHOT_PURPOSE,
   GAME_BS_STATE_PURPOSE,
+  GAME_BS_MOVE_PURPOSE,
   GAME_TTT_MOVE_PURPOSE,
   GAME_TTT_STATE_PURPOSE,
+  BS_MOVE_SCHEMA,
   BS_SHOT_SCHEMA,
   BS_STATE_SCHEMA,
   LOCATION_PIN_SCHEMA,
@@ -79,6 +81,17 @@ export interface BattleshipsStatePayload {
   commitB?: string;
   shots: BsShot[];
   winner?: BsPlayer;
+  /** Engine-backed public sync (BK-10). Host sends filtered boards for both seats. */
+  publicState?: Record<string, unknown>;
+  threadId?: string;
+}
+
+export interface BattleshipsMovePayload {
+  gameId: string;
+  player: BsPlayer;
+  action: "place" | "fire";
+  cells?: number[];
+  cell?: number;
   threadId?: string;
 }
 
@@ -257,6 +270,34 @@ export async function createBattleshipsState(opts: {
   });
 }
 
+export async function createBattleshipsMove(opts: {
+  identity: AgentKeyPair;
+  payload: BattleshipsMovePayload;
+  ttlSeconds?: number;
+}): Promise<DataObject> {
+  assertNonEmptyString(opts.payload.gameId, "gameId");
+  if (opts.payload.player !== "A" && opts.payload.player !== "B") {
+    throw new Error("Battleships player must be A or B");
+  }
+  if (opts.payload.action === "place") {
+    if (!Array.isArray(opts.payload.cells) || opts.payload.cells.length === 0) {
+      throw new Error("place move requires cells");
+    }
+  } else if (opts.payload.action === "fire") {
+    if (typeof opts.payload.cell !== "number") {
+      throw new Error("fire move requires cell");
+    }
+  } else {
+    throw new Error("Battleships move action must be place or fire");
+  }
+  return signGroupObject(opts.identity, {
+    schema: BS_MOVE_SCHEMA,
+    purpose: GAME_BS_MOVE_PURPOSE,
+    payload: opts.payload as unknown as Record<string, unknown>,
+    ttlSeconds: opts.ttlSeconds,
+  });
+}
+
 export async function createBattleshipsShot(opts: {
   identity: AgentKeyPair;
   payload: BattleshipsShotPayload;
@@ -317,6 +358,16 @@ export async function verifyBattleshipsState(
     throw new Error("Not a battleships state object");
   }
   return { payload: verified.payload as unknown as BattleshipsStatePayload };
+}
+
+export async function verifyBattleshipsMove(
+  object: DataObject,
+): Promise<{ payload: BattleshipsMovePayload }> {
+  const verified = await verifyDataObject(object);
+  if (verified.governance.purpose !== GAME_BS_MOVE_PURPOSE) {
+    throw new Error("Not a battleships move object");
+  }
+  return { payload: verified.payload as unknown as BattleshipsMovePayload };
 }
 
 export async function verifyBattleshipsShot(

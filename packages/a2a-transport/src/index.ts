@@ -29,6 +29,7 @@ export {
   GAME_TTT_MOVE_PURPOSE,
   GAME_BS_STATE_PURPOSE,
   GAME_BS_SHOT_PURPOSE,
+  GAME_BS_MOVE_PURPOSE,
   GAME_PURPOSES,
   TTT_STATE_SCHEMA,
   TTT_MOVE_SCHEMA,
@@ -119,6 +120,7 @@ export {
   createTttState,
   createBattleshipsState,
   createBattleshipsShot,
+  createBattleshipsMove,
   verifyPollRequest,
   verifyPollVote,
   verifySharedList,
@@ -128,6 +130,7 @@ export {
   verifyTttState,
   verifyBattleshipsState,
   verifyBattleshipsShot,
+  verifyBattleshipsMove,
   type PollOption,
   type PollRequestPayload,
   type PollVotePayload,
@@ -144,6 +147,7 @@ export {
   type BsShot,
   type BattleshipsStatePayload,
   type BattleshipsShotPayload,
+  type BattleshipsMovePayload,
 } from "./groupObjects.js";
 export {
   createActionReserve,

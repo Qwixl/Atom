@@ -446,8 +446,11 @@ export function CoordinationCard({
 
   if (item.kind === "bs-state") {
     const state = item;
-    const setupLabel =
-      state.phase === "setup"
+    const setupLabel = state.publicState?.engine
+      ? state.phase === "won"
+        ? `${state.publicState.winner ?? state.winner} wins`
+        : `${state.publicState.turn}'s turn`
+      : state.phase === "setup"
         ? `Setup — A ${state.commitA ? "ready" : "placing"} · B ${state.commitB ? "ready" : "placing"}`
         : state.phase === "won"
           ? `${state.winner} wins`
@@ -458,7 +461,7 @@ export function CoordinationCard({
           <strong>Battleships</strong>
           <span>{setupLabel}</span>
         </div>
-        {state.phase === "battle" && showActions && onBsFire ? (
+        {state.phase === "battle" && showActions && onBsFire && !state.publicState?.engine ? (
           <div className="shell-comms-bs-board">
             {Array.from({ length: 36 }, (_, index) => {
               const shot = state.shots.find((entry) => entry.cell === index);

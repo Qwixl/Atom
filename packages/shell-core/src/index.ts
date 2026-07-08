@@ -92,6 +92,18 @@ export type {
   BattleshipsLevel,
   BattleshipsShot,
 } from "./games/battleships.js";
+export {
+  BattleshipsA2AHost,
+  parseBattleshipsPublicState,
+  parseBattleshipsMovePayload,
+  seatToPlayer,
+  playerToSeat,
+} from "./games/battleshipsA2a.js";
+export type {
+  BsSeat,
+  BattleshipsPublicState,
+  BsSeatBoardView,
+} from "./games/battleshipsA2a.js";
 
 
 
