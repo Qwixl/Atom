@@ -130,6 +130,9 @@ import {
 import { MockAgentSession } from "./mock-agent.js";
 import { loadBriefingPreferences, BRIEFING_OPEN_MESSAGE, applyCuratorBriefingTopics, formatBriefingContextForPrompt } from "./briefing/briefingPreferences.js";
 import { BriefingSettingsPanel } from "./briefing/BriefingSettingsPanel.js";
+import { formatLocationContextForPrompt } from "./location/locationContext.js";
+import { loadLocationPreferences } from "./location/locationPreferences.js";
+import type { DeviceLocationSnapshot } from "./location/deviceLocation.js";
 import { ProfilePanel } from "./ProfilePanel.js";
 import { DiscoverPanel } from "./DiscoverPanel.js";
 import { RoomsPanel } from "./RoomsPanel.js";
@@ -693,6 +696,8 @@ export function App() {
   const [rssContext, setRssContext] = useState<string | undefined>(undefined);
   const rssContextRef = useRef<string | undefined>(undefined);
   const rssRefreshInFlight = useRef<Promise<void> | null>(null);
+  const [deviceLocation, setDeviceLocation] = useState<DeviceLocationSnapshot | null>(null);
+  const deviceLocationRef = useRef<DeviceLocationSnapshot | null>(null);
 
   const applyCalendarContext = useCallback((value: string | undefined) => {
     calendarContextRef.current = value;
@@ -701,6 +706,10 @@ export function App() {
   const applyRssContext = useCallback((value: string | undefined) => {
     rssContextRef.current = value;
     setRssContext(value);
+  }, []);
+  const applyDeviceLocation = useCallback((value: DeviceLocationSnapshot | null) => {
+    deviceLocationRef.current = value;
+    setDeviceLocation(value);
   }, []);
   /** Set when user picks a provider that needs configuration first. */
   const [settingsIntent, setSettingsIntent] = useState<Provider | null>(null);
@@ -897,7 +906,10 @@ export function App() {
       const rss =
         rssContextRef.current ??
         "Not connected. Owner can add a public RSS/Atom feed URL in Settings → Connectors.";
-      const withCalendar = { ...base, calendarContext: calendar, rssContext: rss };
+      const location =
+        formatLocationContextForPrompt(loadLocationPreferences(), deviceLocationRef.current) ??
+        "No home city or one-shot device location. Owner can set home city or tap Use current location once in Settings → Briefing. Atom never tracks location in the background.";
+      const withCalendar = { ...base, calendarContext: calendar, rssContext: rss, locationContext: location };
       const briefingContext = formatBriefingContextForPrompt(briefing, interestHints);
       const withBriefing = briefingContext
         ? { ...withCalendar, briefingContext }
@@ -2313,6 +2325,8 @@ export function App() {
           allowBrowserLlm={ALLOW_BROWSER_LLM}
           onWebcalFeedsChanged={() => void refreshWebcalState()}
           onRssFeedsChanged={() => void refreshRssState()}
+          deviceLocation={deviceLocation}
+          onDeviceLocationChange={applyDeviceLocation}
           agentConnectionReady={agentConnectionReady}
           resolveLlmApiKey={() =>
             llmConnection ? secretStore.get(llmConnection.secretRef) ?? null : null
@@ -2407,6 +2421,8 @@ function SettingsDialog({
   allowBrowserLlm,
   onWebcalFeedsChanged,
   onRssFeedsChanged,
+  deviceLocation,
+  onDeviceLocationChange,
   agentConnectionReady,
   resolveLlmApiKey,
   onSwitchChatProvider,
@@ -2439,6 +2455,8 @@ function SettingsDialog({
   allowBrowserLlm: boolean;
   onWebcalFeedsChanged?: () => void;
   onRssFeedsChanged?: () => void;
+  deviceLocation?: DeviceLocationSnapshot | null;
+  onDeviceLocationChange?: (snapshot: DeviceLocationSnapshot | null) => void;
   agentConnectionReady: boolean;
   resolveLlmApiKey: () => string | null;
   onSwitchChatProvider: (provider: Provider) => void;
@@ -2891,7 +2909,13 @@ function SettingsDialog({
   }
 
   function renderBriefingPanel() {
-    return <BriefingSettingsPanel embedded />;
+    return (
+      <BriefingSettingsPanel
+        embedded
+        deviceLocation={deviceLocation}
+        onDeviceLocationChange={onDeviceLocationChange}
+      />
+    );
   }
 
   function renderSecurityPanel() {
