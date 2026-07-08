@@ -26,6 +26,8 @@ export interface PromptProfile {
   calendarContext?: string;
   /** Read-only RSS snapshot (Settings → Connectors; vault unlock + feed change only). */
   rssContext?: string;
+  /** Home city + optional one-shot device geolocation for weather (BK-17). */
+  locationContext?: string;
   /** Optional owner briefing topic prefs (F6-1 passive snapshot). */
   briefingContext?: string;
   /** Active link exploration path (F7-2). */
@@ -170,6 +172,23 @@ When presenting RSS in a roundup:
   - Feed-specific questions → these headlines (linked).
   - Other topics → your knowledge and provider tools — do not refuse.
 - Never emit "Loading..." placeholders.`;
+}
+
+function locationSection(profile: PromptProfile | undefined): string {
+  const ctx = profile?.locationContext?.trim();
+  if (!ctx) {
+    return `## Location (weather defaults)
+
+No home city or one-shot device location is configured. The owner can set a home city or tap \
+"Use current location once" in Settings → Briefing. Atom never tracks location in the background. \
+For weather, call atom_connector_invoke weather getForecast only after the owner names a place or grants a one-shot fix.`;
+  }
+  return `## Location (weather defaults)
+
+${ctx}
+
+When the owner asks for weather without naming a place, use the rules above with atom_connector_invoke weather getForecast. \
+Proximity meetups and family location sharing use registry modules (e.g. family/location-pin), not this context.`;
 }
 
 function businessSection(profile: PromptProfile | undefined): string {
@@ -377,6 +396,7 @@ never replace calendar or RSS sections.`;
 function profileAndMemorySection(profile: PromptProfile | undefined): string {
   const calendar = calendarSection(profile);
   const rss = rssSection(profile);
+  const location = locationSection(profile);
   const roundup = briefingRoundupSection(profile);
   const briefing = briefingSection(profile);
   const discovery = discoveryPathSection(profile);
@@ -388,6 +408,7 @@ function profileAndMemorySection(profile: PromptProfile | undefined): string {
   const sections = [
     calendar,
     rss,
+    location,
     roundup,
     briefing,
     discovery,

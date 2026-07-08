@@ -4,8 +4,18 @@ import {
   saveBriefingPreferences,
   type BriefingPreferences,
 } from "./briefingPreferences.js";
+import { LocationSettingsPanel } from "../location/LocationSettingsPanel.js";
+import type { DeviceLocationSnapshot } from "../location/deviceLocation.js";
 
-export function BriefingSettingsPanel({ embedded = false }: { embedded?: boolean }) {
+export function BriefingSettingsPanel({
+  embedded = false,
+  deviceLocation,
+  onDeviceLocationChange,
+}: {
+  embedded?: boolean;
+  deviceLocation?: DeviceLocationSnapshot | null;
+  onDeviceLocationChange?: (snapshot: DeviceLocationSnapshot | null) => void;
+}) {
   const [prefs, setPrefs] = useState<BriefingPreferences>(() => loadBriefingPreferences());
   const [topicInput, setTopicInput] = useState("");
   const [note, setNote] = useState<string | null>(null);
@@ -96,6 +106,11 @@ export function BriefingSettingsPanel({ embedded = false }: { embedded?: boolean
         <p className="settings-note">No topics yet — the agent still summarizes calendar and RSS.</p>
       )}
       {note ? <p className="settings-note webcal-settings-note">{note}</p> : null}
+      <LocationSettingsPanel
+        embedded
+        deviceLocation={deviceLocation}
+        onDeviceLocationChange={onDeviceLocationChange}
+      />
     </>
   );
 
