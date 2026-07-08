@@ -85,7 +85,7 @@ import {
   type SecretStore,
 } from "@qwixl/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
-import { loadBriefingPreferences, BRIEFING_OPEN_MESSAGE } from "./briefing/briefingPreferences.js";
+import { loadBriefingPreferences, BRIEFING_OPEN_MESSAGE, applyCuratorBriefingTopics } from "./briefing/briefingPreferences.js";
 import { BriefingSettingsPanel } from "./briefing/BriefingSettingsPanel.js";
 import { ProfilePanel } from "./ProfilePanel.js";
 import { DiscoverPanel } from "./DiscoverPanel.js";
@@ -1234,6 +1234,7 @@ export function App() {
                   activeOwnerStore.acceptProposal(queued.id);
                 }
               }
+              applyCuratorBriefingTopics(result.proposals);
               setProfileRecordsRef.current(activeOwnerStore.list());
               setProfileProposalsRef.current(activeOwnerStore.listProposals());
               if (activeOwnerStore.listProposals().length > 0) {

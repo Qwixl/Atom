@@ -28,6 +28,7 @@
     "docker:demo-peer": "docker compose up demo-peer-agent --build",
     "docker:hosting": "docker compose up demo-peer-agent control-plane --build",
     "registry:verify": "pnpm --filter @qwixl/registry-tools verify && node scripts/verify-production-shell.mjs",
+    "registry:verify:strict": "pnpm --filter @qwixl/registry-tools verify -- --require-integrity --signatures --require-signatures --scan-bundles",
     "registry:publish": "pnpm --filter @qwixl/registry-tools publish-module",
     "registry:publish-all": "pnpm --filter @qwixl/registry-tools publish-all",
     "registry:scaffold": "pnpm --filter @qwixl/registry-tools scaffold",
