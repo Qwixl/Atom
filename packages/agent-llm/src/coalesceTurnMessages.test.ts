@@ -24,7 +24,11 @@ describe("coalesceTurnMessages", () => {
         type: "composition",
         composition: { surfaceId: "briefing-daily", intent: "Daily briefing roundup v2" },
       },
-    ]) as Array<{ type: string; text?: string; composition?: { surfaceId?: string } }>;
+    ]) as Array<{
+      type: string;
+      text?: string;
+      composition?: { surfaceId?: string; intent?: string };
+    }>;
 
     expect(result).toHaveLength(2);
     expect(result[0]).toEqual({ type: "text", text: "Good morning." });
