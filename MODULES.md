@@ -23,11 +23,11 @@ The curated store at [atom.registry.qwixl.com](https://atom.registry.qwixl.com) 
 - Terrorist facilitation or violent extremism
 - CSAM or sexual abuse material
 
-Third-party registries are owner-controlled; Atom cannot centrally block them. Owners who add a custom index accept responsibility for what they install. Report abuse on the reference store via the project security contact in [SECURITY.md](./SECURITY.md).
+Third-party registries are owner-controlled; Atom cannot centrally block them. Owners who add a custom index accept responsibility for what they install. Report abuse on the reference store via **Settings → Registry → Report** on a catalog row (control plane intake) or the project security contact in [SECURITY.md](./SECURITY.md). Operators follow the revocation runbook under `docs/04-security/06-registry-revocation-runbook.md` (private working tree).
 
-PRs to the reference registry must pass `pnpm registry:verify --require-integrity --signatures` in CI. Duplicate `id@version` rows in `index.json` fail verification.
+PRs to the reference registry must pass `pnpm registry:verify` in CI (`--require-integrity --signatures --soft-require-signatures --require-publisher` + trusted publisher allowlist + bundle scan). Duplicate `id@version` rows in `index.json` fail verification.
 
-**New listings (M-TS-03):** include `signatureUrl` pointing at a Sigstore bundle JSON beside the manifest. Existing modules may omit signatures until re-published; CI warns today and will enforce `--require-signatures` once all curated modules are signed.
+**Publisher identity (M-TS-03):** every curated listing must declare a `publisher` DID; CI allowlists reference DIDs (`did:key:z6Mkatomexamples01`, plus curated demos such as `did:key:z6Mkdemotravel0001`). New listings should include `signatureUrl` (Sigstore bundle beside the manifest). Missing signatures **warn** under soft CI (`registry:verify`); hard fail is `pnpm registry:verify:strict` once all curated modules are signed.
 
 ## Commerce modules (M-TS-05)
 
@@ -47,9 +47,10 @@ Self-hosted shells may configure trust when loading a custom registry index:
 |---|---|---|
 | `requireIntegrity` | `true` | Refuse install when index/manifest hashes missing or mismatched |
 | `requireSignature` | `false` | Refuse install when manifest omits `signatureUrl` or Sigstore digest fails |
-| `trustedPublishers` | unset | When set, only manifests whose `publisher` DID is in the list may install |
+| `trustedPublishers` | reference publisher DID on production / default demo | When set, only manifests whose `publisher` DID is in the list may install |
+| `blockedIds` | unset | Owner denylist of module ids (Settings → Registry) |
 
-Production shell (`atom.qwixl.com`) pins the reference registry and does not expose custom index URLs. Enterprise embedders set policy via host config — see [SECURITY.md](./SECURITY.md) § Registry install checks.
+Production shell (`atom.qwixl.com`) pins the reference registry and does not expose custom index URLs. It sets `trustedPublishers` to the reference DID; `requireSignature` stays soft until Sigstore coverage is complete. Enterprise embedders set policy via host config — see [SECURITY.md](./SECURITY.md) § Registry install checks.
 
 ## Scaffold
 
@@ -71,7 +72,8 @@ Creates:
 - `capabilities` must be `[]`.
 - `bundleUrl` is relative to your static host root (e.g. `/modules/acme-widget/index.html`).
 - `components[].events` lists every outbound postMessage event name.
-- Run `atom-registry publish` to compute `bundleIntegrity`, copy `pricing` to `index.json`, and update the index entry.
+- Run `atom-registry publish` to compute `bundleIntegrity`, copy `pricing` / `categories` / `tier` to `index.json`, and update the index entry.
+- **`categories`** — mirrored onto the index for Settings catalog filters (namespace ∪ tags). Verification fails if index and manifest categories diverge.
 - **`tier: "system"`** — first-party core modules (coordination defaults). Always installed on reference registry; excluded from ratings; not user-uninstallable. Community modules compete on ratings in `ratings.json`.
 
 ## Paid listings (M8 store)

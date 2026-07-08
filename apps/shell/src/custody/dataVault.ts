@@ -82,7 +82,12 @@ export async function unlockVaultFromPasskeySignature(signature: ArrayBuffer): P
     localStorage.setItem(WRAP_STORAGE_KEY, JSON.stringify(wrapped));
     return;
   }
-  const wrapped = JSON.parse(existing) as EncryptedBlob;
+  let wrapped: EncryptedBlob;
+  try {
+    wrapped = JSON.parse(existing) as EncryptedBlob;
+  } catch {
+    throw new Error("Vault wrap data is corrupted");
+  }
   const masterRaw = await decryptWithKey(wrapKey, wrapped);
   sessionMasterKey = await importAesKey(masterRaw);
 }
@@ -95,7 +100,12 @@ export async function vaultEncryptString(plaintext: string): Promise<string> {
 
 export async function vaultDecryptString(serialized: string): Promise<string> {
   if (!sessionMasterKey) throw new Error("Vault is locked");
-  const blob = JSON.parse(serialized) as EncryptedBlob;
+  let blob: EncryptedBlob;
+  try {
+    blob = JSON.parse(serialized) as EncryptedBlob;
+  } catch {
+    throw new Error("Vault blob is corrupted");
+  }
   const plaintext = await decryptWithKey(sessionMasterKey, blob);
   return new TextDecoder().decode(plaintext);
 }

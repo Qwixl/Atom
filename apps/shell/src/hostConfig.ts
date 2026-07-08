@@ -29,9 +29,17 @@ export const MANAGED_HOSTING = IS_PRODUCTION_HOST && !ATOM_BROWSER_MODE;
 
 export const PRODUCTION_REGISTRY_URL = PRODUCTION_REGISTRY_INDEX_URL;
 
+/** Reference-store publisher DID for curated listings (M-TS-03). */
+export const REFERENCE_REGISTRY_PUBLISHER = "did:key:z6Mkatomexamples01";
+
 export const PRODUCTION_REGISTRY_TRUST: RegistryTrustPolicy = {
   requireIntegrity: true,
+  /** Soft until all curated modules carry Sigstore bundles; switch via registry:verify:strict. */
   requireSignature: false,
+  trustedPublishers: [
+    REFERENCE_REGISTRY_PUBLISHER,
+    "did:key:z6Mkdemotravel0001",
+  ],
 };
 
 /** Managed hosting control plane — never localhost on production deploys. */
@@ -43,6 +51,14 @@ function resolveControlPlaneUrl(): string {
 }
 
 export const CONTROL_PLANE_URL = resolveControlPlaneUrl();
+
+/** Normalized control-plane origin (no trailing slash). */
+export function controlPlaneBaseUrl(): string {
+  return CONTROL_PLANE_URL.replace(/\/$/, "");
+}
+
+/** Voluntary support for Atom platform development (Settings → Donations / GitHub Sponsor). */
+export const BUY_ME_A_COFFEE_URL = "https://buymeacoffee.com/qwixl.atom";
 
 export const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() ?? "";
 export const SUPABASE_ANON_KEY =

@@ -25,12 +25,15 @@ function usage(): never {
 Usage:
   atom-registry scaffold --id <namespace/name> --out <dir> [--publisher <did>]
   atom-registry hash <file>
-  atom-registry verify [--registry-dir <dir>] [--bundle-base <dir>] [--require-integrity] [--signatures] [--require-signatures] [--scan-bundles] [--scan-strict-external]
+  atom-registry verify [--registry-dir <dir>] [--bundle-base <dir>] [--require-integrity] [--signatures] [--require-signatures|--soft-require-signatures] [--require-publisher] [--trusted-publishers <did,...>] [--scan-bundles] [--scan-strict-external]
   atom-registry publish [--registry-dir <dir>] [--module-dir <dir>] [--bundle-base <dir>]
   atom-registry publish-all [--registry-dir <dir>] [--bundle-base <dir>]
 
   --signatures  Full Sigstore verification (Rekor + x509 chain) via sigstore-js, in addition to digest match.
-  --require-signatures  Fail when a manifest omits signatureUrl (use with --signatures; M-TS-03).
+  --require-signatures  Fail when a manifest omits signatureUrl (use with --signatures; hard gate after all curated modules are signed).
+  --soft-require-signatures  Warn (do not fail) when signatureUrl is missing; still fail on broken signature bundles (M-TS-03 transition).
+  --require-publisher  Fail when curated listings omit a publisher DID (M-TS-03 identity baseline).
+  --trusted-publishers  Comma-separated publisher DID allowlist for curated verify.
   --scan-bundles  Heuristic bundle scan after integrity checks (eval, size cap, external scripts).
   --scan-strict-external  Treat external script/fetch as errors instead of warnings.
 
@@ -77,12 +80,20 @@ async function main(): Promise<void> {
   if (command === "verify") {
     const registryDir = readFlag(args, "--registry-dir") ?? defaultRegistryDir;
     const bundleBase = readFlag(args, "--bundle-base") ?? defaultBundleBase;
+    const trustedRaw = readFlag(args, "--trusted-publishers");
+    const trustedPublishers = trustedRaw
+      ?.split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
     await verifyRegistry({
       registryDir: path.resolve(registryDir),
       bundleBase: path.resolve(bundleBase),
       requireIntegrity: args.includes("--require-integrity"),
       verifySignatures: args.includes("--signatures"),
       requireSignatures: args.includes("--require-signatures"),
+      softRequireSignatures: args.includes("--soft-require-signatures"),
+      requirePublisher: args.includes("--require-publisher"),
+      trustedPublishers: trustedPublishers?.length ? trustedPublishers : undefined,
       scanBundles: args.includes("--scan-bundles"),
       scanStrictExternal: args.includes("--scan-strict-external"),
     });

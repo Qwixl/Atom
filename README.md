@@ -229,6 +229,10 @@ Optional GitHub Actions deploy (`.github/workflows/deploy.yml`) requires secrets
 
 Shell platform v0.1.1 — live at [atom.qwixl.com](https://atom.qwixl.com) and [atom.registry.qwixl.com](https://atom.registry.qwixl.com). Packages on npm: [@qwixl/shell-core](https://www.npmjs.com/package/@qwixl/shell-core) and siblings. After clone, `pnpm registry:verify` must pass before publish/deploy.
 
+## Support the project
+
+Atom is free and open source. If you want to fund continued platform work, [buy us a coffee](https://buymeacoffee.com/qwixl.atom) — or use the GitHub **Sponsor** button (Buy Me a Coffee). Thank you.
+
 ## License
 
 [Apache 2.0](./LICENSE)

@@ -20,6 +20,7 @@ import {
   DEFAULT_HANDLE_INDEX_URL,
   loadDiscoverIndexes,
 } from "./discoverIndexStorage.js";
+import { discoverTrustSignals } from "./discoverTrust.js";
 
 interface DiscoverPanelProps {
   contacts: AgentContact[];
@@ -35,6 +36,7 @@ interface DiscoverPanelProps {
 
 interface DiscoverResult extends BusinessIndexEntry {
   indexLabel: string;
+  indexUrl?: string;
   resolved: ResolvedDiscoverTarget;
 }
 
@@ -77,6 +79,7 @@ export function DiscoverPanel({
   const [status, setStatus] = useState<string | null>(null);
   const [indexMatches, setIndexMatches] = useState(0);
   const [joinedRoomIds, setJoinedRoomIds] = useState<Set<string>>(() => new Set());
+  const [searchNonce, setSearchNonce] = useState(0);
 
   const refreshJoinedRooms = useCallback(async () => {
     if (!connectionActive) {
@@ -96,74 +99,86 @@ export function DiscoverPanel({
     return () => window.clearTimeout(timer);
   }, [terms]);
 
-  const loadResults = useCallback(async () => {
+  useEffect(() => {
     if (!connectionActive) {
       setStatus(null);
       setResults([]);
       setIndexMatches(0);
       return;
     }
+    const abort = new AbortController();
     setLoading(true);
     setStatus(null);
-    try {
-      const indexList = indexConfigs.length > 0 ? indexConfigs : DEFAULT_DISCOVER_INDEXES;
-      const indexBodies = await Promise.all(
-        indexList.map(async (index) => {
-          try {
-            const body = await fetchBusinessIndex(index.url);
-            return { index, body };
-          } catch {
-            return null;
-          }
-        }),
-      );
-      const merged: Array<BusinessIndexEntry & { indexLabel: string }> = [];
-      for (const row of indexBodies) {
-        if (!row) continue;
-        const filtered = filterBusinessIndex(row.body, {
-          terms: debouncedTerms.trim() || undefined,
-          kind: kind === "all" ? undefined : kind,
-        });
-        for (const entry of filtered) {
-          merged.push({ ...entry, indexLabel: row.index.label });
-        }
-      }
-
-      let withHandles = merged;
+    void (async () => {
       try {
-        const handleIndex = await fetchHandleIndex(DEFAULT_HANDLE_INDEX_URL);
-        withHandles = attachHandlesToEntries(merged, handleIndex.handles).map((entry, index) => ({
-          ...entry,
-          indexLabel: merged[index]!.indexLabel,
-        }));
-      } catch {
-        // Handle index is optional until M20 is fully deployed.
+        const indexList = indexConfigs.length > 0 ? indexConfigs : DEFAULT_DISCOVER_INDEXES;
+        const indexBodies = await Promise.all(
+          indexList.map(async (index) => {
+            try {
+              const body = await fetchBusinessIndex(index.url);
+              return { index, body };
+            } catch {
+              return null;
+            }
+          }),
+        );
+        if (abort.signal.aborted) return;
+        const merged: Array<BusinessIndexEntry & { indexLabel: string; indexUrl: string }> = [];
+        for (const row of indexBodies) {
+          if (!row) continue;
+          const filtered = filterBusinessIndex(row.body, {
+            terms: debouncedTerms.trim() || undefined,
+            kind: kind === "all" ? undefined : kind,
+          });
+          for (const entry of filtered) {
+            merged.push({ ...entry, indexLabel: row.index.label, indexUrl: row.index.url });
+          }
+        }
+
+        let withHandles = merged;
+        try {
+          const handleIndex = await fetchHandleIndex(DEFAULT_HANDLE_INDEX_URL);
+          withHandles = attachHandlesToEntries(merged, handleIndex.handles).map((entry, index) => ({
+            ...entry,
+            indexLabel: merged[index]!.indexLabel,
+            indexUrl: merged[index]!.indexUrl,
+          }));
+        } catch {
+          // Handle index is optional until M20 is fully deployed.
+        }
+        if (abort.signal.aborted) return;
+
+        const available = await filterAvailableDiscoverEntriesForClient(client, withHandles);
+        if (abort.signal.aborted) return;
+        const metaByKey = new Map(
+          withHandles.map((row) => [
+            `${row.displayName}\0${row.businessDomain ?? ""}`,
+            { indexLabel: row.indexLabel, indexUrl: row.indexUrl },
+          ]),
+        );
+        setIndexMatches(withHandles.length);
+        setResults(
+          available.map(({ entry, resolved }) => {
+            const meta = metaByKey.get(`${entry.displayName}\0${entry.businessDomain ?? ""}`);
+            return {
+              ...entry,
+              indexLabel: meta?.indexLabel ?? "Index",
+              indexUrl: meta?.indexUrl,
+              resolved,
+            };
+          }),
+        );
+      } catch (error) {
+        if (abort.signal.aborted) return;
+        if (isAgentAuthError(error)) onAgentAuthFailure?.();
+        setStatus(error instanceof Error ? error.message : String(error));
+        setResults([]);
+      } finally {
+        if (!abort.signal.aborted) setLoading(false);
       }
-
-      const available = await filterAvailableDiscoverEntriesForClient(client, withHandles);
-      const labelByEntry = new Map(
-        withHandles.map((row) => [`${row.displayName}\0${row.businessDomain ?? ""}`, row.indexLabel]),
-      );
-      setIndexMatches(withHandles.length);
-      setResults(
-        available.map(({ entry, resolved }) => ({
-          ...entry,
-          indexLabel: labelByEntry.get(`${entry.displayName}\0${entry.businessDomain ?? ""}`) ?? "Index",
-          resolved,
-        })),
-      );
-    } catch (error) {
-      if (isAgentAuthError(error)) onAgentAuthFailure?.();
-      setStatus(error instanceof Error ? error.message : String(error));
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [client, connectionActive, debouncedTerms, indexConfigs, kind, onAgentAuthFailure]);
-
-  useEffect(() => {
-    void loadResults();
-  }, [loadResults]);
+    })();
+    return () => abort.abort();
+  }, [client, connectionActive, debouncedTerms, indexConfigs, kind, onAgentAuthFailure, searchNonce]);
 
   useEffect(() => {
     void refreshJoinedRooms();
@@ -229,7 +244,12 @@ export function DiscoverPanel({
           <option value="business">Business</option>
           <option value="developer">Developer</option>
         </select>
-        <button type="button" className="panel-btn" onClick={() => void loadResults()} disabled={loading}>
+        <button
+          type="button"
+          className="panel-btn"
+          onClick={() => setSearchNonce((n) => n + 1)}
+          disabled={loading}
+        >
           {loading ? "Checking…" : "Search"}
         </button>
       </div>
@@ -253,11 +273,12 @@ export function DiscoverPanel({
                 ? "Listings were found but their host is not reachable yet. Try again shortly, or use Join Coffee Shop in Rooms."
                 : terms.trim()
                   ? "Nothing matched your search. Try different terms or check again later."
-                  : "No listings in the index yet. Try again later."}
+                  : "No listings in the index yet. Federated indexes are owner-chosen — Atom curates the default store only. Try again later."}
             </li>
           ) : (
             results.map((entry) => {
               const subtitle = entrySubtitle(entry);
+              const trust = discoverTrustSignals(entry, entry.indexLabel, entry.indexUrl);
               return (
                 <li
                   key={`${entry.indexLabel}:${entry.businessDomain}:${entry.displayName}`}
@@ -267,8 +288,23 @@ export function DiscoverPanel({
                     <div className="discover-row-title">
                       <span>{entryTitle(entry)}</span>
                       <span className="discover-kind">{kindLabel(entry.kind)}</span>
+                      <span
+                        className={`discover-trust discover-trust--${trust.badge}`}
+                        title={
+                          trust.publisherDid
+                            ? `${trust.label} · ${trust.publisherDid}`
+                            : trust.label
+                        }
+                      >
+                        {trust.label}
+                      </span>
                     </div>
                     {subtitle ? <p className="discover-row-meta">{subtitle}</p> : null}
+                    {trust.publisherDid ? (
+                      <p className="discover-row-meta discover-publisher">
+                        Publisher {trust.publisherDid}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="discover-row-actions">
                     {(entry.kind === "community" || (entry.roomIds?.length ?? 0) > 0) &&
