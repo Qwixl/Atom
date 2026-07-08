@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { approvalRefForConnectorWrite } from "./connectorWriteApproval.js";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
 
-const TOKEN_CONNECTORS = [
+const SIMPLE_TOKEN_CONNECTORS = [
   {
     id: "todoist",
     label: "Todoist",
@@ -18,9 +18,14 @@ const TOKEN_CONNECTORS = [
     label: "Notion",
     hint: "Internal integration token with access to pages you share with the integration.",
   },
+  {
+    id: "linear",
+    label: "Linear",
+    hint: "Personal API key from Linear → Settings → Account → Security & access.",
+  },
 ] as const;
 
-type TokenConnectorId = (typeof TOKEN_CONNECTORS)[number]["id"];
+type SimpleTokenConnectorId = (typeof SIMPLE_TOKEN_CONNECTORS)[number]["id"];
 
 export function TokenConnectorsSettingsPanel({
   vaultUnlocked = true,
@@ -32,26 +37,43 @@ export function TokenConnectorsSettingsPanel({
   const { config, client } = useAgentConfig(vaultUnlocked);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const [connected, setConnected] = useState<Record<TokenConnectorId, boolean>>({
+  const [connected, setConnected] = useState<Record<SimpleTokenConnectorId | "trello" | "home-assistant", boolean>>({
     todoist: false,
     github: false,
     notion: false,
+    linear: false,
+    trello: false,
+    "home-assistant": false,
   });
-  const [draftTokens, setDraftTokens] = useState<Record<TokenConnectorId, string>>({
+  const [draftTokens, setDraftTokens] = useState<Record<SimpleTokenConnectorId, string>>({
     todoist: "",
     github: "",
     notion: "",
+    linear: "",
   });
+  const [trelloApiKey, setTrelloApiKey] = useState("");
+  const [trelloToken, setTrelloToken] = useState("");
+  const [haBaseUrl, setHaBaseUrl] = useState("");
+  const [haToken, setHaToken] = useState("");
 
   const refresh = useCallback(async () => {
     setBusy(true);
     setNote(null);
     try {
-      const next: Record<TokenConnectorId, boolean> = { todoist: false, github: false, notion: false };
-      for (const connector of TOKEN_CONNECTORS) {
+      const next = {
+        todoist: false,
+        github: false,
+        notion: false,
+        linear: false,
+        trello: false,
+        "home-assistant": false,
+      } as Record<SimpleTokenConnectorId | "trello" | "home-assistant", boolean>;
+      for (const connector of SIMPLE_TOKEN_CONNECTORS) {
         const status = await client.connectorStatus(connector.id);
         next[connector.id] = Boolean(status.configured);
       }
+      next.trello = Boolean((await client.connectorStatus("trello")).configured);
+      next["home-assistant"] = Boolean((await client.connectorStatus("home-assistant")).configured);
       setConnected(next);
     } catch (error) {
       setNote(error instanceof Error ? error.message : String(error));
@@ -64,7 +86,7 @@ export function TokenConnectorsSettingsPanel({
     void refresh();
   }, [refresh]);
 
-  async function saveToken(connectorId: TokenConnectorId, label: string) {
+  async function saveToken(connectorId: SimpleTokenConnectorId, label: string) {
     const token = draftTokens[connectorId].trim();
     if (!token) return;
     setBusy(true);
@@ -85,7 +107,7 @@ export function TokenConnectorsSettingsPanel({
     }
   }
 
-  async function removeToken(connectorId: TokenConnectorId, label: string) {
+  async function removeToken(connectorId: SimpleTokenConnectorId, label: string) {
     setBusy(true);
     setNote(`Removing ${label} token…`);
     try {
@@ -95,6 +117,80 @@ export function TokenConnectorsSettingsPanel({
         config,
       );
       await client.clearConnectorToken(connectorId, approvalRef);
+      setNote(null);
+      await refresh();
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+      setBusy(false);
+    }
+  }
+
+  async function saveTrello() {
+    const apiKey = trelloApiKey.trim();
+    const token = trelloToken.trim();
+    if (!apiKey || !token) return;
+    setBusy(true);
+    setNote("Saving Trello credentials to your agent vault…");
+    try {
+      const approvalRef = await approvalRefForConnectorWrite("Save Trello credentials", { connectorId: "trello" }, config);
+      await client.saveTrelloCredentials({ apiKey, token, approvalRef });
+      setTrelloApiKey("");
+      setTrelloToken("");
+      setNote(null);
+      await refresh();
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+      setBusy(false);
+    }
+  }
+
+  async function removeTrello() {
+    setBusy(true);
+    setNote("Removing Trello credentials…");
+    try {
+      const approvalRef = await approvalRefForConnectorWrite("Remove Trello credentials", { connectorId: "trello" }, config);
+      await client.clearTrelloCredentials(approvalRef);
+      setNote(null);
+      await refresh();
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+      setBusy(false);
+    }
+  }
+
+  async function saveHomeAssistant() {
+    const baseUrl = haBaseUrl.trim();
+    const accessToken = haToken.trim();
+    if (!baseUrl || !accessToken) return;
+    setBusy(true);
+    setNote("Saving Home Assistant credentials to your agent vault…");
+    try {
+      const approvalRef = await approvalRefForConnectorWrite(
+        "Save Home Assistant credentials",
+        { connectorId: "home-assistant" },
+        config,
+      );
+      await client.saveHomeAssistantCredentials({ baseUrl, accessToken, approvalRef });
+      setHaBaseUrl("");
+      setHaToken("");
+      setNote(null);
+      await refresh();
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+      setBusy(false);
+    }
+  }
+
+  async function removeHomeAssistant() {
+    setBusy(true);
+    setNote("Removing Home Assistant credentials…");
+    try {
+      const approvalRef = await approvalRefForConnectorWrite(
+        "Remove Home Assistant credentials",
+        { connectorId: "home-assistant" },
+        config,
+      );
+      await client.clearHomeAssistantCredentials(approvalRef);
       setNote(null);
       await refresh();
     } catch (error) {
@@ -113,11 +209,13 @@ export function TokenConnectorsSettingsPanel({
       ) : (
         <>
           <h4>Token connectors</h4>
-          <p className="connectors-hint">Todoist, GitHub, and Notion via owner-supplied tokens.</p>
+          <p className="connectors-hint">
+            Todoist, GitHub, Notion, Linear, Trello, and Home Assistant via owner-supplied tokens.
+          </p>
         </>
       )}
 
-      {TOKEN_CONNECTORS.map((connector) => (
+      {SIMPLE_TOKEN_CONNECTORS.map((connector) => (
         <div key={connector.id} className="connectors-token-row">
           <div className="connectors-token-head">
             <strong>{connector.label}</strong>
@@ -154,6 +252,72 @@ export function TokenConnectorsSettingsPanel({
           </div>
         </div>
       ))}
+
+      <div className="connectors-token-row">
+        <div className="connectors-token-head">
+          <strong>Trello</strong>
+          <span>{connected.trello ? "Connected" : "Not configured"}</span>
+        </div>
+        <p className="connectors-hint">API key from Trello Power-Up admin plus a user token from the authorize URL.</p>
+        <div className="connectors-token-actions">
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="Trello API key"
+            value={trelloApiKey}
+            onChange={(event) => setTrelloApiKey(event.target.value)}
+            disabled={busy || !vaultUnlocked}
+          />
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="Trello user token"
+            value={trelloToken}
+            onChange={(event) => setTrelloToken(event.target.value)}
+            disabled={busy || !vaultUnlocked}
+          />
+          <button type="button" disabled={busy || !vaultUnlocked || !trelloApiKey.trim() || !trelloToken.trim()} onClick={() => void saveTrello()}>
+            Save
+          </button>
+          {connected.trello ? (
+            <button type="button" disabled={busy || !vaultUnlocked} onClick={() => void removeTrello()}>
+              Remove
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="connectors-token-row">
+        <div className="connectors-token-head">
+          <strong>Home Assistant</strong>
+          <span>{connected["home-assistant"] ? "Connected" : "Not configured"}</span>
+        </div>
+        <p className="connectors-hint">Long-lived access token and HTTPS base URL (local network or Nabu Casa).</p>
+        <div className="connectors-token-actions">
+          <input
+            placeholder="Base URL (https://…)"
+            value={haBaseUrl}
+            onChange={(event) => setHaBaseUrl(event.target.value)}
+            disabled={busy || !vaultUnlocked}
+          />
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="Long-lived access token"
+            value={haToken}
+            onChange={(event) => setHaToken(event.target.value)}
+            disabled={busy || !vaultUnlocked}
+          />
+          <button type="button" disabled={busy || !vaultUnlocked || !haBaseUrl.trim() || !haToken.trim()} onClick={() => void saveHomeAssistant()}>
+            Save
+          </button>
+          {connected["home-assistant"] ? (
+            <button type="button" disabled={busy || !vaultUnlocked} onClick={() => void removeHomeAssistant()}>
+              Remove
+            </button>
+          ) : null}
+        </div>
+      </div>
 
       {note ? <p className="connectors-note">{note}</p> : null}
     </section>

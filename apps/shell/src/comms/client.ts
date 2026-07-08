@@ -666,6 +666,54 @@ export class CommsAgentClient {
     return resp.json() as Promise<{ connectorId: string; removed: boolean }>;
   }
 
+  async saveTrelloCredentials(input: {
+    apiKey: string;
+    token: string;
+    approvalRef?: string;
+  }): Promise<{ connectorId: string; configured: boolean }> {
+    return postJson(this.base(), "/connectors/trello/credentials", input, this.auth, true);
+  }
+
+  async clearTrelloCredentials(approvalRef?: string): Promise<{ connectorId: string; removed: boolean }> {
+    const query = approvalRef?.trim() ? `?approvalRef=${encodeURIComponent(approvalRef.trim())}` : "";
+    const headers: Record<string, string> = {};
+    const bearer = this.bearer(true);
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    const resp = await fetch(`${this.base()}/connectors/trello/credentials${query}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (!resp.ok) {
+      const err = (await resp.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? `Request failed (${resp.status})`);
+    }
+    return resp.json() as Promise<{ connectorId: string; removed: boolean }>;
+  }
+
+  async saveHomeAssistantCredentials(input: {
+    baseUrl: string;
+    accessToken: string;
+    approvalRef?: string;
+  }): Promise<{ connectorId: string; configured: boolean }> {
+    return postJson(this.base(), "/connectors/home-assistant/credentials", input, this.auth, true);
+  }
+
+  async clearHomeAssistantCredentials(approvalRef?: string): Promise<{ connectorId: string; removed: boolean }> {
+    const query = approvalRef?.trim() ? `?approvalRef=${encodeURIComponent(approvalRef.trim())}` : "";
+    const headers: Record<string, string> = {};
+    const bearer = this.bearer(true);
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    const resp = await fetch(`${this.base()}/connectors/home-assistant/credentials${query}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (!resp.ok) {
+      const err = (await resp.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? `Request failed (${resp.status})`);
+    }
+    return resp.json() as Promise<{ connectorId: string; removed: boolean }>;
+  }
+
   async createTodoistTask(
     content: string,
     opts?: { projectId?: string; dueString?: string },
@@ -968,6 +1016,7 @@ export class CommsAgentClient {
   async getBusinessStoreStatus(): Promise<{
     shopify?: { configured: boolean; configuredAt?: number };
     woocommerce?: { configured: boolean; configuredAt?: number };
+    square?: { configured: boolean; environment?: string; configuredAt?: number };
   }> {
     return getJson(this.base(), "/business/store/status", this.auth, true);
   }
@@ -1004,6 +1053,22 @@ export class CommsAgentClient {
     approvalRef?: string;
   }): Promise<{ importedCount: number; currency: string; catalog: unknown[] }> {
     return postJson(this.base(), "/business/catalog/import/woocommerce", input ?? {}, this.auth, true);
+  }
+
+  async saveSquareStore(input: {
+    accessToken: string;
+    environment?: "production" | "sandbox";
+    approvalRef?: string;
+  }): Promise<{ configured: boolean }> {
+    return postJson(this.base(), "/business/store/square", input, this.auth, true);
+  }
+
+  async importSquareCatalog(input?: {
+    limit?: number;
+    syncKnowledge?: boolean;
+    approvalRef?: string;
+  }): Promise<{ importedCount: number; currency: string; catalog: unknown[] }> {
+    return postJson(this.base(), "/business/catalog/import/square", input ?? {}, this.auth, true);
   }
 
   async syncBusinessContext(

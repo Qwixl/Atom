@@ -5,6 +5,8 @@ import type { BusinessCatalogStore } from "./businessCatalogStore.js";
 import {
   importShopifyCatalog,
   importWooCommerceCatalog,
+  importSquareCatalog,
+  normalizeSquareEnvironment,
 } from "./businessCatalogImport.js";
 import type { ConnectorVault } from "./connectorVault.js";
 import type { BusinessContextStore, BusinessContextRecord } from "./businessContextStore.js";
@@ -147,11 +149,17 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
   adminApp.get("/business/store/status", (_req, res) => {
     const shopify = deps.vault.getShopifyStore();
     const woocommerce = deps.vault.getWooCommerceStore();
+    const square = deps.vault.getSquareStore();
     res.json({
       shopify: { configured: Boolean(shopify?.accessToken), configuredAt: shopify?.configuredAt },
       woocommerce: {
         configured: Boolean(woocommerce?.consumerKey),
         configuredAt: woocommerce?.configuredAt,
+      },
+      square: {
+        configured: Boolean(square?.accessToken),
+        environment: square?.environment,
+        configuredAt: square?.configuredAt,
       },
     });
   });
@@ -223,6 +231,38 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
     res.json({ removed: true });
   });
 
+  adminApp.post("/business/store/square", async (req, res) => {
+    try {
+      assertBusinessWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const body = req.body as { accessToken?: string; environment?: string };
+    const accessToken = body.accessToken?.trim();
+    if (!accessToken) {
+      res.status(400).json({ error: "accessToken required" });
+      return;
+    }
+    try {
+      await deps.vault.setSquareStore(accessToken, normalizeSquareEnvironment(body.environment ?? "production"));
+      res.json({ configured: true });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.delete("/business/store/square", async (req, res) => {
+    try {
+      assertBusinessWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    await deps.vault.clearSquareStore();
+    res.json({ removed: true });
+  });
+
   adminApp.post("/business/catalog/import/shopify", async (req, res) => {
     try {
       assertBusinessWriteApproval(req);
@@ -281,6 +321,37 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
       }
       res.json({
         source: "woocommerce",
+        importedCount: imported.items.length,
+        currency: imported.currency,
+        catalog: deps.catalog.list(),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(/not configured|required/i.test(message) ? 400 : 502).json({ error: message });
+    }
+  });
+
+  adminApp.post("/business/catalog/import/square", async (req, res) => {
+    try {
+      assertBusinessWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const stored = deps.vault.getSquareStore();
+    if (!stored) {
+      res.status(400).json({ error: "Square store not configured" });
+      return;
+    }
+    const body = req.body as { limit?: number; syncKnowledge?: boolean };
+    try {
+      const imported = await importSquareCatalog(stored.accessToken, stored.environment, body.limit);
+      deps.catalog.replaceAll(imported.items);
+      if (body.syncKnowledge !== false) {
+        syncCatalogToKnowledge(deps.knowledge, imported.items);
+      }
+      res.json({
+        source: "square",
         importedCount: imported.items.length,
         currency: imported.currency,
         catalog: deps.catalog.list(),

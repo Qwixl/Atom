@@ -36,6 +36,24 @@ import {
   todoistConnectorOperation,
 } from "./todoistConnector.js";
 import {
+  LINEAR_CONNECTOR_ID,
+  LINEAR_CONNECTOR_OPERATIONS,
+  invokeLinearConnector,
+  linearConnectorOperation,
+} from "./linearConnector.js";
+import {
+  TRELLO_CONNECTOR_ID,
+  TRELLO_CONNECTOR_OPERATIONS,
+  invokeTrelloConnector,
+  trelloConnectorOperation,
+} from "./trelloConnector.js";
+import {
+  HOME_ASSISTANT_CONNECTOR_ID,
+  HOME_ASSISTANT_CONNECTOR_OPERATIONS,
+  invokeHomeAssistantConnector,
+  homeAssistantConnectorOperation,
+} from "./homeAssistantConnector.js";
+import {
   CALDAV_CONNECTOR_ID,
   CALDAV_CONNECTOR_OPERATIONS,
   caldavConnectorOperation,
@@ -250,6 +268,72 @@ const CONNECTOR_BACKENDS = new Map<string, ConnectorBackend>([
       invokeNotionConnector,
       notionConnectorOperation,
     ),
+  ],
+  [
+    LINEAR_CONNECTOR_ID,
+    tokenConnectorBackend(
+      LINEAR_CONNECTOR_ID,
+      "Linear",
+      LINEAR_CONNECTOR_OPERATIONS,
+      invokeLinearConnector,
+      linearConnectorOperation,
+    ),
+  ],
+  [
+    TRELLO_CONNECTOR_ID,
+    {
+      id: TRELLO_CONNECTOR_ID,
+      moduleId: "connectors/trello",
+      provider: "trello",
+      label: "Trello",
+      async status(vault) {
+        const stored = vault.getTrelloCredentials();
+        return {
+          connectorId: TRELLO_CONNECTOR_ID,
+          moduleId: "connectors/trello",
+          provider: "trello",
+          label: "Trello",
+          configured: Boolean(stored?.apiKey && stored.token),
+          configuredAt: stored?.configuredAt,
+          vaultOnly: true,
+          operations: TRELLO_CONNECTOR_OPERATIONS,
+        };
+      },
+      async invoke(vault, operation, input) {
+        return invokeTrelloConnector({ vault }, operation, input);
+      },
+      operationSpec(operation) {
+        return trelloConnectorOperation(operation);
+      },
+    },
+  ],
+  [
+    HOME_ASSISTANT_CONNECTOR_ID,
+    {
+      id: HOME_ASSISTANT_CONNECTOR_ID,
+      moduleId: "connectors/home-assistant",
+      provider: "home-assistant",
+      label: "Home Assistant",
+      async status(vault) {
+        const stored = vault.getHomeAssistantInstance();
+        return {
+          connectorId: HOME_ASSISTANT_CONNECTOR_ID,
+          moduleId: "connectors/home-assistant",
+          provider: "home-assistant",
+          label: "Home Assistant",
+          configured: Boolean(stored?.baseUrl && stored.accessToken),
+          configuredAt: stored?.configuredAt,
+          vaultOnly: true,
+          operations: HOME_ASSISTANT_CONNECTOR_OPERATIONS,
+        };
+      },
+      async invoke(vault, operation, input) {
+        return invokeHomeAssistantConnector({ vault }, operation, input);
+      },
+      operationSpec(operation) {
+        return homeAssistantConnectorOperation(operation);
+      },
+    },
   ],
   [
     CALDAV_CONNECTOR_ID,
