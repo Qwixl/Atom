@@ -1,4 +1,5 @@
-import { EventType, type BaseEvent, type RunAgentInput } from "@ag-ui/client";
+import { type BaseEvent, type RunAgentInput } from "@ag-ui/client";
+import { writeAgUiSseStream, type AgUiEventSource } from "@qwixl/ag-ui-adapter/server";
 import { loadLlmAgUiConfigFromEnv, runLlmAgUiEvents } from "./llmRunner.js";
 import { textAgUiEvents } from "./outputEvents.js";
 import { v4 as uuid } from "uuid";
@@ -35,23 +36,6 @@ export function writeAgUiSse(
     scenario?: AgUiScenarioHandler;
   } = {},
 ): Promise<void> {
-  const { threadId, runId } = input;
-  write(`data: ${JSON.stringify({ type: EventType.RUN_STARTED, threadId, runId })}\n\n`);
-  return (async () => {
-    try {
-      for await (const event of runAgUiHandler(input, options)) {
-        write(`data: ${JSON.stringify(event)}\n\n`);
-      }
-      write(`data: ${JSON.stringify({ type: EventType.RUN_FINISHED, threadId, runId })}\n\n`);
-    } catch (error) {
-      write(
-        `data: ${JSON.stringify({
-          type: EventType.RUN_ERROR,
-          threadId,
-          runId,
-          message: error instanceof Error ? error.message : String(error),
-        })}\n\n`,
-      );
-    }
-  })();
+  const source: AgUiEventSource = () => runAgUiHandler(input, options);
+  return writeAgUiSseStream(write, input, source);
 }

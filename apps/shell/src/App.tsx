@@ -1198,6 +1198,8 @@ export function App() {
         ...agUiConfig,
         headers: agUiAuthHeaders(comms.adminToken),
         profileProvider,
+        connectorExecutor: atomToolExecutor,
+        connectorsAvailable: agentConnectionReady && !IS_DEMO_MODE,
       });
     }
     return new MockAgentSession({

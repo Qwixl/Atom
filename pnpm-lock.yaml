@@ -59,6 +59,31 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
+  apps/brain-stub:
+    dependencies:
+      '@ag-ui/client':
+        specifier: 0.0.57
+        version: 0.0.57
+      '@qwixl/ag-ui-adapter':
+        specifier: workspace:*
+        version: link:../../packages/ag-ui-adapter
+      '@qwixl/owner-store':
+        specifier: workspace:*
+        version: link:../../packages/owner-store
+      uuid:
+        specifier: ^11.1.0
+        version: 11.1.1
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.0
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.5
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   apps/control-plane:
     dependencies:
       '@supabase/supabase-js':
@@ -268,6 +293,9 @@ importers:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
+      vitest:
+        specifier: ^3.2.6
+        version: 3.2.6(@types/node@22.20.0)(tsx@4.22.5)
 
   packages/agent-backend:
     dependencies:

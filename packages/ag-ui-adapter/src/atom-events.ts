@@ -8,11 +8,13 @@ import {
   parseCompositionValue,
   parseConsequentialPayload,
   parseDataRequestPayload,
+  parseGameMovePayload,
   validateComposition,
   type AgentOutput,
   type Composition,
   type ConsequentialAction,
   type DataRequest,
+  type JsonValue,
 } from "@qwixl/shell-core";
 
 const a2uiAssembler = new A2uiSurfaceAssembler();
@@ -32,6 +34,8 @@ export const ATOM_AGUI_EVENTS = {
   COMPOSITION: "atom.composition",
   CONSEQUENTIAL_ACTION: "atom.consequential-action",
   DATA_REQUEST: "atom.data-request",
+  GAME_MOVE: "atom.game-move",
+  CONNECTOR_INVOKE: "atom.connector-invoke",
 } as const;
 
 export type AtomAgUiEventName = (typeof ATOM_AGUI_EVENTS)[keyof typeof ATOM_AGUI_EVENTS];
@@ -64,6 +68,63 @@ export function atomDataRequestEvent(request: DataRequest): CustomEvent {
     name: ATOM_AGUI_EVENTS.DATA_REQUEST,
     value: request,
   };
+}
+
+/** Build a CUSTOM event for a shell-arbitrated game move. */
+export function atomGameMoveEvent(surfaceId: string, move: JsonValue): CustomEvent {
+  return {
+    type: EventType.CUSTOM,
+    name: ATOM_AGUI_EVENTS.GAME_MOVE,
+    value: { surfaceId, move },
+  };
+}
+
+export type AtomConnectorId = "webcal" | "rss" | "news-search" | "bookmarks";
+
+export type AtomConnectorInvokeRequest = {
+  callId: string;
+  connectorId: AtomConnectorId;
+  operation: string;
+  input?: Record<string, unknown>;
+};
+
+/** Ask the shell to invoke an owner connector (read-scoped). Shell responds with [connector-result]. */
+export function atomConnectorInvokeEvent(request: AtomConnectorInvokeRequest): CustomEvent {
+  return {
+    type: EventType.CUSTOM,
+    name: ATOM_AGUI_EVENTS.CONNECTOR_INVOKE,
+    value: request,
+  };
+}
+
+function readConnectorInvokeRequest(value: unknown): AtomConnectorInvokeRequest | null {
+  const body = value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+  if (
+    body &&
+    typeof body.callId === "string" &&
+    typeof body.connectorId === "string" &&
+    typeof body.operation === "string" &&
+    (body.connectorId === "webcal" ||
+      body.connectorId === "rss" ||
+      body.connectorId === "news-search" ||
+      body.connectorId === "bookmarks")
+  ) {
+    return {
+      callId: body.callId,
+      connectorId: body.connectorId as AtomConnectorId,
+      operation: body.operation,
+      input:
+        body.input && typeof body.input === "object" && !Array.isArray(body.input)
+          ? (body.input as Record<string, unknown>)
+          : undefined,
+    };
+  }
+  return null;
+}
+
+/** Parse atom.connector-invoke CUSTOM payload. */
+export function parseConnectorInvokeRequest(value: unknown): AtomConnectorInvokeRequest | null {
+  return readConnectorInvokeRequest(value);
 }
 
 function wireResultToOutput(result: ReturnType<typeof parseCompositionValue>): AgentOutput | null {
@@ -101,6 +162,8 @@ export function mapCustomEventToOutput(event: CustomEvent): AgentOutput | null {
       return wireResultToOutput(parseConsequentialPayload(event.value));
     case ATOM_AGUI_EVENTS.DATA_REQUEST:
       return wireResultToOutput(parseDataRequestPayload(event.value));
+    case ATOM_AGUI_EVENTS.GAME_MOVE:
+      return wireResultToOutput(parseGameMovePayload(event.value));
     default:
       return null;
   }
