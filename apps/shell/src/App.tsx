@@ -93,6 +93,7 @@ import {
   type LlmConfig,
   type ModelCapabilityProfile,
   type AtomToolExecutor,
+  type McpToolExecutor,
 } from "@qwixl/agent-llm";
 import { AgUiAgentSession, type AgUiAgentConfig } from "@qwixl/ag-ui-adapter";
 import {
@@ -164,6 +165,7 @@ import {
 import { CustodySecurityPanel } from "./custody/CustodySecurityPanel.js";
 import { WebCalSettingsPanel } from "./connectors/WebCalSettingsPanel.js";
 import { RssSettingsPanel } from "./connectors/RssSettingsPanel.js";
+import { McpSettingsPanel } from "./connectors/McpSettingsPanel.js";
 import { BookmarksSettingsPanel } from "./connectors/BookmarksSettingsPanel.js";
 import {
   ConnectorModuleHost,
@@ -1183,6 +1185,35 @@ export function App() {
     }
   }, [vaultUnlocked]);
 
+  const mcpToolExecutor = useCallback<McpToolExecutor>(async (call) => {
+    const config = vaultUnlocked
+      ? await loadCommsAgentConfigSecure()
+      : loadCommsAgentConfig();
+    if (!config.adminToken?.trim()) {
+      throw new Error(
+        "MCP tools need your Messages agent running (pnpm start:agent) and connected in Settings.",
+      );
+    }
+    const invokeOnce = async () => {
+      const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
+      const response = await client.invokeMcpTool(
+        call.serverId,
+        call.toolName,
+        call.arguments ?? {},
+      );
+      return response.result;
+    };
+    try {
+      return await invokeOnce();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/unauthorized|401|403|session token|expired/i.test(message)) throw error;
+      const refreshed = await refreshChatSessionToken(config);
+      if (!refreshed) throw error;
+      return await invokeOnce();
+    }
+  }, [vaultUnlocked]);
+
   const agUiSessionKey = provider === "ag-ui" ? agUiConfig.url : null;
 
   const session: ShellSession = useMemo(() => {
@@ -1190,6 +1221,8 @@ export function App() {
       return new LlmAgentSession(llmConfig, catalog, profileProvider, {
         atomToolExecutor,
         atomConnectorsAvailable: agentConnectionReady && !IS_DEMO_MODE,
+        mcpToolExecutor,
+        mcpServersAvailable: agentConnectionReady && !IS_DEMO_MODE,
       });
     }
     if (provider === "ag-ui") {
@@ -1206,7 +1239,7 @@ export function App() {
       profileProvider,
       webcalEventsProvider: mockWebcalEventsProvider,
     });
-  }, [provider, llmConfig, agUiSessionKey, catalog, profileProvider, mockWebcalEventsProvider, atomToolExecutor, agentConnectionReady]);
+  }, [provider, llmConfig, agUiSessionKey, catalog, profileProvider, mockWebcalEventsProvider, atomToolExecutor, mcpToolExecutor, agentConnectionReady]);
 
   const sessionRef = useRef(session);
   sessionRef.current = session;
@@ -2893,6 +2926,7 @@ function SettingsDialog({
           />
         )}
         <RssSettingsPanel vaultUnlocked={vaultUnlocked} embedded onFeedsChanged={onRssFeedsChanged} />
+        <McpSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
         <BookmarksSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
       </>
     );

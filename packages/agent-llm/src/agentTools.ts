@@ -1,7 +1,8 @@
 import type { ModelCapabilityProfile, NativeToolId } from "./modelCapabilities.js";
 import { filterWireableHostedTools, buildResponsesHostedTool } from "./hostedToolWireability.js";
+import { ATOM_MCP_INVOKE_TOOL } from "./mcpTools.js";
 
-export type AtomToolId = "connector_invoke";
+export type AtomToolId = "connector_invoke" | "mcp_invoke";
 
 export interface AtomConnectorInvokeInput {
   connectorId: "webcal" | "rss" | "news-search" | "bookmarks";
@@ -23,12 +24,15 @@ export interface AgentToolProfile {
 
 export function buildAgentToolProfile(
   capabilities: ModelCapabilityProfile | undefined,
-  opts?: { atomConnectorsAvailable?: boolean },
+  opts?: { atomConnectorsAvailable?: boolean; mcpServersAvailable?: boolean },
 ): AgentToolProfile {
   const native = capabilities?.nativeTools ?? [];
   const providerHostedTools = filterWireableHostedTools(capabilities?.providerHostedTools ?? []);
   const atomConnectorsAvailable = opts?.atomConnectorsAvailable ?? false;
-  const atom: AtomToolId[] = atomConnectorsAvailable ? ["connector_invoke"] : [];
+  const mcpServersAvailable = opts?.mcpServersAvailable ?? false;
+  const atom: AtomToolId[] = [];
+  if (atomConnectorsAvailable) atom.push("connector_invoke");
+  if (mcpServersAvailable) atom.push("mcp_invoke");
   const hasResponsesTools = providerHostedTools.length > 0;
   // Chat compose defaults to Chat Completions — works for personal API keys without org verification.
   // Responses API is reserved for image-family models (image_generation) that require it.
@@ -91,8 +95,10 @@ const NATIVE_TOOL_LABELS: Record<NativeToolId, string> = {
 };
 
 export function chatCompletionTools(profile: AgentToolProfile): unknown[] {
-  if (!profile.atom.includes("connector_invoke")) return [];
-  return [ATOM_CONNECTOR_INVOKE_TOOL];
+  const tools: unknown[] = [];
+  if (profile.atom.includes("connector_invoke")) tools.push(ATOM_CONNECTOR_INVOKE_TOOL);
+  if (profile.atom.includes("mcp_invoke")) tools.push(ATOM_MCP_INVOKE_TOOL);
+  return tools;
 }
 
 export function responsesApiTools(profile: AgentToolProfile): unknown[] {
@@ -110,6 +116,15 @@ export function responsesApiTools(profile: AgentToolProfile): unknown[] {
       name: ATOM_CONNECTOR_INVOKE_TOOL.function.name,
       description: ATOM_CONNECTOR_INVOKE_TOOL.function.description,
       parameters: ATOM_CONNECTOR_INVOKE_TOOL.function.parameters,
+      strict: false,
+    });
+  }
+  if (profile.atom.includes("mcp_invoke")) {
+    tools.push({
+      type: "function",
+      name: ATOM_MCP_INVOKE_TOOL.function.name,
+      description: ATOM_MCP_INVOKE_TOOL.function.description,
+      parameters: ATOM_MCP_INVOKE_TOOL.function.parameters,
       strict: false,
     });
   }
@@ -133,6 +148,11 @@ export function formatToolsForPrompt(profile: AgentToolProfile): string {
     );
     lines.push(
       "  Prefer this tool over passive Calendar/RSS snapshots when answering schedule, feed, bookmark, or briefing-topic questions.",
+    );
+  }
+  if (profile.atom.includes("mcp_invoke")) {
+    lines.push(
+      "- **atom_mcp_invoke** (Atom MCP): call allowlisted tools on owner-configured MCP servers (Settings → Connectors → MCP)",
     );
   }
   if (profile.native.length === 0 && profile.atom.length === 0) {

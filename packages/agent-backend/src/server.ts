@@ -38,6 +38,9 @@ import { HandleCacheStore } from "./handleCache.js";
 import { connectMlsPeer, reconnectStoredMlsPeers } from "./mlsReconnect.js";
 import { registerActionAdminRoutes } from "./actionAdmin.js";
 import { registerConnectorAdminRoutes } from "./connectorAdmin.js";
+import { McpServersStore } from "./mcp/mcpServersStore.js";
+import { McpRuntime } from "./mcp/mcpRuntime.js";
+import { registerMcpAdminRoutes } from "./mcp/mcpAdmin.js";
 import { registerCoordinationAdminRoutes } from "./coordinationAdmin.js";
 import { CalendarFeedStore } from "./calendarFeedStore.js";
 import {
@@ -111,6 +114,10 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   const calendarFeed = new CalendarFeedStore();
   await calendarFeed.load();
   calendarFeed.syncFromInbox(inbox.list());
+
+  const mcpServersStore = new McpServersStore();
+  await mcpServersStore.load();
+  const mcpRuntime = new McpRuntime();
 
   const catalogStore = new BusinessCatalogStore();
   await catalogStore.load();
@@ -423,6 +430,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     publicBaseUrl: config.publicBaseUrl,
     allowedOrigins: config.allowedOrigins,
   });
+  registerMcpAdminRoutes(adminApp, { store: mcpServersStore, runtime: mcpRuntime });
   registerCustodyAdminRoutes(adminApp, connectorVault);
   registerAdminDataRoutes(adminApp);
   registerRoomsAdminRoutes(adminApp, {

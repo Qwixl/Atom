@@ -15,6 +15,8 @@ export {
   parseAtomConnectorInvokeArgs,
 } from "./agentTools.js";
 export type { AgentToolProfile, AtomToolExecutor, AtomConnectorInvokeInput, AtomToolId } from "./agentTools.js";
+export type { McpToolExecutor, AtomMcpInvokeInput } from "./mcpTools.js";
+export { parseAtomMcpInvokeArgs, ATOM_MCP_INVOKE_TOOL_NAME } from "./mcpTools.js";
 export { buildSystemPrompt } from "./prompt.js";
 export type { PromptProfile } from "./prompt.js";
 export { runCuratorPass, shouldCurateTranscript } from "./runCuratorPass.js";

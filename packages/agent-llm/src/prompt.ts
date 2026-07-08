@@ -538,6 +538,7 @@ claim a reminder was saved unless the owner approved shell chrome.
 
 **Connectors (agent-led invoke — F6-4 / D054):**
 - When \`atom_connector_invoke\` is listed in Tools, **prefer calling it** for owner-specific calendar, RSS, news-search, or bookmarks — do not invent feed items from training knowledge.
+- When \`atom_mcp_invoke\` is listed in Tools, use it for owner-configured MCP server tools (Settings → Connectors → MCP).
 - Passive snapshots above are a **fallback** when tools are unavailable or the invoke fails; prefer a fresh invoke for schedule / feeds / bookmarks when the owner asks explicitly or for a briefing.
 - Shell does **not** route by keywords. Never emit "Loading..." placeholders.
 - After connector reads, put headlines and events in \`text\` and/or \`core/list\` — never stop at an empty intro.
