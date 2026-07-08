@@ -72,4 +72,17 @@ describe("withModulePropDefaults", () => {
   it("defaults split-bill label", () => {
     expect(withModulePropDefaults("commerce/split-bill", {}).defaultLabel).toBe("Split bill");
   });
+
+  it("maps podcast enclosure props for audio player", () => {
+    const props = withModulePropDefaults("media/audio-player", {
+      enclosureUrl: "https://cdn.example.com/ep.mp3",
+      title: "Episode 1",
+      enclosureType: "audio/mpeg",
+      feedLabel: "Daily show",
+    });
+    expect(props.src).toBe("https://cdn.example.com/ep.mp3");
+    expect(props.title).toBe("Episode 1");
+    expect(props.mimeType).toBe("audio/mpeg");
+    expect(props.feedLabel).toBe("Daily show");
+  });
 });

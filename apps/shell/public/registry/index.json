@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-08T15:04:23.115Z",
+  "updatedAt": "2026-07-08T20:45:16.836Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
@@ -135,8 +135,8 @@
       "id": "media/audio-player",
       "version": "1.0.0",
       "manifestUrl": "media/audio-player/manifest.json",
-      "integrity": "sha256:cd957fb480c81a88a6d42096ea3a5c1e41897b355604ecdd8795784204a614d3",
-      "bundleIntegrity": "sha256:2648e674ea423c3ca0ad06147b2fa7c0f12315cf807bb9302ada5ae9e3bdc7d1",
+      "integrity": "sha256:eebc14f49e14916cce0c1f4b368017735e2a7e02e764726db0ebb2ec6e46764a",
+      "bundleIntegrity": "sha256:a7c9cf5efd77c66ab16446797ebaf31044c7541066748fea2b484d5d2ce5f1d2",
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
         "media"
