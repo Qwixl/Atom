@@ -8,7 +8,7 @@ Edit composition JSON and render live — no agent backend required. Uses `@qwix
 pnpm dev:embed
 ```
 
-Open [http://localhost:5203/?playground=1](http://localhost:5203/?playground=1).
+Open `http://localhost:5203/?playground=1` after `pnpm dev:embed` is running.
 
 ## Usage
 
