@@ -138,6 +138,22 @@ import { DiscoverPanel } from "./DiscoverPanel.js";
 import { RoomsPanel } from "./RoomsPanel.js";
 import { tryReconnectHostedAgent } from "./auth/completeSetup.js";
 import { loadAccountType, saveAccountType, clearAccountType } from "./accountType.js";
+import { WorkspaceSwitcher } from "./workspace/WorkspaceSwitcher.js";
+import {
+  createWorkspace,
+  ensureWorkspaceFromAccountType,
+  getActiveWorkspace,
+  listWorkspaces,
+  loadActiveWorkspaceId,
+  saveActiveWorkspaceId,
+  setActiveWorkspace,
+} from "./workspace/workspaceRegistry.js";
+import { isBusinessWorkspace, type Workspace } from "./workspace/types.js";
+import {
+  workspaceConversationMemoryPersistence,
+  workspaceOwnerProposalsPersistence,
+  workspaceOwnerRecordsPersistence,
+} from "./workspace/workspacePersistence.js";
 import { loadFirstRunDone, markFirstRunDone, resetFirstRunDone } from "./firstRunStorage.js";
 import { navigate } from "./navigation.js";
 import { DemoBootstrap } from "./DemoBootstrap.js";
@@ -336,6 +352,13 @@ function restoredChatFeed(): FeedItem[] {
 }
 
 export function App() {
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState(() => loadActiveWorkspaceId());
+  const [workspaces, setWorkspaces] = useState(() => listWorkspaces());
+  const activeWorkspace = useMemo(
+    () => workspaces.find((w) => w.id === activeWorkspaceId) ?? getActiveWorkspace(),
+    [workspaces, activeWorkspaceId],
+  );
+
   const catalog = useMemo(() => {
     const c = new Catalog();
     registerCorePrimitives(c);
@@ -360,28 +383,31 @@ export function App() {
   );
 
   const ownerStore = useMemo(
-    () =>
-      new OwnerStore({
+    () => {
+      const recordsPersistence = workspaceOwnerRecordsPersistence(activeWorkspaceId);
+      const proposalsPersistence = workspaceOwnerProposalsPersistence(activeWorkspaceId);
+      return new OwnerStore({
         persist: (records) => {
           const config = loadCommsAgentConfig();
           if (config.adminToken?.trim()) {
             void saveOwnerRecords(config, records);
             return;
           }
-          ownerRecordsPersistence.save([...records]);
+          recordsPersistence.save([...records]);
         },
-        restore: ownerRecordsPersistence.load(),
+        restore: recordsPersistence.load(),
         persistProposals: (proposals) => {
           const config = loadCommsAgentConfig();
           if (config.adminToken?.trim()) {
             void saveOwnerProposals(config, proposals);
             return;
           }
-          ownerProposalsPersistence.save([...proposals]);
+          proposalsPersistence.save([...proposals]);
         },
-        restoreProposals: ownerProposalsPersistence.load(),
-      }),
-    [],
+        restoreProposals: proposalsPersistence.load(),
+      });
+    },
+    [activeWorkspaceId],
   );
 
   const secretStore = useMemo(
@@ -791,11 +817,17 @@ export function App() {
   );
 
   useEffect(() => {
+    setProfileRecords(ownerStore.list());
+    setProfileProposals(ownerStore.listProposals());
+  }, [activeWorkspaceId, ownerStore]);
+
+  useEffect(() => {
     void (async () => {
+      const recordsPersistence = workspaceOwnerRecordsPersistence(activeWorkspaceId);
       const [records] = await Promise.all([
-        ownerRecordsPersistence.hydrateFromIndexedDb(),
-        ownerProposalsPersistence.hydrateFromIndexedDb(),
-        conversationMemoryPersistence.hydrateFromIndexedDb(),
+        recordsPersistence.hydrateFromIndexedDb(),
+        workspaceOwnerProposalsPersistence(activeWorkspaceId).hydrateFromIndexedDb(),
+        workspaceConversationMemoryPersistence(activeWorkspaceId).hydrateFromIndexedDb(),
       ]);
       if (!records?.length || ownerStore.list().length > 0) return;
       for (const record of records) {
@@ -804,7 +836,7 @@ export function App() {
       setProfileRecords(ownerStore.list());
       setCommsContacts(loadContacts(records));
     })();
-  }, [ownerStore]);
+  }, [ownerStore, activeWorkspaceId]);
 
   const [curatorEnabled, setCuratorEnabled] = useState(() => loadCuratorEnabled());
   const [curatorAutoAcceptOpen, setCuratorAutoAcceptOpen] = useState(() =>
@@ -871,12 +903,14 @@ export function App() {
     requestAgentTurn: () => {},
   });
   const conversationMemory = useMemo(
-    () =>
-      new ConversationMemoryIndex({
-        restore: conversationMemoryPersistence.load() ?? [],
-        persist: (chunks) => conversationMemoryPersistence.save([...chunks]),
-      }),
-    [],
+    () => {
+      const persistence = workspaceConversationMemoryPersistence(activeWorkspaceId);
+      return new ConversationMemoryIndex({
+        restore: persistence.load() ?? [],
+        persist: (chunks) => persistence.save([...chunks]),
+      });
+    },
+    [activeWorkspaceId],
   );
   const conversationMemoryRef = useRef(conversationMemory);
   conversationMemoryRef.current = conversationMemory;
@@ -1103,6 +1137,8 @@ export function App() {
         if (status.accountType) {
           saveAccountType(status.accountType);
           setAccountType(status.accountType);
+          ensureWorkspaceFromAccountType(status.accountType);
+          setWorkspaces(listWorkspaces());
         }
       })
       .catch(() => {
@@ -2192,7 +2228,7 @@ export function App() {
             store={ownerStore}
             records={profileRecords}
             proposals={profileProposals}
-            showBusinessSections={!IS_PRODUCTION_HOST}
+            showBusinessSections={isBusinessWorkspace(activeWorkspace)}
             onChanged={() => {
               setProfileRecords(ownerStore.list());
               setProfileProposals(ownerStore.listProposals());
@@ -2397,6 +2433,18 @@ export function App() {
           catalog={catalog}
           registry={registry}
           modulesActive={modulesActive}
+          workspaces={workspaces}
+          activeWorkspaceId={activeWorkspaceId}
+          onWorkspaceSwitch={(workspaceId) => {
+            if (!setActiveWorkspace(workspaceId)) return;
+            setActiveWorkspaceId(workspaceId);
+          }}
+          onCreateBusinessWorkspace={() => {
+            const created = createWorkspace({ kind: "business", label: "Business" });
+            setWorkspaces(listWorkspaces());
+            const next = setActiveWorkspace(created.id);
+            if (next) setActiveWorkspaceId(next.id);
+          }}
         />
       ) : null}
     </>
@@ -2437,6 +2485,10 @@ function SettingsDialog({
   catalog,
   registry,
   modulesActive,
+  workspaces,
+  activeWorkspaceId,
+  onWorkspaceSwitch,
+  onCreateBusinessWorkspace,
 }: {
   llmConnectionInitial: LlmConnectionConfig | null;
   savedLlmKeyHint: string | null;
@@ -2471,6 +2523,10 @@ function SettingsDialog({
   catalog: Catalog;
   registry: ModuleRegistry;
   modulesActive: boolean;
+  workspaces: Workspace[];
+  activeWorkspaceId: string;
+  onWorkspaceSwitch: (workspaceId: string) => void;
+  onCreateBusinessWorkspace: () => void;
 }) {
   const [baseUrl, setBaseUrl] = useState(
     llmConnectionInitial?.baseUrl ?? "https://api.openai.com/v1",
@@ -2911,11 +2967,19 @@ function SettingsDialog({
 
   function renderBriefingPanel() {
     return (
-      <BriefingSettingsPanel
-        embedded
-        deviceLocation={deviceLocation}
-        onDeviceLocationChange={onDeviceLocationChange}
-      />
+      <>
+        <WorkspaceSwitcher
+          workspaces={workspaces}
+          activeWorkspaceId={activeWorkspaceId}
+          onSwitch={onWorkspaceSwitch}
+          onCreateBusiness={onCreateBusinessWorkspace}
+        />
+        <BriefingSettingsPanel
+          embedded
+          deviceLocation={deviceLocation}
+          onDeviceLocationChange={onDeviceLocationChange}
+        />
+      </>
     );
   }
 
@@ -2978,7 +3042,13 @@ function SettingsDialog({
       <>
         <p className="settings-note">
           Optional Stripe keys for paid modules and commerce holds. Keys stay on your agent, not in the
-          browser.
+          browser. Platform fees stay at 0% during beta (D069). Connect a spend policy on your agent to
+          cap commerce and LLM usage per workspace.
+        </p>
+        <p className="settings-note">
+          Billing status: beta-free. Wallet SetupIntent and Stripe Connect Express onboarding land when
+          hosted workspace billing exits beta — agent routes{" "}
+          <code>/billing/status</code> and <code>/billing/spend-policy</code> are live now.
         </p>
         {hasSavedStripeSecret ? (
           <div className="settings-saved-key">

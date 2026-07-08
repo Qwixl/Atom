@@ -9,6 +9,22 @@ export interface TransactionAdminDeps {
   stripeProductId: string | null;
   paymentRail?: PaymentRail;
   store: TransactionCommitStore;
+  /** Optional spend-policy gate (D066). When set, commerce holds are checked before rail.placeHold. */
+  evaluateCommerceSpend?: (input: {
+    amountMinor: number;
+    currency: string;
+  }) => { allowed: boolean; reason?: string; requiresChrome: boolean };
+  /** Platform application fee in minor units (0 during beta). */
+  applicationFeeMinor?: number;
+  /** Stripe Connect destination for business workspace. */
+  connectAccountId?: string | null;
+  /** Workspace id for budget ledger (defaults to "personal"). */
+  workspaceId?: string;
+  recordCommerceSpend?: (input: {
+    amountMinor: number;
+    currency: string;
+    description: string;
+  }) => void;
 }
 
 interface PeerSendBody {
@@ -85,8 +101,18 @@ export function registerTransactionAdminRoutes(adminApp: Express, deps: Transact
       return;
     }
     try {
-      resolveRail(deps, body.stripeSecretKey);
       const amount = parseAmount(body);
+      if (deps.evaluateCommerceSpend) {
+        const verdict = deps.evaluateCommerceSpend({
+          amountMinor: amount.amountMinor,
+          currency: amount.currency,
+        });
+        if (!verdict.allowed) {
+          res.status(402).json({ error: verdict.reason ?? "Spend policy blocked this hold" });
+          return;
+        }
+      }
+      resolveRail(deps, body.stripeSecretKey);
       const transaction = await deps.store.offerHold({
         transactionId: body.transactionId.trim(),
         peerUrl: body.peerUrl.trim(),
@@ -97,6 +123,13 @@ export function registerTransactionAdminRoutes(adminApp: Express, deps: Transact
         label: body.label?.trim(),
         subjectId: body.subjectId?.trim(),
         encrypt: body.encrypt,
+        applicationFeeMinor: deps.applicationFeeMinor,
+        connectAccountId: deps.connectAccountId ?? undefined,
+      });
+      deps.recordCommerceSpend?.({
+        amountMinor: amount.amountMinor,
+        currency: amount.currency,
+        description: `commerce hold ${body.transactionId.trim()}`,
       });
       res.json({ transaction });
     } catch (error) {

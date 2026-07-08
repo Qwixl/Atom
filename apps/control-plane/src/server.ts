@@ -20,6 +20,7 @@ import { loadAgentStore, resolveDataDir, saveAgentStore } from "./fleet/store.js
 import type { FleetProvisioner, HostedAgentRecord } from "./fleet/types.js";
 import { createRateLimiter } from "./rateLimit.js";
 import { registerAccountRoutes } from "./accountRoutes.js";
+import { registerWorkspaceRoutes } from "./workspaceRoutes.js";
 import { isSupabaseConfigured } from "./supabaseAdmin.js";
 
 const app = express();
@@ -93,6 +94,7 @@ registerAccountRoutes(app, {
   fleetAgents: () => agents,
   persistAgents,
 });
+registerWorkspaceRoutes(app);
 
 app.get("/health", (_req, res) => {
   res.json({
