@@ -14,6 +14,12 @@ import {
   type AgentToolProfile,
   type AtomToolExecutor,
 } from "./agentTools.js";
+import {
+  ATOM_MCP_INVOKE_TOOL,
+  ATOM_MCP_INVOKE_TOOL_NAME,
+  parseAtomMcpInvokeArgs,
+  type McpToolExecutor,
+} from "./mcpTools.js";
 import type { ModelCapabilityProfile } from "./modelCapabilities.js";
 import { inferModelCapabilities, normalizeModelCapabilityProfile } from "./modelCapabilities.js";
 import { buildSystemPrompt, type PromptProfile } from "./prompt.js";
@@ -38,6 +44,10 @@ export interface LlmAgentSessionOptions {
   atomToolExecutor?: AtomToolExecutor;
   /** Owner has agent backend configured — enables Atom connector tool. */
   atomConnectorsAvailable?: boolean;
+  /** Execute MCP tool calls when the model calls `atom_mcp_invoke`. */
+  mcpToolExecutor?: McpToolExecutor;
+  /** Owner has MCP servers configured on agent backend. */
+  mcpServersAvailable?: boolean;
 }
 
 interface ToolCall {
@@ -65,6 +75,7 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
   private profileProvider?: () => PromptProfile;
   private toolProfile: AgentToolProfile;
   private atomToolExecutor?: AtomToolExecutor;
+  private mcpToolExecutor?: McpToolExecutor;
   private inFlight = false;
   private queued: string[] = [];
   private disposed = false;
@@ -88,6 +99,7 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
     this.catalog = catalog;
     this.profileProvider = typeof profile === "function" ? profile : profile ? () => profile : undefined;
     this.atomToolExecutor = options?.atomToolExecutor;
+    this.mcpToolExecutor = options?.mcpToolExecutor;
     const capabilities = normalizeModelCapabilityProfile(config.capabilities, {
       baseUrl: config.baseUrl,
       model: config.model,
@@ -95,6 +107,9 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
     this.toolProfile = buildAgentToolProfile(capabilities, {
       atomConnectorsAvailable: Boolean(
         options?.atomConnectorsAvailable && options?.atomToolExecutor,
+      ),
+      mcpServersAvailable: Boolean(
+        options?.mcpServersAvailable && options?.mcpToolExecutor,
       ),
     });
     this.messages = [{ role: "system", content: this.buildSystemPromptContent() }];
@@ -275,7 +290,7 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
         return await this.callResponsesPath();
       } catch (error) {
         if (!isResponsesApiFallbackEligible(error)) throw error;
-        if (this.toolProfile.atom.includes("connector_invoke")) {
+        if (this.toolProfile.useAtomToolLoop) {
           return this.callChatCompletionsToolLoop();
         }
         return this.callChatCompletionsPlain();
@@ -485,24 +500,43 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
   }
 
   private async executeNamedTool(name: string, argsJson: string): Promise<string> {
-    if (name !== ATOM_CONNECTOR_INVOKE_TOOL.function.name) {
-      return JSON.stringify({ error: `Unknown tool: ${name}` });
+    if (name === ATOM_CONNECTOR_INVOKE_TOOL.function.name) {
+      if (!this.atomToolExecutor) {
+        return JSON.stringify({ error: "Atom connector invoke is not configured" });
+      }
+      try {
+        const args = parseAtomConnectorInvokeArgs(argsJson);
+        const result = await this.atomToolExecutor(args);
+        return wrapUntrustedContent(JSON.stringify(result, null, 2), {
+          source: `connector:${args.connectorId}`,
+          purpose: args.operation,
+        });
+      } catch (error) {
+        return JSON.stringify({
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
-    if (!this.atomToolExecutor) {
-      return JSON.stringify({ error: "Atom connector invoke is not configured" });
+
+    if (name === ATOM_MCP_INVOKE_TOOL_NAME) {
+      if (!this.mcpToolExecutor) {
+        return JSON.stringify({ error: "Atom MCP invoke is not configured" });
+      }
+      try {
+        const args = parseAtomMcpInvokeArgs(argsJson);
+        const result = await this.mcpToolExecutor(args);
+        return wrapUntrustedContent(JSON.stringify(result, null, 2), {
+          source: `mcp:${args.serverId}`,
+          purpose: args.toolName,
+        });
+      } catch (error) {
+        return JSON.stringify({
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
-    try {
-      const args = parseAtomConnectorInvokeArgs(argsJson);
-      const result = await this.atomToolExecutor(args);
-      return wrapUntrustedContent(JSON.stringify(result, null, 2), {
-        source: `connector:${args.connectorId}`,
-        purpose: args.operation,
-      });
-    } catch (error) {
-      return JSON.stringify({
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+
+    return JSON.stringify({ error: `Unknown tool: ${name}` });
   }
 
   /** Chat Completions JSON pass after Responses API gathered prose (web search, etc.). */
