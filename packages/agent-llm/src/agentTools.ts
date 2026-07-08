@@ -86,7 +86,7 @@ const NATIVE_TOOL_LABELS: Record<NativeToolId, string> = {
 };
 
 export function chatCompletionTools(profile: AgentToolProfile): unknown[] {
-  if (!profile.useAtomToolLoop) return [];
+  if (!profile.atom.includes("connector_invoke")) return [];
   return [ATOM_CONNECTOR_INVOKE_TOOL];
 }
 
