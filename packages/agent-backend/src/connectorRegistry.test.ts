@@ -9,6 +9,9 @@ import { GITHUB_CONNECTOR_ID } from "./githubConnector.js";
 import { NOTION_CONNECTOR_ID } from "./notionConnector.js";
 import { CALDAV_CONNECTOR_ID } from "./caldavConnector.js";
 import { CARDDAV_CONNECTOR_ID } from "./carddavConnector.js";
+import { LINEAR_CONNECTOR_ID } from "./linearConnector.js";
+import { TRELLO_CONNECTOR_ID } from "./trelloConnector.js";
+import { HOME_ASSISTANT_CONNECTOR_ID } from "./homeAssistantConnector.js";
 import { WEATHER_CONNECTOR_ID } from "./weatherConnector.js";
 
 describe("connectorRegistry", () => {
@@ -21,6 +24,9 @@ describe("connectorRegistry", () => {
         TODOIST_CONNECTOR_ID,
         GITHUB_CONNECTOR_ID,
         NOTION_CONNECTOR_ID,
+        LINEAR_CONNECTOR_ID,
+        TRELLO_CONNECTOR_ID,
+        HOME_ASSISTANT_CONNECTOR_ID,
         CALDAV_CONNECTOR_ID,
         CARDDAV_CONNECTOR_ID,
         WEATHER_CONNECTOR_ID,

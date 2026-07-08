@@ -42,6 +42,15 @@ import { GITHUB_CONNECTOR_ID } from "./githubConnector.js";
 
 import { NOTION_CONNECTOR_ID } from "./notionConnector.js";
 
+import { LINEAR_CONNECTOR_ID } from "./linearConnector.js";
+
+import { TRELLO_CONNECTOR_ID } from "./trelloConnector.js";
+
+import {
+  HOME_ASSISTANT_CONNECTOR_ID,
+  normalizeHomeAssistantBaseUrl,
+} from "./homeAssistantConnector.js";
+
 import { getConnectorBackend } from "./connectorRegistry.js";
 
 import { invalidateConnectorCache, invokeConnectorCached } from "./connectorInvoke.js";
@@ -66,6 +75,7 @@ export const TOKEN_CONNECTOR_IDS = new Set([
   TODOIST_CONNECTOR_ID,
   GITHUB_CONNECTOR_ID,
   NOTION_CONNECTOR_ID,
+  LINEAR_CONNECTOR_ID,
 ]);
 
 
@@ -530,6 +540,80 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
     await config.vault.clearApiToken(connectorId);
     invalidateConnectorCache(connectorId);
     res.json({ connectorId, removed: true });
+  });
+
+  adminApp.post("/connectors/trello/credentials", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const body = req.body as { apiKey?: string; token?: string };
+    const apiKey = body.apiKey?.trim();
+    const token = body.token?.trim();
+    if (!apiKey || !token) {
+      res.status(400).json({ error: "apiKey and token required" });
+      return;
+    }
+    try {
+      await config.vault.setTrelloCredentials(apiKey, token);
+      invalidateConnectorCache(TRELLO_CONNECTOR_ID);
+      res.json({ connectorId: TRELLO_CONNECTOR_ID, configured: true });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.delete("/connectors/trello/credentials", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    await config.vault.clearTrelloCredentials();
+    invalidateConnectorCache(TRELLO_CONNECTOR_ID);
+    res.json({ connectorId: TRELLO_CONNECTOR_ID, removed: true });
+  });
+
+  adminApp.post("/connectors/home-assistant/credentials", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const body = req.body as { baseUrl?: string; accessToken?: string };
+    const baseUrl = body.baseUrl?.trim();
+    const accessToken = body.accessToken?.trim();
+    if (!baseUrl || !accessToken) {
+      res.status(400).json({ error: "baseUrl and accessToken required" });
+      return;
+    }
+    try {
+      await config.vault.setHomeAssistantInstance(normalizeHomeAssistantBaseUrl(baseUrl), accessToken);
+      invalidateConnectorCache(HOME_ASSISTANT_CONNECTOR_ID);
+      res.json({ connectorId: HOME_ASSISTANT_CONNECTOR_ID, configured: true });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.delete("/connectors/home-assistant/credentials", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    await config.vault.clearHomeAssistantInstance();
+    invalidateConnectorCache(HOME_ASSISTANT_CONNECTOR_ID);
+    res.json({ connectorId: HOME_ASSISTANT_CONNECTOR_ID, removed: true });
   });
 
 

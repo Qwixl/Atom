@@ -12,7 +12,11 @@ export type AtomConnectorId =
   | "todoist"
   | "github"
   | "notion"
+  | "linear"
+  | "trello"
+  | "home-assistant"
   | "caldav"
+  | "carddav"
   | "weather";
 
 export interface AtomConnectorInvokeInput {
@@ -169,7 +173,7 @@ export function formatToolsForPrompt(profile: AgentToolProfile): string {
   }
   if (profile.atom.includes("connector_invoke")) {
     lines.push(
-      "- **atom_connector_invoke** (Atom): owner calendar (webcal/caldav), RSS/podcasts, **news-search**, bookmarks, **Todoist**, **GitHub**, **Notion**, **weather** — call for fresh owner data",
+      "- **atom_connector_invoke** (Atom): owner calendar (webcal/caldav), contacts (carddav), RSS/podcasts, **news-search**, bookmarks, **Todoist**, **GitHub**, **Notion**, **Linear**, **Trello**, **Home Assistant**, **weather** — call for fresh owner data",
     );
     lines.push(
       "  Prefer this tool over passive Calendar/RSS snapshots when answering schedule, feed, bookmark, or briefing-topic questions.",

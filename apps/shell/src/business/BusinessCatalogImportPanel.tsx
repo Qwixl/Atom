@@ -8,12 +8,15 @@ export function BusinessCatalogImportPanel() {
   const [note, setNote] = useState<string | null>(null);
   const [shopifyConfigured, setShopifyConfigured] = useState(false);
   const [wooConfigured, setWooConfigured] = useState(false);
+  const [squareConfigured, setSquareConfigured] = useState(false);
   const [shopifyShop, setShopifyShop] = useState("");
   const [shopifyToken, setShopifyToken] = useState("");
   const [wooUrl, setWooUrl] = useState("");
   const [wooKey, setWooKey] = useState("");
   const [wooSecret, setWooSecret] = useState("");
   const [wooCurrency, setWooCurrency] = useState("USD");
+  const [squareToken, setSquareToken] = useState("");
+  const [squareEnvironment, setSquareEnvironment] = useState<"production" | "sandbox">("production");
 
   const refresh = useCallback(async () => {
     const config = loadCommsAgentConfig();
@@ -23,6 +26,7 @@ export function BusinessCatalogImportPanel() {
       const status = await client.getBusinessStoreStatus();
       setShopifyConfigured(Boolean(status.shopify?.configured));
       setWooConfigured(Boolean(status.woocommerce?.configured));
+      setSquareConfigured(Boolean(status.square?.configured));
     } catch (error) {
       setNote(error instanceof Error ? error.message : String(error));
     }
@@ -111,6 +115,42 @@ export function BusinessCatalogImportPanel() {
     }
   }
 
+  async function saveSquare() {
+    const token = squareToken.trim();
+    if (!token) return;
+    setBusy(true);
+    setNote("Saving Square credentials to agent vault…");
+    try {
+      const config = loadCommsAgentConfig();
+      const approvalRef = await approvalRefForConnectorWrite("Save Square store token", { environment: squareEnvironment }, config);
+      const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+      await client.saveSquareStore({ accessToken: token, environment: squareEnvironment, approvalRef });
+      setSquareToken("");
+      setNote(null);
+      await refresh();
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importSquare() {
+    setBusy(true);
+    setNote("Importing catalog from Square…");
+    try {
+      const config = loadCommsAgentConfig();
+      const approvalRef = await approvalRefForConnectorWrite("Import Square catalog", { source: "square" }, config);
+      const client = new CommsAgentClient(config.adminUrl, config.adminToken);
+      const result = await client.importSquareCatalog({ approvalRef });
+      setNote(`Imported ${result.importedCount} item(s) from Square (${result.currency}).`);
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="panel-subsection shell-profile-import">
       <h4>Import from store</h4>
@@ -169,6 +209,35 @@ export function BusinessCatalogImportPanel() {
             Save WooCommerce
           </button>
           <button type="button" className="panel-btn panel-btn-primary" disabled={busy || !wooConfigured} onClick={() => void importWooCommerce()}>
+            Import catalog
+          </button>
+        </div>
+      </div>
+
+      <div className="connectors-token-row">
+        <strong>Square {squareConfigured ? "(connected)" : ""}</strong>
+        <select
+          className="panel-input"
+          value={squareEnvironment}
+          onChange={(e) => setSquareEnvironment(e.target.value as "production" | "sandbox")}
+          disabled={busy}
+        >
+          <option value="production">Production</option>
+          <option value="sandbox">Sandbox</option>
+        </select>
+        <input
+          className="panel-input"
+          type="password"
+          placeholder="Personal access token"
+          value={squareToken}
+          onChange={(e) => setSquareToken(e.target.value)}
+          disabled={busy}
+        />
+        <div className="panel-form-actions">
+          <button type="button" className="panel-btn" disabled={busy || !squareToken.trim()} onClick={() => void saveSquare()}>
+            Save Square
+          </button>
+          <button type="button" className="panel-btn panel-btn-primary" disabled={busy || !squareConfigured} onClick={() => void importSquare()}>
             Import catalog
           </button>
         </div>
