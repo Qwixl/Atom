@@ -45,3 +45,22 @@ export function rememberBriefingTopic(topic: string): BriefingPreferences {
   saveBriefingPreferences(next);
   return next;
 }
+
+/** Apply curator proposals in category briefing-topics when briefing is enabled (F6-2). */
+export function applyCuratorBriefingTopics(
+  proposals: ReadonlyArray<{ category: string; label: string; value: unknown }>,
+): BriefingPreferences {
+  const prefs = loadBriefingPreferences();
+  if (!prefs.enabled || proposals.length === 0) return prefs;
+  let next = prefs;
+  for (const proposal of proposals) {
+    const category = proposal.category.trim().toLowerCase();
+    if (category !== "briefing-topics" && category !== "briefing") continue;
+    const topic =
+      typeof proposal.value === "string" && proposal.value.trim()
+        ? proposal.value.trim()
+        : proposal.label.trim();
+    if (topic) next = rememberBriefingTopic(topic);
+  }
+  return next;
+}

@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { parseCuratorResponse } from "./curator.js";
+import { parseCuratorResponse, shouldCurateTranscript } from "./curator.js";
+
+describe("shouldCurateTranscript", () => {
+  it("skips auto briefing-open turns", () => {
+    expect(
+      shouldCurateTranscript([
+        {
+          role: "user",
+          text: "[briefing-open] Give me a concise daily roundup from my calendar and RSS snapshots.",
+        },
+        { role: "assistant", text: "Here is your roundup." },
+      ]),
+    ).toBe(false);
+  });
+});
 
 describe("parseCuratorResponse splitProposals", () => {
   it("parses conditional split proposals", () => {
