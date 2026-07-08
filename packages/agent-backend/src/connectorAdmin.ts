@@ -19,6 +19,16 @@ import { addRssFeedToVault, removeRssFeedFromVault, RSS_CONNECTOR_ID } from "./r
 import { addWebcalFeedToVault, removeWebcalFeedFromVault, WEBCAL_CONNECTOR_ID } from "./webcalConnector.js";
 
 import {
+  CALDAV_CONNECTOR_ID,
+  CALDAV_CONNECTOR_OPERATIONS,
+  addCalDavAccountToVault,
+  caldavConnectorOperation,
+  createCalDavEvent,
+  invokeCalDavConnector,
+  removeCalDavAccountFromVault,
+} from "./caldavConnector.js";
+
+import {
   createTodoistTask,
   TODOIST_CONNECTOR_ID,
 } from "./todoistConnector.js";
@@ -544,6 +554,109 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const status = /not configured|required/i.test(message) ? 400 : 502;
+      res.status(status).json({ error: message });
+    }
+  });
+
+
+
+  adminApp.post("/connectors/caldav/accounts", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const body = req.body as {
+      label?: string;
+      calendarUrl?: string;
+      username?: string;
+      password?: string;
+    };
+    const calendarUrl = body.calendarUrl?.trim();
+    const username = body.username?.trim();
+    const password = body.password?.trim();
+    if (!calendarUrl || !username || !password) {
+      res.status(400).json({ error: "calendarUrl, username, and password required" });
+      return;
+    }
+    try {
+      const account = await addCalDavAccountToVault(config.vault, {
+        label: body.label,
+        calendarUrl,
+        username,
+        password,
+      });
+      invalidateConnectorCache(CALDAV_CONNECTOR_ID);
+      res.json({ account });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+
+
+  adminApp.delete("/connectors/caldav/accounts/:accountId", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const accountId = req.params.accountId?.trim();
+    if (!accountId) {
+      res.status(400).json({ error: "accountId required" });
+      return;
+    }
+    const removed = await removeCalDavAccountFromVault(config.vault, accountId);
+    if (!removed) {
+      res.status(404).json({ error: "account not found" });
+      return;
+    }
+    invalidateConnectorCache(CALDAV_CONNECTOR_ID);
+    res.json({ removed: true, accountId });
+  });
+
+
+
+  adminApp.post("/connectors/caldav/events", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const body = req.body as {
+      accountId?: string;
+      summary?: string;
+      start?: string;
+      end?: string;
+      description?: string;
+    };
+    const accountId = body.accountId?.trim();
+    const summary = body.summary?.trim();
+    const start = body.start?.trim();
+    const end = body.end?.trim();
+    if (!accountId || !summary || !start || !end) {
+      res.status(400).json({ error: "accountId, summary, start, and end required" });
+      return;
+    }
+    try {
+      const event = await createCalDavEvent(config.vault, {
+        accountId,
+        summary,
+        start,
+        end,
+        description: body.description,
+      });
+      invalidateConnectorCache(CALDAV_CONNECTOR_ID);
+      res.json({ event });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const status = /not configured|required|Unknown/i.test(message) ? 400 : 502;
       res.status(status).json({ error: message });
     }
   });
