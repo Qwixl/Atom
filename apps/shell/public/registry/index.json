@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-07T13:51:55.844Z",
+  "updatedAt": "2026-07-08T00:42:41.698Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
@@ -123,20 +123,20 @@
       "publisher": "did:key:z6Mkatomexamples01"
     },
     {
-      "id": "scheduling/meeting-picker",
-      "version": "1.0.0",
-      "manifestUrl": "scheduling/meeting-picker/manifest.json",
-      "integrity": "sha256:539a7a9c3b3f7c48daca8b33b6d4910cbf8b39804d505e8ae5e5dad2b2e90e5e",
-      "bundleIntegrity": "sha256:83aadcdc5f557103d6385f471c437859880f3e09664725efe48fbf1a2d9a8429",
-      "publisher": "did:key:z6Mkatomexamples01"
-    },
-    {
       "id": "travel/seat-map",
       "version": "1.0.0",
       "manifestUrl": "travel/seat-map/manifest.json",
       "integrity": "sha256:2ec97da48f0a2be013c48110e5815936e40b98514754f926169f9b3e90d856ca",
       "bundleIntegrity": "sha256:2143262eb8e3abacf7688735991f32defa348f2e1a262400684ee68be9efb968",
       "publisher": "did:key:z6Mkdemotravel0001"
+    },
+    {
+      "id": "scheduling/meeting-picker",
+      "version": "1.0.0",
+      "manifestUrl": "scheduling/meeting-picker/manifest.json",
+      "integrity": "sha256:e4cfce12254407a7c14045ce6b17bbe15f198d1cb151bfa99ca8e4fbfdea4cf4",
+      "bundleIntegrity": "sha256:f4871a5bff83ac4a0c1167294c5da79ff6bb748d34c91c9eb495a71001d60f06",
+      "publisher": "did:key:z6Mkatomexamples01"
     }
   ]
 }
