@@ -23,6 +23,8 @@ export interface DiscoverSearchResult {
   indexLabel: string;
 }
 
+export const MAX_DISCOVER_RESULTS = 50;
+
 const DEFAULT_INDEXES = [
   { label: "Business", path: "/business-index/index.json" },
   { label: "Community", path: "/community-index/index.json" },
@@ -73,18 +75,24 @@ export async function runDiscoverSearch(opts: {
   const indexList = normalizeIndexes(opts.indexes, base);
   const merged: Array<BusinessIndexEntry & { indexLabel: string }> = [];
 
-  for (const index of indexList) {
-    try {
-      const body = await fetchBusinessIndex(index.url);
-      const filtered = filterBusinessIndex(body, {
-        terms: terms || undefined,
-        kind: opts.kind,
-      });
-      for (const entry of filtered) {
-        merged.push({ ...entry, indexLabel: index.label });
+  const indexBodies = await Promise.all(
+    indexList.map(async (index) => {
+      try {
+        const body = await fetchBusinessIndex(index.url);
+        return { index, body };
+      } catch {
+        return null;
       }
-    } catch {
-      // Index unavailable — continue with other slices.
+    }),
+  );
+  for (const row of indexBodies) {
+    if (!row) continue;
+    const filtered = filterBusinessIndex(row.body, {
+      terms: terms || undefined,
+      kind: opts.kind,
+    });
+    for (const entry of filtered) {
+      merged.push({ ...entry, indexLabel: row.index.label });
     }
   }
 
@@ -107,8 +115,10 @@ export async function runDiscoverSearch(opts: {
     businessDomain: opts.businessDomain,
   });
 
+  const cappedCandidates = candidates.slice(0, MAX_DISCOVER_RESULTS);
+
   const settled = await Promise.all(
-    candidates.map(async (entry) => {
+    cappedCandidates.map(async (entry) => {
       try {
         const resolved = await resolveDiscoverEntry({
           entry,

@@ -20,6 +20,10 @@ describe("webcal", () => {
     );
   });
 
+  it("rejects private webcal hosts", () => {
+    expect(() => validateWebcalUrl("https://169.254.169.254/calendar.ics")).toThrow(/Private/);
+  });
+
   it("parses multiple VEVENT blocks with folded lines", () => {
     const ics = [
       "BEGIN:VCALENDAR",

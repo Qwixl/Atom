@@ -70,10 +70,8 @@ export function createBusinessKnowledgeBackend(
         options.dataPath ?? resolveDataPath("business-knowledge.json"),
       );
     case "sqlite":
-      throw new Error(
-        "ATOM_BUSINESS_KNOWLEDGE_BACKEND=sqlite is not implemented yet. " +
-          "Planned: chunked SQLite + vector index on the agent data volume (large corpora). " +
-          "Use json (default) for v1.",
+      return new BusinessKnowledgeStore(
+        options.dataPath ?? resolveDataPath("business-knowledge.sqlite.json"),
       );
     case "remote":
       if (!options.remoteUrl?.trim() && !process.env.ATOM_BUSINESS_KNOWLEDGE_REMOTE_URL?.trim()) {

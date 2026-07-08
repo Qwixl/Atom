@@ -32,6 +32,7 @@ export {
 } from "./conditionalValue.js";
 export {
   hashEmbedText,
+  embedTextViaApi,
   cosineSimilarity,
   hybridRetrievalScore,
   type TextEmbedder,

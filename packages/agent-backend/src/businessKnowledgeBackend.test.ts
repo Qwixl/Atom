@@ -7,8 +7,12 @@ describe("createBusinessKnowledgeBackend", () => {
     expect(typeof backend.retrieve).toBe("function");
   });
 
-  it("rejects unimplemented sqlite backend at startup", () => {
-    expect(() => createBusinessKnowledgeBackend({ kind: "sqlite" })).toThrow(/not implemented yet/i);
+  it("creates sqlite-named json backend (M12.9 v1 path)", () => {
+    const backend = createBusinessKnowledgeBackend({
+      kind: "sqlite",
+      dataPath: "/tmp/unused.sqlite.json",
+    });
+    expect(typeof backend.retrieve).toBe("function");
   });
 
   it("rejects unimplemented remote backend at startup", () => {

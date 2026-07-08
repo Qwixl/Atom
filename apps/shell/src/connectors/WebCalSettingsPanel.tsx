@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { approvalRefForConnectorWrite } from "./connectorWriteApproval.js";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
 
 interface WebcalFeedSummary {
@@ -150,7 +151,8 @@ export function WebCalSettingsPanel({
     setBusy(true);
     setNote("Saving feed URL to your agent vault…");
     try {
-      await client.addWebcalFeed(url, feedLabel.trim() || undefined);
+      const approvalRef = await approvalRefForConnectorWrite("Add WebCal feed", { url }, config);
+      await client.addWebcalFeed(url, feedLabel.trim() || undefined, approvalRef);
       setFeedUrl("");
       setFeedLabel("");
       setNote(null);
@@ -165,7 +167,8 @@ export function WebCalSettingsPanel({
     setBusy(true);
     setNote("Removing feed…");
     try {
-      await client.removeWebcalFeed(feedId);
+      const approvalRef = await approvalRefForConnectorWrite("Remove WebCal feed", { feedId });
+      await client.removeWebcalFeed(feedId, approvalRef);
       setNote(null);
       await refresh();
     } catch (error) {

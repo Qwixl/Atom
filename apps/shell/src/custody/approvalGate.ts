@@ -1,13 +1,13 @@
 import type { ConsequentialAction } from "@qwixl/shell-core";
 import { loadCommsAgentConfig } from "../comms/storage.js";
 import { fetchCustodyStatus, verifyCustodyApproval } from "./client.js";
-import { isPersonalCalendarAddAction } from "../calendarAddLink.js";
 
 import { IS_DEMO_MODE } from "../demoPersonas.js";
 import type { CommsAgentConfig } from "../comms/types.js";
 
 const DEV_BYPASS =
-  IS_DEMO_MODE || import.meta.env.VITE_CUSTODY_DEV_BYPASS === "1";
+  !import.meta.env.PROD &&
+  (IS_DEMO_MODE || import.meta.env.VITE_CUSTODY_DEV_BYPASS === "1");
 
 export async function requireCustodyApproval(
   action: ConsequentialAction,
@@ -20,9 +20,6 @@ export async function requireCustodyApproval(
 
   if (DEV_BYPASS) {
     return { approvalRef: `dev-bypass:${action.id}` };
-  }
-  if (isPersonalCalendarAddAction(action)) {
-    return { approvalRef: `calendar-add:${action.id}` };
   }
 
   const status = await fetchCustodyStatus(config);

@@ -6,6 +6,7 @@ import {
   ModuleRegistry,
   createAttestationPersistence,
   createJsonPersistence,
+  createTieredJsonPersistence,
   getGameEngine,
   GameOrchestrator,
   findActiveGameInFeed,
@@ -84,7 +85,8 @@ import {
   type SecretStore,
 } from "@qwixl/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
-import { loadBriefingPreferences } from "./briefing/briefingPreferences.js";
+import { loadBriefingPreferences, BRIEFING_OPEN_MESSAGE } from "./briefing/briefingPreferences.js";
+import { BriefingSettingsPanel } from "./briefing/BriefingSettingsPanel.js";
 import { ProfilePanel } from "./ProfilePanel.js";
 import { DiscoverPanel } from "./DiscoverPanel.js";
 import { RoomsPanel } from "./RoomsPanel.js";
@@ -227,15 +229,15 @@ function loadSavedProvider(store: SecretStore): Provider {
 }
 
 const attestationPersistence = createAttestationPersistence();
-const ownerRecordsPersistence = createJsonPersistence<OwnerRecord[]>({
+const ownerRecordsPersistence = createTieredJsonPersistence<OwnerRecord[]>({
   key: "atom-owner-store",
   validate: (value): value is OwnerRecord[] => Array.isArray(value),
 });
-const ownerProposalsPersistence = createJsonPersistence<RecordProposal[]>({
+const ownerProposalsPersistence = createTieredJsonPersistence<RecordProposal[]>({
   key: "atom-owner-proposals",
   validate: (value): value is RecordProposal[] => Array.isArray(value),
 });
-const conversationMemoryPersistence = createJsonPersistence<MemoryChunk[]>({
+const conversationMemoryPersistence = createTieredJsonPersistence<MemoryChunk[]>({
   key: "atom-conversation-memory",
   validate: (value): value is MemoryChunk[] => Array.isArray(value),
 });
@@ -706,6 +708,23 @@ export function App() {
   const [profileProposals, setProfileProposals] = useState<RecordProposal[]>(
     ownerStore.listProposals(),
   );
+
+  useEffect(() => {
+    void (async () => {
+      const [records] = await Promise.all([
+        ownerRecordsPersistence.hydrateFromIndexedDb(),
+        ownerProposalsPersistence.hydrateFromIndexedDb(),
+        conversationMemoryPersistence.hydrateFromIndexedDb(),
+      ]);
+      if (!records?.length || ownerStore.list().length > 0) return;
+      for (const record of records) {
+        ownerStore.upsert(record);
+      }
+      setProfileRecords(ownerStore.list());
+      setCommsContacts(loadContacts(records));
+    })();
+  }, [ownerStore]);
+
   const [curatorEnabled, setCuratorEnabled] = useState(() => loadCuratorEnabled());
   const [curatorAutoAcceptOpen, setCuratorAutoAcceptOpen] = useState(() =>
     loadCuratorAutoAcceptOpen(),
@@ -1063,6 +1082,15 @@ export function App() {
 
   const sessionRef = useRef(session);
   sessionRef.current = session;
+
+  const briefingOpenSentRef = useRef(false);
+  useEffect(() => {
+    if (IS_DEMO_MODE || !vaultUnlocked || !agentConnectionReady || provider !== "llm") return;
+    const prefs = loadBriefingPreferences();
+    if (!prefs.enabled || briefingOpenSentRef.current) return;
+    briefingOpenSentRef.current = true;
+    sessionRef.current.sendUserMessage(BRIEFING_OPEN_MESSAGE);
+  }, [vaultUnlocked, agentConnectionReady, provider]);
 
   const prevSessionRef = useRef<ShellSession | null>(null);
 
@@ -1871,6 +1899,11 @@ export function App() {
           allowBrowserLlm={ALLOW_BROWSER_LLM}
           onWebcalFeedsChanged={() => void refreshWebcalState()}
           onRssFeedsChanged={() => void refreshRssState()}
+          agentConnectionReady={agentConnectionReady}
+          onTestBriefing={() => {
+            sessionRef.current.sendUserMessage(BRIEFING_OPEN_MESSAGE);
+            closeSettings();
+          }}
           resolveLlmApiKey={() =>
             llmConnection ? secretStore.get(llmConnection.secretRef) ?? null : null
           }
@@ -1964,6 +1997,8 @@ function SettingsDialog({
   allowBrowserLlm,
   onWebcalFeedsChanged,
   onRssFeedsChanged,
+  agentConnectionReady,
+  onTestBriefing,
   resolveLlmApiKey,
   onSwitchChatProvider,
   onClose,
@@ -1995,6 +2030,8 @@ function SettingsDialog({
   allowBrowserLlm: boolean;
   onWebcalFeedsChanged?: () => void;
   onRssFeedsChanged?: () => void;
+  agentConnectionReady: boolean;
+  onTestBriefing?: () => void;
   resolveLlmApiKey: () => string | null;
   onSwitchChatProvider: (provider: Provider) => void;
   onClose: () => void;
@@ -2060,7 +2097,7 @@ function SettingsDialog({
   const [hostedLlmError, setHostedLlmError] = useState<string | null>(null);
   const [moduleCatalogNote, setModuleCatalogNote] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<
-    "agent" | "security" | "connectors" | "appearance" | "modules" | "payments" | "developer"
+    "agent" | "briefing" | "security" | "connectors" | "appearance" | "modules" | "payments" | "developer"
   >("agent");
 
   const navItems = useMemo(() => {
@@ -2070,6 +2107,7 @@ function SettingsDialog({
       hint: string;
     }> = [
       { id: "agent", label: "Agent", hint: "Connection and API keys" },
+      { id: "briefing", label: "Briefing", hint: "Session-open roundup" },
       { id: "security", label: "Security", hint: "Vault and passkey" },
       { id: "connectors", label: "Connectors", hint: "Calendar and integrations" },
       { id: "appearance", label: "Appearance", hint: "Theme and skin" },
@@ -2432,6 +2470,18 @@ function SettingsDialog({
     );
   }
 
+  function renderBriefingPanel() {
+    return (
+      <BriefingSettingsPanel
+        embedded
+        chatProvider={chatProvider}
+        vaultUnlocked={vaultUnlocked}
+        agentConnectionReady={agentConnectionReady}
+        onTestBriefing={onTestBriefing}
+      />
+    );
+  }
+
   function renderSecurityPanel() {
     return (
       <>
@@ -2648,6 +2698,8 @@ function SettingsDialog({
     switch (activeSection) {
       case "agent":
         return renderAgentPanel();
+      case "briefing":
+        return renderBriefingPanel();
       case "security":
         return renderSecurityPanel();
       case "connectors":
