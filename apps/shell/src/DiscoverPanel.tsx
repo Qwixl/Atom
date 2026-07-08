@@ -224,6 +224,10 @@ export function DiscoverPanel({
 
   return (
     <aside className="panel-view discover-view">
+      <p className="discover-lede settings-note">
+        Search Atom&apos;s default indexes (curated). Extra indexes are yours to add — Atom does
+        not police the open web.
+      </p>
       <div className="panel-search-bar">
         <input
           className="panel-input"
@@ -270,10 +274,10 @@ export function DiscoverPanel({
           {results.length === 0 && !loading ? (
             <li className="panel-empty">
               {indexMatches > 0
-                ? "Listings were found but their host is not reachable yet. Try again shortly, or use Join Coffee Shop in Rooms."
+                ? "Matches exist in an index, but their agent host is offline. Try again shortly, or open Rooms → Join Coffee Shop."
                 : terms.trim()
-                  ? "Nothing matched your search. Try different terms or check again later."
-                  : "No listings in the index yet. Federated indexes are owner-chosen — Atom curates the default store only. Try again later."}
+                  ? "Nothing matched. Curated listings are limited on purpose — try a different name or @handle."
+                  : "No listings yet in the default indexes. Third-party indexes are owner-chosen when you opt in — Atom only curates the store that ships with this shell."}
             </li>
           ) : (
             results.map((entry) => {

@@ -11,10 +11,12 @@ import {
   COORDINATION_POLL_VOTE_PURPOSE,
   COORDINATION_SHARED_LIST_PURPOSE,
   COORDINATION_SHARED_LIST_UPDATE_PURPOSE,
+  COORDINATION_LOCATION_PIN_PURPOSE,
   createPollRequest,
   createPollVote,
   createSharedList,
   createSharedListUpdate,
+  createLocationPin,
   createSplitProposal,
   createTttMove,
   createTttState,
@@ -25,6 +27,7 @@ import {
   verifyPollVote,
   verifySharedList,
   verifySharedListUpdate,
+  verifyLocationPin,
   verifySplitProposal,
   verifyTttMove,
   verifyTttState,
@@ -181,6 +184,28 @@ describe("M-ECO module A2A round-trips", () => {
         ]);
       },
     );
+  });
+
+  it("BK-03 location pin", async () => {
+    await withPeerReceiver([COORDINATION_LOCATION_PIN_PURPOSE], async ({ sender, peerBaseUrl, received }) => {
+      const pin = await createLocationPin({
+        identity: sender,
+        payload: {
+          pinId: "pin-1",
+          label: "School gate",
+          lat: 51.5074,
+          lng: -0.1278,
+          note: "Blue door",
+        },
+      });
+      await verifyLocationPin(pin);
+
+      const factory = new ClientFactory();
+      const client = await factory.createFromUrl(peerBaseUrl);
+      await sendDataObject(client, { object: pin, role: "user" });
+
+      expect(received).toEqual([COORDINATION_LOCATION_PIN_PURPOSE]);
+    });
   });
 
   it("M-ECO-05 split proposal", async () => {

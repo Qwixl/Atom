@@ -82,6 +82,10 @@ export const SHARED_LIST_SCHEMA = "https://atom.qwixl.dev/schema/SharedList";
 export const COORDINATION_SHARED_LIST_UPDATE_PURPOSE = "coordination:shared-list-update";
 export const SHARED_LIST_UPDATE_SCHEMA = "https://atom.qwixl.dev/schema/SharedListUpdate";
 
+/** BK-03 / Family — share a meeting point (either contact). */
+export const COORDINATION_LOCATION_PIN_PURPOSE = "coordination:location-pin";
+export const LOCATION_PIN_SCHEMA = "https://atom.qwixl.dev/schema/LocationPin";
+
 export const GAME_PURPOSES = [
   GAME_TTT_STATE_PURPOSE,
   GAME_TTT_MOVE_PURPOSE,
@@ -100,6 +104,7 @@ export const COORDINATION_PURPOSES = [
   COORDINATION_POLL_VOTE_PURPOSE,
   COORDINATION_SHARED_LIST_PURPOSE,
   COORDINATION_SHARED_LIST_UPDATE_PURPOSE,
+  COORDINATION_LOCATION_PIN_PURPOSE,
 ] as const;
 
 /** M9 transaction-flow — soft reserve after owner confirm (no ring-fence). */

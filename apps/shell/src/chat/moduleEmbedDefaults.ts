@@ -60,6 +60,13 @@ export function withModulePropDefaults(
   if (moduleId === "coordination/shared-list" && props.mode === undefined) {
     return { mode: "compose", ...props };
   }
+  if (moduleId === "family/location-pin") {
+    return {
+      mode: props.mode === undefined ? "compose" : props.mode,
+      defaultLabel: props.defaultLabel ?? "Meeting point",
+      ...props,
+    };
+  }
   if (moduleId === "commerce/split-bill" && props.defaultLabel === undefined) {
     return { defaultLabel: "Split bill", ...props };
   }
