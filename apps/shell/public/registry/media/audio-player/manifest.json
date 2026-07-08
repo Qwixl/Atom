@@ -21,12 +21,12 @@
           "name": "playbackEnded"
         }
       ],
-      "agentHint": "HTML5 audio under sandbox constraints; emits playback lifecycle events."
+      "agentHint": "Podcast/audio playback from RSS enclosure URLs. Props: src or enclosureUrl (https audio), title, description, feedLabel, publishedAt, mimeType. Call rss listPodcastItems first; never invent episode URLs."
     }
   ],
   "capabilities": [],
   "categories": [
     "media"
   ],
-  "bundleIntegrity": "sha256:2648e674ea423c3ca0ad06147b2fa7c0f12315cf807bb9302ada5ae9e3bdc7d1"
+  "bundleIntegrity": "sha256:a7c9cf5efd77c66ab16446797ebaf31044c7541066748fea2b484d5d2ce5f1d2"
 }

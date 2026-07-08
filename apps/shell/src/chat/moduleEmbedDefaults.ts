@@ -91,5 +91,17 @@ export function withModulePropDefaults(
   if (moduleId === "commerce/split-bill" && props.defaultLabel === undefined) {
     return { defaultLabel: "Split bill", ...props };
   }
+  if (moduleId === "media/audio-player") {
+    const src = String(props.src ?? props.enclosureUrl ?? props.url ?? "").trim();
+    return {
+      title: props.title ?? props.label ?? "Podcast episode",
+      description: props.description ?? props.summary,
+      feedLabel: props.feedLabel ?? props.feed,
+      publishedAt: props.publishedAt ?? props.pubDate,
+      mimeType: props.mimeType ?? props.enclosureType,
+      ...props,
+      ...(src ? { src } : {}),
+    };
+  }
   return props;
 }

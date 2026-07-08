@@ -595,9 +595,11 @@ Use **registry modules** only when the owner needs interactivity, shared state, 
 | Split a bill / share expense | \`commerce/split-bill\` |
 | Play tic-tac-toe | \`games/tictactoe\` |
 | Play battleships | \`games/battleships\` |
+| Play podcast episode (RSS enclosure) | \`media/audio-player\` |
 
 Rules:
 - Pair a short \`text\` message with the module **composition** in the same turn.
+- For podcast playback, call \`atom_connector_invoke\` on \`rss\` / \`listPodcastItems\` first, then embed \`media/audio-player\` with \`src\` (or \`enclosureUrl\`) from the item — never invent episode URLs.
 - For games, emit the module composition to START a game. **Never** draw ASCII grids in text. Mid-game turns use \`game-move\`, not compositions.
 - On module events (\`meetingProposed\`, \`pollCreated\`, etc.), emit an updated composition on the **same surfaceId**.
 - Wrap modules in \`core/card\` when helpful; set \`events\` on the module node.
@@ -656,6 +658,47 @@ The owner says "play battleships". Shell engine owns both fleets. Respond:
           "component": "games/battleships",
           "semanticRole": "input/game-board",
           "events": ["bsStart", "bsMove"]
+        }
+      }
+    }
+  ]
+}
+
+### Worked example — play a podcast episode (RSS enclosure)
+
+The owner asks to play the latest podcast episode. Call \`atom_connector_invoke\` (\`rss\`, \`listPodcastItems\`) \
+first, then respond with **exactly this shape** (use real \`enclosureUrl\`, title, and feed from the invoke result):
+
+{
+  "messages": [
+    { "type": "text", "text": "Latest episode from your feed." },
+    {
+      "type": "composition",
+      "composition": {
+        "version": 1,
+        "surfaceId": "podcast-1",
+        "intent": "Play podcast episode",
+        "root": {
+          "id": "podcast-card",
+          "component": "core/card",
+          "semanticRole": "container/card",
+          "props": { "title": "Now playing" },
+          "children": [
+            {
+              "id": "podcast-player",
+              "component": "media/audio-player",
+              "semanticRole": "display/audio-player",
+              "props": {
+                "src": "https://cdn.example.com/episodes/latest.mp3",
+                "title": "Episode title from RSS",
+                "description": "Show notes excerpt",
+                "feedLabel": "Feed label from RSS",
+                "publishedAt": "2026-07-08T12:00:00.000Z",
+                "mimeType": "audio/mpeg"
+              },
+              "events": ["playbackStarted", "playbackPaused", "playbackEnded"]
+            }
+          ]
         }
       }
     }
