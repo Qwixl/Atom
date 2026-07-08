@@ -94,6 +94,26 @@ export interface StoredWooCommerceStore {
   configuredAt: number;
 }
 
+export type SquareEnvironment = "production" | "sandbox";
+
+export interface StoredSquareStore {
+  accessToken: string;
+  environment: SquareEnvironment;
+  configuredAt: number;
+}
+
+export interface StoredTrelloCredentials {
+  apiKey: string;
+  token: string;
+  configuredAt: number;
+}
+
+export interface StoredHomeAssistantInstance {
+  baseUrl: string;
+  accessToken: string;
+  configuredAt: number;
+}
+
 interface ConnectorVaultPayload {
   schemaVersion: 1;
   oauth?: Record<string, StoredOAuthTokens>;
@@ -104,7 +124,10 @@ interface ConnectorVaultPayload {
   businessStores?: {
     shopify?: StoredShopifyStore;
     woocommerce?: StoredWooCommerceStore;
+    square?: StoredSquareStore;
   };
+  trello?: StoredTrelloCredentials;
+  homeAssistant?: StoredHomeAssistantInstance;
   webcalFeeds?: StoredWebcalFeed[];
   rssFeeds?: StoredRssFeed[];
   bookmarks?: StoredBookmark[];
@@ -348,6 +371,81 @@ export class ConnectorVault {
   async clearWooCommerceStore(): Promise<void> {
     if (this.payload.businessStores?.woocommerce) {
       delete this.payload.businessStores.woocommerce;
+      await this.persist();
+    }
+  }
+
+  getSquareStore(): StoredSquareStore | undefined {
+    return this.payload.businessStores?.square;
+  }
+
+  async setSquareStore(accessToken: string, environment: SquareEnvironment): Promise<void> {
+    const token = accessToken.trim();
+    if (!token) {
+      throw new Error("accessToken required");
+    }
+    this.payload.businessStores ??= {};
+    this.payload.businessStores.square = {
+      accessToken: token,
+      environment,
+      configuredAt: Date.now(),
+    };
+    await this.persist();
+  }
+
+  async clearSquareStore(): Promise<void> {
+    if (this.payload.businessStores?.square) {
+      delete this.payload.businessStores.square;
+      await this.persist();
+    }
+  }
+
+  getTrelloCredentials(): StoredTrelloCredentials | undefined {
+    return this.payload.trello;
+  }
+
+  async setTrelloCredentials(apiKey: string, token: string): Promise<void> {
+    const key = apiKey.trim();
+    const accessToken = token.trim();
+    if (!key || !accessToken) {
+      throw new Error("apiKey and token required");
+    }
+    this.payload.trello = {
+      apiKey: key,
+      token: accessToken,
+      configuredAt: Date.now(),
+    };
+    await this.persist();
+  }
+
+  async clearTrelloCredentials(): Promise<void> {
+    if (this.payload.trello) {
+      delete this.payload.trello;
+      await this.persist();
+    }
+  }
+
+  getHomeAssistantInstance(): StoredHomeAssistantInstance | undefined {
+    return this.payload.homeAssistant;
+  }
+
+  async setHomeAssistantInstance(baseUrl: string, accessToken: string): Promise<void> {
+    const url = baseUrl.trim();
+    const token = accessToken.trim();
+    if (!url || !token) {
+      throw new Error("baseUrl and accessToken required");
+    }
+    this.payload.homeAssistant = {
+      baseUrl: url,
+      accessToken: token,
+      configuredAt: Date.now(),
+    };
+    await this.persist();
+  }
+
+  async clearHomeAssistantInstance(): Promise<void> {
+    if (this.payload.homeAssistant) {
+      delete this.payload.homeAssistant;
       await this.persist();
     }
   }

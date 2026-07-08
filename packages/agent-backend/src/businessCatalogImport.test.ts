@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   mapShopifyProductsToCatalog,
   mapWooCommerceProductsToCatalog,
+  mapSquareCatalogObjectsToCatalog,
   normalizeShopifyShop,
+  normalizeSquareEnvironment,
+  squareApiBase,
   priceToAmountMinor,
 } from "./businessCatalogImport.js";
 
@@ -63,5 +66,41 @@ describe("businessCatalogImport", () => {
   it("converts major prices to minor units", () => {
     expect(priceToAmountMinor("12.50", "EUR")).toBe(1250);
     expect(priceToAmountMinor("1200", "JPY")).toBe(1200);
+  });
+
+  it("maps Square catalog objects to catalog items", () => {
+    const items = mapSquareCatalogObjectsToCatalog([
+      {
+        type: "ITEM",
+        id: "ITEM_ID",
+        item_data: {
+          name: "Latte",
+          description: "12oz",
+          variations: [
+            {
+              item_variation_data: {
+                price_money: { amount: 450, currency: "USD" },
+              },
+            },
+          ],
+        },
+      },
+    ]);
+    expect(items).toEqual([
+      {
+        catalogItemId: "square-ITEM_ID",
+        label: "Latte",
+        description: "12oz",
+        amount: { currency: "USD", amountMinor: 450 },
+        available: true,
+      },
+    ]);
+  });
+
+  it("normalizes Square environment and API base", () => {
+    expect(normalizeSquareEnvironment("sandbox")).toBe("sandbox");
+    expect(normalizeSquareEnvironment("production")).toBe("production");
+    expect(squareApiBase("sandbox")).toBe("https://connect.squareupsandbox.com");
+    expect(squareApiBase("production")).toBe("https://connect.squareup.com");
   });
 });

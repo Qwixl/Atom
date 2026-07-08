@@ -1,5 +1,8 @@
 import type { BusinessCatalogItemValue } from "@qwixl/owner-store";
+import type { SquareEnvironment } from "./connectorVault.js";
 import { validateConnectorHttpsUrl } from "./connectorUrl.js";
+
+export type { SquareEnvironment };
 
 const SHOPIFY_API_VERSION = "2024-10";
 const ZERO_DECIMAL_CURRENCIES = new Set(["BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "MGA", "PYG", "RWF", "UGX", "VND", "VUV", "XAF", "XOF", "XPF"]);
@@ -180,4 +183,90 @@ export async function importWooCommerceCatalog(
   )) as Array<Record<string, unknown>>;
   const products = Array.isArray(raw) ? raw : [];
   return { currency: currency.trim().toUpperCase() || "USD", items: mapWooCommerceProductsToCatalog(products, currency) };
+}
+
+const SQUARE_API_VERSION = "2024-11-20";
+
+export function normalizeSquareEnvironment(raw: string): SquareEnvironment {
+  return raw.trim().toLowerCase() === "sandbox" ? "sandbox" : "production";
+}
+
+export function squareApiBase(environment: SquareEnvironment): string {
+  return environment === "sandbox"
+    ? "https://connect.squareupsandbox.com"
+    : "https://connect.squareup.com";
+}
+
+export function mapSquareCatalogObjectsToCatalog(
+  objects: Array<Record<string, unknown>>,
+): BusinessCatalogItemValue[] {
+  const items: BusinessCatalogItemValue[] = [];
+  for (const object of objects) {
+    if (String(object.type ?? "") !== "ITEM") continue;
+    const id = object.id;
+    const itemData = object.item_data as Record<string, unknown> | undefined;
+    if (id === undefined || !itemData) continue;
+    const title = String(itemData.name ?? "").trim();
+    if (!title) continue;
+    const variations = Array.isArray(itemData.variations) ? itemData.variations : [];
+    let amountMinor: number | null = null;
+    let currency = "USD";
+    for (const variation of variations) {
+      const row = variation as Record<string, unknown>;
+      const varData = row.item_variation_data as Record<string, unknown> | undefined;
+      const priceMoney = varData?.price_money as { amount?: number; currency?: string } | undefined;
+      const amount = Number(priceMoney?.amount ?? 0);
+      if (Number.isFinite(amount) && amount > 0) {
+        amountMinor = Math.round(amount);
+        currency = String(priceMoney?.currency ?? "USD").trim().toUpperCase() || "USD";
+        break;
+      }
+    }
+    if (amountMinor === null) continue;
+    const description = String(itemData.description ?? "").trim() || undefined;
+    items.push({
+      catalogItemId: `square-${String(id)}`,
+      label: title,
+      description,
+      amount: { currency, amountMinor },
+      available: object.is_deleted !== true && variations.length > 0,
+    });
+  }
+  return items;
+}
+
+export async function importSquareCatalog(
+  accessToken: string,
+  environment: SquareEnvironment = "production",
+  limit = 100,
+): Promise<{ items: BusinessCatalogItemValue[]; currency: string }> {
+  const base = squareApiBase(environment);
+  const capped = Math.min(Math.max(limit, 1), 1000);
+  const objects: Array<Record<string, unknown>> = [];
+  let cursor: string | undefined;
+  while (objects.length < capped) {
+    const pageLimit = Math.min(100, capped - objects.length);
+    const body: Record<string, unknown> = {
+      object_types: ["ITEM"],
+      include_related_objects: false,
+      limit: pageLimit,
+    };
+    if (cursor) body.cursor = cursor;
+    const raw = (await fetchJson(`${base}/v2/catalog/search`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Square-Version": SQUARE_API_VERSION,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    })) as { objects?: Array<Record<string, unknown>>; cursor?: string };
+    const page = Array.isArray(raw.objects) ? raw.objects : [];
+    objects.push(...page);
+    cursor = typeof raw.cursor === "string" && raw.cursor.trim() ? raw.cursor.trim() : undefined;
+    if (!cursor || page.length === 0) break;
+  }
+  const items = mapSquareCatalogObjectsToCatalog(objects.slice(0, capped));
+  return { items, currency: items[0]?.amount.currency ?? "USD" };
 }
