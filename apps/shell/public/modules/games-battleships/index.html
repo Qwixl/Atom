@@ -7,123 +7,206 @@
   <style>
     * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
     body { margin: 0; padding: 10px 12px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
-    .board { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; width: min(100%, 260px); }
+    .boards { display: grid; gap: 14px; }
+    @media (min-width: 420px) {
+      .boards { grid-template-columns: 1fr 1fr; }
+    }
+    .board-wrap h3 { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--atom-color-text-dim, #666); }
+    .board {
+      display: grid; gap: 3px; width: min(100%, 220px);
+    }
     button.cell {
-      aspect-ratio: 1; width: 100%; min-height: 36px; font-size: 11px; font-weight: 600;
-      border: 1px solid var(--atom-color-border, #ccc); border-radius: 6px;
+      aspect-ratio: 1; width: 100%; min-height: 28px; font-size: 10px; font-weight: 600;
+      border: 1px solid var(--atom-color-border, #ccc); border-radius: 4px;
       background: var(--atom-color-bg-raised, #fafafa); cursor: pointer; color: inherit; padding: 0;
     }
-    button.cell.ship { background: color-mix(in srgb, var(--atom-color-accent, #111) 18%, var(--atom-color-bg-raised, #fafafa)); }
-    button.cell:disabled { cursor: default; opacity: 0.85; }
-    .meta { margin-top: 8px; font-size: 12px; color: var(--atom-color-text-dim, #666); max-width: 240px; }
+    button.cell.ship { background: color-mix(in srgb, var(--atom-color-accent, #111) 22%, var(--atom-color-bg-raised, #fafafa)); }
+    button.cell.hit { background: color-mix(in srgb, #b42318 35%, var(--atom-color-bg-raised, #fafafa)); }
+    button.cell.miss { background: color-mix(in srgb, #667085 18%, var(--atom-color-bg-raised, #fafafa)); opacity: 0.85; }
+    button.cell.unknown { background: color-mix(in srgb, #98a2b3 35%, var(--atom-color-bg-raised, #fafafa)); }
+    button.cell.selected { outline: 2px solid var(--atom-color-accent, #111); outline-offset: -2px; }
+    button.cell:disabled { cursor: default; }
+    .meta { margin-top: 10px; font-size: 12px; color: var(--atom-color-text-dim, #666); }
     .actions { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
     .btn { padding: 8px 14px; border: none; border-radius: 6px; background: var(--atom-color-accent, #111); color: var(--atom-color-bg, #fff); cursor: pointer; font-size: 13px; }
     .btn:disabled { opacity: 0.5; cursor: default; }
     .btn-secondary { background: transparent; color: inherit; border: 1px solid var(--atom-color-border, #ccc); }
+    .notice { margin-top: 8px; font-size: 12px; font-weight: 600; }
   </style>
 </head>
 <body>
-  <div class="board" id="board"></div>
-  <p class="meta" id="meta">Start a game or place your ships when invited.</p>
+  <div class="boards">
+    <div class="board-wrap">
+      <h3>Your fleet</h3>
+      <div class="board" id="ownBoard"></div>
+    </div>
+    <div class="board-wrap">
+      <h3>Opponent</h3>
+      <div class="board" id="foeBoard"></div>
+    </div>
+  </div>
+  <p class="meta" id="meta">Waiting for the shell game engine…</p>
+  <p class="notice" id="notice" hidden></p>
   <div class="actions">
-    <button type="button" class="btn" id="start">New game</button>
-    <button type="button" class="btn btn-secondary" id="commit" hidden>Commit ships</button>
+    <button type="button" class="btn btn-secondary" id="restart">Play again</button>
+    <button type="button" class="btn" id="commit" hidden>Lock ships</button>
   </div>
   <script>
-    const GRID = 6;
-    const SHIP_CELLS = 6;
     let shellOrigin = null;
-    let gameId = null;
-    let phase = "idle";
-    let myPlayer = "A";
+    let size = 6;
+    let shipLengths = [2, 2, 2];
+    let phase = "setup";
+    let status = "active";
+    let turn = "owner";
+    let winner = null;
+    let ownerPlaced = false;
+    let agentPlaced = false;
+    let ownBoard = [];
+    let foeBoard = [];
+    let foeHitsFound = 0;
+    let foeShipCells = 6;
     let selected = new Set();
-    let readOnly = false;
+    let totalShipCells = 6;
 
     function emit(name, payload) {
       if (shellOrigin) window.parent.postMessage({ type: "event", name, payload }, shellOrigin);
     }
 
     function areAdjacent(a, b) {
-      const rowA = Math.floor(a / GRID), colA = a % GRID;
-      const rowB = Math.floor(b / GRID), colB = b % GRID;
+      const rowA = Math.floor(a / size), colA = a % size;
+      const rowB = Math.floor(b / size), colB = b % size;
       return (rowA === rowB && Math.abs(colA - colB) === 1) || (colA === colB && Math.abs(rowA - rowB) === 1);
     }
 
-    function validPlacement(cells) {
-      if (cells.length !== SHIP_CELLS) return false;
-      const uniq = new Set(cells);
-      if (uniq.size !== cells.length) return false;
-      for (const c of cells) if (c < 0 || c >= GRID * GRID) return false;
-      function partition(rest) {
-        if (rest.length === 0) return true;
-        const [first, ...others] = rest;
-        for (const second of others) {
-          if (!areAdjacent(first, second)) continue;
-          const next = others.filter((x) => x !== second);
-          if (partition(next)) return true;
+    function isStraight(cells, length) {
+      if (cells.length !== length) return false;
+      const sorted = [...cells].sort((a, b) => a - b);
+      const rows = sorted.map((c) => Math.floor(c / size));
+      const cols = sorted.map((c) => c % size);
+      const sameRow = rows.every((r) => r === rows[0]);
+      const sameCol = cols.every((c) => c === cols[0]);
+      if (!sameRow && !sameCol) return false;
+      for (let i = 1; i < sorted.length; i++) {
+        if (!areAdjacent(sorted[i - 1], sorted[i])) return false;
+      }
+      return true;
+    }
+
+    function canPartition(cells, lengths) {
+      const need = [...lengths].sort((a, b) => b - a);
+      if (cells.length !== need.reduce((s, n) => s + n, 0)) return false;
+      const remaining = new Set(cells);
+      function candidates(length) {
+        const out = [];
+        for (const start of remaining) {
+          for (const horizontal of [true, false]) {
+            const ship = [];
+            let ok = true;
+            for (let i = 0; i < length; i++) {
+              const next = horizontal ? start + i : start + i * size;
+              if (horizontal && Math.floor(start / size) !== Math.floor(next / size)) { ok = false; break; }
+              if (!remaining.has(next)) { ok = false; break; }
+              ship.push(next);
+            }
+            if (ok && isStraight(ship, length)) out.push(ship);
+          }
+        }
+        return out;
+      }
+      function search(left) {
+        if (left.length === 0) return remaining.size === 0;
+        const len = left[0];
+        const rest = left.slice(1);
+        for (const ship of candidates(len)) {
+          for (const c of ship) remaining.delete(c);
+          if (search(rest)) return true;
+          for (const c of ship) remaining.add(c);
         }
         return false;
       }
-      return partition([...cells]);
+      return search(need);
+    }
+
+    function paintBoard(el, cells, mode) {
+      el.style.gridTemplateColumns = "repeat(" + size + ", minmax(0, 1fr))";
+      el.innerHTML = "";
+      const n = size * size;
+      for (let i = 0; i < n; i++) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "cell";
+        const kind = cells[i] || (mode === "foe" ? "unknown" : "empty");
+        if (mode === "own-setup" && selected.has(i)) btn.classList.add("selected", "ship");
+        else if (kind === "ship") btn.classList.add("ship");
+        else if (kind === "hit") btn.classList.add("hit");
+        else if (kind === "miss") btn.classList.add("miss");
+        else if (kind === "unknown") btn.classList.add("unknown");
+
+        if (mode === "own-setup" && phase === "setup" && !ownerPlaced && turn === "owner") {
+          btn.addEventListener("click", () => {
+            if (selected.has(i)) selected.delete(i);
+            else if (selected.size < totalShipCells) selected.add(i);
+            render();
+          });
+        } else if (mode === "foe" && phase === "battle" && status === "active" && turn === "owner" && kind === "unknown") {
+          btn.addEventListener("click", () => {
+            emit("bsMove", { action: "fire", cell: i });
+          });
+        } else {
+          btn.disabled = true;
+        }
+        el.appendChild(btn);
+      }
     }
 
     function render() {
-      const grid = document.getElementById("board");
-      grid.innerHTML = "";
-      for (let i = 0; i < GRID * GRID; i++) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "cell" + (selected.has(i) ? " ship" : "");
-        const canPick = !readOnly && phase === "setup" && selected.size < SHIP_CELLS || (phase === "setup" && selected.has(i));
-        btn.disabled = readOnly || phase !== "setup";
-        if (phase === "setup" && !readOnly) {
-          btn.addEventListener("click", () => {
-            if (selected.has(i)) selected.delete(i);
-            else if (selected.size < SHIP_CELLS) selected.add(i);
-            render();
-          });
-        }
-        grid.appendChild(btn);
-      }
+      const ownEl = document.getElementById("ownBoard");
+      const foeEl = document.getElementById("foeBoard");
       const meta = document.getElementById("meta");
-      const commitBtn = document.getElementById("commit");
-      const startBtn = document.getElementById("start");
-      if (phase === "idle") {
-        meta.textContent = "Start a game or wait for an invite, then place ships.";
-        commitBtn.hidden = true;
-        startBtn.hidden = false;
+      const notice = document.getElementById("notice");
+      const commit = document.getElementById("commit");
+
+      if (phase === "setup" && !ownerPlaced) {
+        paintBoard(ownEl, [], "own-setup");
+      } else {
+        paintBoard(ownEl, ownBoard, "own");
+      }
+      paintBoard(foeEl, foeBoard, "foe");
+
+      commit.hidden = !(phase === "setup" && !ownerPlaced && turn === "owner");
+      commit.disabled = !canPartition([...selected], shipLengths);
+
+      if (status === "won") {
+        meta.textContent = winner === "owner" ? "You sank the fleet." : "Your fleet was sunk.";
+        notice.hidden = false;
+        notice.textContent = "Game over";
       } else if (phase === "setup") {
-        meta.textContent = "Place " + SHIP_CELLS + " ship cells (3 ships × 2 adjacent cells). Selected: " + selected.size + "/" + SHIP_CELLS + ".";
-        commitBtn.hidden = readOnly;
-        startBtn.hidden = true;
-        commitBtn.disabled = !validPlacement([...selected]);
-      } else if (phase === "battle") {
-        meta.textContent = "Battle in progress — fire from the thread card.";
-        commitBtn.hidden = true;
-        startBtn.hidden = true;
-      } else if (phase === "won") {
-        meta.textContent = "Game over.";
-        commitBtn.hidden = true;
-        startBtn.hidden = true;
+        if (!ownerPlaced) {
+          meta.textContent =
+            "Place ships (" + shipLengths.join("·") + "). Selected " + selected.size + "/" + totalShipCells + ".";
+        } else if (!agentPlaced) {
+          meta.textContent = "Ships locked. Waiting for the agent to place…";
+        } else {
+          meta.textContent = "Fleets locked.";
+        }
+        notice.hidden = true;
+      } else {
+        meta.textContent =
+          (turn === "owner" ? "Your shot — tap a grey square." : "Agent is firing…") +
+          " Hits " + foeHitsFound + "/" + foeShipCells + ".";
+        notice.hidden = true;
       }
     }
 
-    document.getElementById("start").addEventListener("click", () => {
-      gameId = "bs-" + Date.now();
-      phase = "setup";
-      myPlayer = "A";
-      selected = new Set();
-      readOnly = false;
-      emit("bsStart", { gameId });
-      render();
-    });
-
     document.getElementById("commit").addEventListener("click", () => {
       const cells = [...selected].sort((a, b) => a - b);
-      if (!gameId || !validPlacement(cells)) return;
-      emit("bsCommit", { gameId, cells });
-      readOnly = true;
-      render();
+      if (!canPartition(cells, shipLengths)) return;
+      emit("bsMove", { action: "place", cells });
+    });
+
+    document.getElementById("restart").addEventListener("click", () => {
+      selected = new Set();
+      emit("bsStart", {});
     });
 
     window.addEventListener("message", (event) => {
@@ -131,11 +214,23 @@
       if (!data || data.type !== "init") return;
       shellOrigin = event.origin;
       const props = data.props || {};
-      if (props.gameId) gameId = props.gameId;
-      if (props.phase) phase = props.phase;
-      if (props.myPlayer === "B") myPlayer = "B";
-      if (props.readOnly) readOnly = true;
-      if (phase === "setup" && !readOnly) selected = new Set();
+      size = typeof props.size === "number" ? props.size : 6;
+      shipLengths = Array.isArray(props.shipLengths) ? props.shipLengths : [2, 2, 2];
+      totalShipCells = typeof props.totalShipCells === "number"
+        ? props.totalShipCells
+        : shipLengths.reduce((s, n) => s + n, 0);
+      phase = props.phase || "setup";
+      status = props.status || "active";
+      turn = props.turn || "owner";
+      winner = props.winner || null;
+      ownerPlaced = props.ownerPlaced === true;
+      agentPlaced = props.agentPlaced === true;
+      ownBoard = Array.isArray(props.ownBoard) ? props.ownBoard : [];
+      foeBoard = Array.isArray(props.foeBoard) ? props.foeBoard : [];
+      foeHitsFound = typeof props.foeHitsFound === "number" ? props.foeHitsFound : 0;
+      foeShipCells = typeof props.foeShipCells === "number" ? props.foeShipCells : totalShipCells;
+      if (phase === "setup" && !ownerPlaced) selected = new Set();
+      else selected = new Set();
       render();
     });
 

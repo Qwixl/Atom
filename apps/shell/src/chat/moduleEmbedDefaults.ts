@@ -47,6 +47,27 @@ export function withModulePropDefaults(
       };
     }
   }
+  if (moduleId === "games/battleships") {
+    const hasPhase = props.phase === "setup" || props.phase === "battle" || props.phase === "won";
+    if (!hasPhase && props._state === undefined) {
+      return {
+        gameId: "bs-chat",
+        phase: "setup",
+        size: 6,
+        shipLengths: [2, 2, 2],
+        totalShipCells: 6,
+        turn: "owner",
+        status: "active",
+        ownerPlaced: false,
+        agentPlaced: false,
+        ownBoard: Array(36).fill("empty"),
+        foeBoard: Array(36).fill("unknown"),
+        foeHitsFound: 0,
+        foeShipCells: 6,
+        ...props,
+      };
+    }
+  }
   if (moduleId === "scheduling/meeting-picker") {
     return {
       defaultTitle: "Meeting",

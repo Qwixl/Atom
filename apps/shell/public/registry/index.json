@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-08T13:50:19.532Z",
+  "updatedAt": "2026-07-08T14:18:50.871Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
@@ -132,19 +132,6 @@
       "signatureUrl": "signature.sigstore.json"
     },
     {
-      "id": "games/battleships",
-      "version": "1.0.0",
-      "manifestUrl": "games/battleships/manifest.json",
-      "integrity": "sha256:73d329a1d1e1ea2624f546492b01ce67f674f128ced8d152f8e7035530171cb0",
-      "bundleIntegrity": "sha256:5b1a9dab44dbb9eb00903f828c36c1e29effc6b43fba6cf2956d092f772a0be5",
-      "publisher": "did:key:z6Mkatomexamples01",
-      "categories": [
-        "games"
-      ],
-      "tier": "system",
-      "signatureUrl": "signature.sigstore.json"
-    },
-    {
       "id": "games/tictactoe",
       "version": "1.0.0",
       "manifestUrl": "games/tictactoe/manifest.json",
@@ -218,6 +205,19 @@
         "friends",
         "coordination"
       ],
+      "signatureUrl": "signature.sigstore.json"
+    },
+    {
+      "id": "games/battleships",
+      "version": "1.0.0",
+      "manifestUrl": "games/battleships/manifest.json",
+      "integrity": "sha256:d35816e66bbc6085c2a242e6d63320291c4491ca07a15bac08b8d3777979ebd0",
+      "bundleIntegrity": "sha256:2a742c8dbeb1bd58be9ad8a2b6e90c79621ce115ac164b8ea9b7e6442e4aeda5",
+      "publisher": "did:key:z6Mkatomexamples01",
+      "categories": [
+        "games"
+      ],
+      "tier": "system",
       "signatureUrl": "signature.sigstore.json"
     }
   ]

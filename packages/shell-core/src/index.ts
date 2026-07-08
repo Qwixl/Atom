@@ -59,6 +59,13 @@ export type { ConversationSnapshot, ConversationRuntimeOptions, TurnCompleteInfo
 
 export { getGameEngine, registerGameEngine } from "./games/registry.js";
 export { TictactoeEngine } from "./games/tictactoe.js";
+export {
+  BattleshipsEngine,
+  BATTLESHIPS_LEVEL_1,
+  canPartitionIntoShips,
+  isStraightShip,
+  randomFleetPlacement,
+} from "./games/battleships.js";
 export { GameOrchestrator, GAME_MOVE_FALLBACK_TEXT } from "./games/orchestrator.js";
 export type { GameOrchestratorCallbacks, OwnerUiEventResult } from "./games/orchestrator.js";
 export {
@@ -78,6 +85,13 @@ export {
 } from "./games/policies.js";
 export type { GameEngine, GameMoveResult, GamePlayer, GameStatus } from "./games/engine.js";
 export type { TttState, TttMove, TttMark } from "./games/tictactoe.js";
+export type {
+  BattleshipsState,
+  BattleshipsMove,
+  BattleshipsPhase,
+  BattleshipsLevel,
+  BattleshipsShot,
+} from "./games/battleships.js";
 
 
 
