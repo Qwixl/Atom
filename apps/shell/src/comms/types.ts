@@ -5,6 +5,7 @@ import type {
   ActionReserveRefKind,
   MonetaryAmount,
 } from "@qwixl/a2a-transport";
+import type { BattleshipsPublicState } from "@qwixl/shell-core";
 
 export type TttMark = "X" | "O" | null;
 export type TttBoard = TttMark[];
@@ -239,6 +240,19 @@ export type CommsThreadItem =
       commitB?: string;
       shots: BsShot[];
       winner?: BsPlayer;
+      publicState?: BattleshipsPublicState;
+    }
+  | {
+      kind: "bs-move";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      gameId: string;
+      player: BsPlayer;
+      action: "place" | "fire";
+      cells?: number[];
+      cell?: number;
     }
   | {
       kind: "bs-shot";
