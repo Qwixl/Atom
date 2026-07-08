@@ -13,6 +13,29 @@ async function requireUser(req: Request, res: Response) {
   return user;
 }
 
+/** Ensure the auth user has a personal workspace; return its id. */
+export async function ensurePersonalWorkspaceId(userId: string, label = "Personal"): Promise<string> {
+  const { data: existing } = await supabaseAdmin()
+    .from("workspaces")
+    .select("id")
+    .eq("owner_user_id", userId)
+    .eq("kind", "personal")
+    .maybeSingle();
+  if (existing?.id) return existing.id as string;
+
+  const { data, error } = await supabaseAdmin()
+    .from("workspaces")
+    .insert({
+      owner_user_id: userId,
+      kind: "personal" satisfies WorkspaceKind,
+      label,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  return data.id as string;
+}
+
 export function registerWorkspaceRoutes(app: Express): void {
   app.get("/workspaces", async (req, res) => {
     if (!isSupabaseConfigured()) {
@@ -103,17 +126,8 @@ export function registerWorkspaceRoutes(app: Express): void {
         res.json({ workspaceId: existing.id, created: false });
         return;
       }
-      const { data, error } = await supabaseAdmin()
-        .from("workspaces")
-        .insert({
-          owner_user_id: user.id,
-          kind: "personal",
-          label: "Personal",
-        })
-        .select("id")
-        .single();
-      if (error) throw new Error(error.message);
-      res.json({ workspaceId: data.id, created: true });
+      const workspaceId = await ensurePersonalWorkspaceId(user.id);
+      res.json({ workspaceId, created: true });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }

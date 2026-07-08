@@ -153,6 +153,7 @@ import {
   workspaceConversationMemoryPersistence,
   workspaceOwnerProposalsPersistence,
   workspaceOwnerRecordsPersistence,
+  migrateLegacyOwnerPersistenceToPersonal,
 } from "./workspace/workspacePersistence.js";
 import { loadFirstRunDone, markFirstRunDone, resetFirstRunDone } from "./firstRunStorage.js";
 import { navigate } from "./navigation.js";
@@ -358,6 +359,14 @@ export function App() {
     () => workspaces.find((w) => w.id === activeWorkspaceId) ?? getActiveWorkspace(),
     [workspaces, activeWorkspaceId],
   );
+
+  useEffect(() => {
+    void migrateLegacyOwnerPersistenceToPersonal().then((migrated) => {
+      if (migrated.migratedRecords || migrated.migratedProposals || migrated.migratedMemory) {
+        setWorkspaces(listWorkspaces());
+      }
+    });
+  }, []);
 
   const catalog = useMemo(() => {
     const c = new Catalog();
