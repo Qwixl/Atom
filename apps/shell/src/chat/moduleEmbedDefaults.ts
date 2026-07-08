@@ -93,13 +93,17 @@ export function withModulePropDefaults(
   }
   if (moduleId === "media/audio-player") {
     const src = String(props.src ?? props.enclosureUrl ?? props.url ?? "").trim();
+    const description = props.description ?? props.summary;
+    const feedLabel = props.feedLabel ?? props.feed;
+    const publishedAt = props.publishedAt ?? props.pubDate;
+    const mimeType = props.mimeType ?? props.enclosureType;
     return {
-      title: props.title ?? props.label ?? "Podcast episode",
-      description: props.description ?? props.summary,
-      feedLabel: props.feedLabel ?? props.feed,
-      publishedAt: props.publishedAt ?? props.pubDate,
-      mimeType: props.mimeType ?? props.enclosureType,
       ...props,
+      title: props.title ?? props.label ?? "Podcast episode",
+      ...(description !== undefined ? { description } : {}),
+      ...(feedLabel !== undefined ? { feedLabel } : {}),
+      ...(publishedAt !== undefined ? { publishedAt } : {}),
+      ...(mimeType !== undefined ? { mimeType } : {}),
       ...(src ? { src } : {}),
     };
   }
