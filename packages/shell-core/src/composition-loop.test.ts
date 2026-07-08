@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ResolvedSurface } from "./resolver.js";
+import type { FeedItem } from "./conversation.js";
 import { findActiveFeedSurface, upsertFeedSurface } from "./conversation.js";
 
 function mockSurface(surfaceId: string, component = "games/tictactoe"): ResolvedSurface {
@@ -19,7 +20,7 @@ function mockSurface(surfaceId: string, component = "games/tictactoe"): Resolved
         spec: {
           name: component,
           semanticRole: "input/game-board",
-          moduleId: component.split("/")[0],
+          moduleId: component,
         },
       },
       children: [],
@@ -64,6 +65,48 @@ describe("composition loop feed policy", () => {
 
     expect(feed.filter((i) => i.kind === "surface")).toHaveLength(1);
     expect(feed.filter((i) => i.kind === "agent-text")).toHaveLength(1);
+    expect(feed[feed.length - 1]?.kind).toBe("surface");
+  });
+
+  it("moves the active game surface to the feed tail after later turns", () => {
+    let feed: FeedItem[] = [];
+    feed = [
+      ...feed,
+      { kind: "user", id: "u1", text: "play tictactoe" },
+      { kind: "agent-text", id: "a1", text: "You're X — tap a square." },
+    ];
+    feed = upsertFeedSurface(feed, mockSurface("ttt-1"), "s1");
+    feed = [
+      ...feed,
+      { kind: "user", id: "u2", text: "cell 4" },
+      { kind: "agent-text", id: "a2", text: "Nice move." },
+    ];
+    feed = upsertFeedSurface(feed, mockSurface("ttt-1"), "s2");
+
+    expect(feed[feed.length - 1]?.kind).toBe("surface");
+    if (feed[feed.length - 1]?.kind === "surface") {
+      expect(feed[feed.length - 1].surface.surfaceId).toBe("ttt-1");
+    }
+  });
+
+  it("keeps prior schedule surfaces when a new schedule turn arrives", () => {
+    let feed: FeedItem[] = [];
+    feed = [
+      ...feed,
+      { kind: "user", id: "u1", text: "what's on today?" },
+      { kind: "agent-text", id: "a1", text: "Here's what's on your calendar today." },
+    ];
+    feed = upsertFeedSurface(feed, mockSurface("schedule-today", "core/card"), "s1");
+    feed = [
+      ...feed,
+      { kind: "user", id: "u2", text: "what's on today?" },
+      { kind: "agent-text", id: "a2", text: "Here's what's on your calendar today." },
+    ];
+    feed = upsertFeedSurface(feed, mockSurface("schedule-today", "core/card"), "s2");
+
+    expect(feed.filter((item) => item.kind === "surface")).toHaveLength(2);
+    expect(feed[2]?.kind).toBe("surface");
+    expect(feed[feed.length - 1]?.kind).toBe("surface");
   });
 
   it("findActiveFeedSurface returns the latest surface metadata", () => {

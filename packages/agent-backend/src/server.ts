@@ -37,6 +37,12 @@ import { connectMlsPeer, reconnectStoredMlsPeers } from "./mlsReconnect.js";
 import { registerActionAdminRoutes } from "./actionAdmin.js";
 import { registerConnectorAdminRoutes } from "./connectorAdmin.js";
 import { registerCoordinationAdminRoutes } from "./coordinationAdmin.js";
+import { CalendarFeedStore } from "./calendarFeedStore.js";
+import {
+  registerCalendarFeedAdminRoutes,
+  registerCalendarFeedPublicRoutes,
+  handleCalendarFeedInboxObject,
+} from "./calendarFeedRoutes.js";
 import { registerPaymentAdminRoutes } from "./paymentAdmin.js";
 import { registerTransactionAdminRoutes } from "./transactionAdmin.js";
 import { registerQualifyAdminRoutes } from "./qualifyAdmin.js";
@@ -99,6 +105,10 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   await rooms.load();
   const trustedAgents = new TrustedAgentsStore();
   await trustedAgents.load();
+
+  const calendarFeed = new CalendarFeedStore();
+  await calendarFeed.load();
+  calendarFeed.syncFromInbox(inbox.list());
 
   const catalogStore = new BusinessCatalogStore();
   await catalogStore.load();
@@ -208,6 +218,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
         return;
       }
       inbox.push(event);
+      handleCalendarFeedInboxObject(calendarFeed, event.object);
       void transactionStore.handleInboxObject(event.object).catch((error) => {
         console.warn(
           `[transaction] inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -291,6 +302,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
         contextId: event.contextId,
         messageId: event.messageId,
       });
+      handleCalendarFeedInboxObject(calendarFeed, verified);
       void transactionStore.handleInboxObject(verified).catch((error) => {
         console.warn(
           `[transaction] mls inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -338,6 +350,11 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   });
 
   app.use(a2aApp);
+  registerCalendarFeedPublicRoutes(app, {
+    publicBaseUrl: config.publicBaseUrl,
+    calendarFeed,
+    inbox,
+  });
   registerDiscoverPublicRoutes(app, {
     identity,
     config,
@@ -349,7 +366,12 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   adminApp.use(express.json({ limit: "512kb" }));
   adminApp.use(requireAdminAuth(adminAuth.token));
 
-  registerCoordinationAdminRoutes(adminApp, { identity, mlsStore });
+  registerCoordinationAdminRoutes(adminApp, { identity, mlsStore, calendarFeed });
+  registerCalendarFeedAdminRoutes(adminApp, {
+    publicBaseUrl: config.publicBaseUrl,
+    calendarFeed,
+    inbox,
+  });
   registerActionAdminRoutes(adminApp, { identity, mlsStore });
   registerPaymentAdminRoutes(adminApp, {
     identity,
@@ -600,6 +622,9 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       console.log(`  coordination:  POST ${config.publicBaseUrl}/coordination/* (scheduling, rsvp)`);
       console.log(
         `  webcal:        POST ${config.publicBaseUrl}/connectors/webcal/feeds (ICS feed URLs in vault)`,
+      );
+      console.log(
+        `  publish feed:  GET ${config.publicBaseUrl}/calendar/feed.ics?token=… (accepted meetings)`,
       );
       console.log(`  actions:       POST ${config.publicBaseUrl}/actions/reserve`);
       console.log(

@@ -11,8 +11,13 @@ export interface ModuleEmbedTarget {
 
 function walkForModule(node: ResolvedNode): ModuleEmbedTarget | null {
   if (node.kind === "component" && node.entry.origin === "module") {
+    const component = node.node.component;
+    const moduleId =
+      isGameModule(component) || getGameEngine(node.entry.spec.moduleId ?? "")
+        ? (node.entry.spec.moduleId ?? component)
+        : component;
     return {
-      moduleId: node.entry.spec.moduleId ?? node.node.component,
+      moduleId,
       nodeId: node.node.id,
       props: (node.node.props ?? {}) as JsonObject,
     };
@@ -32,6 +37,12 @@ export function findModuleEmbed(surface: ResolvedSurface): ModuleEmbedTarget | n
 /** True when a shell-side GameEngine is registered for this module id. */
 export function isGameModule(moduleId: string): boolean {
   return getGameEngine(moduleId) !== null;
+}
+
+/** True when a surface hosts a live game module (single active instance, in-place updates). */
+export function isInteractiveSurface(surface: ResolvedSurface): boolean {
+  const embed = findModuleEmbed(surface);
+  return embed !== null && isGameModule(embed.moduleId);
 }
 
 export function isGameEnded(props: JsonObject): boolean {
@@ -54,12 +65,10 @@ export interface ActiveChatGame {
 export function findActiveGameInFeed(feed: readonly FeedItem[]): ActiveChatGame | null {
   for (let i = feed.length - 1; i >= 0; i--) {
     const item = feed[i];
-    if (item?.kind === "surface") {
-      const embed = findModuleEmbed(item.surface);
-      if (embed && isGameModule(embed.moduleId)) {
-        return { surface: item.surface, embed };
-      }
-      return null;
+    if (item?.kind !== "surface") continue;
+    const embed = findModuleEmbed(item.surface);
+    if (embed && isGameModule(embed.moduleId)) {
+      return { surface: item.surface, embed };
     }
   }
   return null;

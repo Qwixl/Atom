@@ -176,12 +176,20 @@ export function DemoPairView({
     setBusy(true);
     setNote(null);
     try {
+      const thread = isAlice ? aliceThread : bobThread;
+      const proposal = thread.find(
+        (item): item is Extract<CommsThreadItem, { kind: "scheduling-proposal" }> =>
+          item.kind === "scheduling-proposal" && item.id === proposalId,
+      );
       await client.sendSchedulingResponse({
         peerUrl: peerEndpoint,
         peerDid,
         proposalId,
         response,
         slotId: slot?.id,
+        title: response === "accept" ? proposal?.title : undefined,
+        start: response === "accept" ? slot?.start : undefined,
+        end: response === "accept" ? slot?.end : undefined,
         encrypt: true,
       });
       setOutbound((current) => [

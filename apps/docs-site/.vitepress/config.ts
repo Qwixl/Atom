@@ -13,6 +13,7 @@ export default defineConfig({
     sidebar: {
       "/concepts/": [
         { text: "Overview", link: "/concepts/overview" },
+        { text: "Composition grammar", link: "/concepts/composition" },
         { text: "Trust model", link: "/concepts/trust" },
         { text: "Skins", link: "/concepts/skins" },
       ],

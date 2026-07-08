@@ -1,0 +1,23 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "$description": "Atom skin-default — warm reference skin. Source: default.css",
+  "color": {
+    "bg": { "$value": "#f5f6f8", "$type": "color" },
+    "bg-raised": { "$value": "#ffffff", "$type": "color" },
+    "bg-inset": { "$value": "#eef0f3", "$type": "color" },
+    "border": { "$value": "#e2e5ea", "$type": "color" },
+    "text": { "$value": "#1a202c", "$type": "color" },
+    "text-dim": { "$value": "#5f6b7c", "$type": "color" },
+    "accent": { "$value": "#e87722", "$type": "color" }
+  },
+  "radius": {
+    "md": { "$value": "10px", "$type": "dimension" },
+    "sm": { "$value": "8px", "$type": "dimension" }
+  },
+  "font": {
+    "sans": {
+      "$value": "Open Sans, Segoe UI, system-ui, sans-serif",
+      "$type": "fontFamily"
+    }
+  }
+}

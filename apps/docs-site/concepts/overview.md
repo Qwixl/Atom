@@ -20,9 +20,7 @@ Agent-rendered UI inside a conversation is now table stakes (MCP Apps, A2UI, ven
 ## What ships in v1
 
 - Core primitive catalog + sandboxed module iframes
-- Module registry with integrity verification
-- A2A + MLS E2E for agent backends
-- Owner profile store with guarded disclosure
-- Skins via DTCG-style tokens (`@qwixl/skin-default`)
+- Skins via DTCG-style tokens (`@qwixl/skin-default`); **minimal** skin is the default template
+- Composition playground with primitive examples (M14.4)
 
-See the [module author tutorial](/guides/module-author-tutorial) to publish your first module.
+See [Composition grammar](/concepts/composition) and the [playground](/guides/playground). For modules, see the [module author tutorial](/guides/module-author-tutorial).

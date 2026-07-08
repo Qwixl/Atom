@@ -9,6 +9,12 @@ import {
   type RegistryRatings,
 } from "@qwixl/shell-core";
 import { submitModuleFeedback } from "./moduleFeedback.js";
+import {
+  filterRegistryModulesByCategory,
+  formatRegistryCategoryLabel,
+  moduleRegistryCategory,
+  uniqueRegistryCategories,
+} from "./moduleRegistryCategories.js";
 
 function StarInput({
   value,
@@ -99,6 +105,9 @@ function ModuleCatalogRow({
       {entry.publisher ? (
         <span className="settings-registry-publisher">{entry.publisher}</span>
       ) : null}
+      <span className="settings-registry-category">
+        {formatRegistryCategoryLabel(moduleRegistryCategory(entry.id))}
+      </span>
       {entry.pricing?.model === "paid" && entry.pricing.purchaseUrl ? (
         <a
           className="settings-registry-purchase"
@@ -153,6 +162,7 @@ export function RegistryCatalogList({
   onStatus?: (note: string) => void;
 }) {
   const [modules, setModules] = useState<RegistryModuleEntry[]>([]);
+  const [category, setCategory] = useState<string | "all">("all");
   const [ratings, setRatings] = useState<RegistryRatings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -195,16 +205,43 @@ export function RegistryCatalogList({
     return <p className="settings-note">No modules in this registry index.</p>;
   }
 
+  const categories = uniqueRegistryCategories(modules);
+  const visible = filterRegistryModulesByCategory(modules, category);
+
   return (
-    <ul className="settings-registry-catalog">
-      {modules.map((entry) => (
-        <ModuleCatalogRow
-          key={`${entry.id}@${entry.version}`}
-          entry={entry}
-          rating={ratings?.modules[entry.id]}
-          onFeedbackSent={(note) => onStatus?.(note)}
-        />
-      ))}
-    </ul>
+    <>
+      {categories.length > 1 ? (
+        <label className="atom-field settings-registry-filter">
+          <span className="atom-field-label">Category</span>
+          <select
+            className="panel-select"
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+            aria-label="Filter modules by category"
+          >
+            <option value="all">All categories</option>
+            {categories.map((entry) => (
+              <option key={entry} value={entry}>
+                {formatRegistryCategoryLabel(entry)}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      {visible.length === 0 ? (
+        <p className="settings-note">No modules in this category.</p>
+      ) : (
+        <ul className="settings-registry-catalog">
+          {visible.map((entry) => (
+            <ModuleCatalogRow
+              key={`${entry.id}@${entry.version}`}
+              entry={entry}
+              rating={ratings?.modules[entry.id]}
+              onFeedbackSent={(note) => onStatus?.(note)}
+            />
+          ))}
+        </ul>
+      )}
+    </>
   );
 }

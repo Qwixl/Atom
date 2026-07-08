@@ -1,4 +1,5 @@
 import type { ConnectorVault } from "./connectorVault.js";
+import { DEFAULT_CONNECTOR_READ_CACHE_TTL_MS } from "./connectorCache.js";
 import { queryWebcalEvents, validateWebcalUrl } from "./webcal.js";
 
 export const WEBCAL_CONNECTOR_ID = "webcal";
@@ -10,6 +11,8 @@ export interface ConnectorOperationSpec {
   permission: ConnectorPermission;
   description: string;
   requiresApproval?: boolean;
+  /** Requested read cache TTL (ms). Server caps via `resolveOperationCacheTtl`. */
+  cacheTtlMs?: number;
 }
 
 /** Canonical operation surface — must match module manifest `connector.operations`. */
@@ -18,11 +21,13 @@ export const WEBCAL_CONNECTOR_OPERATIONS: ConnectorOperationSpec[] = [
     id: "getStatus",
     permission: "read",
     description: "Return whether WebCal feeds are configured and list feed labels (not URLs).",
+    cacheTtlMs: 0,
   },
   {
     id: "listEvents",
     permission: "read",
     description: "List events from configured feeds between timeMin and timeMax (ISO 8601).",
+    cacheTtlMs: DEFAULT_CONNECTOR_READ_CACHE_TTL_MS,
   },
 ];
 

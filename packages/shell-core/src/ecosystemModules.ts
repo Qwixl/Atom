@@ -50,6 +50,63 @@ export const ECOSYSTEM_MODULE_MANIFESTS: ModuleManifest[] = [
     tier: "system",
   },
   {
+    id: "connectors/rss",
+    version: "1.0.0",
+    publisher: "did:key:z6Mkatomexamples01",
+    targets: ["web"],
+    bundleUrl: "/modules/connectors-rss/index.html",
+    connector: {
+      agentId: "rss",
+      provider: "rss",
+      label: "RSS",
+      operations: [
+        { id: "getStatus", permission: "read", description: "Feed configuration status." },
+        { id: "listItems", permission: "read", description: "List recent RSS/Atom items." },
+      ],
+    },
+    components: [
+      {
+        name: "connectors/rss",
+        semanticRole: "settings/connector",
+        events: [{ name: "setFeedRequested" }, { name: "removeFeedRequested" }, { name: "refreshRequested" }],
+        agentHint:
+          "RSS connector settings: owner pastes a public feed URL; agent vault stores it for read-only listItems.",
+      },
+    ],
+    capabilities: [],
+    categories: ["connectors", "comms"],
+    tier: "system",
+  },
+  {
+    id: "connectors/bookmarks",
+    version: "1.0.0",
+    publisher: "did:key:z6Mkatomexamples01",
+    targets: ["web"],
+    bundleUrl: "/modules/connectors-bookmarks/index.html",
+    connector: {
+      agentId: "bookmarks",
+      provider: "bookmarks",
+      label: "Bookmarks",
+      operations: [
+        { id: "getStatus", permission: "read", description: "Bookmark configuration status." },
+        { id: "listBookmarks", permission: "read", description: "List saved bookmarks." },
+        { id: "readBookmark", permission: "read", description: "Fetch plain text from a saved bookmark." },
+      ],
+    },
+    components: [
+      {
+        name: "connectors/bookmarks",
+        semanticRole: "settings/connector",
+        events: [{ name: "setBookmarkRequested" }, { name: "removeBookmarkRequested" }, { name: "refreshRequested" }],
+        agentHint:
+          "Bookmarks connector: owner saves HTTPS page URLs; agent invokes readBookmark for excerpts on request.",
+      },
+    ],
+    capabilities: [],
+    categories: ["connectors", "knowledge"],
+    tier: "system",
+  },
+  {
     id: "coordination/poll",
     version: "1.0.0",
     publisher: "did:key:z6Mkatomexamples01",

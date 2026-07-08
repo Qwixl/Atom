@@ -32,14 +32,15 @@ export function sanitizeNewGameComposition(composition: Composition): void {
 
 /**
  * While a game is active the feed surface belongs to the game engine:
- * no agent composition may replace or rewrite it. Mid-game the agent's
- * only channel is game-move; new compositions are allowed again once the
- * game has ended.
+ * the agent must not emit a **new game** composition. Non-game surfaces
+ * (core/card, scheduling modules, etc.) are always allowed — upsertFeedSurface
+ * replaces the prior surface. Mid-game the agent's game channel is game-move.
  */
 export function allowCompositionDuringGame(
-  _composition: Composition,
+  composition: Composition,
   feed: readonly FeedItem[],
 ): boolean {
+  if (!gameModuleInComposition(composition.root)) return true;
   const active = findActiveGameInFeed(feed);
   if (!active) return true;
   return isGameEnded(active.embed.props);

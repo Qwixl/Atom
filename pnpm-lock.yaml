@@ -98,6 +98,9 @@ importers:
       '@qwixl/shell-core':
         specifier: workspace:*
         version: link:../../packages/shell-core
+      '@qwixl/skin-default':
+        specifier: workspace:*
+        version: link:../../packages/skin-default
       react:
         specifier: ^18.3.0
         version: 18.3.1

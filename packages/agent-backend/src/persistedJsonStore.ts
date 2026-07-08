@@ -13,7 +13,7 @@ export function createJsonStoreWriter<T extends { schemaVersion: number }>(
   schemaVersion: number,
   tag: string,
   snapshot: () => Omit<T, "schemaVersion">,
-): { persist: () => void } {
+): { persist: () => void; flush: () => Promise<void> } {
   let persistQueue: Promise<void> = Promise.resolve();
   return {
     persist(): void {
@@ -29,6 +29,9 @@ export function createJsonStoreWriter<T extends { schemaVersion: number }>(
             `[${tag}] persist failed: ${error instanceof Error ? error.message : String(error)}`,
           );
         });
+    },
+    flush(): Promise<void> {
+      return persistQueue;
     },
   };
 }

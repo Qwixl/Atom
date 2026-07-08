@@ -24,6 +24,8 @@ export interface PersonalAgentContext {
   sessionContextTags: string[];
   /** Business catalog/brand/policy summary when owner-store has M12 records. */
   businessContext?: string;
+  /** Read-only WebCal snapshot from the agent vault (Settings → Connectors). */
+  calendarContext?: string;
 }
 
 function scoreRecordText(query: string, text: string, embedder: TextEmbedder): number {

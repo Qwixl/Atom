@@ -105,15 +105,24 @@ export interface WebcalBusyEvent {
 }
 
 export async function loadWebcalBusyEvents(client: CommsAgentClient): Promise<WebcalBusyEvent[]> {
+  const start = new Date();
+  const horizon = new Date(start.getTime() + 14 * 24 * 60 * 60 * 1000);
+  return loadWebcalEvents(client, start, horizon);
+}
+
+export async function loadWebcalEvents(
+  client: CommsAgentClient,
+  timeMin: Date,
+  timeMax: Date,
+  opts?: { throwOnError?: boolean },
+): Promise<WebcalBusyEvent[]> {
   try {
     const status = await client.invokeConnector("webcal", "getStatus", {});
     const connected = Boolean((status.result as { connected?: boolean }).connected);
     if (!connected) return [];
-    const now = new Date();
-    const horizon = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
     const listed = await client.invokeConnector("webcal", "listEvents", {
-      timeMin: now.toISOString(),
-      timeMax: horizon.toISOString(),
+      timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
     });
     const events = (listed.result as { events?: WebcalBusyEvent[] }).events ?? [];
     return events.filter(
@@ -122,7 +131,91 @@ export async function loadWebcalBusyEvents(client: CommsAgentClient): Promise<We
         typeof event.end === "string" &&
         typeof event.summary === "string",
     );
-  } catch {
+  } catch (error) {
+    if (opts?.throwOnError) throw error;
     return [];
   }
+}
+
+export async function isWebcalConnected(client: CommsAgentClient): Promise<boolean> {
+  try {
+    const status = await client.invokeConnector("webcal", "getStatus", {});
+    return Boolean((status.result as { connected?: boolean }).connected);
+  } catch {
+    return false;
+  }
+}
+
+function formatEventLine(event: WebcalBusyEvent): string {
+  const start = new Date(event.start);
+  const end = new Date(event.end);
+  const range =
+    Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())
+      ? `${event.start} – ${event.end}`
+      : `${start.toLocaleString(undefined, {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })} – ${end.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
+  return `- ${event.summary}: ${range}`;
+}
+
+export function isSameLocalCalendarDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+/** Split feed events into today (local date) vs later days. */
+export function partitionEventsByToday(
+  events: WebcalBusyEvent[],
+  now = new Date(),
+): { todayEvents: WebcalBusyEvent[]; upcomingEvents: WebcalBusyEvent[] } {
+  const todayEvents: WebcalBusyEvent[] = [];
+  const upcomingEvents: WebcalBusyEvent[] = [];
+  for (const event of events) {
+    const start = new Date(event.start);
+    if (Number.isNaN(start.getTime())) continue;
+    if (isSameLocalCalendarDay(start, now)) {
+      todayEvents.push(event);
+    } else if (start.getTime() > now.getTime()) {
+      upcomingEvents.push(event);
+    }
+  }
+  todayEvents.sort((a, b) => a.start.localeCompare(b.start));
+  upcomingEvents.sort((a, b) => a.start.localeCompare(b.start));
+  return { todayEvents, upcomingEvents };
+}
+
+/** Agent-readable calendar snapshot for the system prompt. */
+export function formatCalendarContextForPrompt(opts: {
+  connected: boolean;
+  todayEvents: WebcalBusyEvent[];
+  upcomingEvents: WebcalBusyEvent[];
+  error?: string;
+}): string {
+  if (opts.error) {
+    return `Feed read failed: ${opts.error}. Owner can check Settings → Connectors.`;
+  }
+  if (!opts.connected) {
+    return "Not connected. Owner can add a private ICS feed URL in Settings → Connectors.";
+  }
+  const today = opts.todayEvents.map(formatEventLine);
+  const upcoming = opts.upcomingEvents
+    .filter((event) => !opts.todayEvents.some((todayEvent) => todayEvent.uid === event.uid))
+    .slice(0, 12)
+    .map(formatEventLine);
+  const lines = [
+    "Connected (read-only via WebCal). Atom cannot create or edit Google Calendar events via API.",
+    today.length > 0 ? `Today:\n${today.join("\n")}` : "Today: no events in feed.",
+    upcoming.length > 0 ? `Upcoming:\n${upcoming.join("\n")}` : "",
+    today.length > 0 || upcoming.length > 0
+      ? "When the owner asks about their schedule, you MUST list every line above that answers their question — in text and/or core/list. Never reply with only a heading."
+      : "",
+  ].filter(Boolean);
+  return lines.join("\n\n");
 }
