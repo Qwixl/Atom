@@ -17,6 +17,7 @@ import "./shell/atom-panels.css";
 import "./demo/demo-session.css";
 import "./shell/atom-shell.css";
 import "./shell/shell-unified.css";
+import "./compose/compose-extras.css";
 import "./styles.css";
 import { initDocumentTheme } from "./theme/ThemeToggle.js";
 

@@ -381,6 +381,46 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
         }
         const wire = await mlsStore.encryptRoom(roomId, payload);
         const parsed = parseRoomPayload(payload);
+        if (
+          parsed.kind === "activity" &&
+          (parsed.activityKind === "message_edit" || parsed.activityKind === "message_delete")
+        ) {
+          const targetSeq = Number(parsed.payload?.targetSeq);
+          if (!Number.isFinite(targetSeq) || targetSeq < 1) {
+            res.status(400).json({ error: "payload.targetSeq required for message mutations" });
+            return;
+          }
+          const mutated = rooms.applyMessageMutation(roomId, {
+            action: parsed.activityKind === "message_delete" ? "delete" : "edit",
+            targetSeq,
+            actorDid: identity.did,
+            text: typeof parsed.payload?.text === "string" ? parsed.payload.text : parsed.text,
+            payload:
+              parsed.payload?.gif && typeof parsed.payload.gif === "object"
+                ? { gif: parsed.payload.gif as Record<string, unknown> }
+                : undefined,
+          });
+          if (!mutated) {
+            res.status(404).json({ error: "Target message not found" });
+            return;
+          }
+          const activity = rooms.appendMessage(roomId, {
+            senderDid: identity.did,
+            kind: "activity",
+            activityKind: parsed.activityKind,
+            payload: { ...parsed.payload, targetSeq },
+          });
+          await fanOutRoomWire({
+            roomId,
+            senderDid: identity.did,
+            wire,
+            members: room.members,
+            localDid: identity.did,
+            mlsStore,
+          });
+          res.json({ message: mutated, activity });
+          return;
+        }
         const message = rooms.appendMessage(roomId, {
           senderDid: identity.did,
           kind: parsed.kind,
@@ -500,13 +540,37 @@ export async function handleInboundRoomWire(opts: {
   if (!isHost) return;
   const plaintext = await opts.mlsStore.decryptRoom(opts.roomId, opts.wire);
   const parsed = parseRoomPayload(plaintext);
-  opts.rooms.appendMessage(opts.roomId, {
-    senderDid: opts.senderDid,
-    kind: parsed.kind,
-    text: parsed.text,
-    activityKind: parsed.activityKind,
-    payload: parsed.payload,
-  });
+  if (parsed.kind === "activity" && (parsed.activityKind === "message_edit" || parsed.activityKind === "message_delete")) {
+    const targetSeq = Number(parsed.payload?.targetSeq);
+    if (!Number.isFinite(targetSeq) || targetSeq < 1) {
+      throw new Error("message mutation requires payload.targetSeq");
+    }
+    opts.rooms.applyMessageMutation(opts.roomId, {
+      action: parsed.activityKind === "message_delete" ? "delete" : "edit",
+      targetSeq,
+      actorDid: opts.senderDid,
+      text: typeof parsed.payload?.text === "string" ? parsed.payload.text : parsed.text,
+      payload:
+        parsed.payload?.gif && typeof parsed.payload.gif === "object"
+          ? { gif: parsed.payload.gif as Record<string, unknown> }
+          : undefined,
+    });
+    // Also keep an activity trail so clients that only append can reconcile.
+    opts.rooms.appendMessage(opts.roomId, {
+      senderDid: opts.senderDid,
+      kind: "activity",
+      activityKind: parsed.activityKind,
+      payload: { ...parsed.payload, targetSeq },
+    });
+  } else {
+    opts.rooms.appendMessage(opts.roomId, {
+      senderDid: opts.senderDid,
+      kind: parsed.kind,
+      text: parsed.text,
+      activityKind: parsed.activityKind,
+      payload: parsed.payload,
+    });
+  }
   await fanOutRoomWire({
     roomId: opts.roomId,
     senderDid: opts.senderDid,
