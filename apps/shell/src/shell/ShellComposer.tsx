@@ -1,3 +1,6 @@
+import { useLayoutEffect, useRef } from "react";
+import { resizeTextareaToContent } from "../ui/resizeTextareaToContent.js";
+
 type ShellComposerProps = {
   value: string;
   busy?: boolean;
@@ -7,6 +10,12 @@ type ShellComposerProps = {
 
 export function ShellComposer({ value, busy, onChange, onSubmit }: ShellComposerProps) {
   const trimmed = value.trim();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (el) resizeTextareaToContent(el);
+  }, [value]);
 
   function handleSubmit() {
     if (!trimmed || busy) return;
@@ -16,9 +25,10 @@ export function ShellComposer({ value, busy, onChange, onSubmit }: ShellComposer
   return (
     <footer className="shell-composer">
       <div className="shell-composer-inner">
-        <input
-          type="text"
+        <textarea
+          ref={textareaRef}
           name="atom-chat-compose"
+          rows={1}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
@@ -30,7 +40,8 @@ export function ShellComposer({ value, busy, onChange, onSubmit }: ShellComposer
           disabled={busy}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
+            // Enter inserts a newline. Ctrl/Cmd+Enter sends (desktop shortcut).
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
               event.preventDefault();
               handleSubmit();
             }
