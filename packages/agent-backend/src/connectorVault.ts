@@ -151,6 +151,8 @@ interface ConnectorVaultPayload {
   ownerRecords?: unknown[];
   ownerProposals?: unknown[];
   attestations?: unknown[];
+  /** Workspace-keyed chat text history envelopes (shell Chat feed sync). */
+  chatFeeds?: Record<string, unknown>;
 }
 
 export class ConnectorVault {
@@ -637,6 +639,17 @@ export class ConnectorVault {
 
   async setAttestations<T>(entries: T[]): Promise<void> {
     this.payload.attestations = entries;
+    await this.persist();
+  }
+
+  getChatFeed(workspaceId: string): unknown | null {
+    const key = workspaceId.trim() || "personal";
+    return this.payload.chatFeeds?.[key] ?? null;
+  }
+
+  async setChatFeed(workspaceId: string, feed: unknown): Promise<void> {
+    const key = workspaceId.trim() || "personal";
+    this.payload.chatFeeds = { ...(this.payload.chatFeeds ?? {}), [key]: feed };
     await this.persist();
   }
 
