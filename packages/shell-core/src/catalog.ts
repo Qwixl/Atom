@@ -82,9 +82,21 @@ function parseReference(reference: string): { name: string; version?: string } {
 export class Catalog {
   private entries = new Map<string, CatalogEntry>();
   private modules = new Map<string, ModuleManifest>();
+  /** Installed but deactivated — still on disk/UI, hidden from agent vocabulary (D071). */
+  private inactiveModuleIds = new Set<string>();
 
   registerCore(spec: ComponentSpec): void {
     this.entries.set(spec.name, { spec, origin: "core" });
+  }
+
+  /** Owner deactivate list: module stays installed; agent and Games menu ignore it. */
+  setInactiveModuleIds(ids: readonly string[]): void {
+    this.inactiveModuleIds = new Set(ids.filter(Boolean));
+  }
+
+  isModuleActive(moduleId: string): boolean {
+    if (this.isSystemModule(moduleId)) return true;
+    return this.modules.has(moduleId) && !this.inactiveModuleIds.has(moduleId);
   }
 
   installModule(manifest: ModuleManifest): void {
@@ -157,12 +169,18 @@ export class Catalog {
    * vocabulary (the manifest's second audience).
    */
   toAgentContext(): JsonObject[] {
-    return [...this.entries.values()].map((entry) => ({
-      component: entry.spec.name,
-      semanticRole: entry.spec.semanticRole,
-      events: entry.spec.events ?? [],
-      hint: entry.spec.agentHint ?? null,
-    }));
+    return [...this.entries.values()]
+      .filter((entry) => {
+        const moduleId = entry.spec.moduleId;
+        if (!moduleId) return true;
+        return !this.inactiveModuleIds.has(moduleId);
+      })
+      .map((entry) => ({
+        component: entry.spec.name,
+        semanticRole: entry.spec.semanticRole,
+        events: entry.spec.events ?? [],
+        hint: entry.spec.agentHint ?? null,
+      }));
   }
 
   list(): CatalogEntry[] {

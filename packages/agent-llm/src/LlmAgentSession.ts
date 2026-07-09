@@ -131,7 +131,8 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
 
   private systemPromptFingerprintKey(): string {
     const profile = this.profileProvider?.();
-    return `${this.catalog.list().length}:${JSON.stringify(profile?.open?.length ?? 0)}:${profile?.calendarContext?.length ?? 0}:${profile?.rssContext?.length ?? 0}:${profile?.locationContext?.length ?? 0}:${profile?.locationContext ?? ""}:${profile?.briefingContext?.length ?? 0}:${profile?.briefingContext ?? ""}:${profile?.discoveryPathContext?.length ?? 0}:${profile?.discoveryPathContext ?? ""}:${profile?.interestConnectionsContext?.length ?? 0}:${profile?.interestConnectionsContext ?? ""}:${profile?.pathIntersectionContext?.length ?? 0}:${profile?.pathIntersectionContext ?? ""}`;
+    const vocabulary = JSON.stringify(this.catalog.toAgentContext());
+    return `${vocabulary.length}:${vocabulary.slice(0, 64)}:${JSON.stringify(profile?.open?.length ?? 0)}:${profile?.calendarContext?.length ?? 0}:${profile?.rssContext?.length ?? 0}:${profile?.locationContext?.length ?? 0}:${profile?.locationContext ?? ""}:${profile?.briefingContext?.length ?? 0}:${profile?.briefingContext ?? ""}:${profile?.discoveryPathContext?.length ?? 0}:${profile?.discoveryPathContext ?? ""}:${profile?.interestConnectionsContext?.length ?? 0}:${profile?.interestConnectionsContext ?? ""}:${profile?.pathIntersectionContext?.length ?? 0}:${profile?.pathIntersectionContext ?? ""}`;
   }
 
   private currentSystemPrompt(): string {

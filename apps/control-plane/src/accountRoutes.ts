@@ -109,6 +109,7 @@ export function registerAccountRoutes(
           ? {
               email: profile.email,
               handle: profile.handle ? publicHandle(profile.handle) : undefined,
+              displayName: profile.display_name ?? undefined,
               accountType: profile.account_type,
               onboardingComplete: profile.onboarding_complete,
             }

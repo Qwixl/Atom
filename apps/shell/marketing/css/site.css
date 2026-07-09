@@ -83,24 +83,32 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
   color: inherit;
   text-decoration: none;
 }
 
-.site-brand-mark {
+.site-brand-wordmark {
+  display: block;
+  height: 34px;
+  width: auto;
+  color: var(--shell-text);
+}
+
+.site-brand-ident {
+  display: none;
   width: 28px;
   height: 28px;
-  border-radius: var(--shell-radius-sm);
-  background: var(--shell-cta-bg);
-  color: var(--shell-cta-text);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
+  color: var(--shell-text);
+}
+
+@media (max-width: 720px) {
+  .site-brand-wordmark {
+    display: none;
+  }
+
+  .site-brand-ident {
+    display: block;
+  }
 }
 
 .beta-badge {

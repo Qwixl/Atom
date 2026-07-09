@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react";
+import { AtomIdent } from "../brand/AtomIdent.js";
+import { AtomWordmark } from "../brand/AtomWordmark.js";
 import {
   IconChat,
   IconDiscover,
@@ -47,10 +49,8 @@ function NavList({
     <>
       <div className="shell-sidebar-brand">
         <a className="shell-sidebar-brand-link" href="/" aria-label="Atom home">
-          <span className="shell-sidebar-brand-mark" aria-hidden="true">
-            A
-          </span>
-          <span className="shell-sidebar-brand-name">Atom</span>
+          <AtomIdent className="shell-sidebar-brand-ident" />
+          <AtomWordmark className="shell-sidebar-brand-wordmark" />
         </a>
       </div>
 

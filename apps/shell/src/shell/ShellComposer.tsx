@@ -17,6 +17,13 @@ export function ShellComposer({ value, busy, onChange, onSubmit }: ShellComposer
     <footer className="shell-composer">
       <div className="shell-composer-inner">
         <input
+          type="text"
+          name="atom-chat-compose"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={true}
+          inputMode="text"
           value={value}
           aria-label="Message to your agent"
           placeholder="Tell your agent what you want…"

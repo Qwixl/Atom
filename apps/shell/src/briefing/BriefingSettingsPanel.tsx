@@ -6,6 +6,7 @@ import {
 } from "./briefingPreferences.js";
 import { LocationSettingsPanel } from "../location/LocationSettingsPanel.js";
 import type { DeviceLocationSnapshot } from "../location/deviceLocation.js";
+import { SettingsToggle } from "../ui/SettingsToggle.js";
 
 export function BriefingSettingsPanel({
   embedded = false,
@@ -52,27 +53,21 @@ export function BriefingSettingsPanel({
         <>
           <h3>Daily briefing</h3>
           <p className="settings-note">
-            When enabled, Atom sends one roundup request when you open Chat with Live LLM. Connect
-            calendar and RSS feeds under Connectors first.
+            Get a short roundup when you open Chat. Add calendar and news feeds under Connectors first.
           </p>
         </>
       ) : null}
       <ul className="settings-checkbox-list">
         <li>
-          <label className="settings-checkbox">
-            <input
-              type="checkbox"
-              checked={prefs.enabled}
-              onChange={(e) => toggleEnabled(e.target.checked)}
-            />
-            <span className="settings-checkbox-text">
-              Brief me when I open Chat (session start)
-            </span>
-          </label>
+          <SettingsToggle
+            checked={prefs.enabled}
+            label="Show a briefing when I open Chat"
+            onChange={toggleEnabled}
+          />
         </li>
       </ul>
       <label className="atom-field">
-        <span className="atom-field-label">Topics to prioritize (optional)</span>
+        <span className="atom-field-label">Topics to watch (optional)</span>
         <div className="chrome-actions settings-section-actions">
           <input
             value={topicInput}
@@ -103,7 +98,7 @@ export function BriefingSettingsPanel({
           ))}
         </ul>
       ) : (
-        <p className="settings-note">No topics yet — the agent still summarizes calendar and RSS.</p>
+        <p className="settings-note">No topics yet — briefings still cover your calendar and feeds.</p>
       )}
       {note ? <p className="settings-note webcal-settings-note">{note}</p> : null}
       <LocationSettingsPanel

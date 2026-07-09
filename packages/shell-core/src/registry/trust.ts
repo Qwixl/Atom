@@ -6,7 +6,7 @@ export interface RegistryTrustPolicy {
   requireIntegrity?: boolean;
   /** Refuse install when manifest omits signatureUrl or bundle digest match fails. */
   requireSignature?: boolean;
-  /** Module ids the owner has blocked. */
+  /** Module ids the owner has deactivated (agent-invisible; card still shown). Legacy key name: blockedIds. */
   blockedIds?: string[];
   /** When non-empty, only manifests from these publisher DIDs install. */
   trustedPublishers?: string[];

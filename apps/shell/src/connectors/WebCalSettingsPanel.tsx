@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { approvalRefForConnectorWrite } from "./connectorWriteApproval.js";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
 
@@ -70,6 +70,9 @@ export function WebCalSettingsPanel({
     }
   }, [client, config.adminToken]);
 
+  const onFeedsChangedRef = useRef(onFeedsChanged);
+  onFeedsChangedRef.current = onFeedsChanged;
+
   const refresh = useCallback(async () => {
     setBusy(true);
     setNote(null);
@@ -96,9 +99,9 @@ export function WebCalSettingsPanel({
       setNote(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(false);
-      onFeedsChanged?.();
+      onFeedsChangedRef.current?.();
     }
-  }, [client, refreshPublishFeed, onFeedsChanged]);
+  }, [client, refreshPublishFeed]);
 
   useEffect(() => {
     void refresh();
@@ -181,10 +184,9 @@ export function WebCalSettingsPanel({
     <>
       {!embedded ? (
         <>
-          <h3>WebCal</h3>
+          <h3>Calendar feed</h3>
           <p className="settings-note">
-            Paste your private calendar subscription link (from Google, Apple, or Outlook). It is stored
-            encrypted on your agent — not in this browser.
+            Paste a private calendar link from Google, Apple, or Outlook. It is saved on your agent.
           </p>
         </>
       ) : null}
@@ -195,19 +197,17 @@ export function WebCalSettingsPanel({
       ) : null}
       {config.adminToken ? (
         <div className="webcal-publish-feed">
-          <h4>Publish accepted meetings</h4>
+          <h4>Share accepted meetings</h4>
           <p className="settings-note">
-            Subscribe in Google Calendar, Apple Calendar, or Outlook using the webcal link below.
-            Only meetings you accept in Atom appear in this feed.
+            Use this link in Google, Apple, or Outlook to see meetings you accept in Atom.
           </p>
           {publishFeed ? (
             <>
               <p className="settings-note">
-                {publishFeed.eventCount} accepted meeting{publishFeed.eventCount === 1 ? "" : "s"} · token{" "}
-                {publishFeed.tokenHint}
+                {publishFeed.eventCount} accepted meeting{publishFeed.eventCount === 1 ? "" : "s"}
               </p>
               <label className="atom-field">
-                <span className="atom-field-label">Subscribe URL (webcal)</span>
+                <span className="atom-field-label">Subscribe link</span>
                 <input value={publishFeed.webcalUrl} readOnly disabled={busy} />
               </label>
               <div className="chrome-actions settings-section-actions">
@@ -216,51 +216,46 @@ export function WebCalSettingsPanel({
                   disabled={busy}
                   onClick={() => void copyText("Subscribe URL", publishFeed.webcalUrl)}
                 >
-                  Copy webcal URL
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void copyText("HTTPS feed URL", publishFeed.feedUrl)}
-                >
-                  Copy https URL
+                  Copy link
                 </button>
                 <button type="button" disabled={busy} onClick={() => void syncPublishFeed()}>
-                  Sync from inbox
+                  Refresh
                 </button>
                 <button type="button" disabled={busy} onClick={() => void rotatePublishToken()}>
-                  Rotate token
+                  New link
                 </button>
               </div>
             </>
           ) : (
-            <p className="settings-note">Loading publish feed…</p>
+            <p className="settings-note">Loading share link…</p>
           )}
         </div>
       ) : null}
-      <label className="atom-field">
-        <span className="atom-field-label">Feed URL (https:// or webcal://)</span>
-        <input
-          value={feedUrl}
-          onChange={(e) => setFeedUrl(e.target.value)}
-          placeholder="webcal://… or https://…/basic.ics"
-          autoComplete="off"
-          disabled={busy}
-        />
-      </label>
-      <label className="atom-field">
-        <span className="atom-field-label">Label (optional)</span>
-        <input
-          value={feedLabel}
-          onChange={(e) => setFeedLabel(e.target.value)}
-          placeholder="Work calendar"
-          autoComplete="off"
-          disabled={busy}
-        />
-      </label>
+      <div className="connector-form-grid">
+        <label className="atom-field">
+          <span className="atom-field-label">Calendar link</span>
+          <input
+            value={feedUrl}
+            onChange={(e) => setFeedUrl(e.target.value)}
+            placeholder="webcal://… or https://…/basic.ics"
+            autoComplete="off"
+            disabled={busy}
+          />
+        </label>
+        <label className="atom-field">
+          <span className="atom-field-label">Name (optional)</span>
+          <input
+            value={feedLabel}
+            onChange={(e) => setFeedLabel(e.target.value)}
+            placeholder="Work calendar"
+            autoComplete="off"
+            disabled={busy}
+          />
+        </label>
+      </div>
       <div className="chrome-actions settings-section-actions">
         <button type="button" className="chrome-approve" disabled={busy || !feedUrl.trim()} onClick={() => void saveFeed()}>
-          Save feed to agent
+          Save calendar
         </button>
         <button type="button" disabled={busy} onClick={() => void refresh()}>
           Refresh
@@ -268,7 +263,7 @@ export function WebCalSettingsPanel({
       </div>
       {feeds.length > 0 ? (
         <div className="webcal-feeds">
-          <h4>Connected feeds</h4>
+          <h4>Your calendars</h4>
           <ul>
             {feeds.map((feed) => (
               <li key={feed.id}>
@@ -283,7 +278,7 @@ export function WebCalSettingsPanel({
       ) : null}
       {connected ? (
         <div className="webcal-events">
-          <h4>Upcoming events (next 7 days)</h4>
+          <h4>Coming up (7 days)</h4>
           {events.length === 0 ? (
             <p className="settings-note">No events in range.</p>
           ) : (
