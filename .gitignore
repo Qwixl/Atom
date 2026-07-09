@@ -4,10 +4,12 @@
 # strictly necessary to build and run the shell.
 # ------------------------------------------------------------------
 /.cursor/
+/.agents/
 /docs/
 /AGENTS.md
 /notes/
 /scratch/
+/supabase/
 *.local.*
 *.private.*
 *.pem
