@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { verifyContactInvite } from "@qwixl/a2a-transport";
 import type { OwnerRecord, OwnerStore } from "@qwixl/owner-store";
 import type { ActionReserveRefKind, MonetaryAmount, RsvpAnswer, SchedulingSlot } from "@qwixl/a2a-transport";
@@ -60,6 +60,7 @@ import { DemoSessionRoleSwitcher, highlightRoleForDemoStep } from "./demo/DemoSe
 import type { DemoSessionRole } from "./demo/demoSessionStorage.js";
 import { ATOM_BROWSER_MODE, IS_PRODUCTION_HOST } from "./hostConfig.js";
 import { ContactAbuseReportForm } from "./ContactAbuseReportForm.js";
+import { resizeTextareaToContent } from "./ui/resizeTextareaToContent.js";
 import { IconRefresh } from "./shell/ShellIcons.js";
 
 export type CommsConfirmationResult =
@@ -168,6 +169,7 @@ export function CommsPanel({
     null,
   );
   const [compose, setCompose] = useState("");
+  const composeRef = useRef<HTMLTextAreaElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionNote, setActionNote] = useState<string | null>(null);
   const [myInviteToken, setMyInviteToken] = useState<string | null>(null);
@@ -191,6 +193,10 @@ export function CommsPanel({
   const [contactSearch, setContactSearch] = useState("");
   const [webcalBusyEvents, setWebcalBusyEvents] = useState<WebcalBusyEvent[]>([]);
   const [abuseReportOpen, setAbuseReportOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    if (composeRef.current) resizeTextareaToContent(composeRef.current);
+  }, [compose]);
 
   useEffect(() => {
     if (focusContactId && contacts.some((c) => c.id === focusContactId)) {
@@ -2503,6 +2509,7 @@ export function CommsPanel({
               <footer className="comms-compose">
                 <div className="comms-compose-main">
                   <textarea
+                    ref={composeRef}
                     className="panel-textarea"
                     name="atom-comms-compose"
                     autoComplete="off"
@@ -2516,7 +2523,8 @@ export function CommsPanel({
                     aria-label="Message"
                     disabled={selected.blocked || busy}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
+                      // Enter inserts a newline. Ctrl/Cmd+Enter sends.
+                      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                         e.preventDefault();
                         void sendMessage();
                       }

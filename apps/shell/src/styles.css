@@ -47,7 +47,7 @@ body {
   }
 
   .shell-composer {
-    padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    padding: 10px 12px 12px;
   }
 }
 
@@ -1530,13 +1530,13 @@ body {
 .shell-composer-inner {
   display: flex;
   gap: 10px;
-  align-items: stretch;
+  align-items: flex-end;
   width: 100%;
   max-width: 720px;
   margin-inline: auto;
 }
 
-.shell-composer input {
+.shell-composer textarea {
   flex: 1;
   min-width: 0;
   display: block;
@@ -1546,33 +1546,41 @@ body {
   border-radius: var(--shell-radius-sm);
   color: var(--shell-text);
   padding: 11px 14px;
-  font-size: 14px;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.45;
+  min-height: 2.75rem;
+  max-height: calc(1.45em * 6 + 22px);
+  resize: none;
+  overflow-y: auto;
+  field-sizing: content;
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
-.shell-composer input::placeholder {
+.shell-composer textarea::placeholder {
   color: var(--shell-text-subtle);
 }
 
-.shell-composer input:hover {
+.shell-composer textarea:hover {
   border-color: var(--shell-border-strong);
 }
 
-.shell-composer input:focus {
+.shell-composer textarea:focus {
   outline: none;
-  border-color: var(--shell-accent-border);
-  box-shadow: 0 0 0 1px var(--shell-accent);
+  border-color: var(--shell-accent, var(--shell-border-strong));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--shell-accent, #888) 25%, transparent);
 }
 
-.shell-composer input:disabled {
-  opacity: 0.55;
+.shell-composer textarea:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
 .shell-composer .shell-btn-primary {
   flex: none;
-  align-self: stretch;
+  align-self: flex-end;
   min-width: 84px;
+  min-height: 2.75rem;
 }
 
 /* Composition primitives: @qwixl/skin-default/primitives.css */
