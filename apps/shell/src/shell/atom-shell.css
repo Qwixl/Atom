@@ -379,8 +379,7 @@
   color: var(--shell-text);
 }
 
-/* Beat `.panel-btn-icon svg { 16px }` so the invader matches theme/settings icons. */
-.atom-app-games-trigger.panel-btn-icon svg,
+/* Beat default icon sizing so the invader matches theme/settings icons. */
 .atom-app-games-trigger .atom-games-icon {
   width: 18px;
   height: 18px;
