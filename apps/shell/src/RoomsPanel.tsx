@@ -117,8 +117,10 @@ export function RoomsPanel({
   const membersRef = useRef(members);
   const lastSeqRef = useRef(0);
   const moduleFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const localDidRef = useRef(localDid);
 
   membersRef.current = members;
+  localDidRef.current = localDid;
 
   const contacts = contactsProp ?? loadContacts();
   const ownerHandle = useMemo(() => loadOwnerHandle(), []);
@@ -149,6 +151,18 @@ export function RoomsPanel({
 
   const selected = allRooms.find((room) => room.roomId === selectedId) ?? null;
   const canLeave = selectedId ? joinedIds.has(selectedId) : false;
+
+  const visibleMessages = useMemo(
+    () =>
+      messages.filter(
+        (msg) =>
+          msg.kind === "message" ||
+          (msg.kind === "activity" &&
+            msg.activityKind !== "message_edit" &&
+            msg.activityKind !== "message_delete"),
+      ),
+    [messages],
+  );
 
   const moduleMembers = useMemo(() => {
     return members.map((member) => ({
@@ -193,6 +207,7 @@ export function RoomsPanel({
       if (body.messages.length > 0) {
         const membersSnapshot = membersRef.current;
         const handleSnapshot = ownerHandleRef.current;
+        const didSnapshot = localDidRef.current;
         setMessages((prev) => {
           const bySeq = new Map(prev.map((m) => [m.seq, m]));
           for (const msg of body.messages) {
@@ -230,10 +245,10 @@ export function RoomsPanel({
             if (
               msg.kind === "activity" &&
               msg.activityKind === "friend_request" &&
-              localDid &&
+              didSnapshot &&
               typeof msg.payload?.toDid === "string" &&
-              msg.payload.toDid === localDid &&
-              msg.senderDid !== localDid
+              msg.payload.toDid === didSnapshot &&
+              msg.senderDid !== didSnapshot
             ) {
               ingestIncomingFriendRequest({
                 id: typeof msg.payload.requestId === "string" ? msg.payload.requestId : undefined,
@@ -244,17 +259,17 @@ export function RoomsPanel({
                     : formatRoomSenderLabel(
                         msg.senderDid,
                         membersSnapshot,
-                        localDid,
+                        didSnapshot,
                         handleSnapshot,
                       ),
                 fromEndpoint:
                   typeof msg.payload.fromEndpoint === "string"
                     ? msg.payload.fromEndpoint
                     : membersSnapshot.find((m) => m.did === msg.senderDid)?.endpoint,
-                toDid: localDid,
+                toDid: didSnapshot,
                 roomId: selectedId,
               });
-              setFriendRequests(listIncomingFriendRequests(localDid));
+              setFriendRequests(listIncomingFriendRequests(didSnapshot));
             }
           }
           return [...bySeq.values()].sort((a, b) => a.seq - b.seq).slice(-200);
@@ -264,7 +279,7 @@ export function RoomsPanel({
     } catch {
       /* polling — ignore transient errors */
     }
-  }, [client, selectedId, localDid]);
+  }, [client, selectedId]);
 
   const refreshMembers = useCallback(async () => {
     if (!selectedId) return;
@@ -922,23 +937,13 @@ export function RoomsPanel({
                     </div>
                   ) : null}
                   <div className="comms-messages rooms-messages">
-                    {(() => {
-                      const visible = messages.filter(
-                        (msg) =>
-                          msg.kind === "message" ||
-                          (msg.kind === "activity" &&
-                            msg.activityKind !== "message_edit" &&
-                            msg.activityKind !== "message_delete"),
-                      );
-                      if (visible.length === 0) {
-                        return (
-                          <div className="comms-empty-thread">
-                            <strong>No messages yet</strong>
-                            <p>Say hello — everyone in the room can see chat.</p>
-                          </div>
-                        );
-                      }
-                      return visible.map((msg) => {
+                    {visibleMessages.length === 0 ? (
+                      <div className="comms-empty-thread">
+                        <strong>No messages yet</strong>
+                        <p>Say hello — everyone in the room can see chat.</p>
+                      </div>
+                    ) : (
+                      visibleMessages.map((msg) => {
                           const isOwn = msg.senderDid === localDid;
                           const gif = msg.payload?.gif as RoomGifPayload | undefined;
                           return (
@@ -984,8 +989,8 @@ export function RoomsPanel({
                               <time dateTime={msg.at}>{new Date(msg.at).toLocaleTimeString()}</time>
                             </div>
                           );
-                        });
-                    })()}
+                        })
+                    )}
                   </div>
                   <footer className="comms-compose rooms-compose">
                     {editingSeq != null ? (
