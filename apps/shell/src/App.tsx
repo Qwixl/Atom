@@ -2057,7 +2057,7 @@ export function App() {
         onNavigate={navigatePanel}
         onOpenSettings={openSettings}
         onOpenAccount={openAccount}
-        onLogout={usesSupabaseHostedAuth() ? () => void handleLogout() : undefined}
+        onLogout={() => void handleLogout()}
         banner={
           showMainFeed && activeDiscoveryPath && activeDiscoveryPath.steps.length > 0 ? (
             <DiscoveryBreadcrumb
@@ -2524,7 +2524,7 @@ export function App() {
           productionLocked={IS_PRODUCTION_HOST}
           agUiInitial={agUiConfig}
           onClose={closeAccount}
-          onLogout={usesSupabaseHostedAuth() ? () => void handleLogout() : undefined}
+          onLogout={() => void handleLogout()}
           onWorkspaceSwitch={async (workspaceId) => {
             if (!setActiveWorkspace(workspaceId)) return;
             setActiveWorkspaceId(workspaceId);

@@ -12,14 +12,24 @@ describe("resolveModuleBundleUrlWithBase", () => {
     ).toBe("http://localhost:5200/modules/games-tictactoe/index.html");
   });
 
-  it("resolves module paths against production base /app/", () => {
+  it("keeps /modules paths at origin root even when shell base is /app/", () => {
     expect(
       resolveModuleBundleUrlWithBase(
         "/modules/games-tictactoe/index.html",
         "https://atom.qwixl.com",
         "/app/",
       ),
-    ).toBe("https://atom.qwixl.com/app/modules/games-tictactoe/index.html");
+    ).toBe("https://atom.qwixl.com/modules/games-tictactoe/index.html");
+  });
+
+  it("still prefixes non-module relative paths with the shell base", () => {
+    expect(
+      resolveModuleBundleUrlWithBase(
+        "/assets/foo.js",
+        "https://atom.qwixl.com",
+        "/app/",
+      ),
+    ).toBe("https://atom.qwixl.com/app/assets/foo.js");
   });
 
   it("passes through absolute URLs", () => {
