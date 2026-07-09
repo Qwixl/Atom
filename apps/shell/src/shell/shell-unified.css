@@ -16,17 +16,18 @@
   color: inherit;
 }
 
-.shell-sidebar-brand-mark {
+.shell-sidebar-brand-ident {
   width: 28px;
   height: 28px;
-  border-radius: var(--shell-radius-sm, 6px);
-  background: var(--shell-cta-bg);
-  color: var(--shell-cta-text);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
+  display: block;
+  color: var(--shell-text);
+}
+
+.shell-sidebar-brand-wordmark {
+  height: 28px;
+  width: auto;
+  display: block;
+  color: var(--shell-text);
 }
 
 /* Active nav — black bar + optional orange dot, not orange wash */

@@ -178,43 +178,41 @@ export function McpSettingsPanel({
 
   return (
     <section className={embedded ? "settings-subpanel" : "settings-panel"}>
-      <h3 className="settings-subtitle">MCP servers</h3>
+      {!embedded ? <h3 className="settings-subtitle">Extra tools</h3> : null}
       <p className="settings-note">
-        Owner-run MCP servers on your agent backend — stdio spawn or remote Streamable HTTP. New servers stay
-        untrusted until you approve them here. Chat uses <code>atom_mcp_invoke</code> only on trusted servers.
-        Empty allowlist = all tools permitted on a trusted server until you tighten.
+        Add tools that run on your computer or a remote server. New tools stay off until you trust them.
       </p>
-      <div className="settings-form-row">
-        <label>
-          Transport
+      <div className="connector-form-grid">
+        <label className="atom-field">
+          <span className="atom-field-label">How it connects</span>
           <select
             value={transport}
             onChange={(event) => setTransport(event.target.value as McpTransportKind)}
             disabled={busy}
           >
-            <option value="stdio">stdio (local command)</option>
-            <option value="streamable-http">Streamable HTTP (remote URL)</option>
+            <option value="stdio">Local command</option>
+            <option value="streamable-http">Remote URL</option>
           </select>
         </label>
-        <label>
-          Label
+        <label className="atom-field">
+          <span className="atom-field-label">Name</span>
           <input value={label} onChange={(event) => setLabel(event.target.value)} disabled={busy} />
         </label>
         {transport === "stdio" ? (
           <>
-            <label>
-              Command
+            <label className="atom-field">
+              <span className="atom-field-label">Command</span>
               <input value={command} onChange={(event) => setCommand(event.target.value)} disabled={busy} />
             </label>
-            <label>
-              Args (space-separated)
+            <label className="atom-field">
+              <span className="atom-field-label">Arguments (optional)</span>
               <input value={argsText} onChange={(event) => setArgsText(event.target.value)} disabled={busy} />
             </label>
           </>
         ) : (
           <>
-            <label>
-              Server URL
+            <label className="atom-field">
+              <span className="atom-field-label">Server URL</span>
               <input
                 value={url}
                 onChange={(event) => setUrl(event.target.value)}
@@ -222,8 +220,8 @@ export function McpSettingsPanel({
                 placeholder="https://example.com/mcp"
               />
             </label>
-            <label>
-              Authorization header (optional)
+            <label className="atom-field">
+              <span className="atom-field-label">Auth header (optional)</span>
               <input
                 value={authHeader}
                 onChange={(event) => setAuthHeader(event.target.value)}
@@ -235,8 +233,10 @@ export function McpSettingsPanel({
             </label>
           </>
         )}
-        <button type="button" className="btn btn-primary" disabled={busy || !canSave} onClick={() => void saveServer()}>
-          Add MCP server
+      </div>
+      <div className="chrome-actions settings-section-actions">
+        <button type="button" className="chrome-approve" disabled={busy || !canSave} onClick={() => void saveServer()}>
+          Add tool server
         </button>
       </div>
       {note ? <p className="settings-note">{note}</p> : null}
