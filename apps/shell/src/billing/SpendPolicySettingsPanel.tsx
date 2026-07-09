@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
+import { SettingsToggle } from "../ui/SettingsToggle.js";
+import { useDirtyForm } from "../ui/useDirtyForm.js";
 
 type SpendCategory = "commerce" | "llm_inference" | "embedding" | "module_store";
 
@@ -48,6 +50,21 @@ export function SpendPolicySettingsPanel({
   const [allowCommerce, setAllowCommerce] = useState(true);
   const [allowLlm, setAllowLlm] = useState(true);
   const [allowEmbedding, setAllowEmbedding] = useState(true);
+  const [policyLoaded, setPolicyLoaded] = useState(false);
+
+  const spendForm = useMemo(
+    () => ({
+      currency: currency.trim().toUpperCase(),
+      monthlyBudget,
+      perTxCeiling,
+      chromeThreshold,
+      allowCommerce,
+      allowLlm,
+      allowEmbedding,
+    }),
+    [currency, monthlyBudget, perTxCeiling, chromeThreshold, allowCommerce, allowLlm, allowEmbedding],
+  );
+  const { dirty: spendDirty, markClean: markSpendClean } = useDirtyForm(spendForm);
 
   const refresh = useCallback(async () => {
     if (!vaultUnlocked) return;
@@ -61,13 +78,30 @@ export function SpendPolicySettingsPanel({
       ]);
       setBillingStatus(status);
       const policy = policyRes.policy;
-      setCurrency(policy.currency || "EUR");
-      setMonthlyBudget(minorToMajor(policy.monthlyBudgetMinor));
-      setPerTxCeiling(minorToMajor(policy.perTransactionCeilingMinor));
-      setChromeThreshold(minorToMajor(policy.chromeApprovalThresholdMinor));
-      setAllowCommerce(policy.allowedCategories.includes("commerce"));
-      setAllowLlm(policy.allowedCategories.includes("llm_inference"));
-      setAllowEmbedding(policy.allowedCategories.includes("embedding"));
+      const nextCurrency = policy.currency || "EUR";
+      const nextMonthly = minorToMajor(policy.monthlyBudgetMinor);
+      const nextCeiling = minorToMajor(policy.perTransactionCeilingMinor);
+      const nextChrome = minorToMajor(policy.chromeApprovalThresholdMinor);
+      const nextCommerce = policy.allowedCategories.includes("commerce");
+      const nextLlm = policy.allowedCategories.includes("llm_inference");
+      const nextEmbedding = policy.allowedCategories.includes("embedding");
+      setCurrency(nextCurrency);
+      setMonthlyBudget(nextMonthly);
+      setPerTxCeiling(nextCeiling);
+      setChromeThreshold(nextChrome);
+      setAllowCommerce(nextCommerce);
+      setAllowLlm(nextLlm);
+      setAllowEmbedding(nextEmbedding);
+      markSpendClean({
+        currency: nextCurrency.trim().toUpperCase(),
+        monthlyBudget: nextMonthly,
+        perTxCeiling: nextCeiling,
+        chromeThreshold: nextChrome,
+        allowCommerce: nextCommerce,
+        allowLlm: nextLlm,
+        allowEmbedding: nextEmbedding,
+      });
+      setPolicyLoaded(true);
       const month = new Date().toISOString().slice(0, 7);
       const spent = (ledger.entries ?? [])
         .filter(
@@ -82,7 +116,7 @@ export function SpendPolicySettingsPanel({
     } finally {
       setBusy(false);
     }
-  }, [client, vaultUnlocked, workspaceId]);
+  }, [client, vaultUnlocked, workspaceId, markSpendClean]);
 
   useEffect(() => {
     void refresh();
@@ -104,6 +138,7 @@ export function SpendPolicySettingsPanel({
         chromeApprovalThresholdMinor: majorToMinor(chromeThreshold),
         allowedCategories,
       });
+      markSpendClean(spendForm);
       setNote(null);
       await refresh();
     } catch (error) {
@@ -113,65 +148,84 @@ export function SpendPolicySettingsPanel({
   }
 
   return (
-    <section className={embedded ? "connectors-subpanel" : "connectors-panel"}>
-      <header>
-        <h3>Spend policy</h3>
-        <p>
-          Caps for commerce holds and estimated LLM usage on this workspace. 0 = unlimited. Agent never
-          sees your card — only these limits.
+    <section className={embedded ? "settings-subpanel" : "settings-panel"}>
+      <header className="settings-panel-head">
+        <h3>Spending limits</h3>
+        <p className="settings-panel-desc">
+          Cap how much your agent can spend. Use 0 for no limit.
+        </p>
+        <p className="settings-note">
+          Actual payment happens in-person between you and the merchant.
         </p>
       </header>
       {billingStatus ? (
-        <p className="connectors-hint">
-          Platform fee: {(billingStatus.platformFeeBps / 100).toFixed(2)}%
-          {billingStatus.betaFree ? " (beta-free)" : ""}. Stripe on agent:{" "}
-          {billingStatus.stripeConfigured ? "configured" : "not configured"}. This month spent:{" "}
-          {minorToMajor(monthSpentMinor)} {currency}.
+        <p className="settings-note">
+          {billingStatus.betaFree ? "Beta — no platform fee. " : `Platform fee ${(billingStatus.platformFeeBps / 100).toFixed(2)}%. `}
+          Spent this month: {minorToMajor(monthSpentMinor)} {currency}.
+          {billingStatus.stripeConfigured ? "" : " Payment connection not set up yet."}
         </p>
       ) : null}
-      <div className="connectors-token-actions" style={{ flexDirection: "column", alignItems: "stretch" }}>
-        <label className="atom-field">
-          <span className="atom-field-label">Currency</span>
-          <input value={currency} onChange={(e) => setCurrency(e.target.value)} disabled={busy || !vaultUnlocked} />
-        </label>
-        <label className="atom-field">
-          <span className="atom-field-label">Monthly budget (major units)</span>
-          <input value={monthlyBudget} onChange={(e) => setMonthlyBudget(e.target.value)} disabled={busy || !vaultUnlocked} />
-        </label>
-        <label className="atom-field">
-          <span className="atom-field-label">Per-transaction ceiling</span>
-          <input value={perTxCeiling} onChange={(e) => setPerTxCeiling(e.target.value)} disabled={busy || !vaultUnlocked} />
-        </label>
-        <label className="atom-field">
-          <span className="atom-field-label">Chrome approval threshold</span>
-          <input
-            value={chromeThreshold}
-            onChange={(e) => setChromeThreshold(e.target.value)}
-            disabled={busy || !vaultUnlocked}
-          />
-        </label>
-        <label>
-          <input type="checkbox" checked={allowCommerce} onChange={(e) => setAllowCommerce(e.target.checked)} disabled={busy} />{" "}
-          Allow commerce
-        </label>
-        <label>
-          <input type="checkbox" checked={allowLlm} onChange={(e) => setAllowLlm(e.target.checked)} disabled={busy} /> Allow
-          LLM inference
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={allowEmbedding}
-            onChange={(e) => setAllowEmbedding(e.target.checked)}
-            disabled={busy}
-          />{" "}
-          Allow embeddings
-        </label>
-        <button type="button" disabled={busy || !vaultUnlocked} onClick={() => void save()}>
-          Save spend policy
-        </button>
+      <div className="settings-panel-fields">
+        <div className="connector-form-grid">
+          <label className="atom-field">
+            <span className="atom-field-label">Currency</span>
+            <input value={currency} onChange={(e) => setCurrency(e.target.value)} disabled={busy || !vaultUnlocked} />
+          </label>
+          <label className="atom-field">
+            <span className="atom-field-label">Monthly budget</span>
+            <input value={monthlyBudget} onChange={(e) => setMonthlyBudget(e.target.value)} disabled={busy || !vaultUnlocked} />
+          </label>
+          <label className="atom-field">
+            <span className="atom-field-label">Max per purchase</span>
+            <input value={perTxCeiling} onChange={(e) => setPerTxCeiling(e.target.value)} disabled={busy || !vaultUnlocked} />
+          </label>
+          <label className="atom-field">
+            <span className="atom-field-label">Ask before spending above</span>
+            <input
+              value={chromeThreshold}
+              onChange={(e) => setChromeThreshold(e.target.value)}
+              disabled={busy || !vaultUnlocked}
+            />
+          </label>
+        </div>
+        <ul className="settings-checkbox-list">
+          <li>
+            <SettingsToggle
+              checked={allowCommerce}
+              disabled={busy}
+              label="Allow purchases"
+              onChange={setAllowCommerce}
+            />
+          </li>
+          <li>
+            <SettingsToggle
+              checked={allowLlm}
+              disabled={busy}
+              label="Allow AI usage charges"
+              onChange={setAllowLlm}
+            />
+          </li>
+          <li>
+            <SettingsToggle
+              checked={allowEmbedding}
+              disabled={busy}
+              label="Allow search-index charges"
+              onChange={setAllowEmbedding}
+            />
+          </li>
+        </ul>
+        <div className="chrome-actions settings-section-actions">
+          <button
+            type="button"
+            className="chrome-approve"
+            disabled={busy || !vaultUnlocked || !policyLoaded || !spendDirty}
+            onClick={() => void save()}
+          >
+            Save spending limits
+          </button>
+        </div>
       </div>
-      {note ? <p className="connectors-note">{note}</p> : null}
+      {note ? <p className="settings-note">{note}</p> : null}
     </section>
   );
 }

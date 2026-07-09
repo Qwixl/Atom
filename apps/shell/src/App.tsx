@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   AttestationLog,
   Catalog,
@@ -135,10 +135,13 @@ import { formatLocationContextForPrompt } from "./location/locationContext.js";
 import { loadLocationPreferences } from "./location/locationPreferences.js";
 import type { DeviceLocationSnapshot } from "./location/deviceLocation.js";
 import { ProfilePanel } from "./ProfilePanel.js";
+import { SettingsToggle } from "./ui/SettingsToggle.js";
+import { useDirtyForm } from "./ui/useDirtyForm.js";
 import { DiscoverPanel } from "./DiscoverPanel.js";
 import { RoomsPanel } from "./RoomsPanel.js";
 import { tryReconnectHostedAgent } from "./auth/completeSetup.js";
 import { loadAccountType, saveAccountType, clearAccountType } from "./accountType.js";
+import { bareOwnerHandle, loadOwnerHandle, saveOwnerHandle } from "./ownerHandle.js";
 import { WorkspaceSwitcher } from "./workspace/WorkspaceSwitcher.js";
 import {
   createWorkspace,
@@ -185,17 +188,7 @@ import {
   IS_DEMO_MODE,
 } from "./demoPersonas.js";
 import { CustodySecurityPanel } from "./custody/CustodySecurityPanel.js";
-import { WebCalSettingsPanel } from "./connectors/WebCalSettingsPanel.js";
-import { RssSettingsPanel } from "./connectors/RssSettingsPanel.js";
-import { McpSettingsPanel } from "./connectors/McpSettingsPanel.js";
-import { TokenConnectorsSettingsPanel } from "./connectors/TokenConnectorsSettingsPanel.js";
-import { CalDavSettingsPanel } from "./connectors/CalDavSettingsPanel.js";
-import { CardDavSettingsPanel } from "./connectors/CardDavSettingsPanel.js";
-import { BookmarksSettingsPanel } from "./connectors/BookmarksSettingsPanel.js";
-import {
-  ConnectorModuleHost,
-  WEBCAL_CONNECTOR_MODULE_ID,
-} from "./connectors/ConnectorModuleHost.js";
+import { ConnectorsCatalog } from "./connectors/ConnectorsCatalog.js";
 import { requireCustodyApproval } from "./custody/approvalGate.js";
 import {
   loadAttestations,
@@ -231,7 +224,8 @@ import { FieldLabelWithHint, LlmApiKeyHintContent } from "./ui/FieldHint.js";
 import { updateHostedLlmApiKey, signOutSupabase, fetchHostedAccountStatus, fetchHostedAgentConnection, createHostedWorkspace } from "./auth/hostedAccount.js";
 import { ShellComposer } from "./shell/ShellComposer.js";
 import { ConfirmationChrome } from "./shell/ConfirmationChrome.js";
-import { AtomShell } from "./shell/AtomShell.js";
+import { AtomShell, type SettingsOpenTarget } from "./shell/AtomShell.js";
+import { IconChevronRight } from "./shell/ShellIcons.js";
 import type { ShellNavPanel } from "./shell/ShellSidebar.js";
 
 type Provider = "mock" | "llm" | "ag-ui";
@@ -252,6 +246,10 @@ const CURATOR_AUTO_ACCEPT_KEY = "atom-curator-auto-accept-open";
 const SKIN_STORAGE_KEY = "atom-shell-skin";
 const PROVIDER_KEY = "atom-provider";
 const DEFAULT_REGISTRY_URL = "/registry/index.json";
+const APP_STORE_URL_KEY = "atom-app-store-url";
+/** Atom App Store front-end (D073). Owner-editable; any compatible store works. */
+const DEFAULT_APP_STORE_URL = "https://apps.qwixl.com";
+const AGENT_SHOPPER_KEY = "atom-agent-shopper-enabled";
 const REVOCATION_REFRESH_MS = 5 * 60 * 1000;
 
 function loadRegistryUrl(): string {
@@ -687,6 +685,8 @@ export function App() {
   }, [stripePayment, secretStore]);
   const [agUiConfig, setAgUiConfig] = useState<AgUiAgentConfig>(() => loadAgUiConfig());
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsOpenTarget>("default");
+  const [accountOpen, setAccountOpen] = useState(false);
 
   useEffect(() => {
     if (!agentConnectionReady || IS_DEMO_MODE) return;
@@ -855,11 +855,22 @@ export function App() {
   );
   const [modulesEnabled, setModulesEnabled] = useState(true);
   const [accountType, setAccountType] = useState(() => loadAccountType());
+  const [accountHandle, setAccountHandle] = useState(() => {
+    const fromStorage = loadOwnerHandle()?.replace(/^@/, "");
+    const fromWorkspace = getActiveWorkspace().handle?.replace(/^@/, "");
+    return fromStorage || fromWorkspace || "";
+  });
+  const [accountDisplayName, setAccountDisplayName] = useState("");
   const showModulesToggle = SHOW_DEV_WORKFLOWS || accountType === "developer";
   const modulesActive = showModulesToggle ? modulesEnabled : true;
   const [registryUrl, setRegistryUrl] = useState(() => loadRegistryUrl());
   const [registryTrust, setRegistryTrust] = useState(() => loadRegistryTrust());
   const [registryError, setRegistryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    catalog.setInactiveModuleIds(registryTrust.blockedIds ?? []);
+  }, [catalog, registryTrust]);
+
   const [revokedModules, setRevokedModules] = useState<readonly RegistryRevocation[]>([]);
   const feedRef = useRef<HTMLDivElement>(null);
   const [discoveryPaths, setDiscoveryPaths] = useState<DiscoveryPath[]>(() => loadDiscoveryPaths());
@@ -1142,7 +1153,7 @@ export function App() {
   }, [demoReady, refreshDemoWebcalState]);
 
   useEffect(() => {
-    if (!MANAGED_HOSTING || !usesSupabaseHostedAuth()) return;
+    if (!usesSupabaseHostedAuth()) return;
     void fetchHostedAccountStatus()
       .then((status) => {
         if (status.accountType) {
@@ -1151,9 +1162,22 @@ export function App() {
           ensureWorkspaceFromAccountType(status.accountType);
           setWorkspaces(listWorkspaces());
         }
+        if (status.handle?.trim()) {
+          const handle = bareOwnerHandle(status.handle);
+          setAccountHandle(handle);
+          saveOwnerHandle(handle);
+          const personal = listWorkspaces().find((w) => w.kind === "personal");
+          if (personal && personal.handle !== handle) {
+            upsertWorkspace({ ...personal, handle });
+            setWorkspaces(listWorkspaces());
+          }
+        }
+        if (status.displayName?.trim()) {
+          setAccountDisplayName(status.displayName.trim());
+        }
       })
       .catch(() => {
-        /* keep cached account type */
+        /* keep cached account type / handle */
       });
   }, []);
 
@@ -1937,6 +1961,24 @@ export function App() {
   function closeSettings() {
     setSettingsOpen(false);
     setSettingsIntent(null);
+    setSettingsSection("default");
+  }
+
+  function openSettings(target: SettingsOpenTarget = "default") {
+    setAccountOpen(false);
+    setSettingsIntent(null);
+    setSettingsSection(target);
+    setSettingsOpen(true);
+  }
+
+  function closeAccount() {
+    setAccountOpen(false);
+  }
+
+  function openAccount() {
+    setSettingsOpen(false);
+    setSettingsIntent(null);
+    setAccountOpen(true);
   }
 
   const demoLlmReady = isLlmConnectionReady(llmConnection, secretStore);
@@ -1945,16 +1987,24 @@ export function App() {
   const showMainComposer = showMainFeed;
 
   function navigatePanel(next: SidePanel): void {
+    // Profile / Log live in Settings — never as top-level sections.
+    if (next === "profile" || next === "log") {
+      openSettings(next);
+      setPanel("none");
+      return;
+    }
     setPanel(next);
   }
 
   const loadedGames = useMemo(
     () =>
       listGameModuleIds()
-        .filter((moduleId) => catalog.isModuleInstalled(moduleId))
+        .filter(
+          (moduleId) => catalog.isModuleInstalled(moduleId) && catalog.isModuleActive(moduleId),
+        )
         .map((moduleId) => ({ moduleId, label: gameModuleLabel(moduleId) }))
         .sort((a, b) => a.label.localeCompare(b.label)),
-    [catalog],
+    [catalog, registryTrust],
   );
 
   async function startGameFromMenu(moduleId: string) {
@@ -2005,10 +2055,9 @@ export function App() {
       <AtomShell
         section={panel}
         onNavigate={navigatePanel}
-        onOpenSettings={() => {
-          setSettingsIntent(null);
-          setSettingsOpen(true);
-        }}
+        onOpenSettings={openSettings}
+        onOpenAccount={openAccount}
+        onLogout={usesSupabaseHostedAuth() ? () => void handleLogout() : undefined}
         banner={
           showMainFeed && activeDiscoveryPath && activeDiscoveryPath.steps.length > 0 ? (
             <DiscoveryBreadcrumb
@@ -2018,17 +2067,6 @@ export function App() {
               onDismiss={dismissDiscoveryPath}
               onResumePath={resumeDiscoveryPath}
             />
-          ) : undefined
-        }
-        headerActions={
-          usesSupabaseHostedAuth() ? (
-            <button
-              type="button"
-              className="btn btn-ghost atom-app-logout hide-mobile"
-              onClick={() => void handleLogout()}
-            >
-              Log out
-            </button>
           ) : undefined
         }
         games={loadedGames}
@@ -2042,26 +2080,42 @@ export function App() {
           <>
             {registryError ? (
               <span className="atom-app-status" title={registryError}>
-                Registry error
+                <span className="atom-status-label">Registry error</span>
+                <span className="atom-status-compact" aria-hidden="true">
+                  Reg
+                </span>
               </span>
             ) : null}
             {isVaultInitialized() ? (
-              <span className="atom-app-status">
+              <span
+                className="atom-app-status"
+                title={vaultUnlocked ? "Vault unlocked" : "Vault locked"}
+                aria-label={vaultUnlocked ? "Vault unlocked" : "Vault locked"}
+              >
                 <span
                   className={`atom-status-dot${vaultUnlocked ? " atom-status-dot--active" : ""}`}
                   aria-hidden="true"
                 />
-                {vaultUnlocked ? "Vault unlocked" : "Vault locked"}
+                <span className="atom-status-label">
+                  {vaultUnlocked ? "Vault unlocked" : "Vault locked"}
+                </span>
               </span>
             ) : null}
             {showModulesToggle ? (
               <button
                 type="button"
-                className="btn btn-ghost"
+                className="btn btn-ghost atom-modules-toggle"
                 aria-pressed={modulesEnabled}
+                aria-label={`Modules ${modulesEnabled ? "on" : "off"}`}
+                title={`Modules ${modulesEnabled ? "on" : "off"}`}
                 onClick={() => setModulesEnabled((current) => !current)}
               >
-                Modules {modulesEnabled ? "on" : "off"}
+                <span className="atom-status-label">
+                  Modules {modulesEnabled ? "on" : "off"}
+                </span>
+                <span className="atom-status-compact" aria-hidden="true">
+                  Mods {modulesEnabled ? "on" : "off"}
+                </span>
               </button>
             ) : null}
           </>
@@ -2232,61 +2286,6 @@ export function App() {
           />
           </div>
         ) : null}
-
-        {!IS_DEMO_MODE && panel === "profile" ? (
-          <div className="shell-panel-view">
-          <ProfilePanel
-            store={ownerStore}
-            records={profileRecords}
-            proposals={profileProposals}
-            showBusinessSections={isBusinessWorkspace(activeWorkspace)}
-            onChanged={() => {
-              setProfileRecords(ownerStore.list());
-              setProfileProposals(ownerStore.listProposals());
-            }}
-          />
-          </div>
-        ) : null}
-
-        {panel === "log" ? (
-          <div className="shell-panel-view">
-          <div className="panel-view">
-          <div className="panel-body panel-body-scroll">
-            <div className="panel-content-wide">
-            <p className="panel-section-note">
-              Append-only, hash-chained record of every consequential decision and the exact terms
-              displayed when you made it.
-            </p>
-            {attestations.length === 0 ? (
-              <p className="panel-empty">No decisions recorded yet.</p>
-            ) : (
-              <div className="attestation-list">
-              {attestations.map((entry) => (
-                <div key={entry.seq} className={`attestation attestation-${entry.decision}`}>
-                  <div className="attestation-head">
-                    <span>#{entry.seq}</span>
-                    <span>{entry.decision}</span>
-                    <span>{new Date(entry.timestamp).toLocaleTimeString()}</span>
-                  </div>
-                  <div className="attestation-title">{entry.action.title}</div>
-                  <dl className="attestation-terms">
-                    {Object.entries(entry.displayedTerms).map(([key, value]) => (
-                      <div key={key}>
-                        <dt>{key}</dt>
-                        <dd>{String(value)}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  <div className="attestation-hash">{entry.hash.slice(0, 16)}…</div>
-                </div>
-              ))}
-              </div>
-            )}
-            </div>
-          </div>
-          </div>
-          </div>
-        ) : null}
       </AtomShell>
 
       {chromePending ? (
@@ -2355,6 +2354,7 @@ export function App() {
 
       {settingsOpen ? (
         <SettingsDialog
+          initialSection={settingsSection}
           llmConnectionInitial={llmConnection}
           savedLlmKeyHint={savedLlmKeyHint}
           stripePaymentInitial={stripePayment}
@@ -2371,8 +2371,8 @@ export function App() {
           chatProvider={provider}
           chatProviderSummary={chatProviderSummary}
           allowBrowserLlm={ALLOW_BROWSER_LLM}
-          onWebcalFeedsChanged={() => void refreshWebcalState()}
-          onRssFeedsChanged={() => void refreshRssState()}
+          onWebcalFeedsChanged={refreshWebcalState}
+          onRssFeedsChanged={refreshRssState}
           deviceLocation={deviceLocation}
           onDeviceLocationChange={applyDeviceLocation}
           agentConnectionReady={agentConnectionReady}
@@ -2381,7 +2381,6 @@ export function App() {
           }
           onSwitchChatProvider={switchProvider}
           onClose={closeSettings}
-          onLogout={usesSupabaseHostedAuth() ? () => void handleLogout() : undefined}
           onSaveLlm={(connection, apiKey) => {
             if (apiKey !== undefined) {
               secretStore.set(connection.secretRef, apiKey);
@@ -2411,16 +2410,20 @@ export function App() {
           }}
           onSaveRegistry={(url, trust) => {
             if (IS_PRODUCTION_HOST) return;
+            const urlChanged = url !== registryUrl;
             saveStringToStorage(REGISTRY_URL_KEY, url);
             saveJsonToStorage(REGISTRY_TRUST_KEY, trust);
-            registry.uninstallAll(catalog);
-            registry.clearCache();
-            setRegistryUrl(url);
             setRegistryTrust(trust);
+            catalog.setInactiveModuleIds(trust.blockedIds ?? []);
             setRegistryError(null);
-            void registry.refreshRevocations().then(() => {
-              setRevokedModules(registry.listRevoked());
-            });
+            if (urlChanged) {
+              registry.uninstallAll(catalog);
+              registry.clearCache();
+              setRegistryUrl(url);
+              void registry.refreshRevocations().then(() => {
+                setRevokedModules(registry.listRevoked());
+              });
+            }
           }}
           onSaveCurator={(enabled, autoAcceptOpen) => {
             saveStringToStorage(CURATOR_ENABLED_KEY, String(enabled));
@@ -2441,11 +2444,87 @@ export function App() {
             }
             setPaymentConnections(upsertPaymentConnection(connection));
           }}
-          catalog={catalog}
-          registry={registry}
-          modulesActive={modulesActive}
+          activeWorkspaceId={activeWorkspaceId}
+          profilePanel={
+            <ProfilePanel
+              store={ownerStore}
+              records={profileRecords}
+              proposals={profileProposals}
+              showBusinessSections={isBusinessWorkspace(activeWorkspace)}
+              embeddedInSettings
+              lockedHandle={
+                accountHandle ||
+                loadOwnerHandle()?.replace(/^@/, "") ||
+                activeWorkspace.handle?.replace(/^@/, "") ||
+                undefined
+              }
+              accountDisplayName={accountDisplayName || undefined}
+              onChanged={() => {
+                setProfileRecords(ownerStore.list());
+                setProfileProposals(ownerStore.listProposals());
+                setCommsContacts(loadContacts(ownerStore.list()));
+              }}
+            />
+          }
+          logPanel={
+            <>
+              <p className="settings-note">
+                A private record of decisions you approved or declined.
+              </p>
+              {attestations.length === 0 ? (
+                <p className="panel-empty">No decisions recorded yet.</p>
+              ) : (
+                <div className="attestation-list">
+                  {attestations.map((entry) => {
+                    const termEntries = Object.entries(entry.displayedTerms);
+                    return (
+                      <details key={entry.seq} className={`attestation attestation-compact attestation-${entry.decision}`}>
+                        <summary className="attestation-summary">
+                          <span className={`attestation-decision attestation-decision--${entry.decision}`}>
+                            {entry.decision}
+                          </span>
+                          <span className="attestation-summary-title">{entry.action.title}</span>
+                          <span className="attestation-summary-time">
+                            {new Date(entry.timestamp).toLocaleString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </summary>
+                        <div className="attestation-details">
+                          {termEntries.length > 0 ? (
+                            <dl className="attestation-terms">
+                              {termEntries.map(([key, value]) => (
+                                <div key={key}>
+                                  <dt>{key}</dt>
+                                  <dd>{String(value)}</dd>
+                                </div>
+                              ))}
+                            </dl>
+                          ) : null}
+                          <div className="attestation-hash">{entry.hash.slice(0, 16)}…</div>
+                        </div>
+                      </details>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          }
+        />
+      ) : null}
+
+      {accountOpen ? (
+        <AccountDialog
+          accountType={accountType}
           workspaces={workspaces}
           activeWorkspaceId={activeWorkspaceId}
+          productionLocked={IS_PRODUCTION_HOST}
+          agUiInitial={agUiConfig}
+          onClose={closeAccount}
+          onLogout={usesSupabaseHostedAuth() ? () => void handleLogout() : undefined}
           onWorkspaceSwitch={async (workspaceId) => {
             if (!setActiveWorkspace(workspaceId)) return;
             setActiveWorkspaceId(workspaceId);
@@ -2502,13 +2581,197 @@ export function App() {
             const next = setActiveWorkspace(created.id);
             if (next) setActiveWorkspaceId(next.id);
           }}
+          onSaveAgUi={(config) => {
+            const err = validateProductionAgUiUrl(config.url);
+            if (err) return;
+            saveJsonToStorage(AGUI_CONFIG_KEY, config);
+            setAgUiConfig(config);
+            saveStringToStorage(PROVIDER_KEY, "ag-ui");
+            setProvider("ag-ui");
+            conversationRef.current.reset();
+          }}
         />
       ) : null}
     </>
   );
 }
 
+
+function AccountDialog({
+  accountType,
+  workspaces,
+  activeWorkspaceId,
+  productionLocked,
+  agUiInitial,
+  onClose,
+  onLogout,
+  onWorkspaceSwitch,
+  onCreateBusinessWorkspace,
+  onSaveAgUi,
+}: {
+  accountType?: "user" | "business" | "developer";
+  workspaces: Workspace[];
+  activeWorkspaceId: string;
+  productionLocked: boolean;
+  agUiInitial: AgUiAgentConfig;
+  onClose: () => void;
+  onLogout?: () => void;
+  onWorkspaceSwitch: (workspaceId: string) => void | Promise<void>;
+  onCreateBusinessWorkspace: () => void | Promise<void>;
+  onSaveAgUi: (config: AgUiAgentConfig) => void;
+}) {
+  const [activeSection, setActiveSection] = useState<"overview" | "developer">("overview");
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const [agUiUrl, setAgUiUrl] = useState(agUiInitial.url);
+  const agUiError = validateProductionAgUiUrl(agUiUrl);
+  const agUiValid = !agUiError;
+  const agUiChanged = agUiUrl.trim() !== agUiInitial.url.trim();
+  const showDeveloper = !productionLocked || accountType === "developer";
+
+  const active = workspaces.find((w) => w.id === activeWorkspaceId) ?? workspaces[0];
+  const typeLabel =
+    accountType === "business"
+      ? "Business"
+      : accountType === "developer"
+        ? "Developer"
+        : accountType === "user"
+          ? "Personal"
+          : "Local";
+
+  const navItems: Array<{ id: "overview" | "developer"; label: string; hint: string }> = [
+    { id: "overview", label: "Overview", hint: "Workspace and sign-in" },
+  ];
+  if (showDeveloper) {
+    navItems.push({ id: "developer", label: "Developer", hint: "AG-UI agent URL" });
+  }
+
+  const activeNav = navItems.find((item) => item.id === activeSection) ?? navItems[0]!;
+
+  function selectSection(id: "overview" | "developer") {
+    setActiveSection(id);
+    setMobileDetailOpen(true);
+  }
+
+  return (
+    <div
+      className="chrome-overlay settings-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="account-dialog-title"
+      onClick={onClose}
+    >
+      <div className="settings-dialog settings-dialog--sections" onClick={(event) => event.stopPropagation()}>
+        <div className="settings-dialog-header">
+          {mobileDetailOpen ? (
+            <button
+              type="button"
+              className="settings-heading-back"
+              id="account-dialog-title"
+              onClick={() => setMobileDetailOpen(false)}
+            >
+              <IconChevronRight className="settings-back-icon settings-back-icon--left" />
+              Account
+            </button>
+          ) : (
+            <h2 id="account-dialog-title">Account</h2>
+          )}
+          <button type="button" className="settings-close" onClick={onClose} aria-label="Close account">
+            ×
+          </button>
+        </div>
+        <div
+          className={`settings-dialog-layout${mobileDetailOpen ? " settings-dialog-layout--detail" : " settings-dialog-layout--list"}`}
+        >
+          <nav className="settings-nav" aria-label="Account sections">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`settings-nav-item${activeSection === item.id ? " is-active" : ""}`}
+                aria-current={activeSection === item.id ? "true" : undefined}
+                onClick={() => selectSection(item.id)}
+              >
+                <span className="settings-nav-label">{item.label}</span>
+                <span className="settings-nav-hint">{item.hint}</span>
+                <IconChevronRight className="settings-nav-chevron" />
+              </button>
+            ))}
+          </nav>
+          <div className="settings-dialog-body">
+            <div className="settings-panel">
+              <div className="settings-panel-head">
+                <h3>{activeNav.label}</h3>
+                <p className="settings-panel-desc">{activeNav.hint}</p>
+              </div>
+              <div className="settings-panel-fields">
+                {activeSection === "developer" ? (
+                  <>
+                    <p className="settings-note">
+                      URL of a server-side chat agent (local dev default: {DEFAULT_AGUI_URL}).
+                    </p>
+                    <label className="atom-field">
+                      <span className="atom-field-label">Agent URL</span>
+                      <input value={agUiUrl} onChange={(e) => setAgUiUrl(e.target.value)} />
+                    </label>
+                    {agUiError ? <p className="settings-note settings-error">{agUiError}</p> : null}
+                    <div className="chrome-actions settings-section-actions">
+                      <button
+                        className="chrome-approve"
+                        disabled={!agUiValid || !agUiChanged}
+                        onClick={() => onSaveAgUi({ url: agUiUrl.trim() })}
+                      >
+                        Save AG-UI URL
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="settings-note">
+                      Switch between your personal and business workspaces. Theme lives under Settings → Appearance.
+                    </p>
+                    <dl className="settings-account-summary">
+                      <div>
+                        <dt>Account type</dt>
+                        <dd>{typeLabel}</dd>
+                      </div>
+                      <div>
+                        <dt>Active workspace</dt>
+                        <dd>{active ? `${active.label} (${active.kind})` : "—"}</dd>
+                      </div>
+                    </dl>
+                    <WorkspaceSwitcher
+                      workspaces={workspaces}
+                      activeWorkspaceId={activeWorkspaceId}
+                      onSwitch={onWorkspaceSwitch}
+                      onCreateBusiness={onCreateBusinessWorkspace}
+                    />
+                    {onLogout ? (
+                      <div className="chrome-actions settings-section-actions">
+                        <button type="button" className="chrome-decline" onClick={onLogout}>
+                          ← Exit
+                        </button>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="settings-dialog-footer">
+          <div className="settings-dialog-footer-end">
+            <button type="button" className="chrome-decline" onClick={onClose}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SettingsDialog({
+  initialSection = "default",
   llmConnectionInitial,
   savedLlmKeyHint,
   stripePaymentInitial,
@@ -2533,20 +2796,16 @@ function SettingsDialog({
   resolveLlmApiKey,
   onSwitchChatProvider,
   onClose,
-  onLogout,
   onSaveLlm,
   onSaveStripePayment,
   onSaveAgUi,
   onSaveRegistry,
   onSaveCurator,
-  catalog,
-  registry,
-  modulesActive,
-  workspaces,
   activeWorkspaceId,
-  onWorkspaceSwitch,
-  onCreateBusinessWorkspace,
+  profilePanel,
+  logPanel,
 }: {
+  initialSection?: SettingsOpenTarget;
   llmConnectionInitial: LlmConnectionConfig | null;
   savedLlmKeyHint: string | null;
   stripePaymentInitial: PaymentConnectionConfig | null;
@@ -2563,7 +2822,7 @@ function SettingsDialog({
   chatProvider: Provider;
   chatProviderSummary: string;
   allowBrowserLlm: boolean;
-  onWebcalFeedsChanged?: () => void;
+  onWebcalFeedsChanged?: () => void | Promise<void>;
   onRssFeedsChanged?: () => void;
   deviceLocation?: DeviceLocationSnapshot | null;
   onDeviceLocationChange?: (snapshot: DeviceLocationSnapshot | null) => void;
@@ -2571,19 +2830,14 @@ function SettingsDialog({
   resolveLlmApiKey: () => string | null;
   onSwitchChatProvider: (provider: Provider) => void;
   onClose: () => void;
-  onLogout?: () => void;
   onSaveLlm: (connection: LlmConnectionConfig, apiKey?: string) => void;
   onSaveStripePayment: (connection: PaymentConnectionConfig, secretKey?: string) => void;
   onSaveAgUi: (config: AgUiAgentConfig) => void;
   onSaveRegistry: (url: string, trust: RegistryTrustPolicy) => void;
   onSaveCurator: (enabled: boolean, autoAcceptOpen: boolean) => void;
-  catalog: Catalog;
-  registry: ModuleRegistry;
-  modulesActive: boolean;
-  workspaces: Workspace[];
   activeWorkspaceId: string;
-  onWorkspaceSwitch: (workspaceId: string) => void | Promise<void>;
-  onCreateBusinessWorkspace: () => void | Promise<void>;
+  profilePanel: ReactNode;
+  logPanel: ReactNode;
 }) {
   const [baseUrl, setBaseUrl] = useState(
     llmConnectionInitial?.baseUrl ?? "https://api.openai.com/v1",
@@ -2610,6 +2864,12 @@ function SettingsDialog({
   const [changingKey, setChangingKey] = useState(!savedLlmKeyHint);
   const [agUiUrl, setAgUiUrl] = useState(agUiInitial.url);
   const [registryIndexUrl, setRegistryIndexUrl] = useState(registryInitial);
+  const [appStoreUrl, setAppStoreUrl] = useState(
+    () => loadStringFromStorage(APP_STORE_URL_KEY)?.trim() || DEFAULT_APP_STORE_URL,
+  );
+  const [agentShopperOn, setAgentShopperOn] = useState(
+    () => loadBooleanFromStorage(AGENT_SHOPPER_KEY, false),
+  );
   const [requireIntegrity, setRequireIntegrity] = useState(trustInitial.requireIntegrity !== false);
   const [requireSignature, setRequireSignature] = useState(trustInitial.requireSignature === true);
   const [blockedIdsText, setBlockedIdsText] = useState(
@@ -2632,6 +2892,30 @@ function SettingsDialog({
     Boolean(stripePublishableKey.trim());
   const agUiError = validateProductionAgUiUrl(agUiUrl);
   const agUiValid = !agUiError;
+  const memoryForm = useMemo(
+    () => ({ curatorOn, curatorAutoAcceptOn }),
+    [curatorOn, curatorAutoAcceptOn],
+  );
+  const { dirty: memoryDirty, markClean: markMemoryClean } = useDirtyForm(memoryForm);
+  const advancedRegistryForm = useMemo(
+    () => ({
+      appStoreUrl: appStoreUrl.trim() || DEFAULT_APP_STORE_URL,
+      registryIndexUrl: registryIndexUrl.trim(),
+      requireIntegrity,
+      requireSignature,
+    }),
+    [appStoreUrl, registryIndexUrl, requireIntegrity, requireSignature],
+  );
+  const { dirty: advancedRegistryDirty, markClean: markAdvancedRegistryClean } =
+    useDirtyForm(advancedRegistryForm);
+  const llmChanged =
+    baseUrl.trim() !== (llmConnectionInitial?.baseUrl ?? "https://api.openai.com/v1").trim() ||
+    model.trim() !== (llmConnectionInitial?.model ?? "").trim() ||
+    changingKey ||
+    (!hasSavedKey && Boolean(apiKey.trim()));
+  const localEndpointChanged =
+    baseUrl.trim() !== (llmConnectionInitial?.baseUrl ?? "https://api.openai.com/v1").trim();
+  const agUiChanged = agUiUrl.trim() !== agUiInitial.url.trim();
   const isHostedAgent =
     productionLocked && MANAGED_HOSTING && loadOwnerAgentKind(loadCommsAgentConfig()) === "hosted";
   const [hostedLlmKey, setHostedLlmKey] = useState("");
@@ -2640,6 +2924,8 @@ function SettingsDialog({
   const [hostedLlmError, setHostedLlmError] = useState<string | null>(null);
   const [moduleCatalogNote, setModuleCatalogNote] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<
+    | "profile"
+    | "log"
     | "agent"
     | "briefing"
     | "security"
@@ -2647,9 +2933,16 @@ function SettingsDialog({
     | "appearance"
     | "modules"
     | "payments"
-    | "developer"
     | "donations"
-  >("agent");
+  >(() => {
+    if (initialSection === "profile" || initialSection === "log") {
+      return initialSection;
+    }
+    return "agent";
+  });
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(
+    () => initialSection === "profile" || initialSection === "log",
+  );
 
   const navItems = useMemo(() => {
     const items: Array<{
@@ -2657,17 +2950,22 @@ function SettingsDialog({
       label: string;
       hint: string;
     }> = [
-      { id: "agent", label: "Agent", hint: "Connection and API keys" },
-      { id: "briefing", label: "Briefing", hint: "Session-open roundup" },
+      { id: "profile", label: "Profile", hint: "About you and what your agent remembers" },
+      { id: "log", label: "Log", hint: "Decisions you approved" },
+      { id: "agent", label: "Agent", hint: "Chat connection" },
+      { id: "briefing", label: "Briefing", hint: "Morning roundup" },
       { id: "security", label: "Security", hint: "Vault and passkey" },
-      { id: "connectors", label: "Connectors", hint: "Calendar and integrations" },
-      { id: "appearance", label: "Appearance", hint: "Theme and skin" },
-      { id: "modules", label: "Modules", hint: "Catalog and registry" },
-      { id: "donations", label: "Donations", hint: "Support Atom development" },
+      { id: "connectors", label: "Connectors", hint: "Calendars, news, and apps" },
+      { id: "appearance", label: "Appearance", hint: "Look and feel" },
+      { id: "modules", label: "Modules", hint: "Add-ons and marketplace" },
+      { id: "donations", label: "Donations", hint: "Support Atom" },
     ];
     if (!productionLocked) {
-      items.splice(4, 0, { id: "payments", label: "Payments", hint: "Stripe and commerce" });
-      items.push({ id: "developer", label: "Developer", hint: "AG-UI and registry URL" });
+      items.splice(7, 0, {
+        id: "payments",
+        label: "Agent Shopper",
+        hint: "Let your agent shop within limits",
+      });
     }
     return items;
   }, [productionLocked]);
@@ -2784,119 +3082,142 @@ function SettingsDialog({
   }, [onClose]);
 
   useEffect(() => {
-    if (intent === "llm") setActiveSection("agent");
+    if (intent === "llm") {
+      setActiveSection("agent");
+      setMobileDetailOpen(true);
+    }
   }, [intent]);
 
   const activeNav = navItems.find((item) => item.id === activeSection) ?? navItems[0]!;
 
+  function selectSettingsSection(id: typeof activeSection) {
+    setActiveSection(id);
+    setMobileDetailOpen(true);
+  }
+
+  const [agentTab, setAgentTab] = useState<"external" | "local">(() => {
+    const saved = loadStringFromStorage("atom-llm-mode");
+    if (saved === "local" || saved === "external") return saved;
+    return "external";
+  });
+  /** Preferred connection tab on next open — independent of live chat provider. */
+  const [llmMode, setLlmMode] = useState<"external" | "local">(() => {
+    const saved = loadStringFromStorage("atom-llm-mode");
+    if (saved === "local" || saved === "external") return saved;
+    return "external";
+  });
+
+  function preferProviderMode(mode: "external" | "local") {
+    setLlmMode(mode);
+    saveStringToStorage("atom-llm-mode", mode);
+  }
+
   function renderAgentPanel() {
-    return (
-      <>
-        {!productionLocked ? (
-          <>
-            <p className="settings-note">
-              <strong>Chat</strong> composes the main feed (Live LLM or AG-UI).{" "}
-              <strong>Messages</strong> is your agent talking to other agents (A2A) — configured at
-              signup or reconnect, independent of Chat provider.
-            </p>
-            <fieldset className="atom-field">
-              <legend className="atom-field-label">Chat provider</legend>
-              <div className="shell-segmented settings-chat-provider" role="group">
-                {allowBrowserLlm ? (
-                  <button
-                    type="button"
-                    className={chatProvider === "llm" || intent === "llm" ? "is-active" : ""}
-                    onClick={() => onSwitchChatProvider("llm")}
-                  >
-                    Live LLM
-                  </button>
-                ) : null}
+    if (productionLocked) {
+      return (
+        <>
+          <p className="settings-note">
+            {isHostedAgent
+              ? "Chat runs on your Atom agent. Update your API key if chat stops working or you rotate credentials."
+              : "Chat runs through your agent on this site. Your API keys stay on the server, not in the browser."}
+          </p>
+          {isHostedAgent ? (
+            <>
+              <label className="atom-field">
+                <FieldLabelWithHint label="LLM API key" hint={<LlmApiKeyHintContent />} />
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={hostedLlmKey}
+                  onChange={(e) => setHostedLlmKey(e.target.value)}
+                  placeholder="sk-…"
+                />
+              </label>
+              {hostedLlmError ? (
+                <p className="settings-note settings-error">{hostedLlmError}</p>
+              ) : null}
+              {hostedLlmNote ? <p className="settings-note">{hostedLlmNote}</p> : null}
+              <div className="chrome-actions settings-section-actions">
                 <button
                   type="button"
-                  className={chatProvider === "ag-ui" || intent === "ag-ui" ? "is-active" : ""}
-                  onClick={() => onSwitchChatProvider("ag-ui")}
+                  className="chrome-approve"
+                  disabled={hostedLlmBusy || !hostedLlmKey.trim()}
+                  onClick={() => void saveHostedLlmKey()}
                 >
-                  Agent (AG-UI)
+                  {hostedLlmBusy ? "Updating…" : "Update LLM key"}
                 </button>
               </div>
-              <p className="atom-note">Active: {chatProviderSummary}</p>
-            </fieldset>
-          </>
-        ) : null}
-        {intent === "llm" && !productionLocked ? (
-          <p className="settings-intent-note">
-            Enter your model endpoint and API key, then click <strong>Enable Live LLM</strong> below.
-          </p>
-        ) : null}
-        {productionLocked ? (
-          <>
-            <p className="settings-note">
-              {isHostedAgent
-                ? "Chat runs on your hosted agent server. Update your LLM API key below if chat fails or you need to rotate credentials."
-                : "On this site, chat runs through a server-side agent — your API keys never enter the browser."}
-            </p>
-            {isHostedAgent ? (
-              <>
-                <label className="atom-field">
-                  <FieldLabelWithHint label="LLM API key" hint={<LlmApiKeyHintContent />} />
-                  <input
-                    type="password"
-                    autoComplete="off"
-                    value={hostedLlmKey}
-                    onChange={(e) => setHostedLlmKey(e.target.value)}
-                    placeholder="sk-…"
-                  />
-                </label>
-                {hostedLlmError ? (
-                  <p className="settings-note settings-error">{hostedLlmError}</p>
-                ) : null}
-                {hostedLlmNote ? <p className="settings-note">{hostedLlmNote}</p> : null}
-                <div className="chrome-actions settings-section-actions">
-                  <button
-                    type="button"
-                    className="chrome-approve"
-                    disabled={hostedLlmBusy || !hostedLlmKey.trim()}
-                    onClick={() => void saveHostedLlmKey()}
-                  >
-                    {hostedLlmBusy ? "Updating…" : "Update LLM key"}
-                  </button>
-                </div>
-              </>
-            ) : null}
-            <details className="settings-advanced">
-              <summary>Advanced connection</summary>
-              <div className="settings-advanced-body">
-                <label className="atom-field">
-                  <span className="atom-field-label">Chat agent URL</span>
-                  <input
-                    value={agUiUrl}
-                    onChange={(e) => setAgUiUrl(e.target.value)}
-                    placeholder="https://your-agent.example.com/agent"
-                  />
-                </label>
-                {agUiError ? <p className="settings-note settings-error">{agUiError}</p> : null}
-                <div className="chrome-actions settings-section-actions">
-                  <button
-                    className="chrome-approve"
-                    disabled={!agUiValid}
-                    onClick={() => onSaveAgUi({ url: agUiUrl.trim() })}
-                  >
-                    Save chat agent URL
-                  </button>
-                </div>
+            </>
+          ) : null}
+          <details className="settings-advanced">
+            <summary>Advanced connection</summary>
+            <div className="settings-advanced-body">
+              <label className="atom-field">
+                <span className="atom-field-label">Chat agent URL</span>
+                <input
+                  value={agUiUrl}
+                  onChange={(e) => setAgUiUrl(e.target.value)}
+                  placeholder="https://your-agent.example.com/agent"
+                />
+              </label>
+              {agUiError ? <p className="settings-note settings-error">{agUiError}</p> : null}
+              <div className="chrome-actions settings-section-actions">
+                <button
+                  className="chrome-approve"
+                  disabled={!agUiValid || !agUiChanged}
+                  onClick={() => onSaveAgUi({ url: agUiUrl.trim() })}
+                >
+                  Save chat agent URL
+                </button>
               </div>
-            </details>
-          </>
-        ) : (
-          <>
+            </div>
+          </details>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <div
+          className="shell-segmented settings-agent-tabs"
+          role="tablist"
+          aria-label="Chat connection"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={agentTab === "external"}
+            className={agentTab === "external" ? "is-active" : ""}
+            onClick={() => setAgentTab("external")}
+          >
+            External Provider
+          </button>
+          {allowBrowserLlm ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={agentTab === "local"}
+              className={agentTab === "local" ? "is-active" : ""}
+              onClick={() => setAgentTab("local")}
+            >
+              Local Model
+            </button>
+          ) : null}
+        </div>
+
+        {agentTab === "external" ? (
+          <div className="settings-agent-tab-panel" role="tabpanel">
+            <SettingsToggle
+              checked={llmMode === "external"}
+              label="Use Provider"
+              onChange={(checked) => {
+                if (checked) preferProviderMode("external");
+                else if (llmMode === "external") preferProviderMode("local");
+              }}
+            />
             <p className="settings-note">
-              OpenAI-compatible chat endpoint. Keys are stored in memory for this session only (local
-              dev). For production embedders, use AG-UI or inject a host SecretStore.
+              Connect a chat model for local development. Your key stays in this browser session only.
             </p>
-            <label className="atom-field">
-              <span className="atom-field-label">Endpoint base URL</span>
-              <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
-            </label>
             {hasSavedKey ? (
               <div className="settings-saved-key">
                 <span className="settings-saved-key-label">API key</span>
@@ -2907,8 +3228,6 @@ function SettingsDialog({
                   onClick={() => {
                     setChangingKey(true);
                     setApiKey("");
-                    setModelOptions([]);
-                    setModelsFromApi(null);
                   }}
                 >
                   Change key
@@ -2931,25 +3250,40 @@ function SettingsDialog({
                 <p className="settings-note">Please add your API Key</p>
               ) : modelOptionsLoading ? (
                 <p className="settings-note">Loading models…</p>
-              ) : modelsFromApi && modelOptions.length > 0 ? (
-                <select value={model} onChange={(e) => setModel(e.target.value)}>
-                  {!model.trim() ? (
-                    <option value="" disabled>
-                      Please select a model
-                    </option>
-                  ) : null}
-                  {modelOptions.map((id) => (
-                    <option key={id} value={id}>
-                      {id}
-                    </option>
-                  ))}
-                </select>
               ) : (
-                <input
-                  value={model}
-                  placeholder="e.g. gpt-4o-mini"
-                  onChange={(e) => setModel(e.target.value)}
-                />
+                <div className="settings-inline-add">
+                  {modelsFromApi && modelOptions.length > 0 ? (
+                    <select value={model} onChange={(e) => setModel(e.target.value)}>
+                      {!model.trim() ? (
+                        <option value="" disabled>
+                          Please select a model
+                        </option>
+                      ) : null}
+                      {modelOptions.map((id) => (
+                        <option key={id} value={id}>
+                          {id}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={model}
+                      placeholder="e.g. gpt-4o-mini"
+                      onChange={(e) => setModel(e.target.value)}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    className="chrome-approve"
+                    disabled={!llmValid || !llmChanged}
+                    onClick={() => {
+                      preferProviderMode("external");
+                      saveLlmAndEnable();
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
               )}
               {hasApiKey && !modelOptionsLoading && modelsFromApi && !model.trim() ? (
                 <p className="settings-note">Please select a model</p>
@@ -2970,73 +3304,91 @@ function SettingsDialog({
                 ) : null
               ) : null}
             </label>
-            {!intent ? (
-              <div className="chrome-actions settings-section-actions">
+          </div>
+        ) : (
+          <div className="settings-agent-tab-panel" role="tabpanel">
+            <SettingsToggle
+              checked={llmMode === "local"}
+              label="Use Provider"
+              onChange={(checked) => {
+                if (checked) preferProviderMode("local");
+                else if (llmMode === "local") preferProviderMode("external");
+              }}
+            />
+            <p className="settings-note">
+              Point Chat at a local or self-hosted model endpoint (OpenAI-compatible).
+            </p>
+            <label className="atom-field">
+              <span className="atom-field-label">Endpoint base URL</span>
+              <div className="settings-inline-add">
+                <input
+                  value={baseUrl}
+                  onChange={(e) => setBaseUrl(e.target.value)}
+                  placeholder="https://api.example.com/v1"
+                />
                 <button
                   type="button"
                   className="chrome-approve"
-                  disabled={!llmValid}
-                  onClick={saveLlmAndEnable}
+                  disabled={!baseUrl.trim() || !localEndpointChanged}
+                  onClick={() => {
+                    preferProviderMode("local");
+                    saveLlmAndEnable();
+                  }}
                 >
-                  Use live LLM
+                  Add
                 </button>
               </div>
-            ) : null}
-            <section className="settings-section" aria-labelledby="settings-memory-heading">
-              <h3 id="settings-memory-heading">Model memory preferences</h3>
-              <p className="settings-note">
-                After each chat turn, Atom can extract durable preferences into your Profile — separate
-                from the model you chat with.
-              </p>
-              <ul className="settings-checkbox-list">
-                <li>
-                  <label className="settings-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={curatorOn}
-                      onChange={(e) => setCuratorOn(e.target.checked)}
-                    />
-                    <span className="settings-checkbox-text">
-                      Remember preferences from chat (curator)
-                    </span>
-                  </label>
-                </li>
-                <li>
-                  <label className="settings-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={curatorAutoAcceptOn}
-                      disabled={!curatorOn}
-                      onChange={(e) => setCuratorAutoAcceptOn(e.target.checked)}
-                    />
-                    <span className="settings-checkbox-text">
-                      Apply remembered preferences automatically on your next turn
-                    </span>
-                  </label>
-                </li>
-              </ul>
-            </section>
-          </>
+            </label>
+          </div>
         )}
+
+        <section className="settings-section" aria-labelledby="settings-memory-heading">
+          <h3 id="settings-memory-heading">Remember from chat</h3>
+          <p className="settings-note">
+            Optionally save preferences from conversation into your Profile.
+          </p>
+          <ul className="settings-checkbox-list">
+            <li>
+              <SettingsToggle
+                checked={curatorOn}
+                label="Remember preferences from chat (curator)"
+                onChange={setCuratorOn}
+              />
+            </li>
+            <li>
+              <SettingsToggle
+                checked={curatorAutoAcceptOn}
+                disabled={!curatorOn}
+                label="Apply remembered preferences automatically on your next turn"
+                onChange={setCuratorAutoAcceptOn}
+              />
+            </li>
+          </ul>
+          <div className="chrome-actions settings-section-actions">
+            <button
+              type="button"
+              className="chrome-approve"
+              disabled={!memoryDirty}
+              onClick={() => {
+                onSaveCurator(curatorOn, curatorAutoAcceptOn);
+                markMemoryClean(memoryForm);
+              }}
+            >
+              Save memory settings
+            </button>
+          </div>
+        </section>
       </>
     );
   }
 
   function renderBriefingPanel() {
     return (
-      <>
-        <WorkspaceSwitcher
-          workspaces={workspaces}
-          activeWorkspaceId={activeWorkspaceId}
-          onSwitch={onWorkspaceSwitch}
-          onCreateBusiness={onCreateBusinessWorkspace}
-        />
-        <BriefingSettingsPanel
-          embedded
-          deviceLocation={deviceLocation}
-          onDeviceLocationChange={onDeviceLocationChange}
-        />
-      </>
+      <BriefingSettingsPanel
+        embedded
+        deviceLocation={deviceLocation}
+        onDeviceLocationChange={onDeviceLocationChange}
+      />
     );
   }
 
@@ -3054,32 +3406,11 @@ function SettingsDialog({
 
   function renderConnectorsPanel() {
     return (
-      <>
-        <p className="settings-note">
-          Connectors store URLs encrypted on your agent — not in this browser. WebCal for calendar;
-          RSS for public feeds; bookmarks for pages your agent can read on request.
-        </p>
-        {modulesActive && catalog && registry ? (
-          <ConnectorModuleHost
-            moduleId={WEBCAL_CONNECTOR_MODULE_ID}
-            catalog={catalog}
-            registry={registry}
-            modulesEnabled={modulesActive}
-          />
-        ) : (
-          <WebCalSettingsPanel
-            vaultUnlocked={vaultUnlocked}
-            embedded
-            onFeedsChanged={onWebcalFeedsChanged}
-          />
-        )}
-        <RssSettingsPanel vaultUnlocked={vaultUnlocked} embedded onFeedsChanged={onRssFeedsChanged} />
-        <McpSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
-        <TokenConnectorsSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
-        <CalDavSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
-        <CardDavSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
-        <BookmarksSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
-      </>
+      <ConnectorsCatalog
+        vaultUnlocked={vaultUnlocked}
+        onWebcalFeedsChanged={onWebcalFeedsChanged}
+        onRssFeedsChanged={onRssFeedsChanged}
+      />
     );
   }
 
@@ -3096,196 +3427,165 @@ function SettingsDialog({
 
   function renderPaymentsPanel() {
     return (
-      <>
-        <p className="settings-note">
-          Optional Stripe keys for paid modules and commerce holds. Keys stay on your agent, not in the
-          browser. Platform fees stay at 0% during beta (D069). Connect a spend policy on your agent to
-          cap commerce and LLM usage per workspace.
-        </p>
-        <p className="settings-note">
-          Billing status: beta-free. Wallet SetupIntent and Stripe Connect Express onboarding land when
-          hosted workspace billing exits beta — agent routes{" "}
-          <code>/billing/status</code> and <code>/billing/spend-policy</code> are live now.
-        </p>
-        {hasSavedStripeSecret ? (
-          <div className="settings-saved-key">
-            <span className="settings-saved-key-label">Secret key</span>
-            <span className="settings-saved-key-value">Using saved key ({savedStripeSecretHint})</span>
-            <button
-              type="button"
-              className="settings-saved-key-change"
-              onClick={() => {
-                setChangingStripeSecret(true);
-                setStripeSecretKey("");
-              }}
-            >
-              Change key
-            </button>
-          </div>
-        ) : (
-          <label className="atom-field">
-            <span className="atom-field-label">Secret key (sk_live_…)</span>
-            <input
-              type="password"
-              value={stripeSecretKey}
-              onChange={(e) => setStripeSecretKey(e.target.value)}
-            />
-          </label>
-        )}
-        <label className="atom-field">
-          <span className="atom-field-label">Publishable key (pk_live_…)</span>
-          <input
-            value={stripePublishableKey}
-            onChange={(e) => setStripePublishableKey(e.target.value)}
-          />
-        </label>
-        <label className="atom-field">
-          <span className="atom-field-label">Product id (optional)</span>
-          <input
-            value={stripeProductId}
-            placeholder="prod_… from setup:stripe"
-            onChange={(e) => setStripeProductId(e.target.value)}
-          />
-        </label>
-        <div className="chrome-actions settings-section-actions">
-          <button
-            type="button"
-            className="chrome-approve"
-            disabled={!stripePaymentValid}
-            onClick={saveStripePayment}
-          >
-            Save payment connection
-          </button>
-        </div>
-        <SpendPolicySettingsPanel
-          workspaceId={activeWorkspaceId}
-          vaultUnlocked={vaultUnlocked}
-          embedded
+      <div className="settings-panel payments-settings">
+        <SettingsToggle
+          checked={agentShopperOn}
+          label="Allow Agent Shopping"
+          onChange={(next) => {
+            setAgentShopperOn(next);
+            saveStringToStorage(AGENT_SHOPPER_KEY, String(next));
+          }}
         />
-      </>
+        <p className="settings-note">
+          When on, your agent may set up a confirmation of interest with a merchant within your
+          limits. Payment still happens between you and the merchant (their checkout page). When
+          off, the agent can only share product details for you to visit the merchant yourself.
+        </p>
+        {agentShopperOn ? (
+          <SpendPolicySettingsPanel
+            workspaceId={activeWorkspaceId}
+            vaultUnlocked={vaultUnlocked}
+            embedded
+          />
+        ) : null}
+      </div>
     );
   }
 
   function renderModulesPanel() {
-    if (productionLocked) {
-      return (
-        <>
-          <p className="settings-note">Browse modules from the trusted catalog for this site.</p>
-          <p className="settings-note">
-            Registry URL, integrity checks, publisher allowlist, and signed manifests are pinned for
-            this site.
-          </p>
-          {moduleCatalogNote ? <p className="settings-note">{moduleCatalogNote}</p> : null}
-          <RegistryCatalogList
-            indexUrl={PRODUCTION_REGISTRY_URL}
-            onStatus={setModuleCatalogNote}
-          />
-        </>
-      );
+    const indexUrl = productionLocked
+      ? PRODUCTION_REGISTRY_URL
+      : registryIndexUrl.trim() || registryInitial;
+    const inactiveIds = blockedIdsText
+      .split(/[\n,]/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    function saveInactive(nextInactive: string[]) {
+      onSaveRegistry(indexUrl, {
+        requireIntegrity,
+        requireSignature,
+        blockedIds: nextInactive,
+        trustedPublishers: trustInitial.trustedPublishers,
+      });
+      setBlockedIdsText(nextInactive.join("\n"));
     }
+
+    function setModuleActive(moduleId: string, active: boolean) {
+      if (active) {
+        saveInactive(inactiveIds.filter((item) => item !== moduleId));
+      } else if (!inactiveIds.includes(moduleId)) {
+        saveInactive([...inactiveIds, moduleId]);
+      }
+    }
+
+    const storeUrl = productionLocked
+      ? DEFAULT_APP_STORE_URL
+      : appStoreUrl.trim() || DEFAULT_APP_STORE_URL;
+
     return (
-      <>
-        <p className="settings-note">
-          URL of the module catalog your shell loads modules from, plus trust policy for signed
-          manifests.
+      <div className="modules-settings">
+        <p className="settings-panel-desc">
+          Add-ons your agent can use. Deactivate to hide from the agent (and Games menu) without
+          uninstalling. Browse new modules in the App Store.
         </p>
-        <label className="atom-field">
-          <span className="atom-field-label">Index URL</span>
-          <input value={registryIndexUrl} onChange={(e) => setRegistryIndexUrl(e.target.value)} />
-        </label>
-        <label className="atom-field atom-field-checkbox">
-          <input
-            type="checkbox"
-            checked={requireIntegrity}
-            onChange={(e) => setRequireIntegrity(e.target.checked)}
-          />
-          <span>Require manifest integrity hash (recommended)</span>
-        </label>
-        <label className="atom-field atom-field-checkbox">
-          <input
-            type="checkbox"
-            checked={requireSignature}
-            onChange={(e) => setRequireSignature(e.target.checked)}
-          />
-          <span>Require signed manifests</span>
-        </label>
-        <label className="atom-field">
-          <span className="atom-field-label">Blocked module ids (one per line)</span>
-          <textarea
-            className="panel-textarea"
-            rows={3}
-            value={blockedIdsText}
-            onChange={(e) => setBlockedIdsText(e.target.value)}
-            placeholder="games/untrusted-mod"
-          />
-        </label>
-        <div className="chrome-actions settings-section-actions">
+        <div className="modules-store-link">
           <button
+            type="button"
             className="chrome-approve"
-            disabled={!registryIndexUrl.trim()}
-            onClick={() =>
-              onSaveRegistry(registryIndexUrl.trim(), {
-                requireIntegrity,
-                requireSignature,
-                blockedIds: blockedIdsText
-                  .split(/[\n,]/)
-                  .map((value) => value.trim())
-                  .filter(Boolean),
-                trustedPublishers: trustInitial.trustedPublishers,
-              })
-            }
+            onClick={() => window.open(storeUrl, "_blank", "noopener,noreferrer")}
           >
-            Save registry settings
+            Open App Store ↗
           </button>
         </div>
+        {moduleCatalogNote ? <p className="settings-note">{moduleCatalogNote}</p> : null}
+        <RegistryCatalogList
+          indexUrl={indexUrl}
+          onStatus={setModuleCatalogNote}
+          inactiveIds={inactiveIds}
+          onSetModuleActive={productionLocked ? undefined : setModuleActive}
+        />
+
         {revokedModules.length > 0 ? (
           <div className="settings-revocations">
-            <span className="atom-field-label">Revoked modules ({revokedModules.length})</span>
+            <h4>Removed by the store</h4>
             <ul className="settings-revocations-list">
               {revokedModules.map((item) => (
                 <li key={`${item.id}@${item.version}`}>
-                  <code>{item.id}@{item.version}</code>
+                  <code>
+                    {item.id}@{item.version}
+                  </code>
                   {item.reason ? ` — ${item.reason}` : null}
                 </li>
               ))}
             </ul>
           </div>
-        ) : (
-          <p className="settings-note">No revoked modules in the current index revocations list.</p>
-        )}
-        <div className="settings-registry-store">
-          <span className="atom-field-label">Module store catalog</span>
-          {moduleCatalogNote ? <p className="settings-note">{moduleCatalogNote}</p> : null}
-          <RegistryCatalogList
-            indexUrl={registryIndexUrl.trim() || registryInitial}
-            onStatus={setModuleCatalogNote}
-          />
-        </div>
-      </>
-    );
-  }
+        ) : null}
 
-  function renderDeveloperPanel() {
-    return (
-      <>
-        <p className="settings-note">
-          URL of a server-side chat agent (local dev default: {DEFAULT_AGUI_URL}).
-        </p>
-        <label className="atom-field">
-          <span className="atom-field-label">Agent URL</span>
-          <input value={agUiUrl} onChange={(e) => setAgUiUrl(e.target.value)} />
-        </label>
-        {agUiError ? <p className="settings-note settings-error">{agUiError}</p> : null}
-        <div className="chrome-actions settings-section-actions">
-          <button
-            className="chrome-approve"
-            disabled={!agUiValid}
-            onClick={() => onSaveAgUi({ url: agUiUrl.trim() })}
-          >
-            Save AG-UI URL
-          </button>
-        </div>
-      </>
+        {!productionLocked ? (
+          <details className="modules-advanced">
+            <summary>Advanced registry settings</summary>
+            <div className="settings-panel-fields">
+              <label className="atom-field">
+                <span className="atom-field-label">App Store URL</span>
+                <input
+                  value={appStoreUrl}
+                  onChange={(e) => setAppStoreUrl(e.target.value)}
+                  placeholder={DEFAULT_APP_STORE_URL}
+                  autoComplete="off"
+                />
+              </label>
+              <label className="atom-field">
+                <span className="atom-field-label">Catalog URL</span>
+                <input
+                  value={registryIndexUrl}
+                  onChange={(e) => setRegistryIndexUrl(e.target.value)}
+                  autoComplete="off"
+                />
+              </label>
+              <SettingsToggle
+                checked={requireIntegrity}
+                label="Require integrity checks (recommended)"
+                onChange={setRequireIntegrity}
+              />
+              <SettingsToggle
+                checked={requireSignature}
+                label="Require signed modules"
+                onChange={setRequireSignature}
+              />
+              <div className="chrome-actions settings-section-actions">
+                <button
+                  type="button"
+                  className="chrome-approve"
+                  disabled={!registryIndexUrl.trim() || !advancedRegistryDirty}
+                  onClick={() => {
+                    saveStringToStorage(
+                      APP_STORE_URL_KEY,
+                      appStoreUrl.trim() || DEFAULT_APP_STORE_URL,
+                    );
+                    onSaveRegistry(registryIndexUrl.trim(), {
+                      requireIntegrity,
+                      requireSignature,
+                      blockedIds: inactiveIds,
+                      trustedPublishers: trustInitial.trustedPublishers,
+                    });
+                    markAdvancedRegistryClean({
+                      appStoreUrl: appStoreUrl.trim() || DEFAULT_APP_STORE_URL,
+                      registryIndexUrl: registryIndexUrl.trim(),
+                      requireIntegrity,
+                      requireSignature,
+                    });
+                  }}
+                >
+                  Save advanced settings
+                </button>
+              </div>
+            </div>
+          </details>
+        ) : (
+          <p className="settings-note">This site uses a fixed, trusted module catalog.</p>
+        )}
+      </div>
     );
   }
 
@@ -3320,6 +3620,10 @@ function SettingsDialog({
 
   function renderActivePanel() {
     switch (activeSection) {
+      case "profile":
+        return profilePanel;
+      case "log":
+        return logPanel;
       case "agent":
         return renderAgentPanel();
       case "briefing":
@@ -3334,8 +3638,6 @@ function SettingsDialog({
         return renderPaymentsPanel();
       case "modules":
         return renderModulesPanel();
-      case "developer":
-        return renderDeveloperPanel();
       case "donations":
         return renderDonationsPanel();
       default:
@@ -3353,12 +3655,26 @@ function SettingsDialog({
     >
       <div className="settings-dialog settings-dialog--sections" onClick={(event) => event.stopPropagation()}>
         <div className="settings-dialog-header">
-          <h2 id="settings-dialog-title">Settings</h2>
+          {mobileDetailOpen ? (
+            <button
+              type="button"
+              className="settings-heading-back"
+              id="settings-dialog-title"
+              onClick={() => setMobileDetailOpen(false)}
+            >
+              <IconChevronRight className="settings-back-icon settings-back-icon--left" />
+              Settings
+            </button>
+          ) : (
+            <h2 id="settings-dialog-title">Settings</h2>
+          )}
           <button type="button" className="settings-close" onClick={onClose} aria-label="Close settings">
             ×
           </button>
         </div>
-        <div className="settings-dialog-layout">
+        <div
+          className={`settings-dialog-layout${mobileDetailOpen ? " settings-dialog-layout--detail" : " settings-dialog-layout--list"}`}
+        >
           <nav className="settings-nav" aria-label="Settings sections">
             {navItems.map((item) => (
               <button
@@ -3366,40 +3682,30 @@ function SettingsDialog({
                 type="button"
                 className={`settings-nav-item${activeSection === item.id ? " is-active" : ""}`}
                 aria-current={activeSection === item.id ? "true" : undefined}
-                onClick={() => setActiveSection(item.id)}
+                onClick={() => selectSettingsSection(item.id)}
               >
                 <span className="settings-nav-label">{item.label}</span>
                 <span className="settings-nav-hint">{item.hint}</span>
+                <IconChevronRight className="settings-nav-chevron" />
               </button>
             ))}
           </nav>
           <div className="settings-dialog-body">
-            <div className="settings-panel">
-              <div className="settings-panel-head">
-                <h3>{activeNav.label}</h3>
-                <p className="settings-panel-desc">{activeNav.hint}</p>
+            {activeSection === "profile" ? (
+              profilePanel
+            ) : (
+              <div className="settings-panel">
+                <div className="settings-panel-head">
+                  <h3>{activeNav.label}</h3>
+                  <p className="settings-panel-desc">{activeNav.hint}</p>
+                </div>
+                <div className="settings-panel-fields">{renderActivePanel()}</div>
               </div>
-              <div className="settings-panel-fields">{renderActivePanel()}</div>
-            </div>
+            )}
           </div>
         </div>
         <div className="settings-dialog-footer">
-          {onLogout ? (
-            <button type="button" className="chrome-decline settings-logout" onClick={onLogout}>
-              Log out
-            </button>
-          ) : null}
           <div className="settings-dialog-footer-end">
-          {intent === "llm" && !productionLocked ? (
-            <button
-              type="button"
-              className="chrome-approve"
-              disabled={!llmValid}
-              onClick={saveLlmAndEnable}
-            >
-              Enable Live LLM
-            </button>
-          ) : null}
           <button type="button" className="chrome-decline" onClick={onClose}>
             Close
           </button>
@@ -3412,7 +3718,8 @@ function SettingsDialog({
 
 function SkinPicker() {
   const saved = loadStringFromStorage(SKIN_STORAGE_KEY);
-  const initial: AtomSkinId = isAtomSkinId(saved) ? saved : "minimal";
+  const initial: AtomSkinId =
+    isAtomSkinId(saved) && saved !== "default" ? saved : "minimal";
   const [skinId, setSkinId] = useState<AtomSkinId>(initial);
 
   function applySkin(next: AtomSkinId) {
@@ -3423,7 +3730,7 @@ function SkinPicker() {
 
   return (
     <label className="atom-field">
-      <span className="atom-field-label">Skin</span>
+      <span className="atom-field-label">Look</span>
       <select value={skinId} onChange={(e) => applySkin(e.target.value as AtomSkinId)}>
         {ATOM_SKINS.map((skin) => (
           <option key={skin.id} value={skin.id}>

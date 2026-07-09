@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BUSINESS_BRAND_CATEGORY,
   BUSINESS_CATALOG_CATEGORY,
@@ -18,6 +18,14 @@ import {
 import { CommsAgentClient } from "./comms/client.js";
 import { loadCommsAgentConfig } from "./comms/storage.js";
 import { BusinessCatalogImportPanel } from "./business/BusinessCatalogImportPanel.js";
+import { IconChevronRight } from "./shell/ShellIcons.js";
+import {
+  clearLocalAvatarBlob,
+  loadLocalAvatarBlob,
+  readFileAsDataUrl,
+  saveLocalAvatarBlob,
+} from "./profile/avatarStorage.js";
+import { useDirtyForm } from "./ui/useDirtyForm.js";
 
 /**
  * Owner profile editor: the user-visible face of the owner store. Everything
@@ -28,7 +36,24 @@ function tierLabel(tier: PreferenceTier | undefined): string {
   return tier ?? "preference";
 }
 
-type ProfileSection = "overview" | "brand" | "policies" | "knowledge" | "catalog" | "records";
+type ProfileSection = "about" | "overview" | "brand" | "policies" | "knowledge" | "catalog" | "records";
+
+const IDENTITY_LABELS = {
+  displayName: "Display name",
+  handle: "Handle",
+  bio: "About you",
+  signature: "Signature",
+  avatarUrl: "Photo URL",
+} as const;
+
+type IdentityField = keyof typeof IDENTITY_LABELS;
+
+function identityValue(records: OwnerRecord[], field: IdentityField): string {
+  const label = IDENTITY_LABELS[field];
+  const record = records.find((r) => r.category === "identity" && r.label === label);
+  if (!record) return "";
+  return typeof record.value === "string" ? record.value : String(record.value ?? "");
+}
 
 export function ProfilePanel({
   store,
@@ -36,6 +61,9 @@ export function ProfilePanel({
   proposals,
   onChanged,
   showBusinessSections = false,
+  embeddedInSettings = false,
+  lockedHandle,
+  accountDisplayName,
 }: {
   store: OwnerStore;
   records: OwnerRecord[];
@@ -43,7 +71,35 @@ export function ProfilePanel({
   onChanged: () => void;
   /** Brand voice, policies, knowledge, and catalog — business agents only. */
   showBusinessSections?: boolean;
+  /** When true, open About you immediately (Settings → Profile drill-down). */
+  embeddedInSettings?: boolean;
+  /** Registered @handle — display-only; cannot be changed after signup. */
+  lockedHandle?: string;
+  /** Display name from hosted profile when owner-store has none yet. */
+  accountDisplayName?: string;
 }) {
+  const [displayName, setDisplayName] = useState(
+    () => identityValue(records, "displayName") || accountDisplayName?.trim() || "",
+  );
+  const [handle, setHandle] = useState(() => identityValue(records, "handle"));
+  const [bio, setBio] = useState(() => identityValue(records, "bio"));
+  const [signature, setSignature] = useState(() => identityValue(records, "signature"));
+  const [avatarUrl, setAvatarUrl] = useState(() => identityValue(records, "avatarUrl"));
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [identityNote, setIdentityNote] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const resolvedHandle = (lockedHandle?.trim() || identityValue(records, "handle")).replace(/^@/, "");
+  const identityForm = useMemo(
+    () => ({
+      displayName: displayName.trim(),
+      handle: resolvedHandle,
+      bio: bio.trim(),
+      signature: signature.trim(),
+      avatarUrl: avatarUrl.trim(),
+    }),
+    [displayName, resolvedHandle, bio, signature, avatarUrl],
+  );
+  const { dirty: identityDirty, markClean: markIdentityClean } = useDirtyForm(identityForm);
   const [category, setCategory] = useState("preferences");
   const [label, setLabel] = useState("");
   const [value, setValue] = useState("");
@@ -253,11 +309,63 @@ export function ProfilePanel({
     byCategory.set(record.category, list);
   }
 
-  const [activeSection, setActiveSection] = useState<ProfileSection>("overview");
+  const [activeSection, setActiveSection] = useState<ProfileSection>("about");
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(embeddedInSettings);
+
+  useEffect(() => {
+    const nextName = identityValue(records, "displayName") || accountDisplayName?.trim() || "";
+    const nextBio = identityValue(records, "bio");
+    const nextSignature = identityValue(records, "signature");
+    const nextAvatar = identityValue(records, "avatarUrl");
+    setDisplayName(nextName);
+    setHandle(resolvedHandle);
+    setBio(nextBio);
+    setSignature(nextSignature);
+    setAvatarUrl(nextAvatar);
+    markIdentityClean({
+      displayName: nextName.trim(),
+      handle: resolvedHandle,
+      bio: nextBio.trim(),
+      signature: nextSignature.trim(),
+      avatarUrl: nextAvatar.trim(),
+    });
+  }, [records, resolvedHandle, accountDisplayName, markIdentityClean]);
+
+  useEffect(() => {
+    if (!resolvedHandle) return;
+    const existing = identityValue(records, "handle").replace(/^@/, "");
+    if (existing === resolvedHandle) return;
+    const record = records.find(
+      (r) => r.category === "identity" && r.label === IDENTITY_LABELS.handle,
+    );
+    store.upsert({
+      id: record?.id,
+      category: "identity",
+      label: IDENTITY_LABELS.handle,
+      value: resolvedHandle,
+      guarded: true,
+    });
+    onChanged();
+  }, [resolvedHandle, records, store, onChanged]);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    void loadLocalAvatarBlob().then((blob) => {
+      if (cancelled || !blob) return;
+      objectUrl = URL.createObjectURL(blob);
+      setAvatarPreview(objectUrl);
+    });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, []);
 
   const navItems = useMemo(() => {
     const items: Array<{ id: ProfileSection; label: string; hint: string }> = [
-      { id: "overview", label: "Overview", hint: "Privacy and curator proposals" },
+      { id: "about", label: "About you", hint: "Name, photo, and signature" },
+      { id: "overview", label: "Suggestions", hint: "Things your agent wants to remember" },
     ];
     if (showBusinessSections) {
       items.push(
@@ -267,7 +375,7 @@ export function ProfilePanel({
         { id: "catalog", label: "Catalog", hint: "Sellable items" },
       );
     }
-    items.push({ id: "records", label: "Records", hint: "Preferences and custom data" });
+    items.push({ id: "records", label: "Memory", hint: "Preferences and custom data" });
     return items;
   }, [showBusinessSections]);
 
@@ -275,16 +383,207 @@ export function ProfilePanel({
 
   useEffect(() => {
     if (!navItems.some((item) => item.id === activeSection)) {
-      setActiveSection("overview");
+      setActiveSection("about");
+      setMobileDetailOpen(false);
     }
   }, [activeSection, navItems]);
+
+  function selectProfileSection(id: ProfileSection) {
+    setActiveSection(id);
+    setMobileDetailOpen(true);
+  }
+
+  function upsertIdentity(field: IdentityField, nextValue: string) {
+    const trimmed = nextValue.trim();
+    const existing = records.find(
+      (r) => r.category === "identity" && r.label === IDENTITY_LABELS[field],
+    );
+    if (!trimmed) {
+      if (existing) {
+        store.remove(existing.id);
+        onChanged();
+      }
+      return;
+    }
+    store.upsert({
+      id: existing?.id,
+      category: "identity",
+      label: IDENTITY_LABELS[field],
+      value: trimmed,
+      guarded: true,
+    });
+    onChanged();
+  }
+
+  function saveIdentity() {
+    upsertIdentity("displayName", displayName);
+    if (resolvedHandle) upsertIdentity("handle", resolvedHandle);
+    upsertIdentity("bio", bio);
+    upsertIdentity("signature", signature);
+    upsertIdentity("avatarUrl", avatarUrl);
+    markIdentityClean({
+      displayName: displayName.trim(),
+      handle: resolvedHandle,
+      bio: bio.trim(),
+      signature: signature.trim(),
+      avatarUrl: avatarUrl.trim(),
+    });
+    setIdentityNote("Saved.");
+    window.setTimeout(() => setIdentityNote(null), 2000);
+  }
+
+  async function onAvatarSelected(file: File | null) {
+    if (!file) return;
+    setIdentityNote(null);
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      await saveLocalAvatarBlob(file);
+      setAvatarUrl(dataUrl);
+      upsertIdentity("avatarUrl", dataUrl);
+      setAvatarPreview((prev) => {
+        if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+        return dataUrl;
+      });
+      markIdentityClean({
+        displayName: displayName.trim(),
+        handle: resolvedHandle,
+        bio: bio.trim(),
+        signature: signature.trim(),
+        avatarUrl: dataUrl.trim(),
+      });
+      setIdentityNote("Photo saved locally and to your profile.");
+      window.setTimeout(() => setIdentityNote(null), 2500);
+    } catch (error) {
+      setIdentityNote(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function clearAvatar() {
+    await clearLocalAvatarBlob();
+    setAvatarUrl("");
+    setAvatarPreview((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return null;
+    });
+    upsertIdentity("avatarUrl", "");
+    markIdentityClean({
+      displayName: displayName.trim(),
+      handle: resolvedHandle,
+      bio: bio.trim(),
+      signature: signature.trim(),
+      avatarUrl: "",
+    });
+  }
+
+  function renderAboutPanel() {
+    const photoSrc = avatarPreview || avatarUrl.trim() || "";
+    const initials = (displayName.trim() || resolvedHandle || "?").slice(0, 2).toUpperCase();
+    return (
+      <>
+        <p className="panel-section-note">
+          How you appear to your agent and in rooms. Identity details stay guarded — your agent only
+          sees them when you approve.
+        </p>
+        <div className="profile-about-hero">
+          <button
+            type="button"
+            className="profile-avatar profile-avatar--button"
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Upload profile photo"
+          >
+            {photoSrc ? (
+              <img src={photoSrc} alt="" className="profile-avatar-img" />
+            ) : (
+              <span className="profile-avatar-initials">{initials}</span>
+            )}
+          </button>
+          <div className="profile-about-hero-text">
+            <strong>{displayName.trim() || "Add your name"}</strong>
+            <span>{resolvedHandle ? `@${resolvedHandle}` : "Handle not set yet"}</span>
+          </div>
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="profile-avatar-file"
+          onChange={(e) => {
+            const file = e.target.files?.[0] ?? null;
+            e.target.value = "";
+            void onAvatarSelected(file);
+          }}
+        />
+        <div className="profile-avatar-actions">
+          <button type="button" className="panel-btn" onClick={() => fileInputRef.current?.click()}>
+            Upload photo
+          </button>
+          {photoSrc ? (
+            <button type="button" className="panel-btn panel-btn-ghost" onClick={() => void clearAvatar()}>
+              Remove
+            </button>
+          ) : null}
+        </div>
+        <label className="atom-field">
+          <span className="atom-field-label">Display name</span>
+          <input
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="How you want to be called"
+            autoComplete="nickname"
+          />
+        </label>
+        <label className="atom-field">
+          <span className="atom-field-label">Handle</span>
+          <input
+            value={resolvedHandle ? `@${resolvedHandle}` : ""}
+            readOnly
+            disabled
+            placeholder="Set at registration"
+            autoComplete="username"
+          />
+          <span className="settings-note">Your @handle is set at registration and cannot be changed.</span>
+        </label>
+        <label className="atom-field">
+          <span className="atom-field-label">About you</span>
+          <textarea
+            className="panel-textarea"
+            rows={3}
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            placeholder="A short background your agent can use when introducing you"
+          />
+        </label>
+        <label className="atom-field">
+          <span className="atom-field-label">Signature</span>
+          <textarea
+            className="panel-textarea"
+            rows={2}
+            value={signature}
+            onChange={(e) => setSignature(e.target.value)}
+            placeholder="Closing line for messages (optional)"
+          />
+        </label>
+        <div className="chrome-actions settings-section-actions">
+          <button
+            type="button"
+            className="chrome-approve"
+            disabled={!identityDirty}
+            onClick={saveIdentity}
+          >
+            Save profile
+          </button>
+        </div>
+        {identityNote ? <p className="settings-note">{identityNote}</p> : null}
+      </>
+    );
+  }
 
   function renderOverviewPanel() {
     return (
       <>
         <p className="panel-section-note">
-          Stored only on this device. Open records are shared with your agent&apos;s model; guarded
-          records require shell approval every time.
+          When chat remembers something about you, it shows up here for you to accept or dismiss.
+          Open records are shared with your agent; guarded ones need your approval each time.
         </p>
         {proposals.length > 0 ? (
           <div className="panel-section shell-profile-proposals">
@@ -698,6 +997,8 @@ export function ProfilePanel({
 
   function renderActivePanel() {
     switch (activeSection) {
+      case "about":
+        return renderAboutPanel();
       case "overview":
         return renderOverviewPanel();
       case "brand":
@@ -711,13 +1012,15 @@ export function ProfilePanel({
       case "records":
         return renderRecordsPanel();
       default:
-        return renderOverviewPanel();
+        return renderAboutPanel();
     }
   }
 
   return (
-    <aside className="panel-view shell-profile">
-      <div className="profile-panel-layout">
+    <div className={`shell-profile${embeddedInSettings ? " shell-profile--embedded" : " panel-view"}`}>
+      <div
+        className={`profile-panel-layout${mobileDetailOpen ? " profile-panel-layout--detail" : " profile-panel-layout--list"}`}
+      >
         <nav className="settings-nav profile-nav" aria-label="Profile sections">
           {navItems.map((item) => (
             <button
@@ -725,10 +1028,11 @@ export function ProfilePanel({
               type="button"
               className={`settings-nav-item${activeSection === item.id ? " is-active" : ""}`}
               aria-current={activeSection === item.id ? "true" : undefined}
-              onClick={() => setActiveSection(item.id)}
+              onClick={() => selectProfileSection(item.id)}
             >
               <span className="settings-nav-label">{item.label}</span>
               <span className="settings-nav-hint">{item.hint}</span>
+              <IconChevronRight className="settings-nav-chevron" />
             </button>
           ))}
         </nav>
@@ -742,6 +1046,6 @@ export function ProfilePanel({
           </div>
         </div>
       </div>
-    </aside>
+    </div>
   );
 }

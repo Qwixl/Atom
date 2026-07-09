@@ -15,6 +15,7 @@ import {
   submitModuleFeedback,
   type ModuleAbuseCategory,
 } from "./moduleFeedback.js";
+import { SettingsToggle } from "./ui/SettingsToggle.js";
 import {
   filterRegistryModulesByCategory,
   formatRegistryCategoryLabel,
@@ -52,10 +53,14 @@ function StarInput({
 function ModuleCatalogRow({
   entry,
   rating,
+  inactive,
+  onSetActive,
   onFeedbackSent,
 }: {
   entry: RegistryModuleEntry;
   rating?: ModuleRatingSummary;
+  inactive?: boolean;
+  onSetActive?: (moduleId: string, active: boolean) => void;
   onFeedbackSent: (note: string) => void;
 }) {
   const isSystem = entry.tier === "system";
@@ -65,6 +70,7 @@ function ModuleCatalogRow({
   const [abuseCategory, setAbuseCategory] = useState<ModuleAbuseCategory>("other");
   const [abuseDetails, setAbuseDetails] = useState("");
   const [busy, setBusy] = useState(false);
+  const active = isSystem || !inactive;
 
   async function sendFeedback() {
     if (userRating < 1) return;
@@ -113,7 +119,7 @@ function ModuleCatalogRow({
           {entry.id}@{entry.version}
         </code>
         <span className="settings-registry-price">
-          {isSystem ? "Core" : modulePriceLabel(entry.pricing)}
+          {isSystem ? "Core" : inactive ? "Inactive" : modulePriceLabel(entry.pricing)}
         </span>
       </div>
       {isSystem ? (
@@ -153,82 +159,94 @@ function ModuleCatalogRow({
             ) : null;
           })()
         : null}
-      {!isSystem ? (
-        <div className="settings-registry-feedback">
-          <button
-            type="button"
-            className="panel-btn panel-btn-ghost"
-            onClick={() => setPanel((current) => (current === "rate" ? "none" : "rate"))}
-          >
-            {panel === "rate" ? "Cancel" : "Rate & feedback"}
-          </button>
-          <button
-            type="button"
-            className="panel-btn panel-btn-ghost"
-            onClick={() => setPanel((current) => (current === "report" ? "none" : "report"))}
-          >
-            {panel === "report" ? "Cancel" : "Report"}
-          </button>
-          {panel === "rate" ? (
-            <div className="settings-registry-feedback-form">
-              <StarInput value={userRating} onChange={setUserRating} disabled={busy} />
-              <textarea
-                className="panel-textarea"
-                rows={2}
-                maxLength={2000}
-                placeholder="Optional comment…"
-                value={comment}
-                onChange={(event) => setComment(event.target.value)}
-                disabled={busy}
+      <div className="settings-registry-feedback">
+        {isSystem ? (
+          <span className="settings-note">Always active</span>
+        ) : (
+          <>
+            {onSetActive ? (
+              <SettingsToggle
+                className="settings-switch--inline"
+                checked={active}
+                label={active ? "Active" : "Inactive"}
+                onChange={(checked) => onSetActive(entry.id, checked)}
               />
-              <button
-                type="button"
-                className="panel-btn"
-                disabled={busy || userRating < 1}
-                onClick={() => void sendFeedback()}
-              >
-                Submit
-              </button>
-            </div>
-          ) : null}
-          {panel === "report" ? (
-            <div className="settings-registry-feedback-form">
-              <label className="atom-field">
-                <span className="atom-field-label">Category</span>
-                <select
-                  className="panel-select"
-                  value={abuseCategory}
+            ) : null}
+            <button
+              type="button"
+              className="panel-btn panel-btn-ghost"
+              onClick={() => setPanel((current) => (current === "rate" ? "none" : "rate"))}
+            >
+              {panel === "rate" ? "Cancel" : "Rate & feedback"}
+            </button>
+            <button
+              type="button"
+              className="panel-btn panel-btn-ghost"
+              onClick={() => setPanel((current) => (current === "report" ? "none" : "report"))}
+            >
+              {panel === "report" ? "Cancel" : "Report"}
+            </button>
+            {panel === "rate" ? (
+              <div className="settings-registry-feedback-form">
+                <StarInput value={userRating} onChange={setUserRating} disabled={busy} />
+                <textarea
+                  className="panel-textarea"
+                  rows={2}
+                  maxLength={2000}
+                  placeholder="Optional comment…"
+                  value={comment}
+                  onChange={(event) => setComment(event.target.value)}
                   disabled={busy}
-                  onChange={(event) => setAbuseCategory(event.target.value as ModuleAbuseCategory)}
+                />
+                <button
+                  type="button"
+                  className="panel-btn"
+                  disabled={busy || userRating < 1}
+                  onClick={() => void sendFeedback()}
                 >
-                  {MODULE_ABUSE_CATEGORIES.map((entry) => (
-                    <option key={entry.id} value={entry.id}>
-                      {entry.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <textarea
-                className="panel-textarea"
-                rows={3}
-                maxLength={2000}
-                placeholder="What happened? Include URLs or steps if relevant…"
-                value={abuseDetails}
-                onChange={(event) => setAbuseDetails(event.target.value)}
-                disabled={busy}
-              />
-              <button
-                type="button"
-                className="panel-btn"
-                disabled={busy}
-                onClick={() => void sendAbuseReport()}
-              >
-                Submit report
-              </button>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+                  Submit
+                </button>
+              </div>
+            ) : null}
+            {panel === "report" ? (
+              <div className="settings-registry-feedback-form">
+                <label className="atom-field">
+                  <span className="atom-field-label">Category</span>
+                  <select
+                    className="panel-select"
+                    value={abuseCategory}
+                    disabled={busy}
+                    onChange={(event) => setAbuseCategory(event.target.value as ModuleAbuseCategory)}
+                  >
+                    {MODULE_ABUSE_CATEGORIES.map((entry) => (
+                      <option key={entry.id} value={entry.id}>
+                        {entry.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <textarea
+                  className="panel-textarea"
+                  rows={3}
+                  maxLength={2000}
+                  placeholder="What happened? Include URLs or steps if relevant…"
+                  value={abuseDetails}
+                  onChange={(event) => setAbuseDetails(event.target.value)}
+                  disabled={busy}
+                />
+                <button
+                  type="button"
+                  className="panel-btn"
+                  disabled={busy}
+                  onClick={() => void sendAbuseReport()}
+                >
+                  Submit report
+                </button>
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
     </li>
   );
 }
@@ -236,9 +254,13 @@ function ModuleCatalogRow({
 export function RegistryCatalogList({
   indexUrl,
   onStatus,
+  inactiveIds = [],
+  onSetModuleActive,
 }: {
   indexUrl: string;
   onStatus?: (note: string) => void;
+  inactiveIds?: readonly string[];
+  onSetModuleActive?: (moduleId: string, active: boolean) => void;
 }) {
   const [modules, setModules] = useState<RegistryModuleEntry[]>([]);
   const [category, setCategory] = useState<string | "all">("all");
@@ -316,6 +338,8 @@ export function RegistryCatalogList({
               key={`${entry.id}@${entry.version}`}
               entry={entry}
               rating={ratings?.modules[entry.id]}
+              inactive={inactiveIds.includes(entry.id)}
+              onSetActive={onSetModuleActive}
               onFeedbackSent={(note) => onStatus?.(note)}
             />
           ))}

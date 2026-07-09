@@ -472,6 +472,22 @@ export function RoomsPanel({
                   </div>
                 </div>
                 <div className="rooms-head-actions">
+                  <button
+                    type="button"
+                    className={`panel-btn rooms-members-toggle${mobilePane === "members" ? " is-active" : ""}`}
+                    aria-pressed={mobilePane === "members"}
+                    aria-label={
+                      mobilePane === "members"
+                        ? "Back to chat"
+                        : `Members, ${members.length}`
+                    }
+                    title={mobilePane === "members" ? "Chat" : `Members (${members.length})`}
+                    onClick={() =>
+                      setMobilePane((pane) => (pane === "chat" ? "members" : "chat"))
+                    }
+                  >
+                    {mobilePane === "members" ? "Chat" : `Members (${members.length})`}
+                  </button>
                   <label className="rooms-attendance">
                     <span className="rooms-attendance-label">Show as</span>
                     <select
@@ -508,27 +524,6 @@ export function RoomsPanel({
                   ) : null}
                 </div>
               </header>
-
-              <div className="rooms-mobile-tabs" role="tablist" aria-label="Room panels">
-                <button
-                  type="button"
-                  role="tab"
-                  className={`rooms-mobile-tab${mobilePane === "chat" ? " is-active" : ""}`}
-                  aria-selected={mobilePane === "chat"}
-                  onClick={() => setMobilePane("chat")}
-                >
-                  Chat
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  className={`rooms-mobile-tab${mobilePane === "members" ? " is-active" : ""}`}
-                  aria-selected={mobilePane === "members"}
-                  onClick={() => setMobilePane("members")}
-                >
-                  Members ({members.length})
-                </button>
-              </div>
 
               <div className={`rooms-thread-grid rooms-pane-${mobilePane}`}>
                 <aside className="rooms-members" aria-label="Room members">
@@ -652,6 +647,11 @@ export function RoomsPanel({
                   <footer className="comms-compose rooms-compose">
                     <textarea
                       className="panel-textarea rooms-compose-input"
+                      name="atom-room-compose"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={true}
                       value={compose}
                       onChange={(event) => setCompose(event.target.value)}
                       placeholder="Message the room…"
@@ -664,16 +664,14 @@ export function RoomsPanel({
                         }
                       }}
                     />
-                    <div className="comms-compose-row">
-                      <button
-                        type="button"
-                        className="panel-btn panel-btn-primary"
-                        disabled={loading || !compose.trim()}
-                        onClick={() => void sendMessage(compose)}
-                      >
-                        Send
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      className="panel-btn panel-btn-primary rooms-compose-send"
+                      disabled={loading || !compose.trim()}
+                      onClick={() => void sendMessage(compose)}
+                    >
+                      Send
+                    </button>
                   </footer>
                 </div>
               </div>

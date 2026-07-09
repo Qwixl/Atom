@@ -22,19 +22,21 @@ export function LocationSettingsPanel({
   const [homeInput, setHomeInput] = useState(() => loadLocationPreferences().homeCity ?? "");
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const homeDirty = homeInput.trim() !== (prefs.homeCity ?? "").trim();
 
   function persistHome(nextHome: string) {
     const homeCity = nextHome.trim() || undefined;
     const next = homeCity ? { homeCity } : {};
     setPrefs(next);
     saveLocationPreferences(next);
+    setHomeInput(homeCity ?? "");
     setNote("Home location saved.");
     window.setTimeout(() => setNote(null), 2000);
   }
 
   async function useCurrentLocationOnce() {
     setBusy(true);
-    setNote("Requesting one-shot location…");
+    setNote("Finding your location…");
     try {
       const result = await captureOneShotDeviceLocation();
       if (!result.ok) {
@@ -43,7 +45,7 @@ export function LocationSettingsPanel({
       }
       onDeviceLocationChange?.(result.snapshot);
       setNote(
-        `Using current location for this session (${result.snapshot.latitude.toFixed(4)}, ${result.snapshot.longitude.toFixed(4)}). Atom does not track location in the background.`,
+        `Using your location for this session (${result.snapshot.latitude.toFixed(4)}, ${result.snapshot.longitude.toFixed(4)}). Atom does not track location in the background.`,
       );
     } finally {
       setBusy(false);
@@ -52,7 +54,7 @@ export function LocationSettingsPanel({
 
   function clearDeviceLocation() {
     onDeviceLocationChange?.(null);
-    setNote("Cleared one-shot device location.");
+    setNote("Cleared session location.");
     window.setTimeout(() => setNote(null), 2000);
   }
 
@@ -62,7 +64,7 @@ export function LocationSettingsPanel({
         <>
           <h3>Location</h3>
           <p className="settings-note">
-            Home city powers default weather in briefings. One-shot device location runs only when you tap the button below — never in the background.
+            Home city powers default weather in briefings. Device location runs only when you tap the button below — never in the background.
           </p>
         </>
       ) : null}
@@ -78,11 +80,11 @@ export function LocationSettingsPanel({
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                persistHome(homeInput);
+                if (homeDirty) persistHome(homeInput);
               }
             }}
           />
-          <button type="button" disabled={busy} onClick={() => persistHome(homeInput)}>
+          <button type="button" disabled={busy || !homeDirty} onClick={() => persistHome(homeInput)}>
             Save home
           </button>
         </div>
@@ -94,7 +96,7 @@ export function LocationSettingsPanel({
       )}
       <div className="chrome-actions settings-section-actions">
         <button type="button" className="chrome-approve" disabled={busy} onClick={() => void useCurrentLocationOnce()}>
-          Use current location once
+          Find my location
         </button>
         {deviceLocation ? (
           <button type="button" disabled={busy} onClick={clearDeviceLocation}>

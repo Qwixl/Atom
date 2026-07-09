@@ -6,22 +6,22 @@ const SIMPLE_TOKEN_CONNECTORS = [
   {
     id: "todoist",
     label: "Todoist",
-    hint: "Personal API token from Todoist → Settings → Integrations → Developer.",
+    hint: "Personal API token from Todoist settings.",
   },
   {
     id: "github",
     label: "GitHub",
-    hint: "Fine-grained PAT with Issues and Notifications read access.",
+    hint: "Personal access token with Issues and Notifications read access.",
   },
   {
     id: "notion",
     label: "Notion",
-    hint: "Internal integration token with access to pages you share with the integration.",
+    hint: "Integration token for pages you share with it.",
   },
   {
     id: "linear",
     label: "Linear",
-    hint: "Personal API key from Linear → Settings → Account → Security & access.",
+    hint: "Personal API key from Linear account settings.",
   },
 ] as const;
 
@@ -283,41 +283,42 @@ export function TokenConnectorsSettingsPanel({
   }
 
   return (
-    <section className={embedded ? "connectors-subpanel" : "connectors-panel"}>
+    <section className={embedded ? "settings-subpanel" : "settings-panel"}>
       {!embedded ? (
-        <header>
-          <h3>Token connectors</h3>
-          <p>Paste personal API tokens — stored encrypted in your agent vault.</p>
+        <header className="settings-panel-head">
+          <h3>Connected apps</h3>
+          <p className="settings-panel-desc">Paste an access token for each app. Tokens stay on your agent.</p>
         </header>
-      ) : (
-        <>
-          <h4>Token connectors</h4>
-          <p className="connectors-hint">
-            Todoist, GitHub, Notion, Linear, Trello, Home Assistant, Bluesky, and Mastodon via owner-supplied tokens.
-          </p>
-        </>
-      )}
+      ) : null}
 
       {SIMPLE_TOKEN_CONNECTORS.map((connector) => (
-        <div key={connector.id} className="connectors-token-row">
-          <div className="connectors-token-head">
+        <div key={connector.id} className="connector-card">
+          <div className="connector-card-head">
             <strong>{connector.label}</strong>
-            <span>{connected[connector.id] ? "Connected" : "Not configured"}</span>
+            <span className={connected[connector.id] ? "connector-status is-on" : "connector-status"}>
+              {connected[connector.id] ? "Connected" : "Not connected"}
+            </span>
           </div>
-          <p className="connectors-hint">{connector.hint}</p>
-          <div className="connectors-token-actions">
-            <input
-              type="password"
-              autoComplete="off"
-              placeholder={`${connector.label} token`}
-              value={draftTokens[connector.id]}
-              onChange={(event) =>
-                setDraftTokens((prev) => ({ ...prev, [connector.id]: event.target.value }))
-              }
-              disabled={busy || !vaultUnlocked}
-            />
+          <p className="settings-note">{connector.hint}</p>
+          <div className="connector-form-grid">
+            <label className="atom-field">
+              <span className="atom-field-label">Access token</span>
+              <input
+                type="password"
+                autoComplete="off"
+                placeholder={`${connector.label} token`}
+                value={draftTokens[connector.id]}
+                onChange={(event) =>
+                  setDraftTokens((prev) => ({ ...prev, [connector.id]: event.target.value }))
+                }
+                disabled={busy || !vaultUnlocked}
+              />
+            </label>
+          </div>
+          <div className="chrome-actions settings-section-actions">
             <button
               type="button"
+              className="chrome-approve"
               disabled={busy || !vaultUnlocked || !draftTokens[connector.id].trim()}
               onClick={() => void saveToken(connector.id, connector.label)}
             >
@@ -336,30 +337,43 @@ export function TokenConnectorsSettingsPanel({
         </div>
       ))}
 
-      <div className="connectors-token-row">
-        <div className="connectors-token-head">
+      <div className="connector-card">
+        <div className="connector-card-head">
           <strong>Trello</strong>
-          <span>{connected.trello ? "Connected" : "Not configured"}</span>
+          <span className={connected.trello ? "connector-status is-on" : "connector-status"}>
+            {connected.trello ? "Connected" : "Not connected"}
+          </span>
         </div>
-        <p className="connectors-hint">API key from Trello Power-Up admin plus a user token from the authorize URL.</p>
-        <div className="connectors-token-actions">
-          <input
-            type="password"
-            autoComplete="off"
-            placeholder="Trello API key"
-            value={trelloApiKey}
-            onChange={(event) => setTrelloApiKey(event.target.value)}
-            disabled={busy || !vaultUnlocked}
-          />
-          <input
-            type="password"
-            autoComplete="off"
-            placeholder="Trello user token"
-            value={trelloToken}
-            onChange={(event) => setTrelloToken(event.target.value)}
-            disabled={busy || !vaultUnlocked}
-          />
-          <button type="button" disabled={busy || !vaultUnlocked || !trelloApiKey.trim() || !trelloToken.trim()} onClick={() => void saveTrello()}>
+        <p className="settings-note">API key and user token from Trello.</p>
+        <div className="connector-form-grid">
+          <label className="atom-field">
+            <span className="atom-field-label">API key</span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={trelloApiKey}
+              onChange={(event) => setTrelloApiKey(event.target.value)}
+              disabled={busy || !vaultUnlocked}
+            />
+          </label>
+          <label className="atom-field">
+            <span className="atom-field-label">User token</span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={trelloToken}
+              onChange={(event) => setTrelloToken(event.target.value)}
+              disabled={busy || !vaultUnlocked}
+            />
+          </label>
+        </div>
+        <div className="chrome-actions settings-section-actions">
+          <button
+            type="button"
+            className="chrome-approve"
+            disabled={busy || !vaultUnlocked || !trelloApiKey.trim() || !trelloToken.trim()}
+            onClick={() => void saveTrello()}
+          >
             Save
           </button>
           {connected.trello ? (
@@ -370,28 +384,42 @@ export function TokenConnectorsSettingsPanel({
         </div>
       </div>
 
-      <div className="connectors-token-row">
-        <div className="connectors-token-head">
+      <div className="connector-card">
+        <div className="connector-card-head">
           <strong>Home Assistant</strong>
-          <span>{connected["home-assistant"] ? "Connected" : "Not configured"}</span>
+          <span className={connected["home-assistant"] ? "connector-status is-on" : "connector-status"}>
+            {connected["home-assistant"] ? "Connected" : "Not connected"}
+          </span>
         </div>
-        <p className="connectors-hint">Long-lived access token and HTTPS base URL (local network or Nabu Casa).</p>
-        <div className="connectors-token-actions">
-          <input
-            placeholder="Base URL (https://…)"
-            value={haBaseUrl}
-            onChange={(event) => setHaBaseUrl(event.target.value)}
-            disabled={busy || !vaultUnlocked}
-          />
-          <input
-            type="password"
-            autoComplete="off"
-            placeholder="Long-lived access token"
-            value={haToken}
-            onChange={(event) => setHaToken(event.target.value)}
-            disabled={busy || !vaultUnlocked}
-          />
-          <button type="button" disabled={busy || !vaultUnlocked || !haBaseUrl.trim() || !haToken.trim()} onClick={() => void saveHomeAssistant()}>
+        <p className="settings-note">Home address and a long-lived access token.</p>
+        <div className="connector-form-grid">
+          <label className="atom-field">
+            <span className="atom-field-label">Home address</span>
+            <input
+              placeholder="https://…"
+              value={haBaseUrl}
+              onChange={(event) => setHaBaseUrl(event.target.value)}
+              disabled={busy || !vaultUnlocked}
+            />
+          </label>
+          <label className="atom-field">
+            <span className="atom-field-label">Access token</span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={haToken}
+              onChange={(event) => setHaToken(event.target.value)}
+              disabled={busy || !vaultUnlocked}
+            />
+          </label>
+        </div>
+        <div className="chrome-actions settings-section-actions">
+          <button
+            type="button"
+            className="chrome-approve"
+            disabled={busy || !vaultUnlocked || !haBaseUrl.trim() || !haToken.trim()}
+            onClick={() => void saveHomeAssistant()}
+          >
             Save
           </button>
           {connected["home-assistant"] ? (
@@ -402,37 +430,48 @@ export function TokenConnectorsSettingsPanel({
         </div>
       </div>
 
-      <div className="connectors-token-row">
-        <div className="connectors-token-head">
+      <div className="connector-card">
+        <div className="connector-card-head">
           <strong>Bluesky</strong>
-          <span>{connected.bluesky ? "Connected" : "Not configured"}</span>
+          <span className={connected.bluesky ? "connector-status is-on" : "connector-status"}>
+            {connected.bluesky ? "Connected" : "Not connected"}
+          </span>
         </div>
-        <p className="connectors-hint">
-          Handle and app password from Bluesky → Settings → App passwords. Optional custom PDS URL (defaults to bsky.social).
-        </p>
-        <div className="connectors-token-actions">
-          <input
-            placeholder="Handle (user.bsky.social)"
-            value={bskyHandle}
-            onChange={(event) => setBskyHandle(event.target.value)}
-            disabled={busy || !vaultUnlocked}
-          />
-          <input
-            type="password"
-            autoComplete="off"
-            placeholder="App password"
-            value={bskyPassword}
-            onChange={(event) => setBskyPassword(event.target.value)}
-            disabled={busy || !vaultUnlocked}
-          />
-          <input
-            placeholder="PDS URL (optional)"
-            value={bskyPdsUrl}
-            onChange={(event) => setBskyPdsUrl(event.target.value)}
-            disabled={busy || !vaultUnlocked}
-          />
+        <p className="settings-note">Handle and an app password from Bluesky settings.</p>
+        <div className="connector-form-grid">
+          <label className="atom-field">
+            <span className="atom-field-label">Handle</span>
+            <input
+              placeholder="you.bsky.social"
+              value={bskyHandle}
+              onChange={(event) => setBskyHandle(event.target.value)}
+              disabled={busy || !vaultUnlocked}
+            />
+          </label>
+          <label className="atom-field">
+            <span className="atom-field-label">App password</span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={bskyPassword}
+              onChange={(event) => setBskyPassword(event.target.value)}
+              disabled={busy || !vaultUnlocked}
+            />
+          </label>
+          <label className="atom-field connector-form-span">
+            <span className="atom-field-label">Custom server (optional)</span>
+            <input
+              placeholder="Leave blank for bsky.social"
+              value={bskyPdsUrl}
+              onChange={(event) => setBskyPdsUrl(event.target.value)}
+              disabled={busy || !vaultUnlocked}
+            />
+          </label>
+        </div>
+        <div className="chrome-actions settings-section-actions">
           <button
             type="button"
+            className="chrome-approve"
             disabled={busy || !vaultUnlocked || !bskyHandle.trim() || !bskyPassword.trim()}
             onClick={() => void saveBluesky()}
           >
@@ -446,31 +485,39 @@ export function TokenConnectorsSettingsPanel({
         </div>
       </div>
 
-      <div className="connectors-token-row">
-        <div className="connectors-token-head">
+      <div className="connector-card">
+        <div className="connector-card-head">
           <strong>Mastodon</strong>
-          <span>{connected.mastodon ? "Connected" : "Not configured"}</span>
+          <span className={connected.mastodon ? "connector-status is-on" : "connector-status"}>
+            {connected.mastodon ? "Connected" : "Not connected"}
+          </span>
         </div>
-        <p className="connectors-hint">
-          Instance HTTPS URL and access token from your instance → Preferences → Development → New application.
-        </p>
-        <div className="connectors-token-actions">
-          <input
-            placeholder="Instance URL (https://…)"
-            value={mastoInstanceUrl}
-            onChange={(event) => setMastoInstanceUrl(event.target.value)}
-            disabled={busy || !vaultUnlocked}
-          />
-          <input
-            type="password"
-            autoComplete="off"
-            placeholder="Access token"
-            value={mastoToken}
-            onChange={(event) => setMastoToken(event.target.value)}
-            disabled={busy || !vaultUnlocked}
-          />
+        <p className="settings-note">Your instance address and an access token.</p>
+        <div className="connector-form-grid">
+          <label className="atom-field">
+            <span className="atom-field-label">Instance URL</span>
+            <input
+              placeholder="https://…"
+              value={mastoInstanceUrl}
+              onChange={(event) => setMastoInstanceUrl(event.target.value)}
+              disabled={busy || !vaultUnlocked}
+            />
+          </label>
+          <label className="atom-field">
+            <span className="atom-field-label">Access token</span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={mastoToken}
+              onChange={(event) => setMastoToken(event.target.value)}
+              disabled={busy || !vaultUnlocked}
+            />
+          </label>
+        </div>
+        <div className="chrome-actions settings-section-actions">
           <button
             type="button"
+            className="chrome-approve"
             disabled={busy || !vaultUnlocked || !mastoInstanceUrl.trim() || !mastoToken.trim()}
             onClick={() => void saveMastodon()}
           >
@@ -484,7 +531,7 @@ export function TokenConnectorsSettingsPanel({
         </div>
       </div>
 
-      {note ? <p className="connectors-note">{note}</p> : null}
+      {note ? <p className="settings-note">{note}</p> : null}
     </section>
   );
 }
