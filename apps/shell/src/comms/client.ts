@@ -1193,7 +1193,10 @@ export class CommsAgentClient {
       kind: "message" | "activity";
       text?: string;
       activityKind?: string;
+      payload?: Record<string, unknown>;
       at: string;
+      deleted?: boolean;
+      editedAt?: string;
     }>;
   }> {
     return getJson(

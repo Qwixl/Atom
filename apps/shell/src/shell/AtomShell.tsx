@@ -215,7 +215,7 @@ export function AtomShell({
             </button>
             <button
               type="button"
-              className="btn btn-ghost atom-app-account panel-btn-icon"
+              className="atom-app-account panel-btn-icon"
               aria-label="Account"
               title="Account"
               onClick={() => {
@@ -227,13 +227,27 @@ export function AtomShell({
             </button>
             <button
               type="button"
-              className="btn btn-ghost atom-app-settings panel-btn-icon"
+              className="atom-app-settings panel-btn-icon"
               aria-label={settingsLabel}
               title={settingsLabel}
               onClick={() => openSettings("default")}
             >
               <IconSettings className="atom-nav-icon" />
             </button>
+            {onLogout ? (
+              <button
+                type="button"
+                className="atom-app-logout panel-btn-icon"
+                aria-label="Exit"
+                title="Exit"
+                onClick={() => {
+                  hideNavMenu();
+                  onLogout();
+                }}
+              >
+                <IconExit className="atom-nav-icon" />
+              </button>
+            ) : null}
           </div>
         </div>
       </header>

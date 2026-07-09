@@ -75,8 +75,9 @@ a {
   justify-content: space-between;
   gap: 16px;
   padding: 16px 24px;
-  border-bottom: 1px solid var(--shell-border);
-  background: var(--shell-raised-bg);
+  border-bottom: 1px solid color-mix(in srgb, #fff 18%, transparent);
+  background: #000000;
+  color: #ffffff;
 }
 
 .site-brand {
@@ -91,14 +92,14 @@ a {
   display: block;
   height: 34px;
   width: auto;
-  color: var(--shell-text);
+  color: #ffffff;
 }
 
 .site-brand-ident {
   display: none;
   width: 28px;
   height: 28px;
-  color: var(--shell-text);
+  color: #ffffff;
 }
 
 @media (max-width: 720px) {
@@ -134,6 +135,36 @@ a {
 .site-nav summary,
 .site-nav button {
   font: inherit;
+}
+
+.site-header .btn-ghost {
+  color: color-mix(in srgb, #ffffff 78%, transparent);
+}
+
+.site-header .btn-ghost:hover {
+  color: #ffffff;
+  background: color-mix(in srgb, #ffffff 12%, transparent);
+}
+
+.site-header .btn-primary {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.site-header .btn-primary:hover {
+  background: #e8e8e8;
+  border-color: #e8e8e8;
+  color: #000000;
+}
+
+.site-header .btn-icon {
+  color: color-mix(in srgb, #ffffff 78%, transparent);
+}
+
+.site-header .btn-icon:hover {
+  color: #ffffff;
+  background: color-mix(in srgb, #ffffff 12%, transparent);
 }
 
 .btn {

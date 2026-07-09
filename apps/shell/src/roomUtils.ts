@@ -19,6 +19,10 @@ const ACTIVITY_LABELS: Record<string, string> = {
   leave: "left the room",
   moderation: "moderation action",
   reading: "joined the reading corner",
+  message_edit: "edited a message",
+  message_delete: "deleted a message",
+  friend_request: "sent a friend request",
+  friend_accept: "accepted a friend request",
 };
 
 export function formatRoomActivity(activityKind: string | undefined): string {

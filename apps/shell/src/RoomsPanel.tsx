@@ -11,6 +11,15 @@ import { formatRoomActivity, moduleBundleUrl, COFFEE_SHOP_ROOM_ID } from "./room
 import { formatRoomMemberLabel, formatRoomSenderLabel, loadOwnerHandle, ownerHandleForRooms } from "./ownerHandle.js";
 import { IconLeave, IconRefresh } from "./shell/ShellIcons.js";
 import { ContactAbuseReportForm } from "./ContactAbuseReportForm.js";
+import { ComposeExtras, insertAtCursor } from "./compose/ComposeExtras.js";
+import type { GifItem } from "./compose/gifLibrary.js";
+import {
+  createOutgoingFriendRequest,
+  ingestIncomingFriendRequest,
+  listIncomingFriendRequests,
+  updateFriendRequestStatus,
+  type FriendRequest,
+} from "./compose/friendRequests.js";
 import { resizeTextareaToContent } from "./ui/resizeTextareaToContent.js";
 
 interface RoomDescriptorWire {
@@ -23,13 +32,24 @@ interface RoomDescriptorWire {
   hostUrl?: string;
 }
 
+interface RoomGifPayload {
+  url: string;
+  previewUrl?: string;
+  title?: string;
+  width?: number;
+  height?: number;
+}
+
 interface RoomMessageWire {
   seq: number;
   senderDid: string;
   kind: "message" | "activity";
   text?: string;
   activityKind?: string;
+  payload?: Record<string, unknown>;
   at: string;
+  deleted?: boolean;
+  editedAt?: string;
 }
 
 interface RoomMemberWire {
@@ -69,7 +89,7 @@ export function RoomsPanel({
   onAgentAuthFailure,
   onRequestReconnect,
 }: RoomsPanelProps) {
-  const { client } = useAgentConfig(vaultUnlocked);
+  const { client, config: agentConfig } = useAgentConfig(vaultUnlocked);
   const connectionActive = agentConnectionReady && vaultUnlocked;
   const [localDid, setLocalDid] = useState<string | null>(null);
   const [hosted, setHosted] = useState<RoomDescriptorWire[]>([]);
@@ -83,6 +103,9 @@ export function RoomsPanel({
   const [memberMenuDid, setMemberMenuDid] = useState<string | null>(null);
   const [memberReportDid, setMemberReportDid] = useState<string | null>(null);
   const [compose, setCompose] = useState("");
+  const [pendingGif, setPendingGif] = useState<GifItem | null>(null);
+  const [editingSeq, setEditingSeq] = useState<number | null>(null);
+  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sceneOpen, setSceneOpen] = useState(false);
@@ -91,15 +114,28 @@ export function RoomsPanel({
   const composeRef = useRef<HTMLTextAreaElement | null>(null);
   const pollRef = useRef<number | null>(null);
   const memberPollRef = useRef<number | null>(null);
+  const membersRef = useRef(members);
   const lastSeqRef = useRef(0);
   const moduleFrameRef = useRef<HTMLIFrameElement | null>(null);
 
+  membersRef.current = members;
+
   const contacts = contactsProp ?? loadContacts();
   const ownerHandle = useMemo(() => loadOwnerHandle(), []);
+  const ownerHandleRef = useRef(ownerHandle);
+  ownerHandleRef.current = ownerHandle;
 
   useLayoutEffect(() => {
     if (composeRef.current) resizeTextareaToContent(composeRef.current);
   }, [compose]);
+
+  useEffect(() => {
+    if (!localDid) {
+      setFriendRequests([]);
+      return;
+    }
+    setFriendRequests(listIncomingFriendRequests(localDid));
+  }, [localDid]);
 
   const joinedIds = useMemo(() => new Set(joined.map((entry) => entry.roomId)), [joined]);
   const hasJoinedCoffeeShop = joinedIds.has(COFFEE_SHOP_ROOM_ID);
@@ -155,20 +191,80 @@ export function RoomsPanel({
     try {
       const body = await client.listRoomMessages(selectedId, lastSeqRef.current);
       if (body.messages.length > 0) {
+        const membersSnapshot = membersRef.current;
+        const handleSnapshot = ownerHandleRef.current;
         setMessages((prev) => {
-          const merged = [...prev];
+          const bySeq = new Map(prev.map((m) => [m.seq, m]));
           for (const msg of body.messages) {
-            if (!merged.some((m) => m.seq === msg.seq)) merged.push(msg);
+            bySeq.set(msg.seq, msg);
+            if (
+              msg.kind === "activity" &&
+              (msg.activityKind === "message_edit" || msg.activityKind === "message_delete")
+            ) {
+              const targetSeq = Number(msg.payload?.targetSeq);
+              const target = bySeq.get(targetSeq);
+              if (target && Number.isFinite(targetSeq)) {
+                if (msg.activityKind === "message_delete") {
+                  bySeq.set(targetSeq, {
+                    ...target,
+                    deleted: true,
+                    text: undefined,
+                    payload: undefined,
+                  });
+                } else {
+                  const text =
+                    typeof msg.payload?.text === "string" ? msg.payload.text : target.text;
+                  const gif = msg.payload?.gif;
+                  bySeq.set(targetSeq, {
+                    ...target,
+                    text,
+                    editedAt: msg.at,
+                    payload:
+                      gif && typeof gif === "object"
+                        ? { gif: gif as Record<string, unknown> }
+                        : target.payload,
+                  });
+                }
+              }
+            }
+            if (
+              msg.kind === "activity" &&
+              msg.activityKind === "friend_request" &&
+              localDid &&
+              typeof msg.payload?.toDid === "string" &&
+              msg.payload.toDid === localDid &&
+              msg.senderDid !== localDid
+            ) {
+              ingestIncomingFriendRequest({
+                id: typeof msg.payload.requestId === "string" ? msg.payload.requestId : undefined,
+                fromDid: msg.senderDid,
+                fromName:
+                  typeof msg.payload.fromName === "string"
+                    ? msg.payload.fromName
+                    : formatRoomSenderLabel(
+                        msg.senderDid,
+                        membersSnapshot,
+                        localDid,
+                        handleSnapshot,
+                      ),
+                fromEndpoint:
+                  typeof msg.payload.fromEndpoint === "string"
+                    ? msg.payload.fromEndpoint
+                    : membersSnapshot.find((m) => m.did === msg.senderDid)?.endpoint,
+                toDid: localDid,
+                roomId: selectedId,
+              });
+              setFriendRequests(listIncomingFriendRequests(localDid));
+            }
           }
-          merged.sort((a, b) => a.seq - b.seq);
-          return merged.slice(-200);
+          return [...bySeq.values()].sort((a, b) => a.seq - b.seq).slice(-200);
         });
         lastSeqRef.current = Math.max(lastSeqRef.current, ...body.messages.map((m) => m.seq));
       }
     } catch {
       /* polling — ignore transient errors */
     }
-  }, [client, selectedId]);
+  }, [client, selectedId, localDid]);
 
   const refreshMembers = useCallback(async () => {
     if (!selectedId) return;
@@ -278,19 +374,182 @@ export function RoomsPanel({
     return () => window.removeEventListener("message", onMessage);
   }, [sceneModuleBridge, selectedId, sendActivity]);
 
-  async function sendMessage(text: string): Promise<void> {
-    if (!selectedId || !text.trim()) return;
+  async function sendMessage(text: string, gif?: GifItem | null): Promise<void> {
+    if (!selectedId) return;
+    const trimmed = text.trim();
+    const attachment = gif ?? pendingGif;
+    if (!trimmed && !attachment) return;
     setLoading(true);
     try {
-      await client.sendRoomMessage({ roomId: selectedId, text: text.trim() });
+      const gifPayload = attachment
+        ? {
+            gif: {
+              url: attachment.url,
+              previewUrl: attachment.previewUrl,
+              title: attachment.title,
+              width: attachment.width,
+              height: attachment.height,
+            } satisfies RoomGifPayload,
+          }
+        : undefined;
+      if (editingSeq != null) {
+        await client.sendRoomMessage({
+          roomId: selectedId,
+          kind: "activity",
+          activityKind: "message_edit",
+          payload: { targetSeq: editingSeq, text: trimmed, ...gifPayload },
+        });
+        setEditingSeq(null);
+        onActivity?.("Message edited");
+      } else {
+        await client.sendRoomMessage({
+          roomId: selectedId,
+          text: trimmed || undefined,
+          payload: gifPayload,
+        });
+        onActivity?.("Message sent");
+      }
       setCompose("");
+      setPendingGif(null);
       await refreshMessages();
-      onActivity?.("Message sent");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
+  }
+
+  async function deleteOwnMessage(seq: number): Promise<void> {
+    if (!selectedId) return;
+    setLoading(true);
+    try {
+      await client.sendRoomMessage({
+        roomId: selectedId,
+        kind: "activity",
+        activityKind: "message_delete",
+        payload: { targetSeq: seq },
+      });
+      if (editingSeq === seq) {
+        setEditingSeq(null);
+        setCompose("");
+        setPendingGif(null);
+      }
+      await refreshMessages();
+      onActivity?.("Message deleted");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function beginEdit(msg: RoomMessageWire): void {
+    setEditingSeq(msg.seq);
+    setCompose(msg.text ?? "");
+    const gif = msg.payload?.gif as RoomGifPayload | undefined;
+    setPendingGif(
+      gif?.url
+        ? {
+            id: `edit-${msg.seq}`,
+            title: gif.title || "GIF",
+            url: gif.url,
+            previewUrl: gif.previewUrl || gif.url,
+            width: gif.width,
+            height: gif.height,
+          }
+        : null,
+    );
+    composeRef.current?.focus();
+  }
+
+  async function sendFriendRequest(member: RoomMemberWire): Promise<void> {
+    if (!localDid || !selectedId) return;
+    if (!member.endpoint?.trim()) {
+      setStatus("This member has not shared an agent address.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const fromEndpoint = agentConfig.adminUrl?.trim() || undefined;
+      const request = createOutgoingFriendRequest({
+        fromDid: localDid,
+        fromName: ownerHandle ? `@${ownerHandle}` : "You",
+        fromEndpoint,
+        toDid: member.did,
+        toName: memberLabel(member, localDid, ownerHandle),
+        toEndpoint: member.endpoint.trim(),
+        roomId: selectedId,
+      });
+      await client.sendRoomMessage({
+        roomId: selectedId,
+        kind: "activity",
+        activityKind: "friend_request",
+        payload: {
+          requestId: request.id,
+          toDid: member.did,
+          fromName: request.fromName,
+          fromEndpoint,
+        },
+      });
+      setMemberMenuDid(null);
+      await refreshMessages();
+      onActivity?.(`Friend request sent to ${memberLabel(member, localDid, ownerHandle)}`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function acceptFriendRequest(request: FriendRequest): Promise<void> {
+    if (!localDid) return;
+    setLoading(true);
+    try {
+      if (request.fromEndpoint?.trim()) {
+        await client.connectPeer(request.fromEndpoint.trim(), request.fromDid);
+      }
+      const existing = contacts.find((c) => c.did === request.fromDid);
+      const endpoint = request.fromEndpoint?.trim() || existing?.endpoint || "";
+      const contact: AgentContact = existing
+        ? { ...existing, endpoint: endpoint || existing.endpoint, source: existing.source ?? "room" }
+        : {
+            id: request.fromDid,
+            did: request.fromDid,
+            name: request.fromName || request.fromDid.slice(0, 16),
+            endpoint,
+            connectedAt: new Date().toISOString(),
+            kind: "person",
+            source: "room",
+          };
+      if (!contact.endpoint) {
+        throw new Error("Cannot add contact — no agent address on the request.");
+      }
+      const list = [...contacts.filter((row) => row.did !== request.fromDid), contact];
+      saveContacts(list);
+      onContactsChange?.(list);
+      updateFriendRequestStatus(request.id, "accepted");
+      setFriendRequests(listIncomingFriendRequests(localDid));
+      if (selectedId) {
+        await client.sendRoomMessage({
+          roomId: selectedId,
+          kind: "activity",
+          activityKind: "friend_accept",
+          payload: { requestId: request.id, toDid: request.fromDid },
+        });
+        await refreshMessages();
+      }
+      onActivity?.(`Added ${contact.name} to Messages contacts`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function declineFriendRequest(request: FriendRequest): void {
+    if (!localDid) return;
+    updateFriendRequestStatus(request.id, "declined");
+    setFriendRequests(listIncomingFriendRequests(localDid));
   }
 
   async function joinCoffeeShop(): Promise<void> {
@@ -573,6 +832,14 @@ export function RoomsPanel({
                                 <button
                                   type="button"
                                   className="panel-btn"
+                                  disabled={loading || !member.endpoint || !!contact}
+                                  onClick={() => void sendFriendRequest(member)}
+                                >
+                                  {contact ? "Already a contact" : "Send friend request"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="panel-btn"
                                   onClick={() => updateMemberPolicy(member, { muted: !contact?.muted })}
                                 >
                                   {contact?.muted ? "Unmute" : "Mute"}
@@ -626,31 +893,140 @@ export function RoomsPanel({
                 </aside>
 
                 <div className="rooms-chat-layout">
-                  <div className="comms-messages rooms-messages">
-                    {messages.length === 0 ? (
-                      <div className="comms-empty-thread">
-                        <strong>No messages yet</strong>
-                        <p>Say hello — everyone in the room can see chat.</p>
-                      </div>
-                    ) : (
-                      messages.map((msg) => (
-                        <div key={msg.seq} className="shell-comms-msg shell-comms-msg-in rooms-msg">
-                          <div className="shell-comms-msg-text">
-                            <strong>
-                              {formatRoomSenderLabel(msg.senderDid, members, localDid, ownerHandle)}
-                            </strong>
-                            {msg.kind === "activity" ? (
-                              <span> · {formatRoomActivity(msg.activityKind)}</span>
-                            ) : (
-                              <p>{msg.text}</p>
-                            )}
+                  {friendRequests.length > 0 ? (
+                    <div className="friend-request-banners" aria-label="Friend requests">
+                      {friendRequests.map((request) => (
+                        <div key={request.id} className="friend-request-banner">
+                          <span>
+                            <strong>{request.fromName}</strong> sent you a friend request
+                          </span>
+                          <div className="friend-request-banner-actions">
+                            <button
+                              type="button"
+                              className="panel-btn panel-btn-primary"
+                              disabled={loading}
+                              onClick={() => void acceptFriendRequest(request)}
+                            >
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              className="panel-btn"
+                              onClick={() => declineFriendRequest(request)}
+                            >
+                              Decline
+                            </button>
                           </div>
-                          <time dateTime={msg.at}>{new Date(msg.at).toLocaleTimeString()}</time>
                         </div>
-                      ))
-                    )}
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="comms-messages rooms-messages">
+                    {(() => {
+                      const visible = messages.filter(
+                        (msg) =>
+                          msg.kind === "message" ||
+                          (msg.kind === "activity" &&
+                            msg.activityKind !== "message_edit" &&
+                            msg.activityKind !== "message_delete"),
+                      );
+                      if (visible.length === 0) {
+                        return (
+                          <div className="comms-empty-thread">
+                            <strong>No messages yet</strong>
+                            <p>Say hello — everyone in the room can see chat.</p>
+                          </div>
+                        );
+                      }
+                      return visible.map((msg) => {
+                          const isOwn = msg.senderDid === localDid;
+                          const gif = msg.payload?.gif as RoomGifPayload | undefined;
+                          return (
+                            <div
+                              key={msg.seq}
+                              className={`shell-comms-msg shell-comms-msg-in rooms-msg${isOwn ? " is-own" : ""}`}
+                            >
+                              <div className="shell-comms-msg-text">
+                                <strong>
+                                  {formatRoomSenderLabel(msg.senderDid, members, localDid, ownerHandle)}
+                                </strong>
+                                {msg.editedAt && !msg.deleted ? (
+                                  <span className="rooms-msg-edited">(edited)</span>
+                                ) : null}
+                                {msg.kind === "activity" ? (
+                                  <span> · {formatRoomActivity(msg.activityKind)}</span>
+                                ) : msg.deleted ? (
+                                  <p className="rooms-msg-deleted">Message deleted</p>
+                                ) : (
+                                  <>
+                                    {msg.text ? <p>{msg.text}</p> : null}
+                                    {gif?.url ? (
+                                      <img
+                                        className="rooms-msg-gif"
+                                        src={gif.url}
+                                        alt={gif.title || "GIF"}
+                                        loading="lazy"
+                                      />
+                                    ) : null}
+                                  </>
+                                )}
+                                {isOwn && msg.kind === "message" && !msg.deleted ? (
+                                  <div className="rooms-msg-actions">
+                                    <button type="button" onClick={() => beginEdit(msg)}>
+                                      Edit
+                                    </button>
+                                    <button type="button" onClick={() => void deleteOwnMessage(msg.seq)}>
+                                      Delete
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </div>
+                              <time dateTime={msg.at}>{new Date(msg.at).toLocaleTimeString()}</time>
+                            </div>
+                          );
+                        });
+                    })()}
                   </div>
                   <footer className="comms-compose rooms-compose">
+                    {editingSeq != null ? (
+                      <div className="rooms-compose-edit-bar">
+                        <span>Editing message</span>
+                        <button
+                          type="button"
+                          className="panel-btn panel-btn-ghost"
+                          onClick={() => {
+                            setEditingSeq(null);
+                            setCompose("");
+                            setPendingGif(null);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : null}
+                    {pendingGif ? (
+                      <div className="rooms-compose-gif-preview">
+                        <img src={pendingGif.previewUrl} alt={pendingGif.title} />
+                        <button type="button" className="panel-btn panel-btn-ghost" onClick={() => setPendingGif(null)}>
+                          Remove GIF
+                        </button>
+                      </div>
+                    ) : null}
+                    <ComposeExtras
+                      disabled={loading}
+                      enableGif
+                      onInsertEmoji={(emoji) => {
+                        const { next, caret } = insertAtCursor(compose, emoji, composeRef.current);
+                        setCompose(next);
+                        requestAnimationFrame(() => {
+                          const el = composeRef.current;
+                          if (!el) return;
+                          el.focus();
+                          el.setSelectionRange(caret, caret);
+                        });
+                      }}
+                      onPickGif={(gif) => setPendingGif(gif)}
+                    />
                     <textarea
                       ref={composeRef}
                       className="panel-textarea rooms-compose-input"
@@ -661,24 +1037,24 @@ export function RoomsPanel({
                       spellCheck={true}
                       value={compose}
                       onChange={(event) => setCompose(event.target.value)}
-                      placeholder="Message the room…"
+                      placeholder={editingSeq != null ? "Edit your message…" : "Message the room…"}
                       rows={1}
                       aria-label="Room message"
                       onKeyDown={(event) => {
                         // Enter inserts a newline. Ctrl/Cmd+Enter sends.
                         if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
                           event.preventDefault();
-                          void sendMessage(compose);
+                          void sendMessage(compose, pendingGif);
                         }
                       }}
                     />
                     <button
                       type="button"
                       className="panel-btn panel-btn-primary rooms-compose-send"
-                      disabled={loading || !compose.trim()}
-                      onClick={() => void sendMessage(compose)}
+                      disabled={loading || (!compose.trim() && !pendingGif)}
+                      onClick={() => void sendMessage(compose, pendingGif)}
                     >
-                      Send
+                      {editingSeq != null ? "Save" : "Send"}
                     </button>
                   </footer>
                 </div>
