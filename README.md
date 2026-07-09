@@ -80,6 +80,8 @@ Build your app with any bundler that resolves the package `development` export c
 
 | Doc | Audience |
 |---|---|
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | How to contribute (issues, PRs, principles) |
+| [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) | Community standards |
 | [EMBED.md](./EMBED.md) | Third-party hosts embedding the engine |
 | [MODULES.md](./MODULES.md) | Module authors publishing to a registry |
 | [API-v1.md](./API-v1.md) | Frozen v1 contracts (composition, session, manifest, sandbox) |
