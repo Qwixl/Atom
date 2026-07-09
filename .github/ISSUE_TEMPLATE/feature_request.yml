@@ -1,0 +1,42 @@
+name: Feature request
+description: Propose a concrete improvement that fits Atom’s architecture
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Prefer a [Discussion](https://github.com/Qwixl/Atom/discussions) for open-ended ideas. Use this form when you have a specific change in mind.
+        Please read [CONTRIBUTING.md](https://github.com/Qwixl/Atom/blob/main/CONTRIBUTING.md) — especially **Design principles**.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or developer problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should change? Which packages/apps?
+    validations:
+      required: true
+  - type: dropdown
+    id: composition
+    attributes:
+      label: Does this stay agent-led (composition / modules / tools)?
+      description: Shell-side keyword routing and task-specific Chat widgets are rejected.
+      options:
+        - "Yes — agent composition, registry module, or connector/tool"
+        - "Unsure — need design discussion"
+        - "No — proposing shell-side special case (explain why)"
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches, existing primitives/modules, or “do nothing”.
+    validations:
+      required: false

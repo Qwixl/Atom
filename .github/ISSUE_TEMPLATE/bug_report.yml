@@ -1,0 +1,61 @@
+name: Bug report
+description: Something is broken in Atom (shell, packages, agent-backend, registry)
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for a clear report. **Security vulnerabilities** → [Security Advisories](https://github.com/Qwixl/Atom/security/advisories/new), not this form.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong in one or two sentences?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps, commands, or UI path.
+      placeholder: |
+        1. pnpm dev
+        2. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include errors, screenshots, or logs (redact secrets).
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node/pnpm versions, browser, hosted vs self-hosted.
+      placeholder: Windows 11, Node 22, pnpm 9, Chrome, self-hosted agent
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Shell / Chat
+        - Agent backend
+        - Packages (shell-core, adapters, …)
+        - Registry / modules
+        - Control plane / hosting
+        - Docs / DX
+        - Other
+    validations:
+      required: true

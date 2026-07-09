@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & ideas
+    url: https://github.com/Qwixl/Atom/discussions
+    about: Use Discussions for Q&A, ideas, and show-and-tell.
+  - name: Security vulnerability
+    url: https://github.com/Qwixl/Atom/security/advisories/new
+    about: Report security issues privately via GitHub Security Advisories.
+  - name: Abuse / Code of Conduct
+    url: mailto:abuse@qwixl.dev
+    about: Report harassment or CoC violations to abuse@qwixl.dev.
