@@ -32,6 +32,10 @@ if (isAtomSkinId(savedSkin)) {
 
 initDocumentTheme();
 
+void import("./native/syncNativeChrome.js").then(({ syncNativeChrome }) => {
+  void syncNativeChrome();
+});
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <RootApp />

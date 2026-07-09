@@ -919,9 +919,13 @@
 .comms-compose-main .panel-textarea {
   flex: 1;
   min-width: 0;
-  min-height: 40px;
-  max-height: 6rem;
-  resize: vertical;
+  min-height: 2.75rem;
+  max-height: calc(1.45em * 6 + 22px);
+  font-size: 15px;
+  line-height: 1.45;
+  resize: none;
+  overflow-y: auto;
+  field-sizing: content;
 }
 
 .comms-compose-actions {
@@ -1705,8 +1709,13 @@ a.settings-donate-link {
 .rooms-compose-input {
   flex: 1;
   min-width: 0;
-  min-height: 2.5rem;
-  max-height: 6rem;
+  min-height: 2.75rem;
+  max-height: calc(1.45em * 6 + 22px);
+  font-size: 15px;
+  line-height: 1.45;
+  resize: none;
+  overflow-y: auto;
+  field-sizing: content;
 }
 
 .rooms-compose-send {
@@ -1856,8 +1865,8 @@ a.settings-donate-link {
   }
 
   .comms-compose-main .panel-textarea {
-    min-height: 40px;
-    max-height: 5.5rem;
+    min-height: 2.75rem;
+    max-height: calc(1.45em * 6 + 22px);
     padding: 8px 10px;
     resize: none;
   }
@@ -1991,7 +2000,8 @@ a.settings-donate-link {
   }
 
   .rooms-compose-input {
-    min-height: 40px;
+    min-height: 2.75rem;
+    max-height: calc(1.45em * 6 + 22px);
   }
 
   .rooms-scene-details {

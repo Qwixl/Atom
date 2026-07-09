@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createModuleBridge, MODULE_IFRAME_SANDBOX } from "@qwixl/renderer-web";
 import { CommsAgentClient } from "./comms/client.js";
 import { quickJoinCoffeeShop } from "./discoverActions.js";
@@ -11,6 +11,7 @@ import { formatRoomActivity, moduleBundleUrl, COFFEE_SHOP_ROOM_ID } from "./room
 import { formatRoomMemberLabel, formatRoomSenderLabel, loadOwnerHandle, ownerHandleForRooms } from "./ownerHandle.js";
 import { IconLeave, IconRefresh } from "./shell/ShellIcons.js";
 import { ContactAbuseReportForm } from "./ContactAbuseReportForm.js";
+import { resizeTextareaToContent } from "./ui/resizeTextareaToContent.js";
 
 interface RoomDescriptorWire {
   roomId: string;
@@ -87,6 +88,7 @@ export function RoomsPanel({
   const [sceneOpen, setSceneOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<"chat" | "members">("chat");
   const [mobileListOpen, setMobileListOpen] = useState(false);
+  const composeRef = useRef<HTMLTextAreaElement | null>(null);
   const pollRef = useRef<number | null>(null);
   const memberPollRef = useRef<number | null>(null);
   const lastSeqRef = useRef(0);
@@ -94,6 +96,10 @@ export function RoomsPanel({
 
   const contacts = contactsProp ?? loadContacts();
   const ownerHandle = useMemo(() => loadOwnerHandle(), []);
+
+  useLayoutEffect(() => {
+    if (composeRef.current) resizeTextareaToContent(composeRef.current);
+  }, [compose]);
 
   const joinedIds = useMemo(() => new Set(joined.map((entry) => entry.roomId)), [joined]);
   const hasJoinedCoffeeShop = joinedIds.has(COFFEE_SHOP_ROOM_ID);
@@ -646,6 +652,7 @@ export function RoomsPanel({
                   </div>
                   <footer className="comms-compose rooms-compose">
                     <textarea
+                      ref={composeRef}
                       className="panel-textarea rooms-compose-input"
                       name="atom-room-compose"
                       autoComplete="off"
@@ -658,7 +665,8 @@ export function RoomsPanel({
                       rows={1}
                       aria-label="Room message"
                       onKeyDown={(event) => {
-                        if (event.key === "Enter" && !event.shiftKey) {
+                        // Enter inserts a newline. Ctrl/Cmd+Enter sends.
+                        if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
                           event.preventDefault();
                           void sendMessage(compose);
                         }
