@@ -37,6 +37,9 @@ export interface RoomMessage {
   activityKind?: string;
   payload?: Record<string, unknown>;
   at: string;
+  /** Soft-delete: message hidden but seq retained for sync. */
+  deleted?: boolean;
+  editedAt?: string;
 }
 
 interface RoomsFile {
@@ -210,6 +213,73 @@ export class RoomStore {
     const room = this.rooms.get(roomId);
     if (!room) return [];
     return room.messages.filter((m) => m.seq > afterSeq);
+  }
+
+  getMessage(roomId: string, seq: number): RoomMessage | undefined {
+    const room = this.rooms.get(roomId);
+    if (!room) return undefined;
+    return room.messages.find((m) => m.seq === seq);
+  }
+
+  /** Owner-only soft delete. Returns the updated message or null. */
+  softDeleteMessage(roomId: string, seq: number, actorDid: string): RoomMessage | null {
+    const room = this.rooms.get(roomId);
+    if (!room) throw new Error(`Unknown room ${roomId}`);
+    const message = room.messages.find((m) => m.seq === seq);
+    if (!message) return null;
+    if (message.kind !== "message") throw new Error("Only chat messages can be deleted");
+    if (message.senderDid !== actorDid) throw new Error("Only the author can delete this message");
+    if (message.deleted) return message;
+    message.deleted = true;
+    message.text = undefined;
+    message.payload = undefined;
+    void this.persist();
+    return message;
+  }
+
+  /** Owner-only edit of message text (and optional GIF payload). */
+  editMessage(
+    roomId: string,
+    seq: number,
+    actorDid: string,
+    opts: { text?: string; payload?: Record<string, unknown> },
+  ): RoomMessage | null {
+    const room = this.rooms.get(roomId);
+    if (!room) throw new Error(`Unknown room ${roomId}`);
+    const message = room.messages.find((m) => m.seq === seq);
+    if (!message) return null;
+    if (message.kind !== "message") throw new Error("Only chat messages can be edited");
+    if (message.senderDid !== actorDid) throw new Error("Only the author can edit this message");
+    if (message.deleted) throw new Error("Cannot edit a deleted message");
+    const text = opts.text?.trim();
+    if (text !== undefined) message.text = text || undefined;
+    if (opts.payload !== undefined) message.payload = opts.payload;
+    message.editedAt = new Date().toISOString();
+    void this.persist();
+    return message;
+  }
+
+  /**
+   * Apply a remote edit/delete activity onto the local message log.
+   * Used when peers receive `message_edit` / `message_delete` activities.
+   */
+  applyMessageMutation(
+    roomId: string,
+    opts: {
+      action: "edit" | "delete";
+      targetSeq: number;
+      actorDid: string;
+      text?: string;
+      payload?: Record<string, unknown>;
+    },
+  ): RoomMessage | null {
+    if (opts.action === "delete") {
+      return this.softDeleteMessage(roomId, opts.targetSeq, opts.actorDid);
+    }
+    return this.editMessage(roomId, opts.targetSeq, opts.actorDid, {
+      text: opts.text,
+      payload: opts.payload,
+    });
   }
 
   stats(roomId: string): {

@@ -916,6 +916,10 @@
   gap: 8px;
 }
 
+.comms-compose-main .compose-extras {
+  flex: none;
+}
+
 .comms-compose-main .panel-textarea {
   flex: 1;
   min-width: 0;
@@ -1702,12 +1706,35 @@ a.settings-donate-link {
   border-top: 1px solid var(--shell-border);
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 8px;
 }
 
+.rooms-compose .compose-extras {
+  order: 0;
+}
+
+.rooms-compose-edit-bar,
+.rooms-compose-gif-preview {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--shell-text-muted);
+}
+
+.rooms-compose-gif-preview img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
 .rooms-compose-input {
-  flex: 1;
+  flex: 1 1 140px;
   min-width: 0;
   min-height: 2.75rem;
   max-height: calc(1.45em * 6 + 22px);

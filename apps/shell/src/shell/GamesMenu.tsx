@@ -48,7 +48,7 @@ export function GamesMenu({ games, onSelect, disabled, className }: GamesMenuPro
       onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
     >
       <summary
-        className="btn btn-ghost atom-app-games-trigger panel-btn-icon atom-nav-item"
+        className="atom-app-games-trigger atom-nav-item"
         aria-label="Games"
         title="Games"
         aria-controls={menuId}

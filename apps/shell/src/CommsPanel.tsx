@@ -60,6 +60,7 @@ import { DemoSessionRoleSwitcher, highlightRoleForDemoStep } from "./demo/DemoSe
 import type { DemoSessionRole } from "./demo/demoSessionStorage.js";
 import { ATOM_BROWSER_MODE, IS_PRODUCTION_HOST } from "./hostConfig.js";
 import { ContactAbuseReportForm } from "./ContactAbuseReportForm.js";
+import { ComposeExtras, insertAtCursor } from "./compose/ComposeExtras.js";
 import { resizeTextareaToContent } from "./ui/resizeTextareaToContent.js";
 import { IconRefresh } from "./shell/ShellIcons.js";
 
@@ -2508,6 +2509,19 @@ export function CommsPanel({
                 ) : null}
               <footer className="comms-compose">
                 <div className="comms-compose-main">
+                  <ComposeExtras
+                    disabled={selected.blocked || busy}
+                    onInsertEmoji={(emoji) => {
+                      const { next, caret } = insertAtCursor(compose, emoji, composeRef.current);
+                      setCompose(next);
+                      requestAnimationFrame(() => {
+                        const el = composeRef.current;
+                        if (!el) return;
+                        el.focus();
+                        el.setSelectionRange(caret, caret);
+                      });
+                    }}
+                  />
                   <textarea
                     ref={composeRef}
                     className="panel-textarea"
