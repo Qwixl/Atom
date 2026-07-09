@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { AtomIdent } from "../brand/AtomIdent.js";
+import { AtomWordmark } from "../brand/AtomWordmark.js";
 import { ThemeToggle } from "../theme/ThemeToggle.js";
 import { navigate } from "../navigation.js";
 import { DeveloperNavDropdown } from "./DeveloperNavDropdown.js";
@@ -19,15 +21,14 @@ export function MarketingLayout({
         <a
           href="/"
           className="atom-marketing-brand"
+          aria-label="Atom home"
           onClick={(e) => {
             e.preventDefault();
             navigate("/");
           }}
         >
-          <span className="atom-marketing-brand-mark" aria-hidden="true">
-            A
-          </span>
-          Atom
+          <AtomWordmark className="atom-marketing-wordmark" />
+          <AtomIdent className="atom-marketing-ident" />
           <span className="atom-beta-badge">Beta</span>
         </a>
         <nav className="atom-marketing-nav-links" aria-label="Site">

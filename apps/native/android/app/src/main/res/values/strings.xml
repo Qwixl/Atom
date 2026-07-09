@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Atom</string>
+    <string name="title_activity_main">Atom</string>
+    <string name="package_name">com.qwixl.atom</string>
+    <string name="custom_url_scheme">com.qwixl.atom</string>
+</resources>

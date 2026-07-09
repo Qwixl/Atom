@@ -58,6 +58,7 @@ export function DemoSessionApp() {
         section="comms"
         onNavigate={() => {}}
         onOpenSettings={exitDemo}
+        onOpenAccount={exitDemo}
         settingsLabel="Exit demo"
         badges={{}}
         headerActions={

@@ -60,6 +60,7 @@ import { DemoSessionRoleSwitcher, highlightRoleForDemoStep } from "./demo/DemoSe
 import type { DemoSessionRole } from "./demo/demoSessionStorage.js";
 import { ATOM_BROWSER_MODE, IS_PRODUCTION_HOST } from "./hostConfig.js";
 import { ContactAbuseReportForm } from "./ContactAbuseReportForm.js";
+import { IconRefresh } from "./shell/ShellIcons.js";
 
 export type CommsConfirmationResult =
   | { decision: "declined" }
@@ -416,6 +417,10 @@ export function CommsPanel({
     setActionNote("Agent URL saved.");
     await refreshAgentStatus();
   }
+
+  const agentConnectionDirty =
+    agentUrl.trim() !== (initialConfig.adminUrl ?? "").trim() ||
+    adminToken.trim() !== (initialConfig.adminToken ?? "").trim();
 
   async function previewInvite() {
     setInvitePreview(null);
@@ -1895,7 +1900,12 @@ export function CommsPanel({
                   onChange={(e) => setAgentUrl(e.target.value)}
                   placeholder={DEFAULT_COMMS_AGENT_URL}
                 />
-                <button type="button" className="panel-btn panel-btn-primary" onClick={() => void saveAgentUrl()}>
+                <button
+                  type="button"
+                  className="panel-btn panel-btn-primary"
+                  disabled={!agentConnectionDirty}
+                  onClick={() => void saveAgentUrl()}
+                >
                   Save
                 </button>
               </div>
@@ -2158,6 +2168,32 @@ export function CommsPanel({
                   </div>
                 </div>
                 <div className="panel-detail-actions comms-peer-actions">
+                  {!demoMode ? (
+                    <button
+                      type="button"
+                      className={`panel-btn comms-contact-toggle${conversationPane === "contact" ? " is-active" : ""}`}
+                      aria-pressed={conversationPane === "contact"}
+                      aria-label={conversationPane === "contact" ? "Back to chat" : "Contact details"}
+                      title={conversationPane === "contact" ? "Chat" : "Contact"}
+                      onClick={() =>
+                        setConversationPane((pane) => (pane === "chat" ? "contact" : "chat"))
+                      }
+                    >
+                      {conversationPane === "contact" ? "Chat" : "Contact"}
+                    </button>
+                  ) : null}
+                  {!demoMode ? (
+                    <button
+                      type="button"
+                      className="panel-btn panel-btn-icon comms-refresh-inbox"
+                      aria-label="Refresh inbox"
+                      title="Refresh inbox"
+                      disabled={busy}
+                      onClick={() => void refreshInbox()}
+                    >
+                      <IconRefresh />
+                    </button>
+                  ) : null}
                   {!demoSession ? (
                   <button
                     type="button"
@@ -2465,38 +2501,47 @@ export function CommsPanel({
                   </div>
                 ) : null}
               <footer className="comms-compose">
-                <textarea
-                  className="panel-textarea"
-                  value={compose}
-                  onChange={(e) => setCompose(e.target.value)}
-                  placeholder={selected.blocked ? "Unblock to send messages…" : "Write a message…"}
-                  rows={2}
-                  aria-label="Message"
-                  disabled={selected.blocked || busy}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      void sendMessage();
-                    }
-                  }}
-                />
-                <div className="comms-compose-actions">
-                  <button
-                    type="button"
-                    className={`comms-compose-toggle${showPurchaseIntent ? " is-active" : ""}`}
-                    aria-expanded={showPurchaseIntent}
-                    onClick={() => setShowPurchaseIntent((open) => !open)}
-                  >
-                    Purchase
-                  </button>
-                  <button
-                    type="button"
-                    className="panel-btn panel-btn-primary"
-                    disabled={busy || !compose.trim() || selected.blocked}
-                    onClick={() => void sendMessage()}
-                  >
-                    Send
-                  </button>
+                <div className="comms-compose-main">
+                  <textarea
+                    className="panel-textarea"
+                    name="atom-comms-compose"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={true}
+                    value={compose}
+                    onChange={(e) => setCompose(e.target.value)}
+                    placeholder={selected.blocked ? "Unblock to send messages…" : "Write a message…"}
+                    rows={1}
+                    aria-label="Message"
+                    disabled={selected.blocked || busy}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        void sendMessage();
+                      }
+                    }}
+                  />
+                  <div className="comms-compose-actions">
+                    <button
+                      type="button"
+                      className={`comms-compose-toggle${showPurchaseIntent ? " is-active" : ""}`}
+                      aria-expanded={showPurchaseIntent}
+                      aria-label="Purchase intent"
+                      title="Purchase"
+                      onClick={() => setShowPurchaseIntent((open) => !open)}
+                    >
+                      Purchase
+                    </button>
+                    <button
+                      type="button"
+                      className="panel-btn panel-btn-primary"
+                      disabled={busy || !compose.trim() || selected.blocked}
+                      onClick={() => void sendMessage()}
+                    >
+                      Send
+                    </button>
+                  </div>
                 </div>
                 {showPurchaseIntent ? (
                   <div className="comms-compose-row">

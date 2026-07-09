@@ -695,10 +695,81 @@
 
 /* Attestation log */
 
-.attestation-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.attestation-compact {
+  padding: 0;
+  overflow: hidden;
+}
+
+.attestation-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px 10px;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.attestation-summary::-webkit-details-marker {
+  display: none;
+}
+
+.attestation-decision {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--shell-inset-bg, var(--bg-inset));
+  color: var(--shell-text-subtle, var(--text-dim));
+}
+
+.attestation-decision--approved {
+  color: var(--shell-success, #1a7f37);
+  background: color-mix(in srgb, var(--shell-success, #1a7f37) 12%, transparent);
+}
+
+.attestation-decision--declined {
+  color: var(--shell-danger, #c0392b);
+  background: color-mix(in srgb, var(--shell-danger, #c0392b) 12%, transparent);
+}
+
+.attestation-summary-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--shell-text, var(--text));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attestation-summary-time {
+  font-size: 11px;
+  color: var(--shell-text-subtle, var(--text-dim));
+  white-space: nowrap;
+}
+
+.attestation-details {
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--shell-border, var(--border));
+}
+
+.attestation-more {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--shell-text-subtle, var(--text-dim));
+}
+
+.attestation-terms--full {
+  margin-top: 8px;
+}
+
+.attestation-compact .attestation-hash {
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--shell-text-subtle, var(--text-dim));
+  word-break: break-all;
 }
 
 .attestation {
@@ -838,11 +909,34 @@
   --comms-compose-height: 88px;
 }
 
+.comms-compose-main {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.comms-compose-main .panel-textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  max-height: 6rem;
+  resize: vertical;
+}
+
+.comms-compose-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .comms-compose-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 0;
   align-items: center;
   justify-content: flex-end;
 }
@@ -1055,6 +1149,8 @@ a.settings-donate-link {
   font-size: 12px;
   color: var(--shell-warn);
 }
+
+.comms-schedule-card {
   flex: none;
   border-top: 1px solid var(--shell-border);
   background: var(--shell-sidebar-bg);
@@ -1103,13 +1199,6 @@ a.settings-donate-link {
 .comms-schedule-card-fields .comms-schedule-duration {
   flex: 0 1 110px;
   min-width: 90px;
-}
-
-.comms-compose-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
 }
 
 .comms-compose-toggle {
@@ -1607,11 +1696,28 @@ a.settings-donate-link {
   flex: none;
   padding: 8px 12px;
   border-top: 1px solid var(--shell-border);
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 8px;
 }
 
 .rooms-compose-input {
+  flex: 1;
+  min-width: 0;
   min-height: 2.5rem;
   max-height: 6rem;
+}
+
+.rooms-compose-send {
+  flex: none;
+  align-self: stretch;
+}
+
+.rooms-members-toggle,
+.comms-contact-toggle,
+.comms-refresh-inbox {
+  display: none;
 }
 
 .rooms-venue {
@@ -1703,6 +1809,73 @@ a.settings-donate-link {
     justify-content: flex-start;
   }
 
+  /* —— Messages (Comms): chat owns the viewport —— */
+
+  .comms-workspace > .panel-toolbar {
+    display: none;
+  }
+
+  .comms-peer-bar {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .comms-peer-bar .panel-avatar-lg {
+    display: none;
+  }
+
+  .comms-peer-bar .panel-detail-subtitle {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 42vw;
+  }
+
+  .comms-pane-tabs {
+    display: none;
+  }
+
+  .comms-contact-toggle,
+  .comms-refresh-inbox {
+    display: inline-flex;
+  }
+
+  .comms-open-contacts {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .comms-compose {
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+    gap: 6px;
+    --comms-compose-height: 52px;
+  }
+
+  .comms-compose-main {
+    gap: 8px;
+  }
+
+  .comms-compose-main .panel-textarea {
+    min-height: 40px;
+    max-height: 5.5rem;
+    padding: 8px 10px;
+    resize: none;
+  }
+
+  .comms-compose-actions {
+    gap: 6px;
+  }
+
+  .comms-compose-toggle {
+    padding: 8px 10px;
+  }
+
+  .comms-compose-row {
+    width: 100%;
+  }
+
+  /* —— Rooms: chat owns the viewport —— */
+
   .rooms-view .panel-list {
     max-height: none;
     flex: 1;
@@ -1736,8 +1909,8 @@ a.settings-donate-link {
 
   .rooms-mobile-head-start {
     display: flex;
-    align-items: flex-start;
-    gap: 8px;
+    align-items: center;
+    gap: 6px;
     min-width: 0;
     flex: 1;
   }
@@ -1748,52 +1921,38 @@ a.settings-donate-link {
   }
 
   .rooms-mobile-tabs {
-    display: flex;
-    gap: 4px;
-    padding: 0 12px 8px;
-    border-bottom: 1px solid var(--shell-border);
-    background: var(--shell-raised-bg);
-    flex-shrink: 0;
+    display: none;
   }
 
-  .rooms-mobile-tab {
-    flex: 1;
-    padding: 8px 10px;
-    border: 1px solid transparent;
-    border-radius: var(--shell-radius-sm);
-    background: transparent;
-    color: var(--shell-text-muted);
-    font: inherit;
+  .rooms-members-toggle {
+    display: inline-flex;
     font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .rooms-mobile-tab.is-active {
-    color: var(--shell-text);
-    background: var(--shell-inset-bg);
-    border-color: var(--shell-border);
+    padding: 6px 8px;
   }
 
   .rooms-chat-head {
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
   }
 
-  .rooms-chat-head .rooms-attendance-label {
+  .rooms-chat-head .rooms-attendance {
     display: none;
   }
 
   .rooms-chat-head .panel-detail-subtitle {
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 1;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
 
   .rooms-head-actions {
-    width: 100%;
-    justify-content: flex-end;
+    width: auto;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    gap: 4px;
   }
 
   .rooms-thread-grid {
@@ -1828,10 +1987,19 @@ a.settings-donate-link {
   }
 
   .rooms-compose {
-    padding: 8px 12px;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .rooms-compose-input {
+    min-height: 40px;
   }
 
   .rooms-scene-details {
+    display: none;
+  }
+
+  .rooms-thread-grid.rooms-pane-members ~ .rooms-scene-details {
+    display: block;
     flex-shrink: 0;
   }
 }

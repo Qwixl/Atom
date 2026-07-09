@@ -1,0 +1,10 @@
+# Capacitor / Android local artifacts
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/captures/
+android/.idea/
+*.iml
+.DS_Store
+node_modules/

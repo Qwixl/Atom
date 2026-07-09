@@ -1,17 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { approvalRefForConnectorWrite } from "./connectorWriteApproval.js";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
 
 interface RssFeedSummary {
   id: string;
   label: string;
-}
-
-interface RssItemSummary {
-  id: string;
-  title: string;
-  link?: string;
-  published?: string;
 }
 
 export function RssSettingsPanel({
@@ -29,7 +22,9 @@ export function RssSettingsPanel({
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [feeds, setFeeds] = useState<RssFeedSummary[]>([]);
-  const [items, setItems] = useState<RssItemSummary[]>([]);
+
+  const onFeedsChangedRef = useRef(onFeedsChanged);
+  onFeedsChangedRef.current = onFeedsChanged;
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -37,21 +32,14 @@ export function RssSettingsPanel({
     try {
       const statusOp = await client.invokeConnector("rss", "getStatus", {});
       const statusResult = statusOp.result as { feeds?: RssFeedSummary[] };
-      const nextFeeds = statusResult.feeds ?? [];
-      setFeeds(nextFeeds);
-      if (nextFeeds.length === 0) {
-        setItems([]);
-        return;
-      }
-      const listed = await client.invokeConnector("rss", "listItems", { limit: 8 });
-      setItems((listed.result as { items?: RssItemSummary[] }).items ?? []);
+      setFeeds(statusResult.feeds ?? []);
     } catch (error) {
       setNote(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(false);
-      onFeedsChanged?.();
+      onFeedsChangedRef.current?.();
     }
-  }, [client, onFeedsChanged]);
+  }, [client]);
 
   useEffect(() => {
     void refresh();
@@ -93,48 +81,46 @@ export function RssSettingsPanel({
     <>
       {!embedded ? (
         <>
-          <h3>RSS / Atom</h3>
-          <p className="settings-note">
-            Subscribe to public news or blog feeds without OAuth. URLs are stored encrypted on your agent.
-          </p>
+          <h3>News feeds</h3>
+          <p className="settings-note">Follow public news or blog feeds. Links are saved on your agent.</p>
         </>
-      ) : (
-        <h4>RSS / Atom</h4>
-      )}
-      {!config.adminToken ? (
-        <p className="settings-note webcal-settings-warn">Connect your agent first to save RSS feeds.</p>
       ) : null}
-      <label className="atom-field">
-        <span className="atom-field-label">Feed URL (https://)</span>
-        <input
-          value={feedUrl}
-          onChange={(e) => setFeedUrl(e.target.value)}
-          placeholder="https://…/feed.xml"
-          autoComplete="off"
-          disabled={busy}
-        />
-      </label>
-      <label className="atom-field">
-        <span className="atom-field-label">Label (optional)</span>
-        <input
-          value={feedLabel}
-          onChange={(e) => setFeedLabel(e.target.value)}
-          placeholder="Tech news"
-          autoComplete="off"
-          disabled={busy}
-        />
-      </label>
+      {!config.adminToken ? (
+        <p className="settings-note webcal-settings-warn">Connect your agent first to save feeds.</p>
+      ) : null}
+      <div className="connector-form-grid">
+        <label className="atom-field">
+          <span className="atom-field-label">Feed link</span>
+          <input
+            value={feedUrl}
+            onChange={(e) => setFeedUrl(e.target.value)}
+            placeholder="https://…/feed.xml"
+            autoComplete="off"
+            disabled={busy}
+          />
+        </label>
+        <label className="atom-field">
+          <span className="atom-field-label">Name (optional)</span>
+          <input
+            value={feedLabel}
+            onChange={(e) => setFeedLabel(e.target.value)}
+            placeholder="Tech news"
+            autoComplete="off"
+            disabled={busy}
+          />
+        </label>
+      </div>
       <div className="chrome-actions settings-section-actions">
         <button type="button" className="chrome-approve" disabled={busy || !feedUrl.trim()} onClick={() => void saveFeed()}>
-          Save feed to agent
+          Save feed
         </button>
         <button type="button" disabled={busy} onClick={() => void refresh()}>
-          Refresh
+          Refresh list
         </button>
       </div>
       {feeds.length > 0 ? (
         <div className="webcal-feeds">
-          <h4>Connected feeds</h4>
+          <h4>Your feeds</h4>
           <ul>
             {feeds.map((feed) => (
               <li key={feed.id}>
@@ -142,19 +128,6 @@ export function RssSettingsPanel({
                 <button type="button" className="webcal-remove" disabled={busy} onClick={() => void removeFeed(feed.id)}>
                   Remove
                 </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-      {items.length > 0 ? (
-        <div className="webcal-events">
-          <h4>Recent items</h4>
-          <ul>
-            {items.map((item) => (
-              <li key={item.id}>
-                <div className="webcal-event-title">{item.title}</div>
-                {item.published ? <div className="webcal-event-time">{item.published}</div> : null}
               </li>
             ))}
           </ul>

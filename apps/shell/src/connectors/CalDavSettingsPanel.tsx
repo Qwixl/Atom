@@ -91,50 +91,62 @@ export function CalDavSettingsPanel({
   const body = (
     <>
       {!embedded ? (
-        <header>
-          <h3>CalDAV</h3>
-          <p>Read/write calendar via app password (Fastmail, Nextcloud, iCloud).</p>
+        <header className="settings-panel-head">
+          <h3>Calendar account</h3>
+          <p className="settings-panel-desc">Sign in with a calendar URL and app password (Fastmail, Nextcloud, etc.).</p>
         </header>
-      ) : (
-        <>
-          <h4>CalDAV</h4>
-          <p className="connectors-hint">
-            Paste your calendar collection URL and app-specific password. Example: Fastmail{" "}
-            <code>https://caldav.fastmail.com/dav/calendars/user/you/Calendar/</code>
-          </p>
-        </>
-      )}
-
-      {!vaultUnlocked ? (
-        <p className="settings-note webcal-settings-warn">Unlock your vault to save CalDAV accounts.</p>
       ) : null}
 
-      <div className="connectors-token-row">
-        <span className="atom-field-label">Label</span>
-        <input value={label} onChange={(e) => setLabel(e.target.value)} disabled={busy || !vaultUnlocked} placeholder="Work calendar" />
-        <span className="atom-field-label">Calendar URL (https)</span>
-        <input
-          value={calendarUrl}
-          onChange={(e) => setCalendarUrl(e.target.value)}
-          disabled={busy || !vaultUnlocked}
-          placeholder="https://…/calendars/…/"
-        />
-        <span className="atom-field-label">Username</span>
-        <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          disabled={busy || !vaultUnlocked}
-          autoComplete="username"
-        />
-        <span className="atom-field-label">App password</span>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={busy || !vaultUnlocked}
-          autoComplete="new-password"
-        />
-        <button type="button" disabled={busy || !vaultUnlocked || !calendarUrl.trim() || !username.trim() || !password.trim()} onClick={() => void saveAccount()}>
+      {!vaultUnlocked ? (
+        <p className="settings-note webcal-settings-warn">Unlock your vault to save calendar accounts.</p>
+      ) : null}
+
+      <div className="connector-form-grid">
+        <label className="atom-field">
+          <span className="atom-field-label">Name</span>
+          <input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            disabled={busy || !vaultUnlocked}
+            placeholder="Work calendar"
+          />
+        </label>
+        <label className="atom-field">
+          <span className="atom-field-label">Calendar URL</span>
+          <input
+            value={calendarUrl}
+            onChange={(e) => setCalendarUrl(e.target.value)}
+            disabled={busy || !vaultUnlocked}
+            placeholder="https://…/calendars/…/"
+          />
+        </label>
+        <label className="atom-field">
+          <span className="atom-field-label">Username</span>
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            disabled={busy || !vaultUnlocked}
+            autoComplete="username"
+          />
+        </label>
+        <label className="atom-field">
+          <span className="atom-field-label">App password</span>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={busy || !vaultUnlocked}
+            autoComplete="new-password"
+          />
+        </label>
+      </div>
+      <div className="chrome-actions settings-section-actions">
+        <button
+          type="button"
+          className="chrome-approve"
+          disabled={busy || !vaultUnlocked || !calendarUrl.trim() || !username.trim() || !password.trim()}
+          onClick={() => void saveAccount()}
+        >
           Save account
         </button>
       </div>
@@ -157,7 +169,7 @@ export function CalDavSettingsPanel({
   );
 
   if (embedded) {
-    return <section className="connectors-subpanel">{body}</section>;
+    return <section className="settings-subpanel">{body}</section>;
   }
-  return <section className="connectors-panel">{body}</section>;
+  return <section className="settings-panel">{body}</section>;
 }

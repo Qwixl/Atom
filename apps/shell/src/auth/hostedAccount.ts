@@ -254,28 +254,52 @@ export async function bootstrapHostedAccount(input: BootstrapHostedAccountInput)
 export async function fetchHostedAccountStatus(): Promise<{
   accountType?: AtomAccountType;
   handle?: string;
+  displayName?: string;
   onboardingComplete?: boolean;
 }> {
   const token = await supabaseAccessToken();
   if (!token) throw new Error("Sign in required");
 
   const { CONTROL_PLANE_URL } = await import("../hostConfig.js");
-  const resp = await fetch(`${CONTROL_PLANE_URL.replace(/\/$/, "")}/account/status`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = (await resp.json()) as {
-    profile?: {
-      accountType?: AtomAccountType;
-      handle?: string;
-      onboardingComplete?: boolean;
+  try {
+    const resp = await fetch(`${CONTROL_PLANE_URL.replace(/\/$/, "")}/account/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = (await resp.json()) as {
+      profile?: {
+        accountType?: AtomAccountType;
+        handle?: string;
+        displayName?: string;
+        onboardingComplete?: boolean;
+      };
+      error?: string;
     };
-    error?: string;
-  };
-  if (!resp.ok) throw new Error(data.error ?? `Status failed (${resp.status})`);
+    if (resp.ok) {
+      return {
+        accountType: data.profile?.accountType,
+        handle: data.profile?.handle,
+        displayName: data.profile?.displayName,
+        onboardingComplete: data.profile?.onboardingComplete,
+      };
+    }
+  } catch {
+    /* Fall through to direct Supabase profile read (local / control-plane down). */
+  }
+
+  const { data: auth } = await getSupabaseClient().auth.getUser();
+  const userId = auth.user?.id;
+  if (!userId) throw new Error("Sign in required");
+  const { data: profile, error } = await getSupabaseClient()
+    .from("profiles")
+    .select("handle, display_name, account_type, onboarding_complete")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
   return {
-    accountType: data.profile?.accountType,
-    handle: data.profile?.handle,
-    onboardingComplete: data.profile?.onboardingComplete,
+    accountType: (profile?.account_type as AtomAccountType | undefined) ?? undefined,
+    handle: profile?.handle ?? undefined,
+    displayName: profile?.display_name ?? undefined,
+    onboardingComplete: profile?.onboarding_complete ?? undefined,
   };
 }
 

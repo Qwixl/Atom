@@ -12,6 +12,8 @@
   "scripts": {
     "dev": "node scripts/dev-browser.mjs",
     "dev:shell-only": "pnpm --filter @qwixl/shell-app dev",
+    "native:sync": "pnpm --filter @qwixl/native sync",
+    "native:android": "pnpm --filter @qwixl/native open:android",
     "dev:embed": "pnpm --filter @qwixl/embed-demo dev",
     "dev:docs": "pnpm --filter @qwixl/docs-site dev",
     "dev:control-plane": "pnpm --filter @qwixl/control-plane dev",
