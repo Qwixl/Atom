@@ -70,7 +70,13 @@ for (const file of walk(shellSrc)) {
     if (DEV_CLI_RE.test(line) && !lineAllowedForDevCli(line, rel, text)) {
       errors.push(`${rel}:${i + 1}: pnpm dev* copy`);
     }
-    if (PLAN_ID_RE.test(line) && !/^\s*(\/\/|\/\*|\*)/.test(line) && !line.includes('path d="')) {
+    // SVG path `d` attributes use move commands like M33.07 — not plan ids.
+    if (
+      PLAN_ID_RE.test(line) &&
+      !/^\s*(\/\/|\/\*|\*)/.test(line) &&
+      !line.includes('path d="') &&
+      !/<path\b/.test(line)
+    ) {
       errors.push(`${rel}:${i + 1}: internal plan id (M## / D##)`);
     }
   }

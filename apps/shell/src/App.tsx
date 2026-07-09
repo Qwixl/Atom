@@ -3324,7 +3324,7 @@ function SettingsDialog({
                 <input
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
-                  placeholder="http://127.0.0.1:11434/v1"
+                  placeholder="https://api.example.com/v1"
                 />
                 <button
                   type="button"
