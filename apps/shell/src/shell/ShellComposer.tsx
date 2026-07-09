@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
+import { ComposeExtras, insertAtCursor } from "../compose/ComposeExtras.js";
 import { resizeTextareaToContent } from "../ui/resizeTextareaToContent.js";
 
 type ShellComposerProps = {
@@ -22,9 +23,21 @@ export function ShellComposer({ value, busy, onChange, onSubmit }: ShellComposer
     onSubmit(trimmed);
   }
 
+  function insertEmoji(emoji: string) {
+    const { next, caret } = insertAtCursor(value, emoji, textareaRef.current);
+    onChange(next);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(caret, caret);
+    });
+  }
+
   return (
     <footer className="shell-composer">
       <div className="shell-composer-inner">
+        <ComposeExtras disabled={busy} onInsertEmoji={insertEmoji} />
         <textarea
           ref={textareaRef}
           name="atom-chat-compose"

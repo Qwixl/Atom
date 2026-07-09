@@ -13,8 +13,9 @@
   justify-content: space-between;
   gap: 16px;
   padding: 16px 24px;
-  border-bottom: 1px solid var(--shell-border);
-  background: var(--shell-raised-bg);
+  border-bottom: 1px solid color-mix(in srgb, #fff 18%, transparent);
+  background: #000000;
+  color: #ffffff;
 }
 
 .atom-marketing-brand {
@@ -29,14 +30,14 @@
   display: block;
   height: 34px;
   width: auto;
-  color: var(--shell-text);
+  color: #ffffff;
 }
 
 .atom-marketing-ident {
   display: none;
   width: 28px;
   height: 28px;
-  color: var(--shell-text);
+  color: #ffffff;
 }
 
 @media (max-width: 720px) {
@@ -54,6 +55,37 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.atom-marketing-nav-links .atom-btn-ghost {
+  color: color-mix(in srgb, #ffffff 78%, transparent);
+}
+
+.atom-marketing-nav-links .atom-btn-ghost:hover:not(:disabled) {
+  color: #ffffff;
+  background: color-mix(in srgb, #ffffff 12%, transparent);
+}
+
+.atom-marketing-nav-links .atom-btn-primary {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.atom-marketing-nav-links .atom-btn-primary:hover:not(:disabled) {
+  background: #e8e8e8;
+  border-color: #e8e8e8;
+  color: #000000;
+}
+
+.atom-marketing-nav-links .atom-btn-icon {
+  color: color-mix(in srgb, #ffffff 78%, transparent);
+}
+
+.atom-marketing-nav-links .atom-btn-icon:hover:not(:disabled) {
+  color: #ffffff;
+  background: color-mix(in srgb, #ffffff 12%, transparent);
+  border-color: transparent;
 }
 
 .atom-marketing-main {
