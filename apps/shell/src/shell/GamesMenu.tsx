@@ -10,9 +10,10 @@ type GamesMenuProps = {
   games: readonly GamesMenuItem[];
   onSelect: (moduleId: string) => void;
   disabled?: boolean;
+  className?: string;
 };
 
-export function GamesMenu({ games, onSelect, disabled }: GamesMenuProps) {
+export function GamesMenu({ games, onSelect, disabled, className }: GamesMenuProps) {
   const menuId = useId();
   const rootRef = useRef<HTMLDetailsElement>(null);
   const [open, setOpen] = useState(false);
@@ -43,11 +44,11 @@ export function GamesMenu({ games, onSelect, disabled }: GamesMenuProps) {
   return (
     <details
       ref={rootRef}
-      className="atom-games-menu"
+      className={`atom-games-menu${className ? ` ${className}` : ""}`}
       onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
     >
       <summary
-        className="btn btn-ghost atom-app-games-trigger panel-btn-icon"
+        className="btn btn-ghost atom-app-games-trigger panel-btn-icon atom-nav-item"
         aria-label="Games"
         title="Games"
         aria-controls={menuId}
@@ -59,6 +60,7 @@ export function GamesMenu({ games, onSelect, disabled }: GamesMenuProps) {
         }}
       >
         <IconGames className="atom-nav-icon atom-games-icon" />
+        <span className="atom-nav-label">Games</span>
       </summary>
       <div id={menuId} className="atom-games-menu-panel" role="menu">
         {games.length === 0 ? (

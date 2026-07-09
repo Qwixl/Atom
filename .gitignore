@@ -28,3 +28,10 @@ dist/
 **/.vite/
 *.tsbuildinfo
 .DS_Store
+
+# Capacitor / Android local build output (project sources under apps/native/android stay tracked)
+apps/native/android/.gradle/
+apps/native/android/**/build/
+apps/native/android/local.properties
+apps/native/android/captures/
+apps/native/android/.idea/

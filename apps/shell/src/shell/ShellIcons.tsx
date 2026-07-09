@@ -75,6 +75,17 @@ export function IconLog(props: IconProps) {
   );
 }
 
+/** Left-arrow exit / sign-out affordance for the mobile menu. */
+export function IconExit(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M15 12H3" />
+      <path d="m7 8-4 4 4 4" />
+      <path d="M21 4v16" />
+    </IconBase>
+  );
+}
+
 export function IconSettings(props: IconProps) {
   return (
     <IconBase {...props}>
@@ -126,6 +137,22 @@ export function IconMenu(props: IconProps) {
   return (
     <IconBase {...props}>
       <path d="M4 7h16M4 12h16M4 17h16" />
+    </IconBase>
+  );
+}
+
+export function IconChevronRight(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="m9 6 6 6-6 6" />
+    </IconBase>
+  );
+}
+
+export function IconChevronDown(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="m6 9 6 6 6-6" />
     </IconBase>
   );
 }
