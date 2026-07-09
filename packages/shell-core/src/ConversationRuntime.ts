@@ -91,6 +91,21 @@ export class ConversationRuntime {
     this.notify();
   }
 
+  /** Replace text history (e.g. after custody sync). Surfaces are dropped. */
+  replaceTextFeed(items: readonly FeedItem[]): void {
+    const textOnly = items.filter(
+      (item): item is Extract<FeedItem, { kind: "user" | "agent-text" }> =>
+        item.kind === "user" || item.kind === "agent-text",
+    );
+    this.feed = [...textOnly];
+    this.idCounter = 0;
+    for (const item of textOnly) {
+      const numeric = Number(/^item-(\d+)$/.exec(item.id)?.[1]);
+      if (Number.isFinite(numeric) && numeric > this.idCounter) this.idCounter = numeric;
+    }
+    this.notify();
+  }
+
   setBusy(busy: boolean): void {
     this.busy = busy;
     this.notify();

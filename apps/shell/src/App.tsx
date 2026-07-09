@@ -5,7 +5,6 @@ import {
   ConversationRuntime,
   ModuleRegistry,
   createAttestationPersistence,
-  createJsonPersistence,
   createTieredJsonPersistence,
   getGameEngine,
   listGameModuleIds,
@@ -155,11 +154,20 @@ import {
 } from "./workspace/workspaceRegistry.js";
 import { isBusinessWorkspace, type Workspace } from "./workspace/types.js";
 import {
+  workspaceChatFeedPersistence,
   workspaceConversationMemoryPersistence,
   workspaceOwnerProposalsPersistence,
   workspaceOwnerRecordsPersistence,
   migrateLegacyOwnerPersistenceToPersonal,
 } from "./workspace/workspacePersistence.js";
+import {
+  feedItemsFromChatTexts,
+  isChatFeedEnvelope,
+  makeChatFeedEnvelope,
+  mergeChatFeedEnvelopes,
+  persistableChatFeed,
+  type ChatFeedEnvelope,
+} from "./chat/chatFeedSync.js";
 import { loadFirstRunDone, markFirstRunDone, resetFirstRunDone } from "./firstRunStorage.js";
 import { navigate } from "./navigation.js";
 import { DemoBootstrap } from "./DemoBootstrap.js";
@@ -192,9 +200,11 @@ import { ConnectorsCatalog } from "./connectors/ConnectorsCatalog.js";
 import { requireCustodyApproval } from "./custody/approvalGate.js";
 import {
   loadAttestations,
+  loadChatFeed,
   loadOwnerProposals,
   loadOwnerRecords,
   saveAttestations,
+  saveChatFeed,
   saveOwnerProposals,
   saveOwnerRecords,
 } from "./custody/client.js";
@@ -319,37 +329,12 @@ const conversationMemoryPersistence = createTieredJsonPersistence<MemoryChunk[]>
   validate: (value): value is MemoryChunk[] => Array.isArray(value),
 });
 
-type ChatFeedTextItem = { kind: "user" | "agent-text"; id: string; text: string };
-
-const chatFeedPersistence = createJsonPersistence<ChatFeedTextItem[]>({
-  key: "atom-chat-feed",
-  validate: (value): value is ChatFeedTextItem[] => Array.isArray(value),
-});
-
-const CHAT_FEED_MAX_ITEMS = 200;
-
 const COMMS_LAST_READ_KEY = "atom-comms-last-read";
 
-/** Persist only text turns; module surfaces are session-scoped and not serializable. */
-function persistableChatFeed(feed: readonly FeedItem[]): ChatFeedTextItem[] {
-  return feed
-    .filter(
-      (item): item is Extract<FeedItem, { kind: "user" | "agent-text" }> =>
-        item.kind === "user" || item.kind === "agent-text",
-    )
-    .map(({ kind, id, text }) => ({ kind, id, text }))
-    .slice(-CHAT_FEED_MAX_ITEMS);
-}
-
-function restoredChatFeed(): FeedItem[] {
-  const stored = chatFeedPersistence.load();
-  if (!stored) return [];
-  return stored.filter(
-    (item) =>
-      (item.kind === "user" || item.kind === "agent-text") &&
-      typeof item.id === "string" &&
-      typeof item.text === "string",
-  );
+function restoredChatFeed(workspaceId: string): FeedItem[] {
+  const stored = workspaceChatFeedPersistence(workspaceId).load();
+  if (!stored?.items?.length) return [];
+  return feedItemsFromChatTexts(stored.items);
 }
 
 export function App() {
@@ -904,7 +889,13 @@ export function App() {
   const turnTranscript = useRef<Array<{ role: "user" | "assistant"; text: string }>>([]);
   const lastUserMessageRef = useRef("");
   const sessionContextTagsRef = useRef<string[]>([]);
-  const chatFeedRef = useRef<readonly FeedItem[]>(restoredChatFeed());
+  const chatFeedRef = useRef<readonly FeedItem[]>(restoredChatFeed(activeWorkspaceId));
+  const chatFeedEnvelopeRef = useRef<ChatFeedEnvelope | null>(
+    workspaceChatFeedPersistence(activeWorkspaceId).load() ?? null,
+  );
+  const chatFeedSaveTimerRef = useRef<number | null>(null);
+  const activeWorkspaceIdRef = useRef(activeWorkspaceId);
+  activeWorkspaceIdRef.current = activeWorkspaceId;
   // Ended games restored from persistence start dismissed so the modal
   // doesn't pop open on page load just to show a finished board.
   const [gameModalDismissedId, setGameModalDismissedId] = useState<string | null>(() => {
@@ -1372,10 +1363,30 @@ export function App() {
     () =>
       new ConversationRuntime({
         catalog,
-        restoreFeed: restoredChatFeed(),
+        restoreFeed: restoredChatFeed(activeWorkspaceId),
         onFeedChange: (feed) => {
           chatFeedRef.current = feed;
-          chatFeedPersistence.save(persistableChatFeed(feed));
+          const workspaceId = activeWorkspaceIdRef.current;
+          const persistence = workspaceChatFeedPersistence(workspaceId);
+          const envelope = makeChatFeedEnvelope(
+            workspaceId,
+            persistableChatFeed(feed),
+            chatFeedEnvelopeRef.current,
+          );
+          chatFeedEnvelopeRef.current = envelope;
+          persistence.save(envelope);
+          if (chatFeedSaveTimerRef.current) window.clearTimeout(chatFeedSaveTimerRef.current);
+          chatFeedSaveTimerRef.current = window.setTimeout(() => {
+            void (async () => {
+              try {
+                const config = await loadCommsAgentConfigSecure();
+                if (!config.adminToken?.trim()) return;
+                await saveChatFeed(config, workspaceId, chatFeedEnvelopeRef.current);
+              } catch {
+                /* offline / auth — local cache remains */
+              }
+            })();
+          }, 400);
         },
         beforeResolveComposition: async (composition) => {
           sanitizeNewGameComposition(composition);
@@ -1500,11 +1511,46 @@ export function App() {
             .catch((error) => console.error("Curator pass failed:", error));
         },
       }),
-    [catalog],
+    [activeWorkspaceId, catalog],
   );
 
   const conversationRef = useRef(conversation);
   conversationRef.current = conversation;
+
+  useEffect(() => {
+    if (!agentConnectionReady || !vaultUnlocked) return;
+    void (async () => {
+      try {
+        const config = await loadCommsAgentConfigSecure();
+        if (!config.adminToken?.trim()) return;
+        const workspaceId = activeWorkspaceIdRef.current;
+        const remoteChatRaw = await loadChatFeed(config, workspaceId);
+        const chatPersistence = workspaceChatFeedPersistence(workspaceId);
+        const localChat = chatPersistence.load() ?? chatFeedEnvelopeRef.current;
+        const remoteChat = isChatFeedEnvelope(remoteChatRaw) ? remoteChatRaw : null;
+        if (!remoteChat && localChat?.items?.length) {
+          await saveChatFeed(config, workspaceId, localChat);
+          chatFeedEnvelopeRef.current = localChat;
+          return;
+        }
+        if (!remoteChat && !localChat) return;
+        const merged = mergeChatFeedEnvelopes(localChat, remoteChat, workspaceId);
+        chatPersistence.save(merged);
+        chatFeedEnvelopeRef.current = merged;
+        conversation.replaceTextFeed(feedItemsFromChatTexts(merged.items));
+        if (
+          !remoteChat ||
+          merged.revision !== remoteChat.revision ||
+          merged.items.length !== remoteChat.items.length
+        ) {
+          await saveChatFeed(config, workspaceId, merged);
+        }
+      } catch (error) {
+        console.warn("[custody] chat feed sync failed", error);
+      }
+    })();
+  }, [agentConnectionReady, vaultUnlocked, activeWorkspaceId, conversation]);
+
   gameCallbacksRef.current = {
     getActiveGame: () => findActiveGameInFeed(chatFeedRef.current),
     commitProps: (surfaceId, moduleId, props) => {

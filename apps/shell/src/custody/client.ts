@@ -135,3 +135,26 @@ export async function saveAttestations<T>(
     body: JSON.stringify({ entries: [...entries] }),
   });
 }
+
+export async function loadChatFeed(
+  config: CommsAgentConfig,
+  workspaceId = "personal",
+): Promise<unknown | null> {
+  const qs = new URLSearchParams({ workspaceId });
+  const body = await custodyFetch<{ feed: unknown | null }>(
+    config,
+    `/custody/store/chat-feed?${qs.toString()}`,
+  );
+  return body.feed ?? null;
+}
+
+export async function saveChatFeed(
+  config: CommsAgentConfig,
+  workspaceId: string,
+  feed: unknown,
+): Promise<void> {
+  await custodyFetch(config, "/custody/store/chat-feed", {
+    method: "PUT",
+    body: JSON.stringify({ workspaceId, feed }),
+  });
+}
