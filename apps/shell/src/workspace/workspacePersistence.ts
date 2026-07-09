@@ -47,10 +47,39 @@ export function workspaceConversationMemoryPersistence(workspaceId: string) {
   );
 }
 
+export type WorkspaceChatFeedEnvelope = {
+  workspaceId: string;
+  items: Array<{ kind: "user" | "agent-text"; id: string; text: string }>;
+  updatedAt: string;
+  revision: number;
+};
+
+function isWorkspaceChatFeedEnvelope(value: unknown): value is WorkspaceChatFeedEnvelope {
+  if (!value || typeof value !== "object") return false;
+  const env = value as Record<string, unknown>;
+  return (
+    typeof env.workspaceId === "string" &&
+    Array.isArray(env.items) &&
+    typeof env.updatedAt === "string" &&
+    typeof env.revision === "number"
+  );
+}
+
+export function workspaceChatFeedPersistence(workspaceId: string) {
+  const key = workspaceStorageKey("atom-chat-feed", workspaceId);
+  return cachedPersistence(key, () =>
+    createTieredJsonPersistence<WorkspaceChatFeedEnvelope>({
+      key,
+      validate: isWorkspaceChatFeedEnvelope,
+    }),
+  );
+}
+
 const LEGACY_KEYS = {
   records: "atom-owner-store",
   proposals: "atom-owner-proposals",
   memory: "atom-conversation-memory",
+  chatFeed: "atom-chat-feed",
 } as const;
 
 /**
@@ -61,18 +90,26 @@ export async function migrateLegacyOwnerPersistenceToPersonal(): Promise<{
   migratedRecords: boolean;
   migratedProposals: boolean;
   migratedMemory: boolean;
+  migratedChatFeed: boolean;
 }> {
-  const result = { migratedRecords: false, migratedProposals: false, migratedMemory: false };
+  const result = {
+    migratedRecords: false,
+    migratedProposals: false,
+    migratedMemory: false,
+    migratedChatFeed: false,
+  };
   if (typeof localStorage === "undefined") return result;
 
   const personalRecords = workspaceOwnerRecordsPersistence("personal");
   const personalProposals = workspaceOwnerProposalsPersistence("personal");
   const personalMemory = workspaceConversationMemoryPersistence("personal");
+  const personalChat = workspaceChatFeedPersistence("personal");
 
   await Promise.all([
     personalRecords.hydrateFromIndexedDb(),
     personalProposals.hydrateFromIndexedDb(),
     personalMemory.hydrateFromIndexedDb(),
+    personalChat.hydrateFromIndexedDb(),
   ]);
 
   const legacyRecords = createTieredJsonPersistence<OwnerRecord[]>({
@@ -118,6 +155,27 @@ export async function migrateLegacyOwnerPersistenceToPersonal(): Promise<{
       personalMemory.save(legacy);
       legacyMemory.clear();
       result.migratedMemory = true;
+    }
+  }
+
+  if (!personalChat.load()?.items?.length) {
+    try {
+      const raw = localStorage.getItem(LEGACY_KEYS.chatFeed);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          personalChat.save({
+            workspaceId: "personal",
+            items: parsed as WorkspaceChatFeedEnvelope["items"],
+            updatedAt: new Date().toISOString(),
+            revision: 1,
+          });
+          localStorage.removeItem(LEGACY_KEYS.chatFeed);
+          result.migratedChatFeed = true;
+        }
+      }
+    } catch {
+      /* ignore corrupt legacy feed */
     }
   }
 
