@@ -4,16 +4,17 @@
  */
 
 .atom-app {
-  --atom-header-h: 56px;
-  --atom-dock-h: 56px;
+  --atom-header-h: 44px;
   --atom-chat-max: 720px;
   --atom-shell-max: 1120px;
+  --atom-ident-size: 28px;
   height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: var(--shell-main-bg);
   color: var(--shell-text);
+  position: relative;
 }
 
 .atom-app-header {
@@ -22,6 +23,172 @@
   z-index: 20;
   min-height: var(--atom-header-h);
   flex-shrink: 0;
+  border-bottom: 1px solid var(--shell-border);
+  background: var(--shell-raised-bg);
+}
+
+.atom-brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.atom-brand-ident {
+  width: var(--atom-ident-size);
+  height: var(--atom-ident-size);
+  display: block;
+  flex-shrink: 0;
+  color: var(--shell-text);
+}
+
+.atom-brand-wordmark {
+  display: none;
+  height: 30px;
+  width: auto;
+  color: var(--shell-text);
+}
+
+@media (min-width: 960px) {
+  .atom-app .atom-brand-ident {
+    display: none;
+  }
+
+  .atom-app .atom-brand-wordmark {
+    display: block;
+  }
+}
+
+.atom-app-menu-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--shell-text);
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.atom-app-menu-trigger:hover,
+.atom-app-menu-trigger:focus-visible {
+  background: transparent;
+  outline: none;
+  color: var(--shell-text);
+}
+
+.atom-app-menu-trigger .atom-menu-lines {
+  width: 26px;
+  height: 26px;
+  display: block;
+  stroke-width: 2.25;
+}
+
+.atom-menu-trigger-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  font-size: 9px;
+  line-height: 14px;
+}
+
+/* Native Popover section menu */
+.atom-nav-popover {
+  inset: unset;
+  margin: 0;
+  position: fixed;
+  top: calc(var(--atom-header-h) + 4px);
+  right: 10px;
+  left: auto;
+  bottom: auto;
+  width: min(280px, calc(100vw - 20px));
+  padding: 0;
+  border: 1px solid var(--shell-border);
+  border-radius: var(--shell-radius-lg);
+  background: var(--shell-raised-bg);
+  color: var(--shell-text);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.16);
+  overflow: hidden;
+
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    overlay 180ms allow-discrete,
+    display 180ms allow-discrete;
+}
+
+.atom-nav-popover:popover-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+@starting-style {
+  .atom-nav-popover:popover-open {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+
+.atom-nav-popover-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+}
+
+.atom-nav-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--shell-radius-sm);
+  background: transparent;
+  color: var(--shell-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.atom-nav-popover-item:hover:not(:disabled),
+.atom-nav-popover-item:focus-visible {
+  background: var(--shell-hover-bg);
+  outline: none;
+}
+
+.atom-nav-popover-item.is-active {
+  background: var(--shell-inset-bg);
+}
+
+.atom-nav-popover-item.is-locked,
+.atom-nav-popover-item:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.atom-nav-popover-item .atom-nav-badge {
+  margin-left: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atom-nav-popover {
+    transition: none;
+  }
 }
 
 .atom-app-tabs {
@@ -36,7 +203,7 @@
 .atom-app-header-end {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -46,6 +213,43 @@
   gap: 8px;
   font-size: 13px;
   color: var(--shell-text-muted);
+}
+
+.atom-status-compact {
+  display: none;
+}
+
+@media (max-width: 959px) {
+  .atom-app {
+    --atom-header-h: 40px;
+    --atom-ident-size: 26px;
+  }
+
+  .atom-app .hide-mobile {
+    display: none !important;
+  }
+
+  .atom-app-header-end {
+    gap: 2px;
+  }
+
+  .atom-app-status {
+    display: none;
+  }
+
+  .atom-modules-toggle {
+    display: none;
+  }
+
+  .atom-app-header.site-header {
+    padding-left: 10px;
+    padding-right: 8px;
+  }
+
+  .atom-app-header-inner {
+    min-height: var(--atom-header-h);
+    gap: 8px;
+  }
 }
 
 .atom-status-dot {
@@ -122,10 +326,55 @@
   display: none;
 }
 
-.atom-app-menu-trigger,
-.atom-app-log-trigger,
-.atom-app-games-trigger {
+.atom-app-menu-trigger {
   display: inline-flex;
+}
+
+.atom-app-account,
+.atom-app-settings {
+  display: none;
+}
+
+.atom-nav-popover-games {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--shell-border);
+}
+
+.atom-nav-popover-exit {
+  margin-top: 8px;
+  border-top: 1px solid var(--shell-border);
+  padding-top: 12px;
+  color: var(--shell-text-muted, var(--shell-text));
+}
+
+.atom-nav-popover-games-toggle .atom-nav-popover-chevron {
+  margin-left: auto;
+  width: 16px;
+  height: 16px;
+  opacity: 0.7;
+}
+
+.atom-nav-popover-submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0 4px 12px;
+}
+
+.atom-nav-popover-subitem {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--shell-text-muted);
+  padding-left: 28px;
+}
+
+.atom-nav-popover-subitem:hover:not(:disabled),
+.atom-nav-popover-subitem:focus-visible {
+  color: var(--shell-text);
 }
 
 /* Beat `.panel-btn-icon svg { 16px }` so the invader matches theme/settings icons. */
@@ -135,19 +384,17 @@
   height: 18px;
 }
 
-.atom-app-log-trigger.is-active {
-  background: var(--shell-inset-bg);
-  color: var(--shell-text);
-}
-
 .atom-games-menu {
   position: relative;
-  display: inline-flex;
+  display: none;
 }
 
-.atom-games-menu > summary {
-  list-style: none;
-  cursor: pointer;
+.atom-games-menu > summary.atom-nav-item {
+  width: auto;
+}
+
+.atom-games-menu--tab > summary.atom-nav-item {
+  padding: 8px 12px;
 }
 
 .atom-games-menu > summary::-webkit-details-marker {
@@ -208,8 +455,8 @@
 .atom-app-header.site-header {
   display: flex;
   justify-content: center;
-  padding-left: 24px;
-  padding-right: 24px;
+  padding-left: 16px;
+  padding-right: 12px;
 }
 
 .atom-app-header-inner {
@@ -291,79 +538,7 @@
   border-top: none;
 }
 
-/* Bottom dock — mobile primary navigation */
-
-.atom-app-dock {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 2px;
-  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--shell-border);
-  background: var(--shell-raised-bg);
-  flex-shrink: 0;
-}
-
-.atom-dock-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 6px 4px;
-  border: none;
-  border-radius: var(--shell-radius-sm);
-  background: transparent;
-  color: var(--shell-text-muted);
-  font: inherit;
-  font-size: 10px;
-  cursor: pointer;
-}
-
-.atom-dock-item.is-active {
-  color: var(--shell-text);
-  background: var(--shell-hover-bg);
-}
-
-.atom-dock-item.is-locked {
-  opacity: 0.35;
-}
-
-/* Section menu dialog */
-
-.atom-menu-dialog {
-  margin: auto;
-  padding: 0;
-  border: 1px solid var(--shell-border);
-  border-radius: var(--shell-radius-lg);
-  background: var(--shell-raised-bg);
-  color: var(--shell-text);
-  width: min(360px, 92vw);
-  max-height: min(80dvh, 520px);
-}
-
-.atom-menu-dialog::backdrop {
-  background: rgb(0 0 0 / 0.45);
-}
-
-.atom-menu-dialog-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--shell-border);
-  margin: 0;
-}
-
-.atom-menu-dialog-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px;
-}
-
-.atom-menu-dialog-nav .atom-nav-item {
-  width: 100%;
-  justify-content: flex-start;
-}
+/* Legacy dock removed — section nav is the Popover hamburger (.atom-nav-popover). */
 
 /* Comms workspace — single pane, contacts in dialog */
 
@@ -466,9 +641,14 @@
     display: flex;
   }
 
-  .atom-app-dock,
-  .atom-app-log-trigger {
-    display: none;
+  .atom-app-menu-trigger,
+  .atom-nav-popover {
+    display: none !important;
+  }
+
+  .atom-app-account,
+  .atom-app-settings {
+    display: inline-flex;
   }
 
   .atom-games-menu {
@@ -477,6 +657,10 @@
 
   .atom-app-settings-label {
     display: inline;
+  }
+
+  .atom-mobile-only-panel {
+    display: none !important;
   }
 
   .comms-contacts-dialog {

@@ -76,36 +76,34 @@ export function BookmarksSettingsPanel({
       {!embedded ? (
         <>
           <h3>Bookmarks</h3>
-          <p className="settings-note">
-            Save pages for your agent to read on request. HTTPS only; private networks blocked.
-          </p>
+          <p className="settings-note">Save pages your agent can read when you ask.</p>
         </>
-      ) : (
-        <h4>Bookmarks</h4>
-      )}
+      ) : null}
       {!config.adminToken ? (
         <p className="settings-note webcal-settings-warn">Connect your agent first to save bookmarks.</p>
       ) : null}
-      <label className="atom-field">
-        <span className="atom-field-label">Page URL (https://)</span>
-        <input
-          value={pageUrl}
-          onChange={(e) => setPageUrl(e.target.value)}
-          placeholder="https://…"
-          autoComplete="off"
-          disabled={busy}
-        />
-      </label>
-      <label className="atom-field">
-        <span className="atom-field-label">Label (optional)</span>
-        <input
-          value={pageLabel}
-          onChange={(e) => setPageLabel(e.target.value)}
-          placeholder="Product docs"
-          autoComplete="off"
-          disabled={busy}
-        />
-      </label>
+      <div className="connector-form-grid">
+        <label className="atom-field">
+          <span className="atom-field-label">Page link</span>
+          <input
+            value={pageUrl}
+            onChange={(e) => setPageUrl(e.target.value)}
+            placeholder="https://…"
+            autoComplete="off"
+            disabled={busy}
+          />
+        </label>
+        <label className="atom-field">
+          <span className="atom-field-label">Name (optional)</span>
+          <input
+            value={pageLabel}
+            onChange={(e) => setPageLabel(e.target.value)}
+            placeholder="Product docs"
+            autoComplete="off"
+            disabled={busy}
+          />
+        </label>
+      </div>
       <div className="chrome-actions settings-section-actions">
         <button
           type="button"
@@ -113,7 +111,7 @@ export function BookmarksSettingsPanel({
           disabled={busy || !pageUrl.trim()}
           onClick={() => void saveBookmark()}
         >
-          Save bookmark to agent
+          Save bookmark
         </button>
         <button type="button" disabled={busy} onClick={() => void refresh()}>
           Refresh

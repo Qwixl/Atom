@@ -41,8 +41,7 @@ export function readAtomThemeTokens(from: Element = document.documentElement): A
 export type AtomSkinId = "minimal" | "default" | "dark" | "high-contrast";
 
 export const ATOM_SKINS: { id: AtomSkinId; label: string }[] = [
-  { id: "minimal", label: "Minimal (template)" },
-  { id: "default", label: "Default (warm)" },
+  { id: "minimal", label: "Minimal" },
   { id: "dark", label: "Dark" },
   { id: "high-contrast", label: "High contrast" },
 ];
