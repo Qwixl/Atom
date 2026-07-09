@@ -612,6 +612,8 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   adminApp.post("/agent", async (req, res) => {
     const { writeAgUiSse } = await import("./agUi/handler.js");
     const { loadLlmAgUiConfigFromEnv } = await import("./agUi/llmRunner.js");
+    const { getConnectorBackend } = await import("./connectorRegistry.js");
+    const { invokeConnectorCached } = await import("./connectorInvoke.js");
     const input = req.body as import("@ag-ui/client").RunAgentInput;
     const llmConfig = loadLlmAgUiConfigFromEnv();
     const usesBusinessContext = config.businessMode || config.communityHostMode;
@@ -638,6 +640,29 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       });
     }
     const { recordLlmInferenceSpend } = await import("./llmSpendMeter.js");
+    const connectorExecutor = async (call: {
+      connectorId: string;
+      operation: string;
+      input?: Record<string, unknown>;
+    }) => {
+      const backend = getConnectorBackend(call.connectorId);
+      if (!backend) {
+        throw new Error(`Unknown connector "${call.connectorId}"`);
+      }
+      const operationSpec = backend.operationSpec?.(call.operation);
+      if (operationSpec?.permission === "write") {
+        throw new Error(`Connector write "${call.connectorId}/${call.operation}" is not allowed from chat`);
+      }
+      const invoked = await invokeConnectorCached(
+        backend,
+        connectorVault,
+        call.connectorId,
+        call.operation,
+        call.input ?? {},
+        operationSpec,
+      );
+      return invoked.result;
+    };
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
@@ -646,6 +671,8 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
         ? {
             ...llmConfig,
             businessContext: serverBusinessContext?.trim() || undefined,
+            atomConnectorsAvailable: true,
+            connectorExecutor,
             onUsage: ({ promptTokens, completionTokens, model }) => {
               recordLlmInferenceSpend(budgetLedger, {
                 promptTokens,
