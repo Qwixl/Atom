@@ -26,6 +26,8 @@ export interface FleetProvisioner {
     handle: string;
     email: string;
     llmApiKey?: string;
+    /** personal | business | developer — sets ATOM_WORKSPACE_KIND / business mode on container. */
+    workspaceKind?: "personal" | "business" | "developer";
   }): Promise<ProvisionOutcome>;
   suspend(agent: HostedAgentRecord, reason: string): Promise<void>;
   resume(agent: HostedAgentRecord): Promise<void>;

@@ -57,7 +57,10 @@ export function loadAgentBackendConfig(env: NodeJS.ProcessEnv = process.env): Ag
     stripeSecretKey: env.STRIPE_SECRET_KEY?.trim() || null,
     stripePublishableKey: env.STRIPE_PUBLISHABLE_KEY?.trim() || null,
     stripeProductId: env.ATOM_STRIPE_PRODUCT_ID?.trim() || null,
-    businessMode: env.ATOM_BUSINESS_MODE === "1" || env.ATOM_BUSINESS_MODE === "true",
+    businessMode:
+      env.ATOM_BUSINESS_MODE === "1" ||
+      env.ATOM_BUSINESS_MODE === "true" ||
+      env.ATOM_WORKSPACE_KIND?.trim().toLowerCase() === "business",
     businessDomain: env.ATOM_BUSINESS_DOMAIN?.trim() || null,
     demoPeerMode: env.ATOM_DEMO_PEER === "1" || env.ATOM_DEMO_PEER === "true",
     communityHostMode:

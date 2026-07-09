@@ -279,16 +279,21 @@ export async function fetchHostedAccountStatus(): Promise<{
   };
 }
 
-export async function fetchHostedAgentConnection(): Promise<{
+export async function fetchHostedAgentConnection(workspaceId?: string): Promise<{
   adminUrl: string;
   adminToken: string;
   handle?: string;
+  workspaceId?: string;
 }> {
   const token = await supabaseAccessToken();
   if (!token) throw new Error("Sign in required");
 
   const { CONTROL_PLANE_URL } = await import("../hostConfig.js");
-  const resp = await fetch(`${CONTROL_PLANE_URL.replace(/\/$/, "")}/account/connect`, {
+  const base = CONTROL_PLANE_URL.replace(/\/$/, "");
+  const path = workspaceId?.trim()
+    ? `/workspaces/${encodeURIComponent(workspaceId.trim())}/connect`
+    : "/account/connect";
+  const resp = await fetch(`${base}${path}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -299,6 +304,7 @@ export async function fetchHostedAgentConnection(): Promise<{
     agentUrl?: string;
     adminToken?: string;
     handle?: string;
+    workspaceId?: string;
     error?: string;
   };
   if (!resp.ok) throw new Error(data.error ?? `Connect failed (${resp.status})`);
@@ -309,7 +315,66 @@ export async function fetchHostedAgentConnection(): Promise<{
     adminUrl: data.agentUrl.replace(/\/$/, ""),
     adminToken: data.adminToken,
     handle: data.handle,
+    workspaceId: data.workspaceId,
   };
+}
+
+/** Create a hosted business/developer workspace and optionally provision its agent. */
+export async function createHostedWorkspace(input: {
+  kind: "business" | "developer";
+  label?: string;
+  handle?: string;
+}): Promise<{
+  workspace: {
+    id: string;
+    kind: string;
+    label: string;
+    handle?: string;
+    createdAt?: string;
+  };
+  agent?: {
+    agentUrl: string;
+    adminToken: string;
+    handle: string;
+    status: string;
+  };
+}> {
+  const token = await supabaseAccessToken();
+  if (!token) throw new Error("Sign in required");
+
+  const { CONTROL_PLANE_URL } = await import("../hostConfig.js");
+  const resp = await fetch(`${CONTROL_PLANE_URL.replace(/\/$/, "")}/workspaces`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      kind: input.kind,
+      label: input.label,
+      handle: input.handle,
+      provisionAgent: true,
+    }),
+  });
+  const data = (await resp.json()) as {
+    workspace?: {
+      id: string;
+      kind: string;
+      label: string;
+      handle?: string;
+      createdAt?: string;
+    };
+    agent?: {
+      agentUrl: string;
+      adminToken: string;
+      handle: string;
+      status: string;
+    };
+    error?: string;
+  };
+  if (!resp.ok) throw new Error(data.error ?? `Create workspace failed (${resp.status})`);
+  if (!data.workspace) throw new Error("Workspace was not returned");
+  return { workspace: data.workspace, agent: data.agent };
 }
 
 export async function updateHostedLlmApiKey(llmApiKey: string): Promise<void> {

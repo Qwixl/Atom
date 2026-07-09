@@ -1,11 +1,10 @@
 import type { Express, Request, Response } from "express";
 import type { FleetProvisioner } from "./fleet/types.js";
-import { newAgentId } from "./fleet/index.js";
 import { parseSignupHandle, publicHandle } from "./handles.js";
 import { isSupabaseConfigured, supabaseAdmin } from "./supabaseAdmin.js";
 import { verifySupabaseAccessToken } from "./supabaseAuth.js";
 import type { HostedAgentRecord } from "./fleet/types.js";
-import { ensurePersonalWorkspaceId } from "./workspaceRoutes.js";
+import { ensurePersonalWorkspaceId, provisionWorkspaceAgent } from "./workspaceRoutes.js";
 
 type AccountType = "user" | "business" | "developer";
 
@@ -34,24 +33,47 @@ async function requireUser(req: Request, res: Response) {
   return user;
 }
 
-async function loadHostedAgent(userId: string) {
+async function loadPersonalHostedAgent(userId: string) {
+  const personalWorkspaceId = await ensurePersonalWorkspaceId(userId);
   const { data, error } = await supabaseAdmin()
     .from("hosted_agents")
-    .select("id, handle, agent_url, status, status_message, control_plane_agent_id")
+    .select("id, handle, agent_url, status, status_message, control_plane_agent_id, workspace_id")
     .eq("user_id", userId)
+    .eq("workspace_id", personalWorkspaceId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data;
+  if (data) return data;
+  // Pre-migration fallback: one agent per user without workspace_id match
+  const { data: legacy, error: legacyError } = await supabaseAdmin()
+    .from("hosted_agents")
+    .select("id, handle, agent_url, status, status_message, control_plane_agent_id, workspace_id")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (legacyError) throw new Error(legacyError.message);
+  return legacy;
 }
 
-async function loadAdminToken(userId: string): Promise<string | null> {
-  const { data, error } = await supabaseAdmin()
+async function loadAdminTokenForAgent(
+  hostedAgentId: string,
+  userId: string,
+): Promise<string | null> {
+  const byAgent = await supabaseAdmin()
+    .from("hosted_agent_secrets")
+    .select("admin_token")
+    .eq("hosted_agent_id", hostedAgentId)
+    .maybeSingle();
+  if (!byAgent.error && byAgent.data?.admin_token?.trim()) {
+    return byAgent.data.admin_token.trim();
+  }
+  const byUser = await supabaseAdmin()
     .from("hosted_agent_secrets")
     .select("admin_token")
     .eq("user_id", userId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
-  return data?.admin_token?.trim() || null;
+  if (byUser.error) throw new Error(byUser.error.message);
+  return byUser.data?.admin_token?.trim() || null;
 }
 
 async function isHandleTakenInSupabase(handle: string, exceptUserId?: string): Promise<boolean> {
@@ -80,7 +102,7 @@ export function registerAccountRoutes(
     try {
       const [{ data: profile }, agent] = await Promise.all([
         supabaseAdmin().from("profiles").select("*").eq("id", user.id).single(),
-        loadHostedAgent(user.id),
+        loadPersonalHostedAgent(user.id),
       ]);
       res.json({
         profile: profile
@@ -161,7 +183,7 @@ export function registerAccountRoutes(
         if (llmError) throw new Error(llmError.message);
       }
 
-      const existing = await loadHostedAgent(user.id);
+      const existing = await loadPersonalHostedAgent(user.id);
       if (existing?.status === "active" && existing.agent_url) {
         await supabaseAdmin()
           .from("profiles")
@@ -175,7 +197,6 @@ export function registerAccountRoutes(
         return;
       }
 
-      const agentId = newAgentId();
       const personalWorkspaceId = await ensurePersonalWorkspaceId(user.id);
       if (accountType === "business") {
         const { data: businessWs } = await supabaseAdmin()
@@ -193,48 +214,15 @@ export function registerAccountRoutes(
           });
         }
       }
-      await supabaseAdmin().from("hosted_agents").upsert(
-        {
-          user_id: user.id,
-          workspace_id: personalWorkspaceId,
-          control_plane_agent_id: agentId,
-          handle: parsedHandle.handle,
-          status: "provisioning",
-        },
-        { onConflict: "user_id" },
-      );
 
-      const outcome = await fleet.provision({
-        id: agentId,
+      const provisioned = await provisionWorkspaceAgent(deps, {
+        userId: user.id,
+        email: user.email ?? "",
+        workspaceId: personalWorkspaceId,
+        workspaceKind: "personal",
         handle: parsedHandle.handle,
-        email: user.email,
         llmApiKey: llmKey || undefined,
       });
-
-      deps.fleetAgents().set(outcome.agent.id, outcome.agent);
-      await deps.persistAgents();
-
-      const { error: agentError } = await supabaseAdmin()
-        .from("hosted_agents")
-        .update({
-          control_plane_agent_id: outcome.agent.id,
-          handle: outcome.agent.handle,
-          agent_url: outcome.agent.agentUrl,
-          workspace_id: personalWorkspaceId,
-          status: "active",
-          status_message: outcome.message ?? null,
-        })
-        .eq("user_id", user.id);
-      if (agentError) throw new Error(agentError.message);
-
-      const { error: secretError } = await supabaseAdmin().from("hosted_agent_secrets").upsert(
-        {
-          user_id: user.id,
-          admin_token: outcome.agent.adminToken,
-        },
-        { onConflict: "user_id" },
-      );
-      if (secretError) throw new Error(secretError.message);
 
       await supabaseAdmin()
         .from("profiles")
@@ -243,18 +231,20 @@ export function registerAccountRoutes(
 
       res.json({
         status: "ready",
-        handle: publicHandle(outcome.agent.handle),
-        agentUrl: outcome.agent.agentUrl,
+        handle: provisioned.handle,
+        agentUrl: provisioned.agentUrl,
         custodyNotice:
           "A hosted agent means Qwixl infrastructure holds your keys and store. You can export and self-host at any time.",
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       try {
+        const personalWorkspaceId = await ensurePersonalWorkspaceId(user.id);
         await supabaseAdmin()
           .from("hosted_agents")
           .update({ status: "failed", status_message: message })
-          .eq("user_id", user.id);
+          .eq("user_id", user.id)
+          .eq("workspace_id", personalWorkspaceId);
       } catch {
         /* best effort */
       }
@@ -270,12 +260,12 @@ export function registerAccountRoutes(
     const user = await requireUser(req, res);
     if (!user) return;
     try {
-      const agent = await loadHostedAgent(user.id);
+      const agent = await loadPersonalHostedAgent(user.id);
       if (!agent?.agent_url || agent.status !== "active") {
         res.status(409).json({ error: "Hosted agent not ready. Complete signup first." });
         return;
       }
-      const adminToken = await loadAdminToken(user.id);
+      const adminToken = await loadAdminTokenForAgent(agent.id, user.id);
       if (!adminToken) {
         res.status(500).json({ error: "Agent credentials missing" });
         return;
@@ -284,6 +274,7 @@ export function registerAccountRoutes(
         agentUrl: agent.agent_url.replace(/\/$/, ""),
         adminToken,
         handle: publicHandle(agent.handle),
+        workspaceId: agent.workspace_id ?? undefined,
       });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
@@ -312,7 +303,7 @@ export function registerAccountRoutes(
     const provider = body.llmProvider?.trim() || "openai";
 
     try {
-      const hosted = await loadHostedAgent(user.id);
+      const hosted = await loadPersonalHostedAgent(user.id);
       if (!hosted?.control_plane_agent_id || hosted.status !== "active") {
         res.status(409).json({ error: "Hosted agent not ready" });
         return;

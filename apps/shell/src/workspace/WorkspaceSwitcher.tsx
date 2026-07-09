@@ -10,8 +10,8 @@ export function WorkspaceSwitcher({
   workspaces: Workspace[];
   activeWorkspaceId: string;
   disabled?: boolean;
-  onSwitch: (workspaceId: string) => void;
-  onCreateBusiness?: () => void;
+  onSwitch: (workspaceId: string) => void | Promise<void>;
+  onCreateBusiness?: () => void | Promise<void>;
 }) {
   const active = workspaces.find((w) => w.id === activeWorkspaceId) ?? workspaces[0];
 

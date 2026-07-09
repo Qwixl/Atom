@@ -148,6 +148,7 @@ import {
   loadActiveWorkspaceId,
   saveActiveWorkspaceId,
   setActiveWorkspace,
+  upsertWorkspace,
 } from "./workspace/workspaceRegistry.js";
 import { isBusinessWorkspace, type Workspace } from "./workspace/types.js";
 import {
@@ -227,7 +228,7 @@ import { AGUI_CONFIG_KEY, DEFAULT_AGUI_URL, agUiAuthHeaders, loadAgUiConfig, sav
 import { validateProductionAgUiUrl } from "./productionGuard.js";
 import { applyAtomSkin, ATOM_SKINS, isAtomSkinId, type AtomSkinId } from "@qwixl/skin-default/tokens";
 import { FieldLabelWithHint, LlmApiKeyHintContent } from "./ui/FieldHint.js";
-import { updateHostedLlmApiKey, signOutSupabase, fetchHostedAccountStatus } from "./auth/hostedAccount.js";
+import { updateHostedLlmApiKey, signOutSupabase, fetchHostedAccountStatus, fetchHostedAgentConnection, createHostedWorkspace } from "./auth/hostedAccount.js";
 import { ShellComposer } from "./shell/ShellComposer.js";
 import { ConfirmationChrome } from "./shell/ConfirmationChrome.js";
 import { AtomShell } from "./shell/AtomShell.js";
@@ -2445,11 +2446,57 @@ export function App() {
           modulesActive={modulesActive}
           workspaces={workspaces}
           activeWorkspaceId={activeWorkspaceId}
-          onWorkspaceSwitch={(workspaceId) => {
+          onWorkspaceSwitch={async (workspaceId) => {
             if (!setActiveWorkspace(workspaceId)) return;
             setActiveWorkspaceId(workspaceId);
+            if (MANAGED_HOSTING && loadOwnerAgentKind(loadCommsAgentConfig()) === "hosted") {
+              try {
+                const connection = await fetchHostedAgentConnection(workspaceId);
+                await saveCommsAgentConfigSecure({
+                  adminUrl: connection.adminUrl,
+                  adminToken: connection.adminToken,
+                });
+                setAgUiConfig(saveAgUiConfigForAgent(connection.adminUrl));
+                refreshCommsConfigCache();
+              } catch (error) {
+                console.warn(
+                  `[workspace] hosted reconnect failed: ${error instanceof Error ? error.message : String(error)}`,
+                );
+              }
+            }
           }}
-          onCreateBusinessWorkspace={() => {
+          onCreateBusinessWorkspace={async () => {
+            if (MANAGED_HOSTING && loadOwnerAgentKind(loadCommsAgentConfig()) === "hosted") {
+              try {
+                const { workspace, agent } = await createHostedWorkspace({
+                  kind: "business",
+                  label: "Business",
+                });
+                upsertWorkspace({
+                  id: workspace.id,
+                  kind: workspace.kind as Workspace["kind"],
+                  label: workspace.label,
+                  handle: workspace.handle,
+                  createdAt: workspace.createdAt ?? new Date().toISOString(),
+                });
+                setWorkspaces(listWorkspaces());
+                const next = setActiveWorkspace(workspace.id);
+                if (next) setActiveWorkspaceId(next.id);
+                if (agent?.agentUrl && agent.adminToken && !agent.status.startsWith("failed")) {
+                  await saveCommsAgentConfigSecure({
+                    adminUrl: agent.agentUrl.replace(/\/$/, ""),
+                    adminToken: agent.adminToken,
+                  });
+                  setAgUiConfig(saveAgUiConfigForAgent(agent.agentUrl));
+                  refreshCommsConfigCache();
+                }
+                return;
+              } catch (error) {
+                console.warn(
+                  `[workspace] hosted create failed: ${error instanceof Error ? error.message : String(error)}`,
+                );
+              }
+            }
             const created = createWorkspace({ kind: "business", label: "Business" });
             setWorkspaces(listWorkspaces());
             const next = setActiveWorkspace(created.id);
@@ -2535,8 +2582,8 @@ function SettingsDialog({
   modulesActive: boolean;
   workspaces: Workspace[];
   activeWorkspaceId: string;
-  onWorkspaceSwitch: (workspaceId: string) => void;
-  onCreateBusinessWorkspace: () => void;
+  onWorkspaceSwitch: (workspaceId: string) => void | Promise<void>;
+  onCreateBusinessWorkspace: () => void | Promise<void>;
 }) {
   const [baseUrl, setBaseUrl] = useState(
     llmConnectionInitial?.baseUrl ?? "https://api.openai.com/v1",
