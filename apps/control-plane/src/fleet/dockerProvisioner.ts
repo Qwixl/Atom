@@ -92,7 +92,9 @@ function dockerRunArgs(input: {
   handle: string;
   agentId: string;
   llmApiKey?: string;
+  workspaceKind?: "personal" | "business" | "developer";
 }): string[] {
+  const workspaceKind = input.workspaceKind ?? "personal";
   const runArgs = [
     "run",
     "-d",
@@ -120,8 +122,13 @@ function dockerRunArgs(input: {
     `PORT=${AGENT_CONTAINER_PORT}`,
     "-e",
     "ATOM_DATA_DIR=/data",
+    "-e",
+    `ATOM_WORKSPACE_KIND=${workspaceKind}`,
     agentImage(),
   ];
+  if (workspaceKind === "business") {
+    runArgs.splice(runArgs.length - 1, 0, "-e", "ATOM_BUSINESS_MODE=true");
+  }
   if (input.llmApiKey?.trim()) {
     runArgs.splice(runArgs.length - 1, 0, "-e", `LLM_API_KEY=${input.llmApiKey.trim()}`);
   }
@@ -142,6 +149,7 @@ export class DockerFleetProvisioner implements FleetProvisioner {
     handle: string;
     email: string;
     llmApiKey?: string;
+    workspaceKind?: "personal" | "business" | "developer";
   }): Promise<ProvisionOutcome> {
     const adminToken = randomBytes(32).toString("base64url");
     const hostPort = await allocateHostPort(this.agents.values());
@@ -156,6 +164,7 @@ export class DockerFleetProvisioner implements FleetProvisioner {
       handle: input.handle,
       agentId: input.id,
       llmApiKey: input.llmApiKey,
+      workspaceKind: input.workspaceKind,
     });
 
     try {

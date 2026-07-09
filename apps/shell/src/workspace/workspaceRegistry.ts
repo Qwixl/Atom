@@ -65,16 +65,25 @@ export function createWorkspace(input: {
   label: string;
   handle?: string;
   businessDomain?: string;
+  id?: string;
 }): Workspace {
   const workspaces = listWorkspaces();
   const workspace: Workspace = {
-    id: crypto.randomUUID(),
+    id: input.id?.trim() || crypto.randomUUID(),
     kind: input.kind,
     label: input.label.trim() || input.kind,
     handle: input.handle?.trim() || undefined,
     businessDomain: input.businessDomain?.trim() || undefined,
     createdAt: new Date().toISOString(),
   };
+  workspaces.push(workspace);
+  saveRegistry(workspaces);
+  return workspace;
+}
+
+/** Insert or replace a workspace by id (hosted sync). */
+export function upsertWorkspace(workspace: Workspace): Workspace {
+  const workspaces = listWorkspaces().filter((w) => w.id !== workspace.id);
   workspaces.push(workspace);
   saveRegistry(workspaces);
   return workspace;

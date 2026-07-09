@@ -94,7 +94,11 @@ registerAccountRoutes(app, {
   fleetAgents: () => agents,
   persistAgents,
 });
-registerWorkspaceRoutes(app);
+registerWorkspaceRoutes(app, {
+  fleet: () => fleet,
+  fleetAgents: () => agents,
+  persistAgents,
+});
 
 app.get("/health", (_req, res) => {
   res.json({
