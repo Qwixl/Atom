@@ -1,5 +1,14 @@
 import { type BaseEvent, type RunAgentInput } from "@ag-ui/client";
-import { buildSystemPrompt, type PromptProfile } from "@qwixl/agent-llm";
+import {
+  ATOM_CONNECTOR_INVOKE_TOOL,
+  buildAgentToolProfile,
+  buildSystemPrompt,
+  chatCompletionTools,
+  parseAtomConnectorInvokeArgs,
+  wrapUntrustedContent,
+  type AtomToolExecutor,
+  type PromptProfile,
+} from "@qwixl/agent-llm";
 import {
   Catalog,
   parseAgentProtocolMessage,
@@ -25,9 +34,29 @@ export interface LlmAgUiConfig {
   modelAllowlist?: readonly string[];
   /** Optional LLM spend meter (D066 budget ledger). */
   onUsage?: (usage: { promptTokens?: number; completionTokens?: number; model: string }) => void;
+  /**
+   * When set with atomConnectorsAvailable, the hosted AG-UI runner runs the same
+   * atom_connector_invoke tool loop as browser Live LLM (calendar, RSS, etc.).
+   */
+  connectorExecutor?: AtomToolExecutor;
+  atomConnectorsAvailable?: boolean;
 }
 
 const REQUEST_TIMEOUT_MS = 120_000;
+const MAX_TOOL_ROUNDS = 8;
+
+type ToolCall = {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+};
+
+type ChatMessage = {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string | null;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+};
 
 function lastUserContent(input: RunAgentInput): string {
   for (let i = input.messages.length - 1; i >= 0; i--) {
@@ -93,46 +122,135 @@ function protocolMessageToOutput(message: unknown): AgentOutput | null {
   return parsed.output;
 }
 
+function connectorsEnabled(config: LlmAgUiConfig): boolean {
+  return Boolean(config.atomConnectorsAvailable && config.connectorExecutor);
+}
+
+async function executeNamedTool(config: LlmAgUiConfig, name: string, argsJson: string): Promise<string> {
+  if (name === ATOM_CONNECTOR_INVOKE_TOOL.function.name) {
+    if (!config.connectorExecutor) {
+      return JSON.stringify({ error: "Atom connector invoke is not configured" });
+    }
+    try {
+      const args = parseAtomConnectorInvokeArgs(argsJson);
+      const result = await config.connectorExecutor(args);
+      return wrapUntrustedContent(JSON.stringify(result, null, 2), {
+        source: `connector:${args.connectorId}`,
+        purpose: args.operation,
+      });
+    } catch (error) {
+      return JSON.stringify({
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return JSON.stringify({ error: `Unknown tool: ${name}` });
+}
+
 async function callChatCompletions(
   config: LlmAgUiConfig,
-  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
-): Promise<{ content: string; promptTokens?: number; completionTokens?: number }> {
+  messages: ChatMessage[],
+  tools?: unknown[],
+): Promise<{
+  message: ChatMessage;
+  promptTokens?: number;
+  completionTokens?: number;
+}> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
+    const body: Record<string, unknown> = {
+      model: config.model,
+      temperature: config.temperature ?? 0.4,
+      messages,
+    };
+    if (tools && tools.length > 0) {
+      body.tools = tools;
+      body.tool_choice = "auto";
+    }
     const response = await fetch(`${config.baseUrl.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${config.apiKey}`,
       },
-      body: JSON.stringify({
-        model: config.model,
-        temperature: config.temperature ?? 0.4,
-        messages,
-      }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
+      const errBody = await response.text().catch(() => "");
       throw new Error(
-        `${response.status} ${response.statusText}${body ? ` — ${body.slice(0, 200)}` : ""}`,
+        `${response.status} ${response.statusText}${errBody ? ` — ${errBody.slice(0, 200)}` : ""}`,
       );
     }
     const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
+      choices?: Array<{ message?: ChatMessage }>;
       usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
-    const content = data.choices?.[0]?.message?.content;
-    if (typeof content !== "string") throw new Error("endpoint returned no message content");
+    const message = data.choices?.[0]?.message;
+    if (!message) throw new Error("endpoint returned no message");
     return {
-      content,
+      message,
       promptTokens: data.usage?.prompt_tokens,
       completionTokens: data.usage?.completion_tokens,
     };
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function runChatWithOptionalTools(
+  config: LlmAgUiConfig,
+  messages: ChatMessage[],
+): Promise<string> {
+  const toolProfile = buildAgentToolProfile(undefined, {
+    atomConnectorsAvailable: connectorsEnabled(config),
+  });
+  const tools = chatCompletionTools(toolProfile);
+  if (tools.length === 0) {
+    const result = await callChatCompletions(config, messages);
+    config.onUsage?.({
+      promptTokens: result.promptTokens,
+      completionTokens: result.completionTokens,
+      model: config.model,
+    });
+    const content = result.message.content;
+    if (typeof content !== "string") throw new Error("endpoint returned no message content");
+    return content;
+  }
+
+  const working = [...messages];
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+    const result = await callChatCompletions(config, working, tools);
+    config.onUsage?.({
+      promptTokens: result.promptTokens,
+      completionTokens: result.completionTokens,
+      model: config.model,
+    });
+    const message = result.message;
+    if (message.tool_calls?.length) {
+      working.push({
+        role: "assistant",
+        content: message.content ?? null,
+        tool_calls: message.tool_calls,
+      });
+      for (const call of message.tool_calls) {
+        const output = await executeNamedTool(config, call.function.name, call.function.arguments);
+        working.push({
+          role: "tool",
+          tool_call_id: call.id,
+          content: output,
+        });
+      }
+      continue;
+    }
+    const content = message.content;
+    if (typeof content !== "string" || !content.trim()) {
+      throw new Error("endpoint returned empty content after tool loop");
+    }
+    return content;
+  }
+  throw new Error("tool loop exceeded maximum rounds");
 }
 
 export function loadLlmAgUiConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LlmAgUiConfig | null {
@@ -183,27 +301,24 @@ export async function* runLlmAgUiEvents(
     : config.businessContext?.trim()
       ? { open: [], guardedCategories: [], businessContext: config.businessContext.trim() }
       : undefined;
-  const baseSystem = buildSystemPrompt(catalog, mergedProfile);
+  const toolProfile = buildAgentToolProfile(undefined, {
+    atomConnectorsAvailable: connectorsEnabled(config),
+  });
+  const baseSystem = buildSystemPrompt(catalog, mergedProfile, toolProfile);
   const systemContent = config.safetyPrefix?.trim()
     ? `${config.safetyPrefix.trim()}\n\n${baseSystem}`
     : baseSystem;
-  const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+  const messages: ChatMessage[] = [
     {
       role: "system",
       content: systemContent,
     },
-    ...history,
+    ...history.map((entry) => ({ role: entry.role, content: entry.content }) as ChatMessage),
   ];
 
   let raw: string;
   try {
-    const result = await callChatCompletions(config, messages);
-    raw = result.content;
-    config.onUsage?.({
-      promptTokens: result.promptTokens,
-      completionTokens: result.completionTokens,
-      model: config.model,
-    });
+    raw = await runChatWithOptionalTools(config, messages);
   } catch (error) {
     yield* textAgUiEvents(
       uuid(),

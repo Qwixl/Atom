@@ -11,8 +11,10 @@ export {
 export type { ParsedProviderModelMetadata } from "./providerModelMetadata.js";
 export {
   buildAgentToolProfile,
+  chatCompletionTools,
   formatToolsForPrompt,
   parseAtomConnectorInvokeArgs,
+  ATOM_CONNECTOR_INVOKE_TOOL,
 } from "./agentTools.js";
 export type { AgentToolProfile, AtomToolExecutor, AtomConnectorInvokeInput, AtomToolId } from "./agentTools.js";
 export type { McpToolExecutor, AtomMcpInvokeInput } from "./mcpTools.js";
