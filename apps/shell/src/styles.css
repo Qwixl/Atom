@@ -1536,6 +1536,10 @@ body {
   margin-inline: auto;
 }
 
+.shell-composer-inner .compose-extras {
+  flex: none;
+}
+
 .shell-composer textarea {
   flex: 1;
   min-width: 0;
