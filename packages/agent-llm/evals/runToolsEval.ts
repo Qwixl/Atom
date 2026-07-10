@@ -50,6 +50,8 @@ export async function runScenario(
       },
       atomConnectorsAvailable: true,
       connectedConnectorIds: scenario.connectedConnectorIds as AtomConnectorId[] | undefined,
+      // Neutral profile — do not apply tool-shy/eager addenda during categorization.
+      forceBehaviorClassId: "balanced",
     },
   );
 

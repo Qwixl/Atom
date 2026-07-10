@@ -21,6 +21,7 @@ import type { FleetProvisioner, HostedAgentRecord } from "./fleet/types.js";
 import { createRateLimiter } from "./rateLimit.js";
 import { registerAccountRoutes } from "./accountRoutes.js";
 import { registerWorkspaceRoutes } from "./workspaceRoutes.js";
+import { registerModelBehaviorSightingsRoutes } from "./modelBehaviorSightingsRoutes.js";
 import { isSupabaseConfigured } from "./supabaseAdmin.js";
 
 const app = express();
@@ -99,6 +100,7 @@ registerWorkspaceRoutes(app, {
   fleetAgents: () => agents,
   persistAgents,
 });
+registerModelBehaviorSightingsRoutes(app, { requireProvisionAuth });
 
 app.get("/health", (_req, res) => {
   res.json({
