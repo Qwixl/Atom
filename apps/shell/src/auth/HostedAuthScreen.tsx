@@ -13,7 +13,12 @@ import {
 import { bareOwnerHandle, normalizeOwnerHandle, validateOwnerHandle } from "../ownerHandle.js";
 import { saveOwnerHandle } from "../ownerHandle.js";
 import { markFirstRunDone } from "../firstRunStorage.js";
-import { FieldLabelWithHint, LlmApiKeyHintContent } from "../ui/FieldHint.js";
+import {
+  defaultHostedLlmConnectionFields,
+  HostedLlmConnectionFields,
+  type HostedLlmConnectionFieldsValue,
+} from "../settings/HostedLlmConnectionFields.js";
+import { resolveHostedLlmConnection } from "../settings/llmProviderPresets.js";
 
 type AuthMode = "signup" | "login";
 
@@ -33,17 +38,19 @@ export function HostedAuthScreen({
   const [password, setPassword] = useState("");
   const [handle, setHandle] = useState("");
   const [accountType, setAccountType] = useState<AtomAccountType>("user");
-  const [llmApiKey, setLlmApiKey] = useState("");
+  const [llmConnection, setLlmConnection] = useState<HostedLlmConnectionFieldsValue>(() =>
+    defaultHostedLlmConnectionFields("openai"),
+  );
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
-  async function wireAgentAfterAuth(): Promise<void> {
+  async function wireAgentAfterAuth() {
     const connection = await fetchHostedAgentConnection();
-    await saveValidatedAgentConnection({
+    saveCommsAgentConfigSecure({
       adminUrl: connection.adminUrl,
       adminToken: connection.adminToken,
     });
-    await saveCommsAgentConfigSecure({
+    saveValidatedAgentConnection({
       adminUrl: connection.adminUrl,
       adminToken: connection.adminToken,
     });
@@ -59,8 +66,21 @@ export function HostedAuthScreen({
       setStatus(handleError);
       return;
     }
-    if (!llmApiKey.trim()) {
+    if (!llmConnection.apiKey.trim()) {
       setStatus("Add your LLM API key to continue.");
+      return;
+    }
+    const resolved = resolveHostedLlmConnection({
+      providerId: llmConnection.providerId,
+      baseUrl: llmConnection.baseUrl,
+      model: llmConnection.model,
+    });
+    if (!resolved.baseUrl.trim() || !resolved.model.trim()) {
+      setStatus(
+        llmConnection.providerId === "custom"
+          ? "Add an endpoint base URL and model id."
+          : "Choose a model for your provider.",
+      );
       return;
     }
     if (password.length < 8) {
@@ -87,7 +107,10 @@ export function HostedAuthScreen({
       await bootstrapHostedAccount({
         handle: bareOwnerHandle(handle),
         accountType,
-        llmApiKey: llmApiKey.trim(),
+        llmApiKey: llmConnection.apiKey.trim(),
+        llmProvider: resolved.provider,
+        llmBaseUrl: resolved.baseUrl,
+        llmModel: resolved.model,
       });
       await wireAgentAfterAuth();
     } catch (error) {
@@ -179,16 +202,11 @@ export function HostedAuthScreen({
             />
           </label>
 
-          <label className="field">
-            <FieldLabelWithHint label="LLM API key" hint={<LlmApiKeyHintContent />} />
-            <input
-              type="password"
-              autoComplete="off"
-              value={llmApiKey}
-              onChange={(e) => setLlmApiKey(e.target.value)}
-              placeholder="sk-…"
-            />
-          </label>
+          <HostedLlmConnectionFields
+            value={llmConnection}
+            onChange={setLlmConnection}
+            fieldClassName="field"
+          />
 
           <button type="button" className="primary" disabled={busy} onClick={() => void submitSignup()}>
             {busy ? "Creating account…" : "Create account"}

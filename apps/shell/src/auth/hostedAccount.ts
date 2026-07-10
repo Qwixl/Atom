@@ -401,11 +401,16 @@ export async function createHostedWorkspace(input: {
   return { workspace: data.workspace, agent: data.agent };
 }
 
-export async function updateHostedLlmApiKey(llmApiKey: string): Promise<void> {
+export async function updateHostedLlmConnection(input: {
+  llmApiKey: string;
+  llmProvider?: string;
+  llmBaseUrl?: string;
+  llmModel?: string;
+}): Promise<void> {
   const token = await supabaseAccessToken();
   if (!token) throw new Error("Sign in required");
 
-  const key = llmApiKey.trim();
+  const key = input.llmApiKey.trim();
   if (!key) throw new Error("LLM API key is required");
 
   const { CONTROL_PLANE_URL } = await import("../hostConfig.js");
@@ -415,8 +420,18 @@ export async function updateHostedLlmApiKey(llmApiKey: string): Promise<void> {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ llmApiKey: key }),
+    body: JSON.stringify({
+      llmApiKey: key,
+      llmProvider: input.llmProvider?.trim() || undefined,
+      llmBaseUrl: input.llmBaseUrl?.trim() || undefined,
+      llmModel: input.llmModel?.trim() || undefined,
+    }),
   });
   const data = (await resp.json()) as { error?: string };
   if (!resp.ok) throw new Error(data.error ?? `Update failed (${resp.status})`);
+}
+
+/** @deprecated Use updateHostedLlmConnection — key-only updates leave OpenRouter base URL unset. */
+export async function updateHostedLlmApiKey(llmApiKey: string): Promise<void> {
+  return updateHostedLlmConnection({ llmApiKey });
 }
