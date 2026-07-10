@@ -6,6 +6,9 @@ export type PendingHostedAuth = {
   email: string;
   handle?: string;
   llmApiKey?: string;
+  llmProvider?: string;
+  llmBaseUrl?: string;
+  llmModel?: string;
 };
 
 export function savePendingHostedAuth(data: PendingHostedAuth): void {

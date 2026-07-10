@@ -74,14 +74,24 @@ async function isHandleTaken(handle: string, exceptUserId?: string): Promise<boo
   return true;
 }
 
-async function loadLlmApiKey(userId: string): Promise<string | undefined> {
+async function loadLlmSettings(userId: string): Promise<{
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+  provider?: string;
+}> {
   const { data, error } = await supabaseAdmin()
     .from("user_llm_settings")
-    .select("api_key")
+    .select("api_key, base_url, model, provider")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data?.api_key?.trim() || undefined;
+  return {
+    apiKey: data?.api_key?.trim() || undefined,
+    baseUrl: data?.base_url?.trim() || undefined,
+    model: data?.model?.trim() || undefined,
+    provider: data?.provider?.trim() || undefined,
+  };
 }
 
 /** Provision a fleet agent for a workspace and persist hosted_agents + secrets. */
@@ -94,6 +104,8 @@ export async function provisionWorkspaceAgent(
     workspaceKind: WorkspaceKind;
     handle: string;
     llmApiKey?: string;
+    llmBaseUrl?: string;
+    llmModel?: string;
   },
 ): Promise<{ agentUrl: string; adminToken: string; handle: string }> {
   const fleet = deps.fleet();
@@ -119,6 +131,8 @@ export async function provisionWorkspaceAgent(
       handle: input.handle,
       email: input.email,
       llmApiKey: input.llmApiKey,
+      llmBaseUrl: input.llmBaseUrl,
+      llmModel: input.llmModel,
       workspaceKind: input.workspaceKind,
       brainAlwaysOn: resolveHostedBrainAlwaysOn(),
     });
@@ -244,14 +258,16 @@ export function registerWorkspaceRoutes(app: Express, deps: WorkspaceRouteDeps):
       const shouldProvision = body.provisionAgent !== false;
       if (shouldProvision) {
         try {
-          const llmApiKey = await loadLlmApiKey(user.id);
+          const llm = await loadLlmSettings(user.id);
           const provisioned = await provisionWorkspaceAgent(deps, {
             userId: user.id,
             email: user.email ?? "",
             workspaceId: data.id,
             workspaceKind: kind,
             handle: parsed.handle,
-            llmApiKey,
+            llmApiKey: llm.apiKey,
+            llmBaseUrl: llm.baseUrl,
+            llmModel: llm.model,
           });
           agent = { ...provisioned, status: "active" };
         } catch (provisionError) {
