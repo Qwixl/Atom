@@ -41,6 +41,8 @@ function testConfig(port: number, publicBaseUrl: string, businessMode: boolean):
     businessKnowledgeBackend: "json",
     businessKnowledgeRemoteUrl: null,
     interactivePortResolve: false,
+    brainAlwaysOn: true,
+    brainIntervalMs: 60000,
   };
 }
 

@@ -151,6 +151,12 @@ interface ConnectorVaultPayload {
   ownerRecords?: unknown[];
   ownerProposals?: unknown[];
   attestations?: unknown[];
+  /** Workspace-keyed chat text history envelopes (shell Chat feed sync). */
+  chatFeeds?: Record<string, unknown>;
+  /** Owner-declared standing intents for the Agent Brain heartbeat (D077 / BK-42). */
+  standingIntents?: unknown[];
+  /** Queued brain notifications awaiting shell delivery (BK-43). */
+  brainPendingNotifications?: unknown[];
 }
 
 export class ConnectorVault {
@@ -637,6 +643,35 @@ export class ConnectorVault {
 
   async setAttestations<T>(entries: T[]): Promise<void> {
     this.payload.attestations = entries;
+    await this.persist();
+  }
+
+  getChatFeed(workspaceId: string): unknown | null {
+    const key = workspaceId.trim() || "personal";
+    return this.payload.chatFeeds?.[key] ?? null;
+  }
+
+  async setChatFeed(workspaceId: string, feed: unknown): Promise<void> {
+    const key = workspaceId.trim() || "personal";
+    this.payload.chatFeeds = { ...(this.payload.chatFeeds ?? {}), [key]: feed };
+    await this.persist();
+  }
+
+  getStandingIntents(): unknown[] {
+    return this.payload.standingIntents ?? [];
+  }
+
+  async setStandingIntents(intents: unknown[]): Promise<void> {
+    this.payload.standingIntents = intents;
+    await this.persist();
+  }
+
+  getBrainPendingNotifications(): unknown[] {
+    return this.payload.brainPendingNotifications ?? [];
+  }
+
+  async setBrainPendingNotifications(entries: unknown[]): Promise<void> {
+    this.payload.brainPendingNotifications = entries;
     await this.persist();
   }
 

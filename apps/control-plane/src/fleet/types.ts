@@ -28,6 +28,8 @@ export interface FleetProvisioner {
     llmApiKey?: string;
     /** personal | business | developer — sets ATOM_WORKSPACE_KIND / business mode on container. */
     workspaceKind?: "personal" | "business" | "developer";
+    /** Agent Brain always-on heartbeat (ATOM_BRAIN_ALWAYS_ON). Default resolved from beta policy. */
+    brainAlwaysOn?: boolean;
   }): Promise<ProvisionOutcome>;
   suspend(agent: HostedAgentRecord, reason: string): Promise<void>;
   resume(agent: HostedAgentRecord): Promise<void>;

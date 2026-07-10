@@ -202,6 +202,7 @@ async function callChatCompletions(
 async function runChatWithOptionalTools(
   config: LlmAgUiConfig,
   messages: ChatMessage[],
+  maxToolRounds: number = MAX_TOOL_ROUNDS,
 ): Promise<string> {
   const toolProfile = buildAgentToolProfile(undefined, {
     atomConnectorsAvailable: connectorsEnabled(config),
@@ -220,7 +221,8 @@ async function runChatWithOptionalTools(
   }
 
   const working = [...messages];
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+  const rounds = Math.max(1, Math.min(MAX_TOOL_ROUNDS, maxToolRounds));
+  for (let round = 0; round < rounds; round += 1) {
     const result = await callChatCompletions(config, working, tools);
     config.onUsage?.({
       promptTokens: result.promptTokens,
@@ -251,6 +253,40 @@ async function runChatWithOptionalTools(
     return content;
   }
   throw new Error("tool loop exceeded maximum rounds");
+}
+
+/**
+ * Plain text LLM completion with optional connector tools (Agent Brain turns).
+ * Not an AG-UI SSE stream — returns assistant text only.
+ */
+export async function runLlmTextCompletion(
+  config: LlmAgUiConfig,
+  systemPrompt: string,
+  userMessage: string,
+  options?: { maxToolRounds?: number },
+): Promise<string> {
+  if (config.modelAllowlist && config.modelAllowlist.length > 0) {
+    if (!config.modelAllowlist.includes(config.model)) {
+      throw new Error(
+        `Model "${config.model}" is not on this agent's allowlist. Set LLM_MODEL or clear ATOM_MODEL_ALLOWLIST.`,
+      );
+    }
+  }
+  const catalog = new Catalog();
+  registerCorePrimitives(catalog);
+  registerEcosystemModules(catalog);
+  const toolProfile = buildAgentToolProfile(undefined, {
+    atomConnectorsAvailable: connectorsEnabled(config),
+  });
+  const baseSystem = buildSystemPrompt(catalog, config.profile, toolProfile);
+  const systemContent = [config.safetyPrefix?.trim(), systemPrompt.trim(), baseSystem]
+    .filter(Boolean)
+    .join("\n\n");
+  const messages: ChatMessage[] = [
+    { role: "system", content: systemContent },
+    { role: "user", content: userMessage },
+  ];
+  return runChatWithOptionalTools(config, messages, options?.maxToolRounds ?? MAX_TOOL_ROUNDS);
 }
 
 export function loadLlmAgUiConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LlmAgUiConfig | null {

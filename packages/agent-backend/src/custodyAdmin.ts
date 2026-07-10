@@ -315,4 +315,23 @@ export function registerCustodyAdminRoutes(app: Express, vault: ConnectorVault):
     await vault.setAttestations(body.entries);
     res.json({ ok: true, count: body.entries.length });
   });
+
+  app.get("/custody/store/chat-feed", (req, res) => {
+    const workspaceId =
+      typeof req.query.workspaceId === "string" && req.query.workspaceId.trim()
+        ? req.query.workspaceId.trim()
+        : "personal";
+    res.json({ feed: vault.getChatFeed(workspaceId) });
+  });
+
+  app.put("/custody/store/chat-feed", async (req, res) => {
+    const body = req.body as { workspaceId?: string; feed?: unknown };
+    const workspaceId = body.workspaceId?.trim() || "personal";
+    if (!body.feed || typeof body.feed !== "object") {
+      res.status(400).json({ error: "feed object required" });
+      return;
+    }
+    await vault.setChatFeed(workspaceId, body.feed);
+    res.json({ ok: true, workspaceId });
+  });
 }

@@ -19,8 +19,10 @@ class DevStubProvisioner implements FleetProvisioner {
     email: string;
     llmApiKey?: string;
     workspaceKind?: "personal" | "business" | "developer";
+    brainAlwaysOn?: boolean;
   }): Promise<ProvisionOutcome> {
     void input.workspaceKind;
+    void input.brainAlwaysOn;
     const stub = devStubCredentials();
     if (!stub) {
       throw new Error("Dev stub credentials not configured");
@@ -69,6 +71,7 @@ class UnconfiguredProvisioner implements FleetProvisioner {
     email: string;
     llmApiKey?: string;
     workspaceKind?: "personal" | "business" | "developer";
+    brainAlwaysOn?: boolean;
   }): Promise<ProvisionOutcome> {
     throw new Error(
       "Hosted signup is unavailable: fleet not configured. Set ATOM_FLEET_MODE=docker and build atom-agent:latest, or self-host with npx @qwixl/agent-backend.",
