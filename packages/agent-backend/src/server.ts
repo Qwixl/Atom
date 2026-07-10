@@ -27,6 +27,7 @@ import { registerAdminDataRoutes } from "./adminDataRoutes.js";
 import { registerCustodyAdminRoutes } from "./custodyAdmin.js";
 import { registerBrainAdminRoutes } from "./brainAdmin.js";
 import { BrainScheduler } from "./brainScheduler.js";
+import { registerPushAdminRoutes } from "./push/pushAdmin.js";
 import { createReadOnlyConnectorExecutor } from "./readOnlyConnectorExecutor.js";
 import { loadVoiceBackend } from "./voice/stubVoiceBackend.js";
 import { registerVoiceAdminRoutes } from "./voice/voiceAdmin.js";
@@ -427,6 +428,9 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     platformFeeBps: 0,
     brainAlwaysOn: config.brainAlwaysOn,
     betaFree: process.env.ATOM_BETA_FREE !== "0" && process.env.ATOM_BETA_FREE !== "false",
+    alwaysOnStripePriceId: process.env.ATOM_ALWAYS_ON_STRIPE_PRICE_ID?.trim() || null,
+    checkoutSuccessUrl: process.env.ATOM_CHECKOUT_SUCCESS_URL?.trim() || null,
+    checkoutCancelUrl: process.env.ATOM_CHECKOUT_CANCEL_URL?.trim() || null,
   });
   registerTransactionAdminRoutes(adminApp, {
     stripeSecretKey: config.stripeSecretKey,
@@ -504,6 +508,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     },
   });
   registerBrainAdminRoutes(adminApp, { vault: connectorVault, scheduler: brainScheduler });
+  registerPushAdminRoutes(adminApp, { vault: connectorVault });
   const voiceBackend = loadVoiceBackend();
   registerVoiceAdminRoutes(adminApp, voiceBackend);
   registerAdminDataRoutes(adminApp);

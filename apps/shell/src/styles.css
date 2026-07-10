@@ -1608,6 +1608,30 @@ body {
   min-height: 2.75rem;
 }
 
+.voice-ptt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  justify-content: center;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto 8px;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+
+.voice-ptt-btn {
+  min-width: 9rem;
+  touch-action: none;
+  user-select: none;
+}
+
+.voice-ptt-btn--active {
+  filter: brightness(1.08);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--shell-accent, #888) 35%, transparent);
+}
+
 /* Composition primitives: @qwixl/skin-default/primitives.css */
 
 .settings-model-row {

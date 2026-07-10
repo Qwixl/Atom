@@ -9,6 +9,8 @@ import {
   type BrainPendingNotification,
   type StandingIntent,
 } from "./standingIntents.js";
+import { normalizePushSubscriptions } from "./push/types.js";
+import { loadPushSenderConfig, sendBrainPushNotifications } from "./push/sendPush.js";
 
 export interface BrainSchedulerOptions {
   vault: ConnectorVault;
@@ -139,6 +141,22 @@ export class BrainScheduler {
         if (notification) {
           notifications.push(notification);
           this.onFire?.(updated, notification);
+          const channel = updated.delivery?.channel;
+          const shouldPush = channel === "push" || channel === undefined;
+          if (shouldPush) {
+            const subs = normalizePushSubscriptions(this.vault.getPushSubscriptions());
+            if (subs.length > 0) {
+              void sendBrainPushNotifications(subs, notification, loadPushSenderConfig()).then(
+                (result) => {
+                  if (result.failed > 0) {
+                    console.warn(
+                      `[brain] push send partial failure for ${intent.id}: ${result.errors.join("; ")}`,
+                    );
+                  }
+                },
+              );
+            }
+          }
         }
       }
 
