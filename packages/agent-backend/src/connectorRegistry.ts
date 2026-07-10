@@ -1,3 +1,4 @@
+import type { AtomConnectorId } from "@qwixl/agent-llm";
 import type { ConnectorVault } from "./connectorVault.js";
 import {
   BOOKMARKS_CONNECTOR_ID,
@@ -526,4 +527,24 @@ export function getConnectorBackend(connectorId: string): ConnectorBackend | und
 
 export function listConnectorBackendIds(): string[] {
   return [...CONNECTOR_BACKENDS.keys()];
+}
+
+/**
+ * Connector ids whose backend reports `configured: true` for this vault.
+ * Used to session-filter per-intent tools (D081) — alwaysAvailable tools
+ * (news-search, page-fetch, weather) are kept by the registry regardless.
+ */
+export async function listConfiguredConnectorIds(
+  vault: ConnectorVault,
+): Promise<AtomConnectorId[]> {
+  const ids: AtomConnectorId[] = [];
+  for (const backend of CONNECTOR_BACKENDS.values()) {
+    try {
+      const status = await backend.status(vault);
+      if (status.configured === true) ids.push(backend.id as AtomConnectorId);
+    } catch {
+      // Treat status failures as not connected; invoke still surfaces real errors.
+    }
+  }
+  return ids;
 }

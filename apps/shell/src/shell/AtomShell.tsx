@@ -13,6 +13,7 @@ import {
   IconMenu,
   IconMessages,
   IconProfile,
+  IconLog,
   IconRooms,
   IconSettings,
 } from "./ShellIcons.js";
@@ -277,6 +278,32 @@ export function AtomShell({
               </button>
             );
           })}
+          <button
+            type="button"
+            className="atom-nav-popover-item"
+            onClick={() => openSettings("profile")}
+          >
+            <IconProfile className="atom-nav-icon" />
+            <span>Profile</span>
+            {badges.profile?.count ? (
+              <span
+                className={`atom-nav-badge${badges.profile.tone === "warn" ? " atom-nav-badge--warn" : ""}`}
+              >
+                {badges.profile.count}
+              </span>
+            ) : null}
+          </button>
+          <button
+            type="button"
+            className="atom-nav-popover-item"
+            onClick={() => openSettings("log")}
+          >
+            <IconLog className="atom-nav-icon" />
+            <span>Log</span>
+            {badges.log?.count ? (
+              <span className="atom-nav-badge">{badges.log.count}</span>
+            ) : null}
+          </button>
           {onStartGame && games.length > 0 ? (
             <div className="atom-nav-popover-games">
               <button

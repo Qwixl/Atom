@@ -87,6 +87,7 @@ Build your app with any bundler that resolves the package `development` export c
 | [API-v1.md](./API-v1.md) | Frozen v1 contracts (composition, session, manifest, sandbox) |
 | [AGENT-BACKEND.md](./AGENT-BACKEND.md) | Self-hosting the owner agent backend |
 | [DEVELOPERS.md](./DEVELOPERS.md) | M14 developer platform entry |
+| [MODEL-BEHAVIOR-ADMIN.md](./MODEL-BEHAVIOR-ADMIN.md) | Ops: model behavior classes + maintenance script (not product UI) |
 | [PERSONAL-DEMO.md](./PERSONAL-DEMO.md) | Guided personal demo (`pnpm dev:demo`) |
 | [DEMO-PEER.md](./DEMO-PEER.md) | Live demo counterpart agent (M14.6) |
 | [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md) | M16 public push gates |

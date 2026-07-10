@@ -1815,7 +1815,7 @@ a.settings-donate-link {
   background: var(--shell-raised-bg);
 }
 
-@media (max-width: 800px) {
+@media (max-width: 959px) {
   .panel-master-detail {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
@@ -1839,10 +1839,32 @@ a.settings-donate-link {
 
   .discover-row {
     grid-template-columns: 1fr;
+    padding: 10px 12px;
+    gap: 8px;
   }
 
   .discover-row-actions {
     justify-content: flex-start;
+  }
+
+  .discover-view > .discover-lede {
+    padding: 10px 12px 8px;
+    font-size: 13px;
+  }
+
+  .panel-search-bar {
+    padding: 8px 12px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .panel-search-bar .panel-input {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .panel-search-bar .panel-select {
+    flex: 1 1 auto;
   }
 
   /* —— Messages (Comms): chat owns the viewport —— */

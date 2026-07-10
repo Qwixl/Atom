@@ -148,6 +148,22 @@ function assertAdminWriteAuth(req: Request, res: { status: (code: number) => { j
 
 export function registerConnectorAdminRoutes(adminApp: Express, config: ConnectorAdminConfig): void {
 
+  adminApp.get("/connectors", async (req, res) => {
+    if (!assertConnectorReadAuth(req, res)) return;
+    try {
+      const { listConfiguredConnectorIds, listConnectorBackendIds } = await import(
+        "./connectorRegistry.js"
+      );
+      const configured = await listConfiguredConnectorIds(config.vault);
+      res.json({
+        configured,
+        known: listConnectorBackendIds(),
+      });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   adminApp.get("/connectors/:connectorId", async (req, res) => {
     if (!assertConnectorReadAuth(req, res)) return;
 
