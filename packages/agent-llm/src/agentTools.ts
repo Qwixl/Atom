@@ -8,6 +8,7 @@ export type AtomConnectorId =
   | "webcal"
   | "rss"
   | "news-search"
+  | "page-fetch"
   | "bookmarks"
   | "todoist"
   | "github"
@@ -74,7 +75,8 @@ export const ATOM_CONNECTOR_INVOKE_TOOL = {
     name: "atom_connector_invoke",
     description:
       "Read owner-specific data via Atom connectors. Use for calendar (webcal, caldav), contacts (carddav), " +
-      "subscribed RSS/podcast feeds, ephemeral news search (news-search), saved bookmarks, Todoist tasks, " +
+      "subscribed RSS/podcast feeds, ephemeral news search (news-search), public page fetch (page-fetch) for " +
+      "link-intent summarize/full, saved bookmarks, Todoist tasks, " +
       "GitHub notifications/issues, Notion search, Linear/Trello/Home Assistant, Bluesky/Mastodon timelines, " +
       "or Open-Meteo weather. Agent-led only — never triggered by shell keywords.",
     parameters: {
@@ -86,6 +88,7 @@ export const ATOM_CONNECTOR_INVOKE_TOOL = {
             "webcal",
             "rss",
             "news-search",
+            "page-fetch",
             "bookmarks",
             "todoist",
             "github",
@@ -106,7 +109,8 @@ export const ATOM_CONNECTOR_INVOKE_TOOL = {
           description:
             "Operation id. webcal: getStatus, listEvents. caldav: getStatus, listCalendars, listEvents. " +
             "carddav: getStatus, listContacts. rss: getStatus, listItems, listPodcastItems. " +
-            "news-search: searchItems (input.query). bookmarks: getStatus, listBookmarks, readBookmark. " +
+            "news-search: searchItems (input.query). page-fetch: readPage (input.url) for [link-intent] article reads. " +
+            "bookmarks: getStatus, listBookmarks, readBookmark. " +
             "todoist: getStatus, listTasks, listProjects. github: getStatus, listNotifications, listAssignedIssues. " +
             "notion: getStatus, search (input.query). linear: getStatus, listAssignedIssues. " +
             "trello: getStatus, listBoards, listCards. home-assistant: getStatus, listEntities, getEntityState. " +
@@ -115,7 +119,8 @@ export const ATOM_CONNECTOR_INVOKE_TOOL = {
         },
         input: {
           type: "object",
-          description: 'Operation input, e.g. { query: "politics" } for news-search searchItems.',
+          description:
+            'Operation input, e.g. { query: "politics" } for news-search, or { url: "https://…" } for page-fetch readPage.',
           additionalProperties: true,
         },
       },
@@ -185,10 +190,10 @@ export function formatToolsForPrompt(profile: AgentToolProfile): string {
   }
   if (profile.atom.includes("connector_invoke")) {
     lines.push(
-      "- **atom_connector_invoke** (Atom): owner calendar (webcal/caldav), contacts (carddav), RSS/podcasts, **news-search**, bookmarks, **Todoist**, **GitHub**, **Notion**, **Linear**, **Trello**, **Home Assistant**, **Bluesky**, **Mastodon**, **weather** — call for fresh owner data",
+      "- **atom_connector_invoke** (Atom): owner calendar (webcal/caldav), contacts (carddav), RSS/podcasts, **news-search**, **page-fetch** (read public article URLs for [link-intent]), bookmarks, **Todoist**, **GitHub**, **Notion**, **Linear**, **Trello**, **Home Assistant**, **Bluesky**, **Mastodon**, **weather** — call for fresh owner data",
     );
     lines.push(
-      "  Prefer this tool over passive Calendar/RSS snapshots when answering schedule, feed, bookmark, or briefing-topic questions.",
+      "  Prefer this tool over passive Calendar/RSS snapshots when answering schedule, feed, bookmark, link-intent, or briefing-topic questions.",
     );
   }
   if (profile.atom.includes("mcp_invoke")) {

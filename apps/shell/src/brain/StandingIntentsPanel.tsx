@@ -200,7 +200,8 @@ export function StandingIntentsPanel({
       <p className="settings-note">
         Tell your agent what to watch for in the background. The heartbeat runs on your agent
         backend — always-on on hosted accounts during beta; self-hosted only while the process is
-        up.
+        up. Daily briefing here is the scheduled fire; Settings → Briefing controls only whether
+        Chat also composes a briefing when you open it.
       </p>
       {!vaultUnlocked || !config.adminToken?.trim() ? (
         <p className="settings-note">Unlock the vault and connect your agent to manage intents.</p>
