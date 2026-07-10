@@ -36,8 +36,8 @@
     },
     {
       "pattern": "gpt-4o-mini",
-      "classId": "balanced",
-      "note": "auto 2026-07-10: missing=0 unexpected=0 settings=0 misRoute=0"
+      "classId": "tool-eager",
+      "note": "Seed: mini-class chat models (2026-07-10 eval inconclusive — kept)"
     },
     {
       "pattern": "command-r",
