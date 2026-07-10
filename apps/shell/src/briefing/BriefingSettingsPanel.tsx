@@ -53,7 +53,9 @@ export function BriefingSettingsPanel({
         <>
           <h3>Daily briefing</h3>
           <p className="settings-note">
-            Get a short roundup when you open Chat. Add calendar and news feeds under Connectors first.
+            Optional: compose a briefing when you open Chat (this toggle). Separate from Agent →
+            Standing intents (scheduled morning briefing). Add calendar and news feeds under
+            Connectors; add topics below only if you want a &quot;Topics you follow&quot; section.
           </p>
         </>
       ) : null}

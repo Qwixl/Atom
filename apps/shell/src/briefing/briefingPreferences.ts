@@ -57,11 +57,10 @@ export function formatBriefingContextForPrompt(
   prefs: BriefingPreferences,
   interestThemeHints: readonly string[] = [],
 ): string | undefined {
-  if (prefs.topics.length === 0 && interestThemeHints.length === 0) return undefined;
-  const topics =
-    prefs.topics.length > 0
-      ? prefs.topics.join(", ")
-      : "(none configured yet — use emerging interest themes below as soft hints)";
+  // Topics card requires explicit owner topics — soft interest hints alone must not
+  // trigger news-search under a "Topics you follow" label.
+  if (prefs.topics.length === 0) return undefined;
+  const topics = prefs.topics.join(", ");
   const interestLine =
     interestThemeHints.length > 0
       ? `Emerging interest themes from exploration graph (soft ranking signal, not hard prefs): ${interestThemeHints.join(", ")}.`
@@ -74,6 +73,7 @@ export function formatBriefingContextForPrompt(
     "Ranking signals: owner profile records (tier, confidence, strength), retrieved memory and past link explorations / interest connections, recency, topic relevance.",
     "Reserve 1–2 slots for major breaking stories (elections, disasters, war, market shocks) even without profile match — highlight interests without insulating the owner.",
     "Never relabel unrelated RSS headlines as topic news.",
+    "If this section is absent from context, omit the Topics you follow card entirely.",
   ]
     .filter((line): line is string => Boolean(line))
     .join(" ");

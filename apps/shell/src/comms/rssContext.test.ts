@@ -28,6 +28,23 @@ describe("formatRssContextForPrompt", () => {
     expect(text).toContain("[City beat rivals](https://example.com/story)");
   });
 
+  it("includes excerpt lines when present", () => {
+    const text = formatRssContextForPrompt({
+      connected: true,
+      items: [
+        {
+          id: "1",
+          title: "City beat rivals",
+          link: "https://example.com/story",
+          feedId: "f1",
+          excerpt: "A late goal sealed the win.",
+        },
+      ],
+    });
+    expect(text).toContain("Excerpt: A late goal sealed the win.");
+    expect(text).toContain("core/disclosure");
+  });
+
   it("states not connected when no feeds", () => {
     const text = formatRssContextForPrompt({
       connected: false,

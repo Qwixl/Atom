@@ -2,30 +2,46 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import {
   canRequestBriefingComposition,
   feedNeedsBriefingCompositionRecovery,
+  hasBriefingCompositionBeenRequestedThisSession,
+  markBriefingCompositionRequestedThisSession,
   shouldFireBriefingFromPending,
+  shouldRecoverBriefingComposition,
   shouldSessionOpenBriefing,
 } from "./briefingAutoFire.js";
 import { saveBriefingPreferences } from "../briefing/briefingPreferences.js";
 
-function installLocalStorageMock(): void {
-  const store = new Map<string, string>();
+function installStorageMocks(): void {
+  const local = new Map<string, string>();
+  const session = new Map<string, string>();
   vi.stubGlobal("localStorage", {
-    getItem: (key: string) => store.get(key) ?? null,
+    getItem: (key: string) => local.get(key) ?? null,
     setItem: (key: string, value: string) => {
-      store.set(key, value);
+      local.set(key, value);
     },
     removeItem: (key: string) => {
-      store.delete(key);
+      local.delete(key);
     },
     clear: () => {
-      store.clear();
+      local.clear();
+    },
+  });
+  vi.stubGlobal("sessionStorage", {
+    getItem: (key: string) => session.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      session.set(key, value);
+    },
+    removeItem: (key: string) => {
+      session.delete(key);
+    },
+    clear: () => {
+      session.clear();
     },
   });
 }
 
 describe("briefingAutoFire", () => {
   beforeEach(() => {
-    installLocalStorageMock();
+    installStorageMocks();
   });
 
   it("allows llm and ag-ui providers", () => {
@@ -43,6 +59,13 @@ describe("briefingAutoFire", () => {
 
   it("session-open skips when prefs disabled", () => {
     saveBriefingPreferences({ enabled: false, topics: [] });
+    expect(shouldSessionOpenBriefing({ provider: "ag-ui", alreadyRequested: false })).toBe(false);
+  });
+
+  it("session-open skips after composition already requested this tab session", () => {
+    saveBriefingPreferences({ enabled: true, topics: [] });
+    markBriefingCompositionRequestedThisSession();
+    expect(hasBriefingCompositionBeenRequestedThisSession()).toBe(true);
     expect(shouldSessionOpenBriefing({ provider: "ag-ui", alreadyRequested: false })).toBe(false);
   });
 
@@ -77,7 +100,32 @@ describe("briefingAutoFire", () => {
     ).toBe(false);
   });
 
-  it("recovers stub brain briefing text without a surface", () => {
+  it("does not recover thin morning-briefing badges or is-ready lines", () => {
+    expect(
+      feedNeedsBriefingCompositionRecovery([
+        {
+          kind: "agent-text",
+          id: "brain_1",
+          text: "Morning briefing",
+          origin: "brain",
+          brainKind: "daily-briefing",
+        },
+      ]),
+    ).toBe(false);
+    expect(
+      feedNeedsBriefingCompositionRecovery([
+        {
+          kind: "agent-text",
+          id: "brain_2",
+          text: "Morning briefing is ready.",
+          origin: "brain",
+          brainKind: "daily-briefing",
+        },
+      ]),
+    ).toBe(false);
+  });
+
+  it("recovers legacy ask-me stub without a surface", () => {
     expect(
       feedNeedsBriefingCompositionRecovery([
         {
@@ -88,6 +136,21 @@ describe("briefingAutoFire", () => {
           brainKind: "daily-briefing",
         },
       ]),
+    ).toBe(true);
+    expect(
+      shouldRecoverBriefingComposition({
+        provider: "ag-ui",
+        alreadyRequested: false,
+        feed: [
+          {
+            kind: "agent-text",
+            id: "brain_1",
+            text: "Ask me for today's briefing",
+            origin: "brain",
+            brainKind: "daily-briefing",
+          },
+        ],
+      }),
     ).toBe(true);
     expect(
       feedNeedsBriefingCompositionRecovery([

@@ -1,4 +1,4 @@
-import { fetchTextLimited, validateConnectorHttpsUrl } from "./connectorUrl.js";
+import { fetchTextLimited, stripHtmlToText, validateConnectorHttpsUrl } from "./connectorUrl.js";
 
 export interface RssItemSummary {
   id: string;
@@ -6,8 +6,33 @@ export interface RssItemSummary {
   link?: string;
   published?: string;
   feedId: string;
+  /** Short plain-text teaser from description/summary/content when present. */
+  excerpt?: string;
   enclosureUrl?: string;
   enclosureType?: string;
+}
+
+const EXCERPT_MAX_CHARS = 400;
+
+function truncateExcerpt(raw: string): string | undefined {
+  const cleaned = stripHtmlToText(raw).replace(/\s+/g, " ").trim();
+  if (!cleaned) return undefined;
+  if (cleaned.length <= EXCERPT_MAX_CHARS) return cleaned;
+  return `${cleaned.slice(0, EXCERPT_MAX_CHARS - 1).trimEnd()}…`;
+}
+
+function excerptFromBlock(block: string): string | undefined {
+  const candidates = [
+    firstTag(block, "description"),
+    firstTag(block, "content:encoded"),
+    firstTag(block, "summary"),
+    firstTag(block, "content"),
+  ];
+  for (const candidate of candidates) {
+    const excerpt = candidate ? truncateExcerpt(candidate) : undefined;
+    if (excerpt) return excerpt;
+  }
+  return undefined;
 }
 
 function decodeXmlEntities(value: string): string {
@@ -69,12 +94,14 @@ export function parseRssOrAtomFeed(xml: string, feedId: string): RssItemSummary[
       firstTag(block, "updated") ??
       firstTag(block, "pubDate");
     const enclosure = enclosureFromBlock(block);
+    const excerpt = excerptFromBlock(block);
     items.push({
       id: `${feedId}-${index}`,
       title,
       link: linkHref(block),
       published,
       feedId,
+      ...(excerpt ? { excerpt } : {}),
       enclosureUrl: enclosure.url,
       enclosureType: enclosure.type,
     });

@@ -33,6 +33,21 @@ describe("rssFeed", () => {
       } satisfies RssItemSummary,
     ]);
   });
+
+  it("parses description excerpts", () => {
+    const xml = `<?xml version="1.0"?>
+<rss><channel>
+<item>
+  <title>Reform donations</title>
+  <link>https://example.com/reform</link>
+  <description><![CDATA[<p>Police are investigating reports of donations.</p>]]></description>
+  <pubDate>Fri, 10 Jul 2026 09:00:00 GMT</pubDate>
+</item>
+</channel></rss>`;
+    const items = parseRssOrAtomFeed(xml, "feed-1");
+    expect(items[0]?.excerpt).toContain("Police are investigating");
+    expect(items[0]?.excerpt).not.toContain("<p>");
+  });
 });
 
 describe("connectorUrl", () => {
