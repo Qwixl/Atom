@@ -231,6 +231,7 @@ import {
 } from "./custody/client.js";
 import { loadCommsAgentConfig, loadCommsAgentConfigSecure, saveCommsAgentConfigSecure, clearCommsAdminToken, clearCommsAgentConfig, loadOwnerAgentKind, refreshCommsConfigCache, purgeStaleLocalAgentConfig, isLocalAgentUrl } from "./comms/storage.js";
 import { probeAgentConnection, reconcileAgentConnection } from "./comms/agentConnection.js";
+import { presentUserError } from "./comms/agentErrors.js";
 import { loadBrowserAgentConfig } from "./browserAgentConfig.js";
 import { isVaultInitialized, isVaultUnlocked, lockVault } from "./custody/dataVault.js";
 import { VaultUnlockGate } from "./custody/VaultUnlockGate.js";
@@ -971,10 +972,10 @@ export function App() {
       );
       const calendar =
         calendarContextRef.current ??
-        "Not connected. Owner can add a private ICS feed URL in Settings → Connectors.";
+        "Calendar snapshot still loading. Prefer atom_connector_invoke (webcal listEvents). Do not treat as disconnected.";
       const rss =
         rssContextRef.current ??
-        "Not connected. Owner can add a public RSS/Atom feed URL in Settings → Connectors.";
+        "RSS snapshot still loading. Prefer atom_connector_invoke (rss listItems). Do not treat as disconnected.";
       const location =
         formatLocationContextForPrompt(loadLocationPreferences(), deviceLocationRef.current) ??
         "No home city or one-shot device location. Owner can set home city or tap Use current location once in Settings → Briefing. Atom never tracks location in the background.";
@@ -1152,10 +1153,20 @@ export function App() {
 
   useEffect(() => {
     if (IS_DEMO_MODE) return;
-    if (!vaultUnlocked) return;
+    if (!vaultUnlocked) {
+      applyCalendarContext(undefined);
+      applyRssContext(undefined);
+      return;
+    }
     void refreshWebcalState();
     void refreshRssState();
-  }, [vaultUnlocked, refreshWebcalState, refreshRssState]);
+  }, [vaultUnlocked, refreshWebcalState, refreshRssState, applyCalendarContext, applyRssContext]);
+
+  const connectorContextReady = calendarContext !== undefined && rssContext !== undefined;
+
+  const ensureConnectorContextsReady = useCallback(async () => {
+    await Promise.all([refreshWebcalState(), refreshRssState()]);
+  }, [refreshWebcalState, refreshRssState]);
 
   useEffect(() => {
     if (!IS_DEMO_MODE || !demoReady) return;
@@ -1533,9 +1544,13 @@ export function App() {
   const conversationRef = useRef(conversation);
   conversationRef.current = conversation;
 
-  const requestBriefingComposition = useCallback((message: string) => {
+  const requestBriefingComposition = useCallback(async (message: string) => {
     if (briefingOpenSentRef.current) return false;
     if (!canRequestBriefingComposition(providerRef.current)) return false;
+    if (calendarContextRef.current === undefined || rssContextRef.current === undefined) {
+      await ensureConnectorContextsReady();
+    }
+    if (briefingOpenSentRef.current) return false;
     briefingOpenSentRef.current = true;
     markBriefingCompositionRequestedThisSession();
     if (message.startsWith("[briefing-open]")) {
@@ -1544,26 +1559,34 @@ export function App() {
     conversationRef.current.setBusy(true);
     sessionRef.current.sendUserMessage(message);
     return true;
-  }, []);
+  }, [ensureConnectorContextsReady]);
 
   // Session-open: only when Briefing prefs "show when I open Chat" is on (not standing intents).
   // Hosted Chat is ag-ui — must include both providers. sessionStorage blocks reload spam.
+  // Wait until calendar/RSS snapshots settle so the model does not see a false "Not connected".
   useEffect(() => {
-    if (IS_DEMO_MODE || !vaultUnlocked || !agentConnectionReady) return;
+    if (IS_DEMO_MODE || !vaultUnlocked || !agentConnectionReady || !connectorContextReady) return;
     if (
       !shouldSessionOpenBriefing({
         provider,
         alreadyRequested: briefingOpenSentRef.current,
+        connectorContextReady,
       })
     ) {
       return;
     }
-    requestBriefingComposition(BRIEFING_OPEN_MESSAGE);
-  }, [vaultUnlocked, agentConnectionReady, provider, requestBriefingComposition]);
+    void requestBriefingComposition(BRIEFING_OPEN_MESSAGE);
+  }, [
+    vaultUnlocked,
+    agentConnectionReady,
+    connectorContextReady,
+    provider,
+    requestBriefingComposition,
+  ]);
 
   // Recover legacy "ask me" stubs only — thin "Morning briefing" / "is ready" lines must not re-fire.
   useEffect(() => {
-    if (IS_DEMO_MODE || !vaultUnlocked || !agentConnectionReady) return;
+    if (IS_DEMO_MODE || !vaultUnlocked || !agentConnectionReady || !connectorContextReady) return;
 
     const tryRecover = () => {
       const feed = conversationRef.current.getSnapshot().feed;
@@ -1572,16 +1595,24 @@ export function App() {
           provider,
           alreadyRequested: briefingOpenSentRef.current,
           feed,
+          connectorContextReady,
         })
       ) {
         return;
       }
-      requestBriefingComposition(BRIEFING_FIRE_MESSAGE);
+      void requestBriefingComposition(BRIEFING_FIRE_MESSAGE);
     };
 
     tryRecover();
     return conversation.subscribe(tryRecover);
-  }, [vaultUnlocked, agentConnectionReady, provider, conversation, requestBriefingComposition]);
+  }, [
+    vaultUnlocked,
+    agentConnectionReady,
+    connectorContextReady,
+    provider,
+    conversation,
+    requestBriefingComposition,
+  ]);
 
   useEffect(() => {
     if (!agentConnectionReady || !vaultUnlocked) return;
@@ -1626,19 +1657,19 @@ export function App() {
           notification: n,
           alreadyRequested: briefingOpenSentRef.current,
           handledIds: briefingFireHandledRef.current,
+          connectorContextReady,
         })
       ) {
+        if (!connectorContextReady) return false;
         // Already requested this session, or duplicate id — ack without a second turn.
         briefingFireHandledRef.current.add(n.id);
         return true;
       }
       if (!canRequestBriefingComposition(providerRef.current)) return false;
       briefingFireHandledRef.current.add(n.id);
-      const ok = requestBriefingComposition(BRIEFING_FIRE_MESSAGE);
-      if (!ok) {
-        briefingFireHandledRef.current.delete(n.id);
-        return false;
-      }
+      void requestBriefingComposition(BRIEFING_FIRE_MESSAGE).then((ok) => {
+        if (!ok) briefingFireHandledRef.current.delete(n.id);
+      });
       return true;
     },
   });
@@ -1791,7 +1822,10 @@ export function App() {
       message = buildLinkIntentMessage(enriched);
     } catch (error) {
       conversationRef.current.appendLocalAgentText(
-        error instanceof Error ? error.message : String(error),
+        presentUserError(error, {
+          accountType,
+          showTechnicalDetail: SHOW_DEV_WORKFLOWS,
+        }),
       );
       return;
     }
@@ -1802,7 +1836,10 @@ export function App() {
       sessionRef.current.sendUserMessage(message);
     } catch (error) {
       conversationRef.current.appendLocalAgentText(
-        error instanceof Error ? error.message : String(error),
+        presentUserError(error, {
+          accountType,
+          showTechnicalDetail: SHOW_DEV_WORKFLOWS,
+        }),
       );
       conversationRef.current.setBusy(false);
     }
@@ -1838,7 +1875,10 @@ export function App() {
       message = buildLinkIntentMessage(enriched);
     } catch (error) {
       conversationRef.current.appendLocalAgentText(
-        error instanceof Error ? error.message : String(error),
+        presentUserError(error, {
+          accountType,
+          showTechnicalDetail: SHOW_DEV_WORKFLOWS,
+        }),
       );
       return;
     }
@@ -1849,13 +1889,16 @@ export function App() {
       sessionRef.current.sendUserMessage(message);
     } catch (error) {
       conversationRef.current.appendLocalAgentText(
-        error instanceof Error ? error.message : String(error),
+        presentUserError(error, {
+          accountType,
+          showTechnicalDetail: SHOW_DEV_WORKFLOWS,
+        }),
       );
       conversationRef.current.setBusy(false);
     }
   }
 
-  function submitMessage(text: string) {
+  async function submitMessage(text: string) {
     const trimmed = text.trim();
     if (!trimmed) return;
     if (
@@ -1884,6 +1927,18 @@ export function App() {
       setInput("");
       return;
     }
+    const looksLikeBriefing =
+      /\[briefing-(?:open|fire)\]/i.test(trimmed) ||
+      /\b(?:today'?s?|daily)\s+brie?fing\b/i.test(trimmed) ||
+      /\bbrie?fing\b/i.test(trimmed);
+    if (looksLikeBriefing && (calendarContextRef.current === undefined || rssContextRef.current === undefined)) {
+      conversationRef.current.setBusy(true);
+      try {
+        await ensureConnectorContextsReady();
+      } catch {
+        /* refresh errors already land in context strings */
+      }
+    }
     turnTranscript.current = [];
     conversationRef.current.appendUser(trimmed);
     setInput("");
@@ -1892,7 +1947,10 @@ export function App() {
       sessionRef.current.sendUserMessage(trimmed);
     } catch (error) {
       conversationRef.current.appendLocalAgentText(
-        error instanceof Error ? error.message : String(error),
+        presentUserError(error, {
+          accountType,
+          showTechnicalDetail: SHOW_DEV_WORKFLOWS,
+        }),
       );
       conversationRef.current.setBusy(false);
     }
@@ -1936,7 +1994,10 @@ export function App() {
       sessionRef.current.sendUserMessage(note);
     } catch (error) {
       conversationRef.current.appendLocalAgentText(
-        error instanceof Error ? error.message : String(error),
+        presentUserError(error, {
+          accountType,
+          showTechnicalDetail: SHOW_DEV_WORKFLOWS,
+        }),
       );
       conversationRef.current.setBusy(false);
     }
@@ -2047,7 +2108,12 @@ export function App() {
         const custody = await requireCustodyApproval(activeAction, config);
         approvalRef = custody.approvalRef;
       } catch (error) {
-        setCustodyError(error instanceof Error ? error.message : String(error));
+        setCustodyError(
+          presentUserError(error, {
+            accountType,
+            showTechnicalDetail: SHOW_DEV_WORKFLOWS,
+          }),
+        );
         return;
       }
     }
@@ -3179,7 +3245,12 @@ function SettingsDialog({
       setHostedLlmKey("");
       setHostedLlmNote("LLM API key updated. Your agent will restart briefly — try chat again in a moment.");
     } catch (error) {
-      setHostedLlmError(error instanceof Error ? error.message : String(error));
+      setHostedLlmError(
+        presentUserError(error, {
+          accountType,
+          showTechnicalDetail: SHOW_DEV_WORKFLOWS,
+        }),
+      );
     } finally {
       setHostedLlmBusy(false);
     }

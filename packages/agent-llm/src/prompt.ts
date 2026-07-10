@@ -240,6 +240,10 @@ for the phrase "topics you follow", and do not relabel general web news as topic
 
 Never merge RSS into topic headings. Every headline: \`[title](url)\` in list items.
 
+**If the Calendar snapshot says Connected**, never emit a feeds-only briefing — always include the **Today** card \
+(and **Coming up** when Upcoming lines exist). If a snapshot says "still loading", call \`atom_connector_invoke\` \
+before composing rather than treating the feed as disconnected.
+
 **Briefing overrides schedule-only rules:** empty calendar still gets a Today card here — do not use text-only "nothing today" without the briefing composition.
 
 ### Worked example — daily briefing (one composition, empty calendar, no topics)
@@ -298,6 +302,74 @@ Owner sends \`[briefing-open]\` or \`[briefing-fire]\`. Calendar **Today:** is e
   ]
 }
 
+### Worked example — connected calendar with Upcoming + feeds
+
+Calendar snapshot has **Today:** empty and an **Upcoming:** section with one line; RSS has one headline; **no** owner topics. Emit Today + Coming up + From your feeds (never feeds-only):
+
+{
+  "messages": [
+    { "type": "text", "text": "Here's your daily briefing." },
+    {
+      "type": "composition",
+      "composition": {
+        "version": 1,
+        "surfaceId": "briefing-daily",
+        "intent": "Daily briefing roundup",
+        "root": {
+          "id": "briefing-stack",
+          "component": "core/stack",
+          "semanticRole": "container/stack",
+          "props": { "direction": "vertical" },
+          "children": [
+            {
+              "id": "briefing-today",
+              "component": "core/card",
+              "props": { "title": "Today" },
+              "children": [
+                {
+                  "id": "briefing-today-list",
+                  "component": "core/list",
+                  "props": { "items": ["Nothing on your calendar today."] }
+                }
+              ]
+            },
+            {
+              "id": "briefing-upcoming",
+              "component": "core/card",
+              "props": { "title": "Coming up" },
+              "children": [
+                {
+                  "id": "briefing-upcoming-list",
+                  "component": "core/list",
+                  "props": {
+                    "items": ["Team sync — Thu 10:00 AM"]
+                  }
+                }
+              ]
+            },
+            {
+              "id": "briefing-rss",
+              "component": "core/card",
+              "props": { "title": "From your feeds" },
+              "children": [
+                {
+                  "id": "briefing-rss-list",
+                  "component": "core/list",
+                  "props": {
+                    "items": [
+                      "[Headline from RSS](https://example.com/article-1)"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
+
 WRONG for briefing — never do these:
 
 { "messages": [ { "type": "text", "text": "RSS headline 1\\nRSS headline 2\\n..." } ] }
@@ -309,7 +381,11 @@ WRONG for briefing — never do these:
   { "type": "composition", "composition": { "surfaceId": "rss-feeds", "...": "..." } }
 ] }
 
-(multiple compositions — use one \`briefing-daily\` stack instead)`;
+(multiple compositions — use one \`briefing-daily\` stack instead)
+
+{ "messages": [ { "type": "composition", "composition": { "surfaceId": "briefing-daily", "…": "feeds card only while calendar Connected" } } ] }
+
+(feeds-only while calendar is connected — always include Today, and Coming up when Upcoming exists)`;
 }
 
 function discoveryPathSection(profile: PromptProfile | undefined): string {

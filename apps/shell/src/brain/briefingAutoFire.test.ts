@@ -54,28 +54,75 @@ describe("briefingAutoFire", () => {
 
   it("session-open runs for ag-ui when prefs enabled", () => {
     saveBriefingPreferences({ enabled: true, topics: [] });
-    expect(shouldSessionOpenBriefing({ provider: "ag-ui", alreadyRequested: false })).toBe(true);
-    expect(shouldSessionOpenBriefing({ provider: "llm", alreadyRequested: false })).toBe(true);
-    expect(shouldSessionOpenBriefing({ provider: "ag-ui", alreadyRequested: true })).toBe(false);
+    expect(
+      shouldSessionOpenBriefing({
+        provider: "ag-ui",
+        alreadyRequested: false,
+        connectorContextReady: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldSessionOpenBriefing({
+        provider: "llm",
+        alreadyRequested: false,
+        connectorContextReady: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldSessionOpenBriefing({
+        provider: "ag-ui",
+        alreadyRequested: true,
+        connectorContextReady: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("session-open waits until connector context is ready", () => {
+    saveBriefingPreferences({ enabled: true, topics: [] });
+    expect(
+      shouldSessionOpenBriefing({
+        provider: "ag-ui",
+        alreadyRequested: false,
+        connectorContextReady: false,
+      }),
+    ).toBe(false);
   });
 
   it("session-open skips when prefs disabled", () => {
     saveBriefingPreferences({ enabled: false, topics: [] });
-    expect(shouldSessionOpenBriefing({ provider: "ag-ui", alreadyRequested: false })).toBe(false);
+    expect(
+      shouldSessionOpenBriefing({
+        provider: "ag-ui",
+        alreadyRequested: false,
+        connectorContextReady: true,
+      }),
+    ).toBe(false);
   });
 
   it("session-open skips after composition already requested this tab session", () => {
     saveBriefingPreferences({ enabled: true, topics: [] });
     markBriefingCompositionRequestedThisSession();
     expect(hasBriefingCompositionBeenRequestedThisSession()).toBe(true);
-    expect(shouldSessionOpenBriefing({ provider: "ag-ui", alreadyRequested: false })).toBe(false);
+    expect(
+      shouldSessionOpenBriefing({
+        provider: "ag-ui",
+        alreadyRequested: false,
+        connectorContextReady: true,
+      }),
+    ).toBe(false);
   });
 
   it("session-open skips when already run today", () => {
     saveBriefingPreferences({ enabled: true, topics: [] });
     markSessionOpenBriefingRunToday();
     expect(hasSessionOpenBriefingRunToday()).toBe(true);
-    expect(shouldSessionOpenBriefing({ provider: "ag-ui", alreadyRequested: false })).toBe(false);
+    expect(
+      shouldSessionOpenBriefing({
+        provider: "ag-ui",
+        alreadyRequested: false,
+        connectorContextReady: true,
+      }),
+    ).toBe(false);
   });
 
   it("fires pending briefing once per id when not already requested", () => {
@@ -91,6 +138,7 @@ describe("briefingAutoFire", () => {
         },
         alreadyRequested: false,
         handledIds: new Set(),
+        connectorContextReady: true,
       }),
     ).toBe(true);
     expect(
@@ -103,8 +151,24 @@ describe("briefingAutoFire", () => {
           body: "Morning",
           createdAt: new Date().toISOString(),
         },
+        alreadyRequested: false,
+        handledIds: new Set(),
+        connectorContextReady: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldFireBriefingFromPending({
+        notification: {
+          id: "b1",
+          intentId: "i1",
+          kind: "daily-briefing",
+          title: "Morning",
+          body: "Morning",
+          createdAt: new Date().toISOString(),
+        },
         alreadyRequested: true,
         handledIds: new Set(),
+        connectorContextReady: true,
       }),
     ).toBe(false);
   });
@@ -150,6 +214,7 @@ describe("briefingAutoFire", () => {
       shouldRecoverBriefingComposition({
         provider: "ag-ui",
         alreadyRequested: false,
+        connectorContextReady: true,
         feed: [
           {
             kind: "agent-text",
