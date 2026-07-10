@@ -1,9 +1,12 @@
 /** Soft-confirm settings proposals from chat (track topic / RSS / watch). */
 
-import type { ConsequentialAction, JsonObject } from "@qwixl/shell-core";
+import type { ConsequentialAction, FeedItem, JsonObject } from "@qwixl/shell-core";
 
 const STORAGE_KEY = "atom.settings.pendingProposal";
 const MAX_AGE_MS = 30 * 60 * 1000;
+
+const TRACK_REQUEST_HINT =
+  /\b(track|alert|watch|daily update|keep me updated|fluctuat|briefing|follow|subscribe|price)\b/i;
 
 export interface PendingSettingsProposal {
   id: string;
@@ -158,4 +161,67 @@ export function formatSettingsProposalAck(proposal: PendingSettingsProposal): st
   if (proposal.watch) parts.push(`watch for “${proposal.watch.query}”`);
   if (parts.length === 0) return "You're set — I'll keep an eye on that.";
   return `You're set — saved ${parts.join(", ")}. I'll use these in briefings and alerts.`;
+}
+
+function deriveTopicFromTrackRequest(text: string): string {
+  const pricePair = text.match(/\b([A-Za-z][A-Za-z0-9.-]{1,15})\s+price\b/i);
+  if (pricePair) return `${pricePair[1]} price`;
+  const ticker = text.match(/\b([A-Z]{2,6})\b/);
+  if (ticker) return `${ticker[1]} price`;
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  return cleaned.length > 48 ? `${cleaned.slice(0, 45)}…` : cleaned || "Tracked topic";
+}
+
+function findRssInRecentAgentText(
+  feed: readonly FeedItem[],
+): { url: string; label: string } | undefined {
+  for (let i = feed.length - 1; i >= 0; i--) {
+    const item = feed[i];
+    if (!item || item.kind !== "agent-text") continue;
+    const urls = item.text.match(/https?:\/\/[^\s)\]"'<>]+/gi) ?? [];
+    for (const raw of urls) {
+      const url = raw.replace(/[.,;:]+$/g, "");
+      if (!/^https:\/\//i.test(url)) continue;
+      if (!/rss|atom|feed/i.test(url)) continue;
+      let label = "Feed";
+      try {
+        label = new URL(url).hostname.replace(/^www\./, "");
+      } catch {
+        /* keep default */
+      }
+      return { url, label };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * When the agent soft-asked in text but never emitted settingsProposal, recover a
+ * topic + watch (and optional RSS URL cited in agent text) from the owner's prior request.
+ */
+export function synthesizeSettingsProposalFromFeed(
+  feed: readonly FeedItem[],
+): PendingSettingsProposal | null {
+  for (let i = feed.length - 1; i >= 0; i--) {
+    const item = feed[i];
+    if (!item || item.kind !== "user") continue;
+    const text = item.text.trim();
+    if (!text || text.startsWith("[")) continue;
+    if (isSoftAssentMessage(text) || isSoftDeclineMessage(text)) continue;
+    if (!TRACK_REQUEST_HINT.test(text)) continue;
+
+    const topic = deriveTopicFromTrackRequest(text);
+    const watchQuery = text.length > 180 ? `${text.slice(0, 177)}…` : text;
+    const rss = findRssInRecentAgentText(feed);
+    const proposal: PendingSettingsProposal = {
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      summary: `Keep me updated on ${topic}`,
+      topic,
+      watch: { query: watchQuery, everyMinutes: 60 },
+    };
+    if (rss) proposal.rss = rss;
+    return proposal;
+  }
+  return null;
 }

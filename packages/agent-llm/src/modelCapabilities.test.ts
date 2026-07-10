@@ -88,6 +88,8 @@ describe("agentTools", () => {
     const section = formatToolsForPrompt(profile);
     expect(section).not.toContain("web_search");
     expect(section).toContain("atom_connector_invoke");
+    expect(section).toContain("news_search");
+    expect(section).toContain("calendar_list_events");
   });
 
   it("formats native tools label from profile", () => {

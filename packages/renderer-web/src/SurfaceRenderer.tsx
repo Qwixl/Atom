@@ -545,7 +545,7 @@ export function SurfaceRenderer({ surface, onEvent, renderInlineText }: SurfaceR
   };
 
   return (
-    <div className="atom-surface">
+    <div className="atom-surface" data-surface-id={surface.surfaceId}>
       <RenderNode resolved={surface.root} context={context} />
     </div>
   );

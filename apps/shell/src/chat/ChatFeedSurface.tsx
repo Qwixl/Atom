@@ -10,9 +10,11 @@ import type { LinkIntentPayload } from "./linkIntent.js";
 import { renderRichTextWithLinks } from "./renderRichText.js";
 
 function minHeightForModule(moduleId: string): number {
-  if (moduleId === "scheduling/meeting-picker") return 300;
-  if (moduleId === "games/battleships") return 320;
-  return 160;
+  const shortViewport =
+    typeof window !== "undefined" && window.matchMedia("(max-width: 640px), (max-height: 700px)").matches;
+  if (moduleId === "scheduling/meeting-picker") return shortViewport ? 240 : 300;
+  if (moduleId === "games/battleships") return shortViewport ? 260 : 320;
+  return shortViewport ? 120 : 160;
 }
 
 /** Agent-composed surfaces: registry modules use the same embed path as Messages. */

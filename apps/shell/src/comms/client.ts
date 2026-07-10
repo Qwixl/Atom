@@ -622,6 +622,11 @@ export class CommsAgentClient {
     return getJson(this.base(), `/connectors/${encodeURIComponent(connectorId)}/status`, this.auth);
   }
 
+  /** Vault-configured connector ids (+ always-available backends report configured). */
+  async listConfiguredConnectors(): Promise<{ configured: string[]; known: string[] }> {
+    return getJson(this.base(), "/connectors", this.auth);
+  }
+
   async invokeConnector(
     connectorId: string,
     operation: string,

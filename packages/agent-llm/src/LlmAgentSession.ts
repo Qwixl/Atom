@@ -7,19 +7,18 @@ import {
   type UiEvent,
 } from "@qwixl/shell-core";
 import {
-  ATOM_CONNECTOR_INVOKE_TOOL,
   buildAgentToolProfile,
   chatCompletionTools,
-  parseAtomConnectorInvokeArgs,
   type AgentToolProfile,
+  type AtomConnectorId,
   type AtomToolExecutor,
 } from "./agentTools.js";
 import {
-  ATOM_MCP_INVOKE_TOOL,
   ATOM_MCP_INVOKE_TOOL_NAME,
   parseAtomMcpInvokeArgs,
   type McpToolExecutor,
 } from "./mcpTools.js";
+import { resolveToolCallToConnectorInvoke } from "./toolRegistry.js";
 import type { ModelCapabilityProfile } from "./modelCapabilities.js";
 import { inferModelCapabilities, normalizeModelCapabilityProfile } from "./modelCapabilities.js";
 import { buildSystemPrompt, type PromptProfile } from "./prompt.js";
@@ -28,6 +27,12 @@ import { callResponsesApi } from "./responsesApi.js";
 import { buildImageResultProtocol } from "./imageProtocol.js";
 import { formatLlmProviderError, isResponsesApiFallbackEligible } from "./llmProviderErrors.js";
 import { coalesceTurnMessages } from "./coalesceTurnMessages.js";
+import {
+  isInternalProtocolUserMessage,
+  ownerMessageNeedsSettingsProposal,
+  protocolMessagesHaveSettingsProposal,
+  softConfirmRepairUserContent,
+} from "./softConfirmRepair.js";
 import {
   callAnthropicMessages,
   openAiToolsToAnthropic,
@@ -47,10 +52,12 @@ export interface LlmConfig {
 }
 
 export interface LlmAgentSessionOptions {
-  /** Execute Atom connector reads when the model calls `atom_connector_invoke`. */
+  /** Execute Atom connector reads when the model calls a registry tool (or deprecated alias). */
   atomToolExecutor?: AtomToolExecutor;
-  /** Owner has agent backend configured — enables Atom connector tool. */
+  /** Owner has agent backend configured — enables Atom connector tools. */
   atomConnectorsAvailable?: boolean;
+  /** When set, only tools for these connectors (+ always-available) are exposed. */
+  connectedConnectorIds?: readonly AtomConnectorId[];
   /** Execute MCP tool calls when the model calls `atom_mcp_invoke`. */
   mcpToolExecutor?: McpToolExecutor;
   /** Owner has MCP servers configured on agent backend. */
@@ -120,6 +127,8 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
       mcpServersAvailable: Boolean(
         options?.mcpServersAvailable && options?.mcpToolExecutor,
       ),
+      connectedConnectorIds: options?.connectedConnectorIds,
+      model: config.model,
     });
     this.messages = [{ role: "system", content: this.buildSystemPromptContent() }];
     this.systemPromptFingerprint = this.systemPromptFingerprintKey();
@@ -246,9 +255,52 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
       }
     }
 
+    const messages = (parsed as { messages: unknown[] }).messages;
+    if (
+      this.lastOwnerAskNeedsSettingsProposal() &&
+      !protocolMessagesHaveSettingsProposal(messages)
+    ) {
+      const softRepaired = await this.attemptSoftConfirmRepair();
+      if (softRepaired) {
+        parsed = softRepaired;
+      }
+    }
+
     for (const message of coalesceTurnMessages((parsed as { messages: unknown[] }).messages)) {
       this.emitAgentMessage(message);
     }
+  }
+
+  /** Most recent non-internal user content in the session history. */
+  private lastOwnerAskNeedsSettingsProposal(): boolean {
+    for (let i = this.messages.length - 1; i >= 0; i -= 1) {
+      const m = this.messages[i];
+      if (m?.role !== "user" || typeof m.content !== "string") continue;
+      if (isInternalProtocolUserMessage(m.content)) continue;
+      return ownerMessageNeedsSettingsProposal(m.content);
+    }
+    return false;
+  }
+
+  private async attemptSoftConfirmRepair(): Promise<{ messages: unknown[] } | null> {
+    if (this.disposed) return null;
+    this.messages.push({
+      role: "user",
+      content: softConfirmRepairUserContent(),
+    });
+    let raw: string;
+    try {
+      raw = await this.callModel();
+    } catch {
+      return null;
+    }
+    this.messages.push({ role: "assistant", content: raw });
+    this.trimMessageHistory();
+    const parsed = extractJson(raw);
+    if (!parsed || !Array.isArray((parsed as { messages?: unknown }).messages)) return null;
+    const messages = (parsed as { messages: unknown[] }).messages;
+    if (!protocolMessagesHaveSettingsProposal(messages)) return null;
+    return parsed as { messages: unknown[] };
   }
 
   private async attemptRepair(): Promise<{ messages: unknown[] } | null> {
@@ -491,7 +543,7 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
           temperature: this.config.temperature ?? 0.4,
           messages: this.messages,
           tools,
-          tool_choice: "auto",
+          tool_choice: this.toolProfile.toolChoice ?? "auto",
         };
         const response = await fetch(this.chatCompletionsUrl(), {
           method: "POST",
@@ -606,24 +658,6 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
   }
 
   private async executeNamedTool(name: string, argsJson: string): Promise<string> {
-    if (name === ATOM_CONNECTOR_INVOKE_TOOL.function.name) {
-      if (!this.atomToolExecutor) {
-        return JSON.stringify({ error: "Atom connector invoke is not configured" });
-      }
-      try {
-        const args = parseAtomConnectorInvokeArgs(argsJson);
-        const result = await this.atomToolExecutor(args);
-        return wrapUntrustedContent(JSON.stringify(result, null, 2), {
-          source: `connector:${args.connectorId}`,
-          purpose: args.operation,
-        });
-      } catch (error) {
-        return JSON.stringify({
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
     if (name === ATOM_MCP_INVOKE_TOOL_NAME) {
       if (!this.mcpToolExecutor) {
         return JSON.stringify({ error: "Atom MCP invoke is not configured" });
@@ -642,7 +676,25 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
       }
     }
 
-    return JSON.stringify({ error: `Unknown tool: ${name}` });
+    const resolved = resolveToolCallToConnectorInvoke(name, argsJson);
+    if (!resolved.ok) {
+      return JSON.stringify({ error: resolved.error });
+    }
+    if (!this.atomToolExecutor) {
+      return JSON.stringify({ error: "Atom connector invoke is not configured" });
+    }
+    try {
+      const args = resolved.call;
+      const result = await this.atomToolExecutor(args);
+      return wrapUntrustedContent(JSON.stringify(result, null, 2), {
+        source: `connector:${args.connectorId}`,
+        purpose: args.operation,
+      });
+    } catch (error) {
+      return JSON.stringify({
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /** Chat Completions JSON pass after Responses API gathered prose (web search, etc.). */
