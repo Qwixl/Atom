@@ -1,6 +1,12 @@
 import type { FeedItem } from "@qwixl/shell-core";
 
-export type ChatFeedTextItem = { kind: "user" | "agent-text"; id: string; text: string };
+export type ChatFeedTextItem = {
+  kind: "user" | "agent-text";
+  id: string;
+  text: string;
+  origin?: "brain";
+  brainKind?: "daily-briefing" | "reminder" | "watch";
+};
 
 export type ChatFeedEnvelope = {
   workspaceId: string;
@@ -14,11 +20,23 @@ export const CHAT_FEED_MAX_ITEMS = 200;
 export function isChatFeedTextItem(value: unknown): value is ChatFeedTextItem {
   if (!value || typeof value !== "object") return false;
   const item = value as Record<string, unknown>;
-  return (
-    (item.kind === "user" || item.kind === "agent-text") &&
-    typeof item.id === "string" &&
-    typeof item.text === "string"
-  );
+  if (
+    !(item.kind === "user" || item.kind === "agent-text") ||
+    typeof item.id !== "string" ||
+    typeof item.text !== "string"
+  ) {
+    return false;
+  }
+  if (item.origin !== undefined && item.origin !== "brain") return false;
+  if (
+    item.brainKind !== undefined &&
+    item.brainKind !== "daily-briefing" &&
+    item.brainKind !== "reminder" &&
+    item.brainKind !== "watch"
+  ) {
+    return false;
+  }
+  return true;
 }
 
 export function isChatFeedEnvelope(value: unknown): value is ChatFeedEnvelope {
@@ -40,12 +58,30 @@ export function persistableChatFeed(feed: readonly FeedItem[]): ChatFeedTextItem
       (item): item is Extract<FeedItem, { kind: "user" | "agent-text" }> =>
         item.kind === "user" || item.kind === "agent-text",
     )
-    .map(({ kind, id, text }) => ({ kind, id, text }))
+    .map((item) => {
+      if (item.kind === "user") return { kind: item.kind, id: item.id, text: item.text };
+      return {
+        kind: item.kind,
+        id: item.id,
+        text: item.text,
+        ...(item.origin ? { origin: item.origin } : {}),
+        ...(item.brainKind ? { brainKind: item.brainKind } : {}),
+      };
+    })
     .slice(-CHAT_FEED_MAX_ITEMS);
 }
 
 export function feedItemsFromChatTexts(items: readonly ChatFeedTextItem[]): FeedItem[] {
-  return items.filter(isChatFeedTextItem).map(({ kind, id, text }) => ({ kind, id, text }));
+  return items.filter(isChatFeedTextItem).map((item) => {
+    if (item.kind === "user") return { kind: item.kind, id: item.id, text: item.text };
+    return {
+      kind: item.kind,
+      id: item.id,
+      text: item.text,
+      ...(item.origin ? { origin: item.origin } : {}),
+      ...(item.brainKind ? { brainKind: item.brainKind } : {}),
+    };
+  });
 }
 
 /** Merge two text feeds by id; later updatedAt / higher revision wins on conflict. Cap length. */

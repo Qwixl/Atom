@@ -19,6 +19,13 @@ export interface AgentBackendConfig {
   businessKnowledgeRemoteUrl: string | null;
   /** Prompt on port conflict when using default PORT (dev CLI). */
   interactivePortResolve: boolean;
+  /**
+   * Agent Brain always-on heartbeat (D078 / BK-45 entitlement).
+   * When false, BrainScheduler still starts but skips firing (duty-cycle).
+   */
+  brainAlwaysOn: boolean;
+  /** BrainScheduler tick interval ms (default 60000). */
+  brainIntervalMs: number;
 }
 
 const DEFAULT_SHELL_ORIGINS = [
@@ -74,5 +81,11 @@ export function loadAgentBackendConfig(env: NodeJS.ProcessEnv = process.env): Ag
       (env.ATOM_PORT_PROMPT === "1" || env.ATOM_PORT_PROMPT === "true") &&
       !portExplicit &&
       !publicBaseUrlExplicit,
+    brainAlwaysOn:
+      env.ATOM_BRAIN_ALWAYS_ON !== "0" && env.ATOM_BRAIN_ALWAYS_ON !== "false",
+    brainIntervalMs: Math.max(
+      5_000,
+      Number(env.ATOM_BRAIN_INTERVAL_MS?.trim() || 60_000) || 60_000,
+    ),
   };
 }

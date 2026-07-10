@@ -129,6 +129,8 @@ import {
 import { MockAgentSession } from "./mock-agent.js";
 import { loadBriefingPreferences, BRIEFING_OPEN_MESSAGE, applyCuratorBriefingTopics, formatBriefingContextForPrompt } from "./briefing/briefingPreferences.js";
 import { BriefingSettingsPanel } from "./briefing/BriefingSettingsPanel.js";
+import { StandingIntentsPanel } from "./brain/StandingIntentsPanel.js";
+import { useBrainPendingPoll } from "./brain/useBrainPendingPoll.js";
 import { SpendPolicySettingsPanel } from "./billing/SpendPolicySettingsPanel.js";
 import { formatLocationContextForPrompt } from "./location/locationContext.js";
 import { loadLocationPreferences } from "./location/locationPreferences.js";
@@ -1551,6 +1553,11 @@ export function App() {
     })();
   }, [agentConnectionReady, vaultUnlocked, activeWorkspaceId, conversation]);
 
+  useBrainPendingPoll({
+    enabled: Boolean(agentConnectionReady && vaultUnlocked && !IS_DEMO_MODE && conversation),
+    conversation,
+  });
+
   gameCallbacksRef.current = {
     getActiveGame: () => findActiveGameInFeed(chatFeedRef.current),
     commitProps: (surfaceId, moduleId, props) => {
@@ -2233,7 +2240,13 @@ export function App() {
               }
               if (item.kind === "agent-text") {
                 return (
-                  <FeedAgentText key={item.id} text={item.text} onLinkIntent={submitLinkIntent} />
+                  <FeedAgentText
+                    key={item.id}
+                    text={item.text}
+                    origin={item.origin}
+                    brainKind={item.brainKind}
+                    onLinkIntent={submitLinkIntent}
+                  />
                 );
               }
               return (
@@ -3424,6 +3437,8 @@ function SettingsDialog({
             </button>
           </div>
         </section>
+
+        <StandingIntentsPanel vaultUnlocked={vaultUnlocked} embedded />
       </>
     );
   }

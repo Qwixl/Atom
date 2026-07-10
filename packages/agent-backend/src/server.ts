@@ -25,6 +25,11 @@ import { mintSessionToken, parseSessionTtlMs, type SessionScope } from "./sessio
 import { agentConnectionPath, writeAgentConnectionFile } from "./agentConnectionFile.js";
 import { registerAdminDataRoutes } from "./adminDataRoutes.js";
 import { registerCustodyAdminRoutes } from "./custodyAdmin.js";
+import { registerBrainAdminRoutes } from "./brainAdmin.js";
+import { BrainScheduler } from "./brainScheduler.js";
+import { createReadOnlyConnectorExecutor } from "./readOnlyConnectorExecutor.js";
+import { loadVoiceBackend } from "./voice/stubVoiceBackend.js";
+import { registerVoiceAdminRoutes } from "./voice/voiceAdmin.js";
 import { ConnectorVault } from "./connectorVault.js";
 import { MlsPeerRecordStore } from "./mlsPeerRecords.js";
 import { MlsSessionRecordStore } from "./mlsSessionRecords.js";
@@ -417,6 +422,8 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     budgetLedger,
     stripeSecretKey: config.stripeSecretKey,
     platformFeeBps: 0,
+    brainAlwaysOn: config.brainAlwaysOn,
+    betaFree: process.env.ATOM_BETA_FREE !== "0" && process.env.ATOM_BETA_FREE !== "false",
   });
   registerTransactionAdminRoutes(adminApp, {
     stripeSecretKey: config.stripeSecretKey,
@@ -463,6 +470,39 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   });
   registerMcpAdminRoutes(adminApp, { store: mcpServersStore, runtime: mcpRuntime });
   registerCustodyAdminRoutes(adminApp, connectorVault);
+  const readOnlyConnectorExecutor = createReadOnlyConnectorExecutor(connectorVault);
+  const brainScheduler = new BrainScheduler({
+    vault: connectorVault,
+    alwaysOn: config.brainAlwaysOn,
+    intervalMs: config.brainIntervalMs,
+    resolveNotification: async (intent, firedAt) => {
+      const { loadLlmAgUiConfigFromEnv } = await import("./agUi/llmRunner.js");
+      const { runBrainTurn } = await import("./brainTurn.js");
+      const { recordLlmInferenceSpend } = await import("./llmSpendMeter.js");
+      const llmConfig = loadLlmAgUiConfigFromEnv();
+      return runBrainTurn({
+        intent,
+        firedAt,
+        llmConfig: llmConfig
+          ? {
+              ...llmConfig,
+              atomConnectorsAvailable: true,
+              connectorExecutor: readOnlyConnectorExecutor,
+              onUsage: ({ promptTokens, completionTokens, model }) => {
+                recordLlmInferenceSpend(budgetLedger, {
+                  promptTokens,
+                  completionTokens,
+                  model,
+                });
+              },
+            }
+          : null,
+      });
+    },
+  });
+  registerBrainAdminRoutes(adminApp, { vault: connectorVault, scheduler: brainScheduler });
+  const voiceBackend = loadVoiceBackend();
+  registerVoiceAdminRoutes(adminApp, voiceBackend);
   registerAdminDataRoutes(adminApp);
   registerRoomsAdminRoutes(adminApp, {
     identity,
@@ -612,8 +652,6 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   adminApp.post("/agent", async (req, res) => {
     const { writeAgUiSse } = await import("./agUi/handler.js");
     const { loadLlmAgUiConfigFromEnv } = await import("./agUi/llmRunner.js");
-    const { getConnectorBackend } = await import("./connectorRegistry.js");
-    const { invokeConnectorCached } = await import("./connectorInvoke.js");
     const input = req.body as import("@ag-ui/client").RunAgentInput;
     const llmConfig = loadLlmAgUiConfigFromEnv();
     const usesBusinessContext = config.businessMode || config.communityHostMode;
@@ -640,29 +678,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       });
     }
     const { recordLlmInferenceSpend } = await import("./llmSpendMeter.js");
-    const connectorExecutor = async (call: {
-      connectorId: string;
-      operation: string;
-      input?: Record<string, unknown>;
-    }) => {
-      const backend = getConnectorBackend(call.connectorId);
-      if (!backend) {
-        throw new Error(`Unknown connector "${call.connectorId}"`);
-      }
-      const operationSpec = backend.operationSpec?.(call.operation);
-      if (operationSpec?.permission === "write") {
-        throw new Error(`Connector write "${call.connectorId}/${call.operation}" is not allowed from chat`);
-      }
-      const invoked = await invokeConnectorCached(
-        backend,
-        connectorVault,
-        call.connectorId,
-        call.operation,
-        call.input ?? {},
-        operationSpec,
-      );
-      return invoked.result;
-    };
+    const connectorExecutor = createReadOnlyConnectorExecutor(connectorVault);
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
@@ -746,6 +762,18 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
             `[mls] reconnect on startup failed: ${error instanceof Error ? error.message : String(error)}`,
           );
         });
+      brainScheduler.start();
+      console.log(
+        `  brain:         heartbeat ${config.brainAlwaysOn ? "always-on" : "duty-cycled"} every ${config.brainIntervalMs}ms (GET /brain/status)`,
+      );
+      console.log(
+        `  voice:         ${voiceBackend.id} (GET /voice/status)`,
+      );
+      const stopBrain = () => {
+        brainScheduler.stop();
+      };
+      process.once("SIGINT", stopBrain);
+      process.once("SIGTERM", stopBrain);
       if (config.communityHostMode) {
         void seedCoffeeShopBrand(businessContextStore)
           .then((brand) => {
