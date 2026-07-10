@@ -73,27 +73,6 @@
     },
     {
       "kind": "exact",
-      "pattern": "mistral-small-3.1-24b-instruct",
-      "classId": "tool-shy",
-      "note": "exact 2026-07-10: missing=22 unexpected=0 settings=3 misRoute=0 pass=5/30",
-      "evalBaseline": {
-        "hash": "348dec8841149e6f",
-        "scoredAt": "2026-07-10",
-        "modelId": "mistralai/mistral-small-3.1-24b-instruct",
-        "baseUrl": "https://openrouter.ai/api/v1",
-        "tallies": {
-          "missingCall": 22,
-          "unexpectedCall": 0,
-          "settingsMissing": 3,
-          "misRoute": 0,
-          "toolScenarioCount": 24
-        },
-        "passCount": 5,
-        "scenarioCount": 30
-      }
-    },
-    {
-      "kind": "exact",
       "pattern": "deepseek-chat",
       "classId": "balanced",
       "note": "exact 2026-07-10: missing=0 unexpected=0 settings=0 misRoute=0 pass=30/30",
