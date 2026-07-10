@@ -62,6 +62,11 @@ export interface LlmAgentSessionOptions {
   mcpToolExecutor?: McpToolExecutor;
   /** Owner has MCP servers configured on agent backend. */
   mcpServersAvailable?: boolean;
+  /**
+   * Force a behavior class for this session (neutral categorization uses "balanced").
+   * When set, registry model matching is skipped for knobs.
+   */
+  forceBehaviorClassId?: import("./modelBehavior.js").ModelBehaviorClassId;
 }
 
 interface ToolCall {
@@ -129,6 +134,7 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
       ),
       connectedConnectorIds: options?.connectedConnectorIds,
       model: config.model,
+      forceBehaviorClassId: options?.forceBehaviorClassId,
     });
     this.messages = [{ role: "system", content: this.buildSystemPromptContent() }];
     this.systemPromptFingerprint = this.systemPromptFingerprintKey();

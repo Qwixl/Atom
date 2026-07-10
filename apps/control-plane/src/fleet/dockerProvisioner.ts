@@ -146,6 +146,12 @@ function dockerRunArgs(input: {
     ...pushEnvArgs(),
     agentImage(),
   ];
+  const controlPlaneUrl =
+    process.env.ATOM_CONTROL_PLANE_URL?.trim() ||
+    process.env.ATOM_PUBLIC_CONTROL_PLANE_URL?.trim();
+  if (controlPlaneUrl) {
+    runArgs.splice(runArgs.length - 1, 0, "-e", `ATOM_CONTROL_PLANE_URL=${controlPlaneUrl.replace(/\/$/, "")}`);
+  }
   if (workspaceKind === "business") {
     runArgs.splice(runArgs.length - 1, 0, "-e", "ATOM_BUSINESS_MODE=true");
   }

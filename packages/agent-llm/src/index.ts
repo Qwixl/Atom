@@ -37,16 +37,24 @@ export type { McpToolExecutor, AtomMcpInvokeInput } from "./mcpTools.js";
 export { parseAtomMcpInvokeArgs, ATOM_MCP_INVOKE_TOOL_NAME } from "./mcpTools.js";
 export {
   resolveModelBehavior,
+  resolveBehaviorClass,
   listBehaviorClassIds,
   proposeClassFromFailureCounts,
+  isModelAssessed,
+  assignmentKind,
   MODEL_BEHAVIOR_REGISTRY,
 } from "./modelBehavior.js";
 export type {
   ModelBehaviorClassId,
   ModelBehaviorRegistry,
+  ModelBehaviorAssignment,
+  ModelBehaviorAssignmentKind,
+  ModelBehaviorEvalBaseline,
   ResolvedModelBehavior,
   ModelToolChoice,
 } from "./modelBehavior.js";
+export { parseModelIdentity, modelIdentityKey, preferModelId } from "./modelIdentity.js";
+export type { ModelIdentity } from "./modelIdentity.js";
 export {
   MODEL_SIGHTINGS_SCHEMA_VERSION,
   MODEL_SIGHTINGS_STORAGE_KEY,
