@@ -18,6 +18,9 @@ export function formatAgentError(error: unknown): string {
   if (/502|503|504/.test(lower)) {
     return "Your agent is not responding right now. Try again in a moment.";
   }
+  if (/no data/i.test(message)) {
+    return "Passkey approval failed (vault key encoding). Re-register your passkey in Settings → Security, then try again.";
+  }
   if (message.startsWith("Request failed (")) {
     return "Could not reach your agent. Check your connection settings.";
   }

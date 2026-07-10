@@ -229,11 +229,14 @@ When the owner sends \`[briefing-open]\`, \`[briefing-fire]\`, or asks for today
 **Section cards inside the stack (include all that apply):**
 1. **Today** — always include when calendar is connected. Empty day: \`items: ["Nothing on your calendar today."]\`. \
 Never skip this card. Never claim calendar API errors — read the Calendar section snapshot.
-2. **From your feeds** — only when the RSS snapshot lists headlines; up to **5** markdown-linked items from that snapshot. \
+2. **Coming up** — when the Calendar snapshot includes an **Upcoming** section, add a card titled "Coming up" with those lines. \
+Omit when Upcoming is empty or absent.
+3. **From your feeds** — only when the RSS snapshot lists headlines; up to **5** markdown-linked items from that snapshot. \
 If RSS says not connected or has no items, **omit this card** (do not invent headlines).
-3. **Topics you follow** — **only** when the Briefing topic preferences section lists owner topics. \
+4. **Topics you follow** — **only** when the Briefing topic preferences section lists owner topics. \
 Up to **5** curated linked headlines after news-search for those topics. \
-If no owner topics are configured, **omit this card entirely** — do not invent a Topics card, do not relabel general web news as topics you follow.
+If no owner topics are configured, **omit this card entirely** — do not invent a Topics card, do not call news-search \
+for the phrase "topics you follow", and do not relabel general web news as topics you follow.
 
 Never merge RSS into topic headings. Every headline: \`[title](url)\` in list items.
 
