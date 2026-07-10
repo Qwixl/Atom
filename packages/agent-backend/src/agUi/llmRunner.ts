@@ -258,6 +258,7 @@ async function runChatWithOptionalTools(
 /**
  * Plain text LLM completion with optional connector tools (Agent Brain turns).
  * Not an AG-UI SSE stream — returns assistant text only.
+ * Does **not** include the Chat composition grammar (that caused brain watches to emit JSON protocol).
  */
 export async function runLlmTextCompletion(
   config: LlmAgUiConfig,
@@ -272,14 +273,13 @@ export async function runLlmTextCompletion(
       );
     }
   }
-  const catalog = new Catalog();
-  registerCorePrimitives(catalog);
-  registerEcosystemModules(catalog);
   const toolProfile = buildAgentToolProfile(undefined, {
     atomConnectorsAvailable: connectorsEnabled(config),
   });
-  const baseSystem = buildSystemPrompt(catalog, config.profile, toolProfile);
-  const systemContent = [config.safetyPrefix?.trim(), systemPrompt.trim(), baseSystem]
+  const toolHint = connectorsEnabled(config)
+    ? "\n\nYou may call atom_connector_invoke for read-only connector operations when needed."
+    : "";
+  const systemContent = [config.safetyPrefix?.trim(), systemPrompt.trim() + toolHint]
     .filter(Boolean)
     .join("\n\n");
   const messages: ChatMessage[] = [

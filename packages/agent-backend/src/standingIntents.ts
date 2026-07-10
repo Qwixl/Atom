@@ -186,7 +186,7 @@ export function buildFireNotification(
 ): BrainPendingNotification {
   const body =
     intent.kind === "daily-briefing"
-      ? `Your ${intent.title} is ready. Ask me for today's briefing when you're free, or I'll enrich this automatically in a later wave.`
+      ? intent.title || "Daily briefing"
       : intent.kind === "reminder"
         ? intent.title
         : intent.scope?.query
