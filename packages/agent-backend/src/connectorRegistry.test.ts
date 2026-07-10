@@ -15,6 +15,7 @@ import { HOME_ASSISTANT_CONNECTOR_ID } from "./homeAssistantConnector.js";
 import { BLUESKY_CONNECTOR_ID } from "./blueskyConnector.js";
 import { MASTODON_CONNECTOR_ID } from "./mastodonConnector.js";
 import { WEATHER_CONNECTOR_ID } from "./weatherConnector.js";
+import { PAGE_FETCH_CONNECTOR_ID } from "./pageFetchConnector.js";
 
 describe("connectorRegistry", () => {
   it("registers hero connector backends", () => {
@@ -34,12 +35,14 @@ describe("connectorRegistry", () => {
         CALDAV_CONNECTOR_ID,
         CARDDAV_CONNECTOR_ID,
         WEATHER_CONNECTOR_ID,
+        PAGE_FETCH_CONNECTOR_ID,
       ]),
     );
     expect(getConnectorBackend(WEBCAL_CONNECTOR_ID)?.provider).toBe("webcal");
     expect(getConnectorBackend(RSS_CONNECTOR_ID)?.provider).toBe("rss");
     expect(getConnectorBackend(BOOKMARKS_CONNECTOR_ID)?.provider).toBe("bookmarks");
     expect(getConnectorBackend("news-search")?.provider).toBe("news-search");
+    expect(getConnectorBackend(PAGE_FETCH_CONNECTOR_ID)?.provider).toBe("page-fetch");
   });
 
   it("returns undefined for unknown connector", () => {

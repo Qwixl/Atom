@@ -12,6 +12,12 @@ import {
   newsSearchConnectorOperation,
 } from "./newsSearchConnector.js";
 import {
+  PAGE_FETCH_CONNECTOR_ID,
+  PAGE_FETCH_CONNECTOR_OPERATIONS,
+  invokePageFetchConnector,
+  pageFetchConnectorOperation,
+} from "./pageFetchConnector.js";
+import {
   RSS_CONNECTOR_ID,
   RSS_CONNECTOR_OPERATIONS,
   invokeRssConnector,
@@ -211,6 +217,30 @@ const newsSearchBackend: ConnectorBackend = {
   },
 };
 
+const pageFetchBackend: ConnectorBackend = {
+  id: PAGE_FETCH_CONNECTOR_ID,
+  moduleId: "connectors/page-fetch",
+  provider: "page-fetch",
+  label: "Page fetch",
+  async status() {
+    return {
+      connectorId: PAGE_FETCH_CONNECTOR_ID,
+      moduleId: "connectors/page-fetch",
+      provider: "page-fetch",
+      label: "Page fetch",
+      configured: true,
+      vaultOnly: false,
+      operations: PAGE_FETCH_CONNECTOR_OPERATIONS,
+    };
+  },
+  async invoke(vault, operation, input) {
+    return invokePageFetchConnector({ vault }, operation, input);
+  },
+  operationSpec(operation) {
+    return pageFetchConnectorOperation(operation);
+  },
+};
+
 function tokenConnectorBackend(
   id: string,
   label: string,
@@ -251,6 +281,7 @@ const CONNECTOR_BACKENDS = new Map<string, ConnectorBackend>([
   [RSS_CONNECTOR_ID, rssBackend],
   [BOOKMARKS_CONNECTOR_ID, bookmarksBackend],
   [NEWS_SEARCH_CONNECTOR_ID, newsSearchBackend],
+  [PAGE_FETCH_CONNECTOR_ID, pageFetchBackend],
   [
     TODOIST_CONNECTOR_ID,
     tokenConnectorBackend(
