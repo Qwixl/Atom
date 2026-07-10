@@ -49,6 +49,8 @@ describe("serviceDiscovery", () => {
     businessKnowledgeBackend: "json",
     businessKnowledgeRemoteUrl: null,
     interactivePortResolve: false,
+    brainAlwaysOn: true,
+    brainIntervalMs: 60000,
     };
     const localCapabilities = buildAgentCapabilities({
       config,

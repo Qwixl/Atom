@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { newAgentId } from "./fleet/index.js";
+import { resolveHostedBrainAlwaysOn } from "./fleet/brainAlwaysOn.js";
 import type { FleetProvisioner, HostedAgentRecord } from "./fleet/types.js";
 import { parseSignupHandle, publicHandle } from "./handles.js";
 import { isSupabaseConfigured, supabaseAdmin } from "./supabaseAdmin.js";
@@ -119,6 +120,7 @@ export async function provisionWorkspaceAgent(
       email: input.email,
       llmApiKey: input.llmApiKey,
       workspaceKind: input.workspaceKind,
+      brainAlwaysOn: resolveHostedBrainAlwaysOn(),
     });
     deps.fleetAgents().set(outcome.agent.id, outcome.agent);
     await deps.persistAgents();

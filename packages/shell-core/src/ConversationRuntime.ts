@@ -91,6 +91,21 @@ export class ConversationRuntime {
     this.notify();
   }
 
+  /** Replace text history (e.g. after custody sync). Surfaces are dropped. */
+  replaceTextFeed(items: readonly FeedItem[]): void {
+    const textOnly = items.filter(
+      (item): item is Extract<FeedItem, { kind: "user" | "agent-text" }> =>
+        item.kind === "user" || item.kind === "agent-text",
+    );
+    this.feed = [...textOnly];
+    this.idCounter = 0;
+    for (const item of textOnly) {
+      const numeric = Number(/^item-(\d+)$/.exec(item.id)?.[1]);
+      if (Number.isFinite(numeric) && numeric > this.idCounter) this.idCounter = numeric;
+    }
+    this.notify();
+  }
+
   setBusy(busy: boolean): void {
     this.busy = busy;
     this.notify();
@@ -113,6 +128,23 @@ export class ConversationRuntime {
   appendLocalAgentText(text: string): void {
     this.feed = appendAgentText(this.feed, this.nextId(), text);
     this.notify();
+  }
+
+  /**
+   * Inject an agent-text line with a stable id (e.g. brain notification id for dedup).
+   * Skips if that id is already on the feed.
+   */
+  appendAgentTextWithId(
+    id: string,
+    text: string,
+    meta?: { origin?: "brain"; brainKind?: "daily-briefing" | "reminder" | "watch" },
+  ): boolean {
+    const trimmed = text.trim();
+    if (!trimmed) return false;
+    if (this.feed.some((item) => item.id === id)) return false;
+    this.feed = appendAgentText(this.feed, id, trimmed, meta);
+    this.notify();
+    return true;
   }
 
   /** Update props on a module node within an active surface (e.g. live game state). */
