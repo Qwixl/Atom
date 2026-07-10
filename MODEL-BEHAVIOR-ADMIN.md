@@ -60,13 +60,15 @@ Review the JSON diff, run `pnpm --filter @qwixl/agent-llm test`, commit.
 
 ## Cron / CI (maintainers)
 
-Qwixl (or a fork) can schedule a weekly job (GitHub Actions). Store `OPENROUTER_API_KEY` (or `LLM_API_KEY`) as a **secret**.
+Qwixl (or a fork) can schedule a weekly job (GitHub Actions). Store `OPENROUTER_API_KEY` (or `LLM_API_KEY`) as a **GitHub Actions secret** (not Vercel).
 
 With a key configured, [`.github/workflows/model-behavior-admin.yml`](./.github/workflows/model-behavior-admin.yml):
 
 1. Runs `admin:model-behavior --eval --write`
 2. Uploads the registry JSON as an artifact
 3. Opens a PR (`chore/model-behavior-admin`) when `modelBehaviorRegistry.json` changed — **human review, no auto-merge**
+
+**Required repo setting:** Settings → Actions → General → Workflow permissions → enable **Allow GitHub Actions to create and approve pull requests**. Without that, the job can push the branch and upload the artifact but cannot open the PR.
 
 Without a key, the workflow only prints the registry (dry-run).
 
