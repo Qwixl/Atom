@@ -290,6 +290,10 @@ See MODEL-BEHAVIOR-ADMIN.md.`);
       const classId = proposeClassFromFailureCounts(t);
       const pattern = patternForModel(model);
       const note = `auto ${new Date().toISOString().slice(0, 10)}: missing=${t.missingCall} unexpected=${t.unexpectedCall} settings=${t.settingsMissing} misRoute=${t.misRoute}`;
+      if (!classId) {
+        console.log(`- ${model} (pattern \`${pattern}\`) → keep (inconclusive; ${note})`);
+        continue;
+      }
       proposals.push({ pattern, classId, note });
       console.log(`- ${model} (pattern \`${pattern}\`) → **${classId}** (${note})`);
     }
