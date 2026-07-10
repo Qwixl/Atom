@@ -141,6 +141,12 @@ import {
   VoiceSettingsPanel,
   loadVoiceOptIn,
 } from "./brain/VoicePushToTalk.js";
+import {
+  canRequestBriefingComposition,
+  feedNeedsBriefingCompositionRecovery,
+  shouldFireBriefingFromPending,
+  shouldSessionOpenBriefing,
+} from "./brain/briefingAutoFire.js";
 import { useBrainPendingPoll } from "./brain/useBrainPendingPoll.js";
 import { SpendPolicySettingsPanel } from "./billing/SpendPolicySettingsPanel.js";
 import { formatLocationContextForPrompt } from "./location/locationContext.js";
@@ -1335,15 +1341,8 @@ export function App() {
   sessionRef.current = session;
 
   const briefingOpenSentRef = useRef(false);
-  /** Dedup brain-fire composition requests per notification id (and per local day). */
+  /** Dedup brain-fire composition requests per notification id. */
   const briefingFireHandledRef = useRef(new Set<string>());
-  useEffect(() => {
-    if (IS_DEMO_MODE || !vaultUnlocked || !agentConnectionReady || provider !== "llm") return;
-    const prefs = loadBriefingPreferences();
-    if (!prefs.enabled || briefingOpenSentRef.current) return;
-    briefingOpenSentRef.current = true;
-    sessionRef.current.sendUserMessage(BRIEFING_OPEN_MESSAGE);
-  }, [vaultUnlocked, agentConnectionReady, provider]);
 
   const prevSessionRef = useRef<ShellSession | null>(null);
 
@@ -1532,6 +1531,45 @@ export function App() {
   const conversationRef = useRef(conversation);
   conversationRef.current = conversation;
 
+  const requestBriefingComposition = useCallback((message: string) => {
+    if (briefingOpenSentRef.current) return false;
+    if (!canRequestBriefingComposition(providerRef.current)) return false;
+    briefingOpenSentRef.current = true;
+    conversationRef.current.setBusy(true);
+    sessionRef.current.sendUserMessage(message);
+    return true;
+  }, []);
+
+  // Session-open / appear-online: hosted Chat is ag-ui (not Live LLM) — must include both.
+  useEffect(() => {
+    if (IS_DEMO_MODE || !vaultUnlocked || !agentConnectionReady) return;
+    if (
+      !shouldSessionOpenBriefing({
+        provider,
+        alreadyRequested: briefingOpenSentRef.current,
+      })
+    ) {
+      return;
+    }
+    requestBriefingComposition(BRIEFING_OPEN_MESSAGE);
+  }, [vaultUnlocked, agentConnectionReady, provider, requestBriefingComposition]);
+
+  // Recover stub brain briefings (including after chat-feed sync restores them).
+  useEffect(() => {
+    if (IS_DEMO_MODE || !vaultUnlocked || !agentConnectionReady) return;
+    if (!canRequestBriefingComposition(provider)) return;
+
+    const tryRecover = () => {
+      if (briefingOpenSentRef.current) return;
+      const feed = conversationRef.current.getSnapshot().feed;
+      if (!feedNeedsBriefingCompositionRecovery(feed)) return;
+      requestBriefingComposition(BRIEFING_FIRE_MESSAGE);
+    };
+
+    tryRecover();
+    return conversation.subscribe(tryRecover);
+  }, [vaultUnlocked, agentConnectionReady, provider, conversation, requestBriefingComposition]);
+
   useEffect(() => {
     if (!agentConnectionReady || !vaultUnlocked) return;
     void (async () => {
@@ -1570,26 +1608,25 @@ export function App() {
     enabled: Boolean(agentConnectionReady && vaultUnlocked && !IS_DEMO_MODE && conversation),
     conversation,
     onDailyBriefingFire: (n) => {
-      // Prefer agent-led composition (D055) over plain brain text for briefings.
-      if (briefingFireHandledRef.current.has(n.id)) return true;
-      // Session-open already requested a briefing composition this session — ack only
-      // (avoid a second full briefing). Standing-intent fire while offline still runs
-      // when session-open did not (prefs off / open skipped).
-      if (briefingOpenSentRef.current) {
+      if (
+        !shouldFireBriefingFromPending({
+          notification: n,
+          alreadyRequested: briefingOpenSentRef.current,
+          handledIds: briefingFireHandledRef.current,
+        })
+      ) {
+        // Already requested this session, or duplicate id — ack without a second turn.
         briefingFireHandledRef.current.add(n.id);
         return true;
       }
-      try {
-        briefingFireHandledRef.current.add(n.id);
-        briefingOpenSentRef.current = true;
-        conversationRef.current.setBusy(true);
-        sessionRef.current.sendUserMessage(BRIEFING_FIRE_MESSAGE);
-        return true;
-      } catch {
+      if (!canRequestBriefingComposition(providerRef.current)) return false;
+      briefingFireHandledRef.current.add(n.id);
+      const ok = requestBriefingComposition(BRIEFING_FIRE_MESSAGE);
+      if (!ok) {
         briefingFireHandledRef.current.delete(n.id);
-        briefingOpenSentRef.current = false;
         return false;
       }
+      return true;
     },
   });
 
