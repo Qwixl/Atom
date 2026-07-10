@@ -53,14 +53,22 @@ export function LlmApiKeyHintContent() {
       </p>
       <p>
         Atom is <strong>provider agnostic</strong>: any service with an OpenAI-compatible{" "}
-        <code>/v1/chat/completions</code> API works — OpenAI, Anthropic-compatible gateways, Google
-        AI, Groq, Mistral, Together, and others.
+        <code>/v1/chat/completions</code> API works — OpenAI,{" "}
+        <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">
+          OpenRouter
+        </a>{" "}
+        (one key for many providers/models), Anthropic-compatible gateways, Google AI, Groq,
+        Mistral, Together, and others.
       </p>
       <p>
         <strong>Where to get a key:</strong> create one in your provider&apos;s developer console
         (e.g.{" "}
         <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">
           OpenAI
+        </a>
+        ,{" "}
+        <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">
+          OpenRouter
         </a>
         ,{" "}
         <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">
@@ -70,7 +78,8 @@ export function LlmApiKeyHintContent() {
         <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
           Google AI
         </a>
-        ).
+        ). For OpenRouter, pick a model id like <code>openai/gpt-4o-mini</code> or{" "}
+        <code>anthropic/claude-sonnet-4</code>.
       </p>
       <p>
         <strong>Self-hosted models:</strong> run{" "}
