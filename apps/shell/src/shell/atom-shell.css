@@ -701,7 +701,7 @@
   }
 }
 
-@media (min-width: 1200px) {
+@media (min-width: 960px) {
   .comms-workspace .comms-sidebar {
     display: flex;
     flex-direction: column;

@@ -29,12 +29,15 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "eval:tools": "tsx evals/runToolsEval.ts",
+    "admin:model-behavior": "tsx evals/adminModelBehavior.ts"
   },
   "dependencies": {
     "@qwixl/shell-core": "workspace:*"
   },
   "devDependencies": {
+    "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^3.2.6"
   }

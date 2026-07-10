@@ -59,6 +59,7 @@ describe("briefingAutoFire", () => {
         provider: "ag-ui",
         alreadyRequested: false,
         connectorContextReady: true,
+        feed: [],
       }),
     ).toBe(true);
     expect(
@@ -66,6 +67,7 @@ describe("briefingAutoFire", () => {
         provider: "llm",
         alreadyRequested: false,
         connectorContextReady: true,
+        feed: [],
       }),
     ).toBe(true);
     expect(
@@ -73,6 +75,7 @@ describe("briefingAutoFire", () => {
         provider: "ag-ui",
         alreadyRequested: true,
         connectorContextReady: true,
+        feed: [],
       }),
     ).toBe(false);
   });
@@ -84,6 +87,19 @@ describe("briefingAutoFire", () => {
         provider: "ag-ui",
         alreadyRequested: false,
         connectorContextReady: false,
+        feed: [],
+      }),
+    ).toBe(false);
+  });
+
+  it("session-open skips when the owner already sent a chat message", () => {
+    saveBriefingPreferences({ enabled: true, topics: [] });
+    expect(
+      shouldSessionOpenBriefing({
+        provider: "ag-ui",
+        alreadyRequested: false,
+        connectorContextReady: true,
+        feed: [{ kind: "user", id: "u1", text: "hi" }],
       }),
     ).toBe(false);
   });
@@ -95,6 +111,7 @@ describe("briefingAutoFire", () => {
         provider: "ag-ui",
         alreadyRequested: false,
         connectorContextReady: true,
+        feed: [],
       }),
     ).toBe(false);
   });
@@ -108,6 +125,7 @@ describe("briefingAutoFire", () => {
         provider: "ag-ui",
         alreadyRequested: false,
         connectorContextReady: true,
+        feed: [],
       }),
     ).toBe(false);
   });
@@ -121,6 +139,7 @@ describe("briefingAutoFire", () => {
         provider: "ag-ui",
         alreadyRequested: false,
         connectorContextReady: true,
+        feed: [],
       }),
     ).toBe(false);
   });

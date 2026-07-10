@@ -79,12 +79,30 @@ export function atomGameMoveEvent(surfaceId: string, move: JsonValue): CustomEve
   };
 }
 
-export type AtomConnectorId = "webcal" | "rss" | "news-search" | "bookmarks" | "todoist" | "github" | "notion" | "caldav" | "weather";
+export type AtomConnectorId =
+  | "webcal"
+  | "rss"
+  | "news-search"
+  | "page-fetch"
+  | "bookmarks"
+  | "todoist"
+  | "github"
+  | "notion"
+  | "linear"
+  | "trello"
+  | "home-assistant"
+  | "caldav"
+  | "carddav"
+  | "bluesky"
+  | "mastodon"
+  | "weather";
 
 export type AtomConnectorInvokeRequest = {
   callId: string;
-  connectorId: AtomConnectorId;
-  operation: string;
+  /** Prefer intent-named tool (D081); shell/registry resolves to connectorId+operation. */
+  toolName?: string;
+  connectorId?: AtomConnectorId;
+  operation?: string;
   input?: Record<string, unknown>;
 };
 
@@ -97,29 +115,47 @@ export function atomConnectorInvokeEvent(request: AtomConnectorInvokeRequest): C
   };
 }
 
+const KNOWN_CONNECTOR_IDS = new Set<string>([
+  "webcal",
+  "rss",
+  "news-search",
+  "page-fetch",
+  "bookmarks",
+  "todoist",
+  "github",
+  "notion",
+  "linear",
+  "trello",
+  "home-assistant",
+  "caldav",
+  "carddav",
+  "bluesky",
+  "mastodon",
+  "weather",
+]);
+
 function readConnectorInvokeRequest(value: unknown): AtomConnectorInvokeRequest | null {
   const body = value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-  if (
-    body &&
-    typeof body.callId === "string" &&
-    typeof body.connectorId === "string" &&
-    typeof body.operation === "string" &&
-    (body.connectorId === "webcal" ||
-      body.connectorId === "rss" ||
-      body.connectorId === "news-search" ||
-      body.connectorId === "bookmarks")
-  ) {
-    return {
-      callId: body.callId,
-      connectorId: body.connectorId as AtomConnectorId,
-      operation: body.operation,
-      input:
-        body.input && typeof body.input === "object" && !Array.isArray(body.input)
-          ? (body.input as Record<string, unknown>)
-          : undefined,
-    };
-  }
-  return null;
+  if (!body || typeof body.callId !== "string") return null;
+
+  const toolName = typeof body.toolName === "string" ? body.toolName.trim() : undefined;
+  const connectorId =
+    typeof body.connectorId === "string" && KNOWN_CONNECTOR_IDS.has(body.connectorId)
+      ? (body.connectorId as AtomConnectorId)
+      : undefined;
+  const operation = typeof body.operation === "string" ? body.operation : undefined;
+  if (!toolName && (!connectorId || !operation)) return null;
+
+  return {
+    callId: body.callId,
+    toolName: toolName || undefined,
+    connectorId,
+    operation,
+    input:
+      body.input && typeof body.input === "object" && !Array.isArray(body.input)
+        ? (body.input as Record<string, unknown>)
+        : undefined,
+  };
 }
 
 /** Parse atom.connector-invoke CUSTOM payload. */

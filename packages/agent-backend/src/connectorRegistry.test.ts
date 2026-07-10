@@ -1,51 +1,39 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { getConnectorBackend, listConnectorBackendIds } from "./connectorRegistry.js";
-import { BOOKMARKS_CONNECTOR_ID } from "./bookmarksConnector.js";
-import { RSS_CONNECTOR_ID } from "./rssConnector.js";
-import { WEBCAL_CONNECTOR_ID } from "./webcalConnector.js";
+import { ConnectorVault } from "./connectorVault.js";
+import { listConfiguredConnectorIds } from "./connectorRegistry.js";
 
-import { TODOIST_CONNECTOR_ID } from "./todoistConnector.js";
-import { GITHUB_CONNECTOR_ID } from "./githubConnector.js";
-import { NOTION_CONNECTOR_ID } from "./notionConnector.js";
-import { CALDAV_CONNECTOR_ID } from "./caldavConnector.js";
-import { CARDDAV_CONNECTOR_ID } from "./carddavConnector.js";
-import { LINEAR_CONNECTOR_ID } from "./linearConnector.js";
-import { TRELLO_CONNECTOR_ID } from "./trelloConnector.js";
-import { HOME_ASSISTANT_CONNECTOR_ID } from "./homeAssistantConnector.js";
-import { BLUESKY_CONNECTOR_ID } from "./blueskyConnector.js";
-import { MASTODON_CONNECTOR_ID } from "./mastodonConnector.js";
-import { WEATHER_CONNECTOR_ID } from "./weatherConnector.js";
-import { PAGE_FETCH_CONNECTOR_ID } from "./pageFetchConnector.js";
+async function emptyVault(): Promise<ConnectorVault> {
+  const dir = mkdtempSync(path.join(tmpdir(), "atom-connector-registry-"));
+  const vault = new ConnectorVault(
+    path.join(dir, "vault-master.key"),
+    path.join(dir, "vault.enc"),
+  );
+  await vault.load();
+  return vault;
+}
 
-describe("connectorRegistry", () => {
-  it("registers hero connector backends", () => {
-    expect(listConnectorBackendIds()).toEqual(
-      expect.arrayContaining([
-        WEBCAL_CONNECTOR_ID,
-        RSS_CONNECTOR_ID,
-        BOOKMARKS_CONNECTOR_ID,
-        TODOIST_CONNECTOR_ID,
-        GITHUB_CONNECTOR_ID,
-        NOTION_CONNECTOR_ID,
-        LINEAR_CONNECTOR_ID,
-        TRELLO_CONNECTOR_ID,
-        HOME_ASSISTANT_CONNECTOR_ID,
-        BLUESKY_CONNECTOR_ID,
-        MASTODON_CONNECTOR_ID,
-        CALDAV_CONNECTOR_ID,
-        CARDDAV_CONNECTOR_ID,
-        WEATHER_CONNECTOR_ID,
-        PAGE_FETCH_CONNECTOR_ID,
-      ]),
+describe("listConfiguredConnectorIds", () => {
+  it("reports only ephemeral connectors for an empty vault", async () => {
+    const vault = await emptyVault();
+    const ids = await listConfiguredConnectorIds(vault);
+    // news-search, page-fetch, weather need no vault config.
+    expect(ids).toEqual(
+      expect.arrayContaining(["news-search", "page-fetch", "weather"]),
     );
-    expect(getConnectorBackend(WEBCAL_CONNECTOR_ID)?.provider).toBe("webcal");
-    expect(getConnectorBackend(RSS_CONNECTOR_ID)?.provider).toBe("rss");
-    expect(getConnectorBackend(BOOKMARKS_CONNECTOR_ID)?.provider).toBe("bookmarks");
-    expect(getConnectorBackend("news-search")?.provider).toBe("news-search");
-    expect(getConnectorBackend(PAGE_FETCH_CONNECTOR_ID)?.provider).toBe("page-fetch");
+    expect(ids).not.toContain("webcal");
+    expect(ids).not.toContain("todoist");
   });
 
-  it("returns undefined for unknown connector", () => {
-    expect(getConnectorBackend("connectors/unknown")).toBeUndefined();
+  it("includes connectors once vault state is configured", async () => {
+    const vault = await emptyVault();
+    await vault.addWebcalFeed({ label: "Work", url: "https://example.com/cal.ics" });
+    await vault.setApiToken("todoist", "secret-token");
+    const ids = await listConfiguredConnectorIds(vault);
+    expect(ids).toContain("webcal");
+    expect(ids).toContain("todoist");
+    expect(ids).not.toContain("github");
   });
 });

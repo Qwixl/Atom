@@ -128,6 +128,19 @@ export async function ensureCapacitorPush(
     const perm = await PushNotifications.requestPermissions();
     if (perm.receive !== "granted") return "denied";
     await PushNotifications.register();
+    // Open Chat (or payload url) when the owner taps a notification.
+    void PushNotifications.addListener("pushNotificationActionPerformed", (event) => {
+      const data = event.notification.data as { url?: string } | undefined;
+      const target = typeof data?.url === "string" && data.url.trim() ? data.url.trim() : "/app/";
+      try {
+        const next = new URL(target, window.location.origin);
+        if (next.origin === window.location.origin) {
+          window.location.assign(`${next.pathname}${next.search}${next.hash}`);
+        }
+      } catch {
+        window.location.assign("/app/");
+      }
+    });
     return await new Promise((resolve) => {
       const timeout = window.setTimeout(() => resolve("error"), 15_000);
       void PushNotifications.addListener("registration", (token) => {

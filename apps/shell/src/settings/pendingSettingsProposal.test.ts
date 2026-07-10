@@ -8,6 +8,7 @@ import {
   loadPendingSettingsProposal,
   parseSettingsProposalFromAction,
   savePendingSettingsProposal,
+  synthesizeSettingsProposalFromFeed,
 } from "./pendingSettingsProposal.js";
 
 function installSessionStorage(): void {
@@ -114,5 +115,55 @@ describe("pendingSettingsProposal", () => {
         rss: { url: "https://example.com/a.rss", label: "Acme feed" },
       }),
     ).toMatch(/feed “Acme feed”/);
+  });
+
+  it("synthesizes topic + watch from a prior track request", () => {
+    const proposal = synthesizeSettingsProposalFromFeed([
+      {
+        kind: "user",
+        id: "u1",
+        text: "Can you find the XRP price, provide a daily update and set an alert if the price fluctuates 5% over the week",
+      },
+      {
+        kind: "agent-text",
+        id: "a1",
+        text: "XRP is around $1.09. Would you like me to proceed with that?",
+      },
+    ]);
+    expect(proposal).toMatchObject({
+      topic: "XRP price",
+      watch: {
+        query:
+          "Can you find the XRP price, provide a daily update and set an alert if the price fluctuates 5% over the week",
+        everyMinutes: 60,
+      },
+    });
+    expect(proposal?.rss).toBeUndefined();
+  });
+
+  it("picks up an RSS URL cited in recent agent text", () => {
+    const proposal = synthesizeSettingsProposalFromFeed([
+      {
+        kind: "user",
+        id: "u1",
+        text: "Track Acme and alert me on major moves",
+      },
+      {
+        kind: "agent-text",
+        id: "a1",
+        text: "I found https://example.com/acme.rss — want me to keep you updated?",
+      },
+    ]);
+    expect(proposal?.rss).toEqual({ url: "https://example.com/acme.rss", label: "example.com" });
+    expect(proposal?.topic).toBeTruthy();
+  });
+
+  it("skips assent-only messages when synthesizing", () => {
+    expect(
+      synthesizeSettingsProposalFromFeed([
+        { kind: "user", id: "u1", text: "great, thanks" },
+        { kind: "agent-text", id: "a1", text: "Would you like me to proceed?" },
+      ]),
+    ).toBeNull();
   });
 });

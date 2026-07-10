@@ -35,7 +35,7 @@ describe("locationContext", () => {
     );
     expect(text).toContain("Home location (owner-declared): Berlin");
     expect(text).toContain("One-shot device location");
-    expect(text).toContain("input.latitude + input.longitude");
+    expect(text).toContain("weather_get_forecast with latitude + longitude");
   });
 
   it("formatLocationContextForPrompt omits expired device fix", () => {
