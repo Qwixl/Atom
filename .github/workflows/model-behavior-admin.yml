@@ -30,6 +30,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Workspace packages resolve to dist/ in CI (no "development" export condition).
+      - run: pnpm build:packages
 
       - name: Print registry (always)
         run: pnpm --filter @qwixl/agent-llm admin:model-behavior
