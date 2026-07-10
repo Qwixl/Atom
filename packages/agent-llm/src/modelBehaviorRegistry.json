@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "updated": "2026-07-10",
   "defaultClassId": "balanced",
   "classes": {
@@ -30,99 +30,133 @@
   },
   "assignments": [
     {
-      "pattern": "gpt-4.1-mini",
-      "classId": "tool-eager",
-      "note": "Seed: mini-class chat models"
-    },
-    {
-      "pattern": "gpt-4o-mini",
-      "classId": "tool-eager",
-      "note": "Seed: mini-class chat models (2026-07-10 eval inconclusive — kept)"
-    },
-    {
-      "pattern": "command-r",
-      "classId": "balanced",
-      "note": "Seed: Cohere Command R family"
-    },
-    {
-      "pattern": "deepseek",
-      "classId": "balanced",
-      "note": "Seed until scored"
-    },
-    {
-      "pattern": "gpt-4.1",
-      "classId": "tool-shy",
-      "note": "Seed: frontier chat sibling of gpt-4o until re-scored"
-    },
-    {
-      "pattern": "mistral",
-      "classId": "balanced",
-      "note": "Seed until scored"
-    },
-    {
+      "kind": "exact",
       "pattern": "gpt-4o",
       "classId": "tool-shy",
-      "note": "auto 2026-07-10: missing=22 unexpected=0 settings=3 misRoute=0"
+      "note": "Assessed 2026-07-10: missing=22 unexpected=0 settings=3 misRoute=0",
+      "evalBaseline": {
+        "hash": "8dfd5439a33b6728",
+        "scoredAt": "2026-07-10",
+        "modelId": "gpt-4o",
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "tallies": {
+          "missingCall": 22,
+          "unexpectedCall": 0,
+          "settingsMissing": 3,
+          "misRoute": 0,
+          "toolScenarioCount": 30
+        },
+        "passCount": 5,
+        "scenarioCount": 30
+      }
     },
     {
+      "kind": "family",
+      "pattern": "gpt-4.1-mini",
+      "classId": "tool-eager",
+      "note": "Family seed: mini-class chat models until exact assessment"
+    },
+    {
+      "kind": "family",
+      "pattern": "gpt-4o-mini",
+      "classId": "tool-eager",
+      "note": "Family seed until exact assessment under current baseline"
+    },
+    {
+      "kind": "family",
+      "pattern": "gpt-4.1",
+      "classId": "tool-shy",
+      "note": "Family seed: frontier chat sibling of gpt-4o until exact assessment"
+    },
+    {
+      "kind": "family",
+      "pattern": "command-r",
+      "classId": "balanced",
+      "note": "Family seed: Cohere Command R"
+    },
+    {
+      "kind": "family",
+      "pattern": "deepseek",
+      "classId": "balanced",
+      "note": "Family seed until exact assessment"
+    },
+    {
+      "kind": "family",
+      "pattern": "mistral",
+      "classId": "balanced",
+      "note": "Family seed until exact assessment"
+    },
+    {
+      "kind": "family",
       "pattern": "claude",
       "classId": "balanced",
-      "note": "Seed until multi-model scoreboard"
+      "note": "Family seed until exact assessment"
     },
     {
+      "kind": "family",
       "pattern": "gemini",
       "classId": "balanced",
-      "note": "Seed until scored"
+      "note": "Family seed until exact assessment"
     },
     {
+      "kind": "family",
       "pattern": "llama",
       "classId": "local-slm",
-      "note": "Seed: open-weight / local"
+      "note": "Family seed: open-weight / local (not OpenRouter-scored)"
     },
     {
+      "kind": "family",
       "pattern": "gemma",
       "classId": "local-slm",
-      "note": "Seed: small SLM"
+      "note": "Family seed: small SLM"
     },
     {
+      "kind": "family",
       "pattern": "grok",
       "classId": "balanced",
-      "note": "Seed until scored"
+      "note": "Family seed until exact assessment"
     },
     {
+      "kind": "family",
       "pattern": "phi-",
       "classId": "local-slm",
-      "note": "Seed: small SLM"
+      "note": "Family seed: small SLM"
     },
     {
+      "kind": "family",
       "pattern": "qwen",
       "classId": "balanced",
-      "note": "Seed until scored"
+      "note": "Family seed until exact assessment"
     },
     {
+      "kind": "family",
       "pattern": "yi-",
       "classId": "balanced",
-      "note": "Seed until scored"
+      "note": "Family seed until exact assessment"
     },
     {
+      "kind": "family",
       "pattern": "glm",
       "classId": "balanced",
-      "note": "Seed until scored"
+      "note": "Family seed until exact assessment"
     },
     {
+      "kind": "family",
       "pattern": "o1",
       "classId": "tool-shy",
-      "note": "Seed: reasoning models often skip tools — re-score before trusting"
+      "note": "Family seed: reasoning models often skip tools"
     },
     {
+      "kind": "family",
       "pattern": "o3",
       "classId": "tool-shy",
-      "note": "Seed: reasoning family"
+      "note": "Family seed: reasoning family"
     },
     {
+      "kind": "family",
       "pattern": "o4",
       "classId": "tool-shy",
-      "note": "Seed: reasoning family"
+      "note": "Family seed: reasoning family"
     }
   ]
 }
