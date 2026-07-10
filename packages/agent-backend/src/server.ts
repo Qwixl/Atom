@@ -357,7 +357,10 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     }
     if (req.method === "OPTIONS") {
       if (typeof origin === "string" && config.allowedOrigins.has(origin)) {
-        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.setHeader(
+          "Access-Control-Allow-Methods",
+          "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+        );
         res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
       }
       res.status(204).end();

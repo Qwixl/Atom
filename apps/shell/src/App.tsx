@@ -3231,6 +3231,7 @@ function SettingsDialog({
               </div>
             </div>
           </details>
+          <StandingIntentsPanel vaultUnlocked={vaultUnlocked} embedded />
         </>
       );
     }
