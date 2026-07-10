@@ -30,6 +30,7 @@ export {
   runBrainTurn,
   planBrainWorkers,
   aggregateWorkerResults,
+  coerceBrainPlainText,
   DEFAULT_BRAIN_TURN_BUDGET,
 } from "./brainTurn.js";
 export { runLlmTextCompletion } from "./agUi/llmRunner.js";
