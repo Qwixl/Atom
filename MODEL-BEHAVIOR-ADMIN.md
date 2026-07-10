@@ -27,11 +27,15 @@ Resolver: `@qwixl/agent-llm` → `resolveModelBehavior(modelId)` (exact bare id 
 | `exact` | One-time assessment for a bare model id + `evalBaseline.hash` |
 | `family` | Substring fallback seed (e.g. `claude`, `llama`) — not an assessment |
 
+**Classes are remediation, not “best prompt” tuning.** Models that pass the suite land on `balanced` (no special addendum). `tool-shy` / `tool-eager` / `local-slm` apply when failure tallies show a characteristic defect. Many frontier models sharing `balanced` is expected.
+
 ### Bootstrap + first-use queue
 
-1. **Bootstrap** — committed OpenRouter ids in `packages/agent-llm/evals/bootstrapModels.ts`. Evaluated once until assessed under the current baseline. Local Ollama models are not on this list (`local-slm` family covers them).
+1. **Bootstrap** — `evals/bootstrapModels.ts` lists **unassessed / retry** OpenRouter ids only. Exact assessments under the current baseline are skipped (no re-spend on known-good models). Local Ollama models are not listed (`local-slm` family covers them).
 2. **Hosted first-use** — when a hosted agent uses an unassessed model, it fire-and-forgets to the control plane queue (`POST /model-behavior/sightings`). Chat never waits.
 3. **CI** — weekly/on-demand job evaluates pending queue (+ optional bootstrap), writes exact assessments, opens a PR. Empty queue → clean exit, no PR.
+
+Empty-response / fast-fail scoreboards (bad model slug) are skipped as inconclusive — not written as `tool-shy`.
 
 Browser BYOK sightings stay in `localStorage` / hand-export for this phase (no frontend telemetry upload).
 

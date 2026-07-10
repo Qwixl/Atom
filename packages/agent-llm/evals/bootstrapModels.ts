@@ -1,30 +1,17 @@
 /**
- * One-time OpenRouter bootstrap candidates (exact provider/model ids).
- * After each id is assessed under the current eval baseline, it is skipped.
- * Local Ollama models are intentionally absent — family local-slm covers them.
+ * Bootstrap / retry candidates for first-use categorization (exact OpenRouter ids).
+ *
+ * Models with a current exact assessment under the eval baseline are skipped at
+ * runtime — keep this list to **unassessed or invalid-assessment retries only**
+ * so weekly/bootstrap jobs do not re-spend on known-good models.
+ *
+ * Local Ollama models are intentionally absent — family `local-slm` covers them.
  */
 export const BOOTSTRAP_EVAL_MODELS: readonly string[] = [
-  // OpenAI
-  "openai/gpt-4o-mini",
-  "openai/gpt-4o",
-  "openai/gpt-4.1-mini",
-  "openai/gpt-4.1",
-  // Anthropic
-  "anthropic/claude-sonnet-4",
-  "anthropic/claude-3.5-haiku",
-  // Google
-  "google/gemini-2.0-flash",
-  "google/gemini-2.5-flash",
-  // DeepSeek
-  "deepseek/deepseek-chat",
-  // xAI
-  "x-ai/grok-3",
-  // Mistral
-  "mistralai/mistral-small-3.1-24b-instruct",
-  // Cohere
-  "cohere/command-r-plus",
-  // Qwen
-  "qwen/qwen-2.5-72b-instruct",
-  // Meta
-  "meta-llama/llama-3.3-70b-instruct",
+  // Previously catalog-missing or wrong slug — retry with current OpenRouter ids.
+  "anthropic/claude-haiku-4.5",
+  "x-ai/grok-4.5",
+  "cohere/command-r-plus-08-2024",
+  // Prior mistral-small-3.1 run was a ~13s empty-response false tool-shy — retest.
+  "mistralai/mistral-small-3.2-24b-instruct",
 ];
