@@ -13,6 +13,10 @@ export interface BillingAdminDeps {
   stripeSecretKey?: string | null;
   /** Platform fee in basis points during beta (0 = no fee). */
   platformFeeBps?: number;
+  /** Agent Brain always-on heartbeat (D078 / BK-45). */
+  brainAlwaysOn?: boolean;
+  /** Beta: hosting fees waived (published model — no rug-pull). */
+  betaFree?: boolean;
 }
 
 function readPolicies(): Record<string, SpendPolicy> {
@@ -57,11 +61,18 @@ export function evaluateSpend(
 
 export function registerBillingAdminRoutes(app: Express, deps: BillingAdminDeps): void {
   app.get("/billing/status", (_req, res) => {
+    const betaFree = deps.betaFree !== false;
     res.json({
-      betaFree: true,
+      betaFree,
       platformFeeBps: deps.platformFeeBps ?? 0,
       stripeConfigured: Boolean(deps.stripeSecretKey?.trim()),
       connectOnboarding: "workspace-scoped",
+      alwaysOnBrain: deps.brainAlwaysOn !== false,
+      alwaysOnBrainTier: betaFree
+        ? "beta"
+        : deps.brainAlwaysOn !== false
+          ? "subscribed"
+          : "duty-cycled",
     });
   });
 
@@ -135,6 +146,35 @@ export function registerBillingAdminRoutes(app: Express, deps: BillingAdminDeps)
       workspaceId,
       status: "pending_implementation",
       message: "Connect Express onboarding will return accountLink.url when billing exits beta.",
+    });
+  });
+
+  /** Always-on Agent Brain subscription — charged at beta exit (D078 / Q13). */
+  app.post("/billing/hosting/subscribe", (req, res) => {
+    const workspaceId = (req.body as { workspaceId?: string }).workspaceId?.trim();
+    if (!workspaceId) {
+      res.status(400).json({ error: "workspaceId required" });
+      return;
+    }
+    const betaFree = deps.betaFree !== false;
+    if (betaFree) {
+      res.json({
+        workspaceId,
+        status: "beta_included",
+        alwaysOnBrain: true,
+        message: "Always-on Agent Brain is included during beta. Pricing will be published before charges begin.",
+      });
+      return;
+    }
+    if (!deps.stripeSecretKey?.trim()) {
+      res.status(503).json({ error: "Stripe not configured on agent backend" });
+      return;
+    }
+    res.json({
+      workspaceId,
+      status: "pending_implementation",
+      message:
+        "Always-on subscription Checkout Session will return when Q13 pricing ships and beta exits.",
     });
   });
 }

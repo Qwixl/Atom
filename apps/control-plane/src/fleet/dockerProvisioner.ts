@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import type { FleetProvisioner, HostedAgentRecord, ProvisionOutcome } from "./types.js";
 import { assertProductionAgentPublicUrl } from "./publicUrl.js";
 import { reservedCommunityHostPort, resolveCommunityHostPublicUrl } from "./communityHost.js";
+import { resolveHostedBrainAlwaysOn } from "./brainAlwaysOn.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -93,8 +94,10 @@ function dockerRunArgs(input: {
   agentId: string;
   llmApiKey?: string;
   workspaceKind?: "personal" | "business" | "developer";
+  brainAlwaysOn?: boolean;
 }): string[] {
   const workspaceKind = input.workspaceKind ?? "personal";
+  const brainAlwaysOn = input.brainAlwaysOn ?? resolveHostedBrainAlwaysOn();
   const runArgs = [
     "run",
     "-d",
@@ -124,6 +127,8 @@ function dockerRunArgs(input: {
     "ATOM_DATA_DIR=/data",
     "-e",
     `ATOM_WORKSPACE_KIND=${workspaceKind}`,
+    "-e",
+    `ATOM_BRAIN_ALWAYS_ON=${brainAlwaysOn ? "1" : "0"}`,
     agentImage(),
   ];
   if (workspaceKind === "business") {
@@ -150,6 +155,7 @@ export class DockerFleetProvisioner implements FleetProvisioner {
     email: string;
     llmApiKey?: string;
     workspaceKind?: "personal" | "business" | "developer";
+    brainAlwaysOn?: boolean;
   }): Promise<ProvisionOutcome> {
     const adminToken = randomBytes(32).toString("base64url");
     const hostPort = await allocateHostPort(this.agents.values());
@@ -165,6 +171,7 @@ export class DockerFleetProvisioner implements FleetProvisioner {
       agentId: input.id,
       llmApiKey: input.llmApiKey,
       workspaceKind: input.workspaceKind,
+      brainAlwaysOn: input.brainAlwaysOn ?? resolveHostedBrainAlwaysOn(),
     });
 
     try {
@@ -229,6 +236,7 @@ export class DockerFleetProvisioner implements FleetProvisioner {
         handle: agent.handle,
         agentId: agent.id,
         llmApiKey: key,
+        brainAlwaysOn: resolveHostedBrainAlwaysOn(),
       }),
     );
     agent.containerId = containerId;

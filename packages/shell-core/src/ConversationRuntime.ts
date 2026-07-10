@@ -130,6 +130,23 @@ export class ConversationRuntime {
     this.notify();
   }
 
+  /**
+   * Inject an agent-text line with a stable id (e.g. brain notification id for dedup).
+   * Skips if that id is already on the feed.
+   */
+  appendAgentTextWithId(
+    id: string,
+    text: string,
+    meta?: { origin?: "brain"; brainKind?: "daily-briefing" | "reminder" | "watch" },
+  ): boolean {
+    const trimmed = text.trim();
+    if (!trimmed) return false;
+    if (this.feed.some((item) => item.id === id)) return false;
+    this.feed = appendAgentText(this.feed, id, trimmed, meta);
+    this.notify();
+    return true;
+  }
+
   /** Update props on a module node within an active surface (e.g. live game state). */
   updateSurfaceModuleProps(
     surfaceId: string,

@@ -1263,6 +1263,8 @@ export class CommsAgentClient {
     platformFeeBps: number;
     stripeConfigured: boolean;
     connectOnboarding?: string;
+    alwaysOnBrain?: boolean;
+    alwaysOnBrainTier?: "beta" | "subscribed" | "duty-cycled";
   }> {
     return getJson(this.base(), "/billing/status", this.auth, true);
   }
