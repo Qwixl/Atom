@@ -4,10 +4,24 @@ import {
   proposeClassFromFailureCounts,
   resolveModelBehavior,
   MODEL_BEHAVIOR_REGISTRY,
+  type ModelBehaviorRegistry,
 } from "./modelBehavior.js";
 import { buildAgentToolProfile, chatCompletionTools } from "./agentTools.js";
 import { buildSystemPrompt } from "./prompt.js";
 import { Catalog, registerCorePrimitives } from "@qwixl/shell-core";
+
+/** Fixture registry — unit tests must not depend on live ops assignments. */
+const FIXTURE_REGISTRY: ModelBehaviorRegistry = {
+  schemaVersion: 1,
+  updated: "test",
+  defaultClassId: "balanced",
+  classes: MODEL_BEHAVIOR_REGISTRY.classes,
+  assignments: [
+    { pattern: "gpt-4o-mini", classId: "tool-eager" },
+    { pattern: "gpt-4o", classId: "tool-shy" },
+    { pattern: "llama", classId: "local-slm" },
+  ],
+};
 
 describe("model behavior classes", () => {
   it("defines four ops classes", () => {
@@ -17,12 +31,14 @@ describe("model behavior classes", () => {
   });
 
   it("matches gpt-4o-mini before gpt-4o (longer pattern)", () => {
-    expect(resolveModelBehavior("gpt-4o-mini").classId).toBe("tool-eager");
-    expect(resolveModelBehavior("openai/gpt-4o").classId).toBe("tool-shy");
+    expect(resolveModelBehavior("gpt-4o-mini", FIXTURE_REGISTRY).classId).toBe("tool-eager");
+    expect(resolveModelBehavior("openai/gpt-4o", FIXTURE_REGISTRY).classId).toBe("tool-shy");
   });
 
   it("defaults unknown models to balanced", () => {
-    expect(resolveModelBehavior("totally-unknown-xyz").classId).toBe("balanced");
+    expect(resolveModelBehavior("totally-unknown-xyz", FIXTURE_REGISTRY).classId).toBe(
+      "balanced",
+    );
   });
 
   it("matches broadened family seeds", () => {
@@ -47,10 +63,14 @@ describe("model behavior classes", () => {
   it("tool-shy injects invoke addendum into system prompt", () => {
     const catalog = new Catalog();
     registerCorePrimitives(catalog);
-    const profile = buildAgentToolProfile(undefined, {
-      atomConnectorsAvailable: true,
-      model: "gpt-4o",
-    });
+    const behavior = resolveModelBehavior("gpt-4o", FIXTURE_REGISTRY);
+    const profile = {
+      ...buildAgentToolProfile(undefined, { atomConnectorsAvailable: true, model: "gpt-4o" }),
+      behaviorClassId: behavior.classId,
+      promptAddendum: behavior.promptAddendum || undefined,
+      includeDeprecatedAlias: behavior.includeDeprecatedAlias,
+      toolChoice: behavior.toolChoice,
+    };
     const prompt = buildSystemPrompt(catalog, { open: [], guardedCategories: [] }, profile);
     expect(prompt).toContain("tool-shy profile");
     expect(prompt).toContain("MUST call the matching intent-named tool");
@@ -59,11 +79,18 @@ describe("model behavior classes", () => {
   it("tool-eager addendum requires settingsProposal on soft-confirm", () => {
     const catalog = new Catalog();
     registerCorePrimitives(catalog);
-    const profile = buildAgentToolProfile(undefined, {
-      atomConnectorsAvailable: true,
-      model: "gpt-4o-mini",
-    });
-    expect(profile.behaviorClassId).toBe("tool-eager");
+    const behavior = resolveModelBehavior("gpt-4o-mini", FIXTURE_REGISTRY);
+    expect(behavior.classId).toBe("tool-eager");
+    const profile = {
+      ...buildAgentToolProfile(undefined, {
+        atomConnectorsAvailable: true,
+        model: "gpt-4o-mini",
+      }),
+      behaviorClassId: behavior.classId,
+      promptAddendum: behavior.promptAddendum || undefined,
+      includeDeprecatedAlias: behavior.includeDeprecatedAlias,
+      toolChoice: behavior.toolChoice,
+    };
     const prompt = buildSystemPrompt(catalog, { open: [], guardedCategories: [] }, profile);
     expect(prompt).toContain("settingsProposal");
     expect(prompt).toMatch(/Soft-confirm track\/alert/);
@@ -79,6 +106,18 @@ describe("model behavior classes", () => {
         toolScenarioCount: 20,
       }),
     ).toBe("tool-shy");
+  });
+
+  it("proposeClassFromFailureCounts returns null when inconclusive", () => {
+    expect(
+      proposeClassFromFailureCounts({
+        missingCall: 0,
+        unexpectedCall: 0,
+        settingsMissing: 0,
+        misRoute: 0,
+        toolScenarioCount: 20,
+      }),
+    ).toBeNull();
   });
 
   it("registry JSON stays secret-free", () => {
