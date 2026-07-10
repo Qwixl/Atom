@@ -2045,21 +2045,30 @@ export function App() {
       }
       return;
     }
-    if (pendingProposal && isSoftAssentMessage(trimmed)) {
+    if (isSoftAssentMessage(trimmed)) {
+      if (pendingProposal) {
+        conversationRef.current.appendUser(trimmed);
+        setInput("");
+        conversationRef.current.setBusy(true);
+        try {
+          await commitPendingSettingsProposal(pendingProposal);
+        } catch (error) {
+          conversationRef.current.appendLocalAgentText(
+            presentUserError(error, {
+              accountType,
+              showTechnicalDetail: SHOW_DEV_WORKFLOWS,
+            }),
+          );
+          conversationRef.current.setBusy(false);
+        }
+        return;
+      }
+      // Assent with nothing pending — stop the model from hallucinating a successful setup.
       conversationRef.current.appendUser(trimmed);
       setInput("");
-      conversationRef.current.setBusy(true);
-      try {
-        await commitPendingSettingsProposal(pendingProposal);
-      } catch (error) {
-        conversationRef.current.appendLocalAgentText(
-          presentUserError(error, {
-            accountType,
-            showTechnicalDetail: SHOW_DEV_WORKFLOWS,
-          }),
-        );
-        conversationRef.current.setBusy(false);
-      }
+      conversationRef.current.appendLocalAgentText(
+        "I don't have a pending setup to save yet. Ask me again to track something — I'll propose the feed, briefing topic, and alert, then you can confirm.",
+      );
       return;
     }
 

@@ -59,5 +59,6 @@ describe("buildSystemPrompt calendar guidance", () => {
     expect(prompt).toContain("Soft-confirm settings proposals");
     expect(prompt).toContain("settingsProposal");
     expect(prompt).toContain("If that format works for you");
+    expect(prompt).toContain("WRONG (text-only promise");
   });
 });

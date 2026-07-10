@@ -94,6 +94,7 @@ describe("pendingSettingsProposal", () => {
 
   it("detects soft assent and decline", () => {
     expect(isSoftAssentMessage("That's fine, thanks")).toBe(true);
+    expect(isSoftAssentMessage("great, thanks")).toBe(true);
     expect(isSoftAssentMessage("yes")).toBe(true);
     expect(isSoftAssentMessage("sounds good")).toBe(true);
     expect(isSoftAssentMessage("go ahead")).toBe(true);
