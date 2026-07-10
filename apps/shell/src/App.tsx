@@ -3247,7 +3247,7 @@ function SettingsDialog({
     } catch (error) {
       setHostedLlmError(
         presentUserError(error, {
-          accountType,
+          accountType: loadAccountType(),
           showTechnicalDetail: SHOW_DEV_WORKFLOWS,
         }),
       );
