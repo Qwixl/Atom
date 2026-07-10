@@ -486,7 +486,11 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       const { loadLlmAgUiConfigFromEnv } = await import("./agUi/llmRunner.js");
       const { runBrainTurn } = await import("./brainTurn.js");
       const { recordLlmInferenceSpend } = await import("./llmSpendMeter.js");
+      const { listConfiguredConnectorIds } = await import("./connectorRegistry.js");
       const llmConfig = loadLlmAgUiConfigFromEnv();
+      const connectedConnectorIds = llmConfig
+        ? await listConfiguredConnectorIds(connectorVault)
+        : [];
       return runBrainTurn({
         intent,
         firedAt,
@@ -495,6 +499,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
               ...llmConfig,
               atomConnectorsAvailable: true,
               connectorExecutor: readOnlyConnectorExecutor,
+              connectedConnectorIds,
               onUsage: ({ promptTokens, completionTokens, model }) => {
                 recordLlmInferenceSpend(budgetLedger, {
                   promptTokens,
@@ -686,7 +691,11 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       });
     }
     const { recordLlmInferenceSpend } = await import("./llmSpendMeter.js");
+    const { listConfiguredConnectorIds } = await import("./connectorRegistry.js");
     const connectorExecutor = createReadOnlyConnectorExecutor(connectorVault);
+    const connectedConnectorIds = llmConfig
+      ? await listConfiguredConnectorIds(connectorVault)
+      : [];
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
@@ -697,6 +706,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
             businessContext: serverBusinessContext?.trim() || undefined,
             atomConnectorsAvailable: true,
             connectorExecutor,
+            connectedConnectorIds,
             onUsage: ({ promptTokens, completionTokens, model }) => {
               recordLlmInferenceSpend(budgetLedger, {
                 promptTokens,

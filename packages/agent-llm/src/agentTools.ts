@@ -1,32 +1,20 @@
 import type { ModelCapabilityProfile, NativeToolId } from "./modelCapabilities.js";
 import { filterWireableHostedTools, buildResponsesHostedTool } from "./hostedToolWireability.js";
 import { ATOM_MCP_INVOKE_TOOL } from "./mcpTools.js";
+import { resolveModelBehavior, type ModelToolChoice } from "./modelBehavior.js";
+import {
+  ATOM_CONNECTOR_INVOKE_ALIAS,
+  ATOM_TOOL_REGISTRY,
+  listToolRegistryEntries,
+  registryEntryToChatCompletionTool,
+  registryEntryToResponsesTool,
+  type AtomConnectorId,
+  type AtomConnectorInvokeInput,
+} from "./toolRegistry.js";
+
+export type { AtomConnectorId, AtomConnectorInvokeInput } from "./toolRegistry.js";
 
 export type AtomToolId = "connector_invoke" | "mcp_invoke";
-
-export type AtomConnectorId =
-  | "webcal"
-  | "rss"
-  | "news-search"
-  | "page-fetch"
-  | "bookmarks"
-  | "todoist"
-  | "github"
-  | "notion"
-  | "linear"
-  | "trello"
-  | "home-assistant"
-  | "caldav"
-  | "carddav"
-  | "bluesky"
-  | "mastodon"
-  | "weather";
-
-export interface AtomConnectorInvokeInput {
-  connectorId: AtomConnectorId;
-  operation: string;
-  input?: Record<string, unknown>;
-}
 
 export type AtomToolExecutor = (call: AtomConnectorInvokeInput) => Promise<unknown>;
 
@@ -38,11 +26,27 @@ export interface AgentToolProfile {
   useResponsesApi: boolean;
   useAtomToolLoop: boolean;
   needsProtocolFormatPass: boolean;
+  /**
+   * When set, only registry tools for these connectors (+ alwaysAvailable) are exposed.
+   * When omitted, all registry tools are exposed (typical hosted / tests).
+   */
+  connectedConnectorIds?: AtomConnectorId[];
+  /** Behavior class knobs (Q36) — from modelBehaviorRegistry. */
+  toolChoice?: ModelToolChoice;
+  includeDeprecatedAlias?: boolean;
+  promptAddendum?: string;
+  behaviorClassId?: string;
 }
 
 export function buildAgentToolProfile(
   capabilities: ModelCapabilityProfile | undefined,
-  opts?: { atomConnectorsAvailable?: boolean; mcpServersAvailable?: boolean },
+  opts?: {
+    atomConnectorsAvailable?: boolean;
+    mcpServersAvailable?: boolean;
+    connectedConnectorIds?: readonly AtomConnectorId[];
+    /** Override model id for behavior resolution when capabilities omit it. */
+    model?: string;
+  },
 ): AgentToolProfile {
   const native = capabilities?.nativeTools ?? [];
   const providerHostedTools = filterWireableHostedTools(capabilities?.providerHostedTools ?? []);
@@ -59,6 +63,7 @@ export function buildAgentToolProfile(
     Boolean(capabilities?.responsesApi) &&
     hasResponsesTools;
   const useAtomToolLoop = atom.length > 0 && !useResponsesApi;
+  const behavior = resolveModelBehavior(opts?.model ?? capabilities?.model ?? "");
   return {
     native,
     atom,
@@ -66,19 +71,24 @@ export function buildAgentToolProfile(
     useResponsesApi,
     useAtomToolLoop,
     needsProtocolFormatPass: useResponsesApi,
+    connectedConnectorIds: opts?.connectedConnectorIds
+      ? [...opts.connectedConnectorIds]
+      : undefined,
+    toolChoice: behavior.toolChoice,
+    includeDeprecatedAlias: behavior.includeDeprecatedAlias,
+    promptAddendum: behavior.promptAddendum || undefined,
+    behaviorClassId: behavior.classId,
   };
 }
 
+/** @deprecated Prefer per-intent registry tools; kept as alias for one release (D081). */
 export const ATOM_CONNECTOR_INVOKE_TOOL = {
   type: "function" as const,
   function: {
-    name: "atom_connector_invoke",
+    name: ATOM_CONNECTOR_INVOKE_ALIAS,
     description:
-      "Read owner-specific data via Atom connectors. Use for calendar (webcal, caldav), contacts (carddav), " +
-      "subscribed RSS/podcast feeds, ephemeral news search (news-search), public page fetch (page-fetch) for " +
-      "link-intent summarize/full, saved bookmarks, Todoist tasks, " +
-      "GitHub notifications/issues, Notion search, Linear/Trello/Home Assistant, Bluesky/Mastodon timelines, " +
-      "or Open-Meteo weather. Agent-led only — never triggered by shell keywords.",
+      "Deprecated alias. Prefer intent-named tools (calendar_list_events, news_search, page_read, …). " +
+      "Read owner-specific data via Atom connectors when a named tool is unavailable.",
     parameters: {
       type: "object",
       properties: {
@@ -106,21 +116,11 @@ export const ATOM_CONNECTOR_INVOKE_TOOL = {
         },
         operation: {
           type: "string",
-          description:
-            "Operation id. webcal: getStatus, listEvents. caldav: getStatus, listCalendars, listEvents. " +
-            "carddav: getStatus, listContacts. rss: getStatus, listItems, listPodcastItems. " +
-            "news-search: searchItems (input.query). page-fetch: readPage (input.url) for [link-intent] article reads. " +
-            "bookmarks: getStatus, listBookmarks, readBookmark. " +
-            "todoist: getStatus, listTasks, listProjects. github: getStatus, listNotifications, listAssignedIssues. " +
-            "notion: getStatus, search (input.query). linear: getStatus, listAssignedIssues. " +
-            "trello: getStatus, listBoards, listCards. home-assistant: getStatus, listEntities, getEntityState. " +
-            "bluesky: getStatus, listTimeline, listNotifications. mastodon: getStatus, listHomeTimeline, listNotifications. " +
-            "weather: getStatus, getForecast (input.location or latitude+longitude).",
+          description: "Operation id (e.g. listEvents, searchItems, readPage).",
         },
         input: {
           type: "object",
-          description:
-            'Operation input, e.g. { query: "politics" } for news-search, or { url: "https://…" } for page-fetch readPage.',
+          description: "Operation input object.",
           additionalProperties: true,
         },
       },
@@ -140,9 +140,22 @@ const NATIVE_TOOL_LABELS: Record<NativeToolId, string> = {
   audio: "**audio** (provider): speech synthesis and transcription",
 };
 
+function registryToolsForProfile(profile: AgentToolProfile) {
+  return listToolRegistryEntries({
+    connectedConnectorIds: profile.connectedConnectorIds,
+  });
+}
+
 export function chatCompletionTools(profile: AgentToolProfile): unknown[] {
   const tools: unknown[] = [];
-  if (profile.atom.includes("connector_invoke")) tools.push(ATOM_CONNECTOR_INVOKE_TOOL);
+  if (profile.atom.includes("connector_invoke")) {
+    for (const entry of registryToolsForProfile(profile)) {
+      tools.push(registryEntryToChatCompletionTool(entry));
+    }
+    if (profile.includeDeprecatedAlias !== false) {
+      tools.push(ATOM_CONNECTOR_INVOKE_TOOL);
+    }
+  }
   if (profile.atom.includes("mcp_invoke")) tools.push(ATOM_MCP_INVOKE_TOOL);
   return tools;
 }
@@ -157,13 +170,18 @@ export function responsesApiTools(profile: AgentToolProfile): unknown[] {
     if (tool) tools.push(tool);
   }
   if (profile.atom.includes("connector_invoke")) {
-    tools.push({
-      type: "function",
-      name: ATOM_CONNECTOR_INVOKE_TOOL.function.name,
-      description: ATOM_CONNECTOR_INVOKE_TOOL.function.description,
-      parameters: ATOM_CONNECTOR_INVOKE_TOOL.function.parameters,
-      strict: false,
-    });
+    for (const entry of registryToolsForProfile(profile)) {
+      tools.push(registryEntryToResponsesTool(entry));
+    }
+    if (profile.includeDeprecatedAlias !== false) {
+      tools.push({
+        type: "function",
+        name: ATOM_CONNECTOR_INVOKE_TOOL.function.name,
+        description: ATOM_CONNECTOR_INVOKE_TOOL.function.description,
+        parameters: ATOM_CONNECTOR_INVOKE_TOOL.function.parameters,
+        strict: false,
+      });
+    }
   }
   if (profile.atom.includes("mcp_invoke")) {
     tools.push({
@@ -189,12 +207,15 @@ export function formatToolsForPrompt(profile: AgentToolProfile): string {
     lines.push(`- ${NATIVE_TOOL_LABELS[tool] ?? tool}`);
   }
   if (profile.atom.includes("connector_invoke")) {
-    lines.push(
-      "- **atom_connector_invoke** (Atom): owner calendar (webcal/caldav), contacts (carddav), RSS/podcasts, **news-search**, **page-fetch** (read public article URLs for [link-intent]), bookmarks, **Todoist**, **GitHub**, **Notion**, **Linear**, **Trello**, **Home Assistant**, **Bluesky**, **Mastodon**, **weather** — call for fresh owner data",
-    );
-    lines.push(
-      "  Prefer this tool over passive Calendar/RSS snapshots when answering schedule, feed, bookmark, link-intent, or briefing-topic questions.",
-    );
+    const entries = registryToolsForProfile(profile);
+    for (const entry of entries) {
+      lines.push(`- **${entry.name}** (Atom): ${entry.description}`);
+    }
+    if (profile.includeDeprecatedAlias !== false) {
+      lines.push(
+        `- **${ATOM_CONNECTOR_INVOKE_ALIAS}** (Atom, deprecated): prefer the named tools above; alias still accepted.`,
+      );
+    }
   }
   if (profile.atom.includes("mcp_invoke")) {
     lines.push(
@@ -216,7 +237,7 @@ export function formatToolsForPrompt(profile: AgentToolProfile): string {
     "After connector reads or other tool use, always emit Atom JSON with headline/list content in `text` and/or `core/list` — never stop at an empty intro.",
   );
   lines.push(
-    "When atom_connector_invoke fails, tell the owner to start their Messages agent (pnpm start:agent) — connectors run on the agent backend, not in the browser alone.",
+    "When a connector tool fails, tell the owner to start their Messages agent (pnpm start:agent) — connectors run on the agent backend, not in the browser alone.",
   );
   return lines.join("\n");
 }
@@ -233,4 +254,9 @@ export function parseAtomConnectorInvokeArgs(raw: string): AtomConnectorInvokeIn
       ? (parsed.input as Record<string, unknown>)
       : undefined;
   return { connectorId, operation, input };
+}
+
+/** Registry size for tests / docs. */
+export function atomToolRegistrySize(): number {
+  return ATOM_TOOL_REGISTRY.length;
 }

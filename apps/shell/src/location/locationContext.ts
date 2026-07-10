@@ -38,7 +38,7 @@ export function formatLocationContextForPrompt(
   }
   if (lines.length === 0) return undefined;
   lines.push(
-    "Weather default: call atom_connector_invoke weather getForecast with input.latitude + input.longitude when a fresh one-shot fix exists; otherwise input.location from home city; never assume ambient GPS or background tracking.",
+    "Weather default: call weather_get_forecast with latitude + longitude when a fresh one-shot fix exists; otherwise location from home city; never assume ambient GPS or background tracking.",
   );
   return lines.join("\n");
 }

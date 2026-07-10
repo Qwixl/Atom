@@ -63,4 +63,30 @@ describe("icalExport", () => {
     expect(todayEvents.map((event) => event.summary)).toEqual(["Tonight"]);
     expect(upcomingEvents.map((event) => event.summary)).toEqual(["Tomorrow"]);
   });
+
+  it("keeps in-progress multi-day events on today", () => {
+    const now = new Date("2026-07-10T12:00:00.000Z");
+    const { todayEvents, upcomingEvents } = partitionEventsByToday(
+      [
+        {
+          uid: "trip",
+          summary: "Conference",
+          start: "2026-07-09T09:00:00.000Z",
+          end: "2026-07-11T18:00:00.000Z",
+        },
+      ],
+      now,
+    );
+    expect(todayEvents.map((e) => e.summary)).toEqual(["Conference"]);
+    expect(upcomingEvents).toEqual([]);
+  });
+
+  it("always states Upcoming when connected", () => {
+    const text = formatCalendarContextForPrompt({
+      connected: true,
+      todayEvents: [],
+      upcomingEvents: [],
+    });
+    expect(text).toContain("Upcoming: none in the next 7 days.");
+  });
 });
