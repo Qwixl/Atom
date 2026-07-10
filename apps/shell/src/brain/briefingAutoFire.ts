@@ -6,6 +6,16 @@ import { loadBriefingPreferences } from "../briefing/briefingPreferences.js";
 /** Survives full page reload in the same tab — blocks re-composition spam. */
 const SESSION_COMPOSED_KEY = "atom.briefing.compositionRequested";
 
+/** Once per local calendar day for session-open (prefs toggle), across tabs. */
+const OPEN_DAY_KEY = "atom.briefing.lastSessionOpenDay";
+
+function localDayKey(now = new Date()): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 /** True when Chat can run an agent turn that emits briefing-daily. */
 export function canRequestBriefingComposition(provider: string): boolean {
   return provider === "llm" || provider === "ag-ui";
@@ -59,12 +69,29 @@ export function markBriefingCompositionRequestedThisSession(): void {
   }
 }
 
+export function hasSessionOpenBriefingRunToday(): boolean {
+  try {
+    return localStorage.getItem(OPEN_DAY_KEY) === localDayKey();
+  } catch {
+    return false;
+  }
+}
+
+export function markSessionOpenBriefingRunToday(): void {
+  try {
+    localStorage.setItem(OPEN_DAY_KEY, localDayKey());
+  } catch {
+    /* private mode / blocked storage */
+  }
+}
+
 export function shouldSessionOpenBriefing(options: {
   provider: string;
   alreadyRequested: boolean;
 }): boolean {
   if (options.alreadyRequested) return false;
   if (hasBriefingCompositionBeenRequestedThisSession()) return false;
+  if (hasSessionOpenBriefingRunToday()) return false;
   if (!canRequestBriefingComposition(options.provider)) return false;
   return loadBriefingPreferences().enabled === true;
 }
