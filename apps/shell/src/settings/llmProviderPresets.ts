@@ -2,6 +2,7 @@
  * LLM provider presets for Settings (BK-36).
  * OpenAI-compatible base URLs + curated model shortlists — not a full AA catalog.
  */
+import { DEFAULT_OLLAMA_BASE_URL } from "../hostConfig.js";
 
 export type LlmProviderPresetId =
   | "openai"
@@ -50,9 +51,9 @@ export const LLM_PROVIDER_PRESETS: readonly LlmProviderPreset[] = [
   {
     id: "ollama",
     label: "Ollama",
-    baseUrl: "http://127.0.0.1:11434/v1",
+    baseUrl: DEFAULT_OLLAMA_BASE_URL,
     suggestedModels: ["llama3.1", "mistral", "qwen2.5"],
-    note: "Local OpenAI-compatible endpoint. Any non-empty API key is fine if Ollama does not require one.",
+    note: "Local OpenAI-compatible endpoint (default port 11434). Any non-empty API key is fine if Ollama does not require one.",
   },
   {
     id: "custom",
