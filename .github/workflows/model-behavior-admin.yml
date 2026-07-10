@@ -1,11 +1,8 @@
-# Model behavior administration (ops cron)
+# Model behavior administration (ops — first-use categorization)
 #
-# Weekly / manual maintenance: re-score models and open a PR that updates
-# packages/agent-llm/src/modelBehaviorRegistry.json (secret-free).
+# Evaluates unassessed bootstrap models and pending first-use queue rows.
+# Does not re-score already assessed exact model ids on a timer.
 # See MODEL-BEHAVIOR-ADMIN.md.
-#
-# Requires repo secret OPENROUTER_API_KEY (or LLM_API_KEY). Without a key,
-# only prints the registry (dry-run) — no PR.
 
 name: model-behavior-admin
 
@@ -13,6 +10,19 @@ on:
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:
+    inputs:
+      include_bootstrap:
+        description: "Include bootstrap manifest (unassessed only)"
+        type: boolean
+        default: false
+      force_models:
+        description: "Optional EVAL_MODELS override (comma-separated)"
+        type: string
+        default: ""
+
+concurrency:
+  group: model-behavior-admin
+  cancel-in-progress: false
 
 jobs:
   admin:
@@ -30,7 +40,6 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Workspace packages resolve to dist/ in CI (no "development" export condition).
       - run: pnpm build:packages
 
       - name: Print registry (always)
@@ -42,19 +51,25 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          EVAL_MODELS: ${{ vars.EVAL_MODELS }}
+          EVAL_MODELS: ${{ inputs.force_models || vars.EVAL_MODELS }}
           MODEL_BEHAVIOR_SIGHTINGS: ${{ vars.MODEL_BEHAVIOR_SIGHTINGS }}
+          ATOM_CONTROL_PLANE_URL: ${{ secrets.ATOM_CONTROL_PLANE_URL }}
+          ATOM_PROVISION_SECRET: ${{ secrets.ATOM_PROVISION_SECRET }}
+          EVAL_INCLUDE_BOOTSTRAP: ${{ inputs.include_bootstrap && '1' || '' }}
         run: |
           if [ -z "${OPENROUTER_API_KEY}${LLM_API_KEY}" ]; then
             echo "No OPENROUTER_API_KEY or LLM_API_KEY secret — skipping live eval / PR."
             echo "skipped=true" >> "$GITHUB_OUTPUT"
+            echo "has_candidates=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           echo "skipped=false" >> "$GITHUB_OUTPUT"
           export LLM_BASE_URL="${LLM_BASE_URL:-https://openrouter.ai/api/v1}"
-          # When EVAL_MODELS is unset, admin merges defaults ∪ sightings (MBA-7).
-          # Set repo variable EVAL_MODELS to pin an explicit shortlist.
-          pnpm --filter @qwixl/agent-llm admin:model-behavior -- --eval --write
+          EXTRA_FLAGS=""
+          if [ "${EVAL_INCLUDE_BOOTSTRAP}" = "1" ]; then
+            EXTRA_FLAGS="--bootstrap"
+          fi
+          pnpm --filter @qwixl/agent-llm admin:model-behavior -- --eval --write $EXTRA_FLAGS
 
       - name: Upload registry artifact
         if: always()
@@ -64,22 +79,23 @@ jobs:
           path: packages/agent-llm/src/modelBehaviorRegistry.json
 
       - name: Open PR when registry changed
-        if: steps.eval.outputs.skipped != 'true'
+        if: steps.eval.outputs.skipped != 'true' && steps.eval.outputs.has_candidates != 'false'
         continue-on-error: true
         id: open_pr
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore(agent-llm): refresh model behavior registry from weekly eval"
-          title: "chore: model behavior registry (weekly admin)"
+          commit-message: "chore(agent-llm): first-use model behavior assessments"
+          title: "chore: model behavior registry (first-use assessments)"
           body: |
             ## Summary
-            - Weekly `admin:model-behavior --eval --write` refreshed `modelBehaviorRegistry.json` from tool-judgment scores.
+            - First-use / bootstrap `admin:model-behavior --eval --write` added exact assessments to `modelBehaviorRegistry.json`.
+            - Already-assessed models under the current eval baseline were skipped.
             - Secret-free registry only (no API keys).
 
             ## Review
-            - [ ] Spot-check class moves vs scoreboard in the workflow log
-            - [ ] Confirm no unexpected pattern deletions
+            - [ ] Spot-check exact class moves vs scoreboard in the workflow log
+            - [ ] Confirm family seeds were not deleted unexpectedly
             - [ ] Merge when satisfied (do not auto-merge)
 
             See [MODEL-BEHAVIOR-ADMIN.md](../blob/main/MODEL-BEHAVIOR-ADMIN.md).
@@ -89,8 +105,31 @@ jobs:
           add-paths: |
             packages/agent-llm/src/modelBehaviorRegistry.json
 
+      - name: Ack queue proposed / requeue on PR failure
+        if: steps.eval.outputs.skipped != 'true' && steps.eval.outputs.queue_ids != ''
+        env:
+          ATOM_CONTROL_PLANE_URL: ${{ secrets.ATOM_CONTROL_PLANE_URL }}
+          ATOM_PROVISION_SECRET: ${{ secrets.ATOM_PROVISION_SECRET }}
+          QUEUE_IDS: ${{ steps.eval.outputs.queue_ids }}
+          PR_OUTCOME: ${{ steps.open_pr.outcome }}
+        run: |
+          if [ -z "${ATOM_CONTROL_PLANE_URL}${ATOM_PROVISION_SECRET}" ]; then
+            echo "No control-plane ops credentials — skip queue ack."
+            exit 0
+          fi
+          STATUS="proposed"
+          if [ "${PR_OUTCOME}" = "failure" ]; then
+            STATUS="pending"
+          fi
+          IDS_JSON=$(node -e 'const ids=(process.env.QUEUE_IDS||"").split(",").filter(Boolean); console.log(JSON.stringify(ids))')
+          curl -sS -X POST "${ATOM_CONTROL_PLANE_URL%/}/ops/model-behavior/sightings/ack" \
+            -H "Authorization: Bearer ${ATOM_PROVISION_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d "{\"ids\":${IDS_JSON},\"status\":\"${STATUS}\",\"processedBy\":\"gha:model-behavior-admin\"}" \
+            || echo "::warning::queue ack failed"
+
       - name: PR creation hint if blocked
-        if: steps.eval.outputs.skipped != 'true' && steps.open_pr.outcome == 'failure'
+        if: steps.eval.outputs.skipped != 'true' && steps.eval.outputs.has_candidates != 'false' && steps.open_pr.outcome == 'failure'
         run: |
           echo "::warning::Could not open PR (often: Settings → Actions → General → allow Actions to create PRs)."
           echo "Branch may already be pushed: chore/model-behavior-admin"
