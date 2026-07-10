@@ -53,4 +53,11 @@ describe("buildSystemPrompt calendar guidance", () => {
     expect(prompt).toContain("never emit a feeds-only briefing");
     expect(prompt).toContain('"title": "Coming up"');
   });
+
+  it("includes soft-confirm settings proposal guidance", () => {
+    const prompt = buildSystemPrompt(catalog, { open: [], guardedCategories: [] });
+    expect(prompt).toContain("Soft-confirm settings proposals");
+    expect(prompt).toContain("settingsProposal");
+    expect(prompt).toContain("If that format works for you");
+  });
 });

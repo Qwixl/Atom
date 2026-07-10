@@ -170,19 +170,27 @@ export function isSameLocalCalendarDay(a: Date, b: Date): boolean {
   );
 }
 
-/** Split feed events into today (local date) vs later days. */
+/** Split feed events into today (local date / still in progress) vs later days. */
 export function partitionEventsByToday(
   events: WebcalBusyEvent[],
   now = new Date(),
 ): { todayEvents: WebcalBusyEvent[]; upcomingEvents: WebcalBusyEvent[] } {
   const todayEvents: WebcalBusyEvent[] = [];
   const upcomingEvents: WebcalBusyEvent[] = [];
+  const nowMs = now.getTime();
   for (const event of events) {
     const start = new Date(event.start);
+    const end = new Date(event.end);
     if (Number.isNaN(start.getTime())) continue;
+    const endMs = Number.isNaN(end.getTime()) ? start.getTime() : end.getTime();
+    // Still happening (started earlier, not finished) counts as today for briefing.
+    if (start.getTime() <= nowMs && endMs > nowMs) {
+      todayEvents.push(event);
+      continue;
+    }
     if (isSameLocalCalendarDay(start, now)) {
       todayEvents.push(event);
-    } else if (start.getTime() > now.getTime()) {
+    } else if (start.getTime() > nowMs) {
       upcomingEvents.push(event);
     }
   }
@@ -212,7 +220,9 @@ export function formatCalendarContextForPrompt(opts: {
   const lines = [
     "Connected (read-only via WebCal). Atom cannot create or edit Google Calendar events via API.",
     today.length > 0 ? `Today:\n${today.join("\n")}` : "Today: no events in feed.",
-    upcoming.length > 0 ? `Upcoming:\n${upcoming.join("\n")}` : "",
+    upcoming.length > 0
+      ? `Upcoming:\n${upcoming.join("\n")}`
+      : "Upcoming: none in the next 7 days.",
     today.length > 0 || upcoming.length > 0
       ? "When the owner asks about their schedule, you MUST list every line above that answers their question — in text and/or core/list. Never reply with only a heading."
       : "",
