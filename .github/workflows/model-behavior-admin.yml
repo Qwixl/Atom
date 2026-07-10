@@ -65,6 +65,8 @@ jobs:
 
       - name: Open PR when registry changed
         if: steps.eval.outputs.skipped != 'true'
+        continue-on-error: true
+        id: open_pr
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -82,6 +84,15 @@ jobs:
 
             See [MODEL-BEHAVIOR-ADMIN.md](../blob/main/MODEL-BEHAVIOR-ADMIN.md).
           branch: chore/model-behavior-admin
+          base: staging
           delete-branch: true
           add-paths: |
             packages/agent-llm/src/modelBehaviorRegistry.json
+
+      - name: PR creation hint if blocked
+        if: steps.eval.outputs.skipped != 'true' && steps.open_pr.outcome == 'failure'
+        run: |
+          echo "::warning::Could not open PR (often: Settings → Actions → General → allow Actions to create PRs)."
+          echo "Branch may already be pushed: chore/model-behavior-admin"
+          echo "Open manually: https://github.com/${{ github.repository }}/compare/staging...chore/model-behavior-admin?expand=1"
+          echo "Registry artifact is still available from this run."
