@@ -29,7 +29,6 @@ import {
 } from "../src/modelSightings.js";
 import { TOOL_EVAL_SCENARIOS } from "./scenarios.js";
 import { formatEvalReport, type ScenarioScore } from "./scorer.js";
-import { runScenario } from "./runToolsEval.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REGISTRY_PATH = path.resolve(__dirname, "../src/modelBehaviorRegistry.json");
@@ -194,6 +193,7 @@ async function evalModels(
   apiKey: string,
   baseUrl: string,
 ): Promise<Map<string, ScenarioScore[]>> {
+  const { runScenario } = await import("./runToolsEval.js");
   const byModel = new Map<string, ScenarioScore[]>();
   for (const model of models) {
     console.error(`Evaluating ${model} (${TOOL_EVAL_SCENARIOS.length} scenarios)…`);
@@ -290,6 +290,10 @@ See MODEL-BEHAVIOR-ADMIN.md.`);
       const classId = proposeClassFromFailureCounts(t);
       const pattern = patternForModel(model);
       const note = `auto ${new Date().toISOString().slice(0, 10)}: missing=${t.missingCall} unexpected=${t.unexpectedCall} settings=${t.settingsMissing} misRoute=${t.misRoute}`;
+      if (!classId) {
+        console.log(`- ${model} (pattern \`${pattern}\`) → keep (inconclusive; ${note})`);
+        continue;
+      }
       proposals.push({ pattern, classId, note });
       console.log(`- ${model} (pattern \`${pattern}\`) → **${classId}** (${note})`);
     }
