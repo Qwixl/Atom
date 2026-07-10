@@ -86,6 +86,9 @@ importers:
 
   apps/control-plane:
     dependencies:
+      '@qwixl/agent-llm':
+        specifier: workspace:*
+        version: link:../../packages/agent-llm
       '@supabase/supabase-js':
         specifier: ^2.49.8
         version: 2.110.0

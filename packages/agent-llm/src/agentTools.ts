@@ -1,7 +1,12 @@
 import type { ModelCapabilityProfile, NativeToolId } from "./modelCapabilities.js";
 import { filterWireableHostedTools, buildResponsesHostedTool } from "./hostedToolWireability.js";
 import { ATOM_MCP_INVOKE_TOOL } from "./mcpTools.js";
-import { resolveModelBehavior, type ModelToolChoice } from "./modelBehavior.js";
+import {
+  resolveModelBehavior,
+  resolveBehaviorClass,
+  type ModelBehaviorClassId,
+  type ModelToolChoice,
+} from "./modelBehavior.js";
 import {
   ATOM_CONNECTOR_INVOKE_ALIAS,
   ATOM_TOOL_REGISTRY,
@@ -46,6 +51,11 @@ export function buildAgentToolProfile(
     connectedConnectorIds?: readonly AtomConnectorId[];
     /** Override model id for behavior resolution when capabilities omit it. */
     model?: string;
+    /**
+     * Force a behavior class (e.g. "balanced" for neutral categorization eval).
+     * Skips registry resolution for knobs.
+     */
+    forceBehaviorClassId?: ModelBehaviorClassId;
   },
 ): AgentToolProfile {
   const native = capabilities?.nativeTools ?? [];
@@ -63,7 +73,9 @@ export function buildAgentToolProfile(
     Boolean(capabilities?.responsesApi) &&
     hasResponsesTools;
   const useAtomToolLoop = atom.length > 0 && !useResponsesApi;
-  const behavior = resolveModelBehavior(opts?.model ?? capabilities?.model ?? "");
+  const behavior = opts?.forceBehaviorClassId
+    ? resolveBehaviorClass(opts.forceBehaviorClassId)
+    : resolveModelBehavior(opts?.model ?? capabilities?.model ?? "");
   return {
     native,
     atom,
