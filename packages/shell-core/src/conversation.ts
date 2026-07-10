@@ -12,7 +12,15 @@ export interface ActiveFeedSurface {
 /** One turn in the conversational channel between owner and agent. */
 export type FeedItem =
   | { kind: "user"; id: string; text: string }
-  | { kind: "agent-text"; id: string; text: string }
+  | {
+      kind: "agent-text";
+      id: string;
+      text: string;
+      /** Shell-injected interrupt origin (Agent Brain, D077/BK-43). */
+      origin?: "brain";
+      /** Brain notification kind for badge copy. */
+      brainKind?: "daily-briefing" | "reminder" | "watch";
+    }
   | { kind: "surface"; id: string; surface: ResolvedSurface };
 
 export const BRIEFING_SURFACE_ID = "briefing-daily";
@@ -65,8 +73,22 @@ export function upsertFeedSurface(
   return [...withoutGames, { kind: "surface", id, surface }];
 }
 
-export function appendAgentText(feed: FeedItem[], id: string, text: string): FeedItem[] {
-  return [...feed, { kind: "agent-text", id, text }];
+export function appendAgentText(
+  feed: FeedItem[],
+  id: string,
+  text: string,
+  meta?: { origin?: "brain"; brainKind?: "daily-briefing" | "reminder" | "watch" },
+): FeedItem[] {
+  return [
+    ...feed,
+    {
+      kind: "agent-text",
+      id,
+      text,
+      ...(meta?.origin ? { origin: meta.origin } : {}),
+      ...(meta?.brainKind ? { brainKind: meta.brainKind } : {}),
+    },
+  ];
 }
 
 export function appendUserMessage(feed: FeedItem[], id: string, text: string): FeedItem[] {
