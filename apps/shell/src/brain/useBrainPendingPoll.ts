@@ -10,9 +10,61 @@ import {
 export const BRAIN_PENDING_POLL_MS = 15_000;
 
 export function formatBrainNotificationText(n: BrainPendingNotification): string {
-  if (n.kind === "reminder") return n.body || n.title;
-  if (n.title && n.body && n.body !== n.title) return `${n.title}: ${n.body}`;
-  return n.body || n.title;
+  const raw =
+    n.kind === "reminder"
+      ? n.body || n.title
+      : n.title && n.body && n.body !== n.title
+        ? `${n.title}: ${n.body}`
+        : n.body || n.title;
+  return stripChatProtocolJson(raw);
+}
+
+/** Defense in depth: brain watches must never show raw Chat JSON in the feed. */
+export function stripChatProtocolJson(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("{") && !trimmed.includes('{"messages"')) return trimmed;
+  const start = trimmed.indexOf("{");
+  if (start < 0) return trimmed;
+  try {
+    const jsonSlice = trimmed.slice(start);
+    const parsed = JSON.parse(jsonSlice) as unknown;
+    const texts: string[] = [];
+    const visit = (value: unknown) => {
+      if (!value || typeof value !== "object") return;
+      if (Array.isArray(value)) {
+        for (const item of value) visit(item);
+        return;
+      }
+      const obj = value as Record<string, unknown>;
+      if (obj.type === "text" && typeof obj.text === "string" && obj.text.trim()) {
+        texts.push(obj.text.trim());
+      }
+      if (Array.isArray(obj.messages)) visit(obj.messages);
+      if (obj.composition && typeof obj.composition === "object") {
+        const walk = (node: unknown) => {
+          if (!node || typeof node !== "object") return;
+          const n = node as Record<string, unknown>;
+          const props = n.props as Record<string, unknown> | undefined;
+          if (props && Array.isArray(props.items)) {
+            for (const item of props.items) {
+              if (typeof item === "string" && item.trim()) texts.push(item.trim());
+            }
+          }
+          if (typeof props?.title === "string" && props.title.trim()) texts.push(props.title.trim());
+          if (Array.isArray(n.children)) for (const c of n.children) walk(c);
+          if (n.root) walk(n.root);
+        };
+        walk(obj.composition);
+      }
+    };
+    visit(parsed);
+    if (texts.length === 0) return trimmed;
+    const prefix = start > 0 ? trimmed.slice(0, start).trim() : "";
+    const body = texts.join("\n\n");
+    return prefix ? `${prefix} ${body}` : body;
+  } catch {
+    return trimmed;
+  }
 }
 
 export type BrainPendingDeliveryHooks = {
@@ -40,6 +92,17 @@ export async function deliverBrainPendingToFeed(
         delivered.push(n.id);
         continue;
       }
+      // Fire hook declined (e.g. no Live LLM) — short badge only, never the old ask-me stub.
+      const appended = runtime.appendAgentTextWithId(
+        n.id,
+        `${n.title || "Daily briefing"} is ready.`,
+        { origin: "brain", brainKind: n.kind },
+      );
+      delivered.push(n.id);
+      if (!appended) {
+        /* already on feed */
+      }
+      continue;
     }
 
     const text = formatBrainNotificationText(n);

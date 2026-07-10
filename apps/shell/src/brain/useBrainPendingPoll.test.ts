@@ -31,4 +31,39 @@ describe("deliverBrainPendingToFeed", () => {
       });
     });
   });
+
+  it("strips Chat JSON from watch bodies", () => {
+    const n: BrainPendingNotification = {
+      id: "brain_w",
+      intentId: "intent_w",
+      kind: "watch",
+      title: "Watch",
+      body: `Watch: ${JSON.stringify({ messages: [{ type: "text", text: "Score 2-1" }] })}`,
+      createdAt: "2026-07-10T12:00:00.000Z",
+    };
+    expect(formatBrainNotificationText(n)).toContain("Score 2-1");
+    expect(formatBrainNotificationText(n)).not.toContain('"messages"');
+  });
+
+  it("fires daily-briefing hook instead of appending ask-me stub", async () => {
+    const runtime = new ConversationRuntime({ catalog: new Catalog([]) });
+    let fired = false;
+    const n: BrainPendingNotification = {
+      id: "brain_b",
+      intentId: "intent_b",
+      kind: "daily-briefing",
+      title: "Morning briefing",
+      body: "Ask me for today's briefing when you're free",
+      createdAt: "2026-07-10T12:00:00.000Z",
+    };
+    const ids = await deliverBrainPendingToFeed(runtime, [n], {
+      onDailyBriefingFire: () => {
+        fired = true;
+        return true;
+      },
+    });
+    expect(fired).toBe(true);
+    expect(ids).toEqual(["brain_b"]);
+    expect(runtime.getSnapshot().feed).toHaveLength(0);
+  });
 });

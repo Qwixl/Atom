@@ -1571,19 +1571,25 @@ export function App() {
     conversation,
     onDailyBriefingFire: (n) => {
       // Prefer agent-led composition (D055) over plain brain text for briefings.
-      if (provider !== "llm" && provider !== "ag-ui") return false;
       if (briefingFireHandledRef.current.has(n.id)) return true;
-      // Session-open briefing already requested a composition this session — ack only.
+      // Session-open already requested a briefing composition this session — ack only
+      // (avoid a second full briefing). Standing-intent fire while offline still runs
+      // when session-open did not (prefs off / open skipped).
       if (briefingOpenSentRef.current) {
         briefingFireHandledRef.current.add(n.id);
         return true;
       }
-      briefingFireHandledRef.current.add(n.id);
-      // Prevent session-open from double-firing after a brain-fire composition.
-      briefingOpenSentRef.current = true;
-      conversationRef.current.setBusy(true);
-      sessionRef.current.sendUserMessage(BRIEFING_FIRE_MESSAGE);
-      return true;
+      try {
+        briefingFireHandledRef.current.add(n.id);
+        briefingOpenSentRef.current = true;
+        conversationRef.current.setBusy(true);
+        sessionRef.current.sendUserMessage(BRIEFING_FIRE_MESSAGE);
+        return true;
+      } catch {
+        briefingFireHandledRef.current.delete(n.id);
+        briefingOpenSentRef.current = false;
+        return false;
+      }
     },
   });
 
