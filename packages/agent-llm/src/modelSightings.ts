@@ -1,14 +1,14 @@
 /**
- * Model-id sightings for behavior-admin discovery (MBA-7).
+ * Model-id sightings for behavior-admin discovery (MBA-7 / first-use queue).
  * Stores model ids only — never API keys or base URLs with credentials.
  */
-import { normalizeBehaviorModelId } from "./modelBehavior.js";
+import { modelIdentityKey, preferModelId } from "./modelIdentity.js";
 
 export const MODEL_SIGHTINGS_SCHEMA_VERSION = 1;
 /** Browser localStorage key (shell). */
 export const MODEL_SIGHTINGS_STORAGE_KEY = "atom.modelBehavior.sightings.v1";
 
-export type ModelSightingSource = "shell" | "hosted" | "admin" | "import";
+export type ModelSightingSource = "shell" | "hosted" | "admin" | "import" | "queue";
 
 export interface ModelSighting {
   /** Raw model id as configured (may include provider prefix). */
@@ -18,6 +18,8 @@ export interface ModelSighting {
   /** How many times recorded (best-effort). */
   count: number;
   source?: ModelSightingSource;
+  /** Optional control-plane queue row id when sourced from pending fetch. */
+  queueId?: string;
 }
 
 export interface ModelSightingsFile {
@@ -28,16 +30,7 @@ export interface ModelSightingsFile {
 
 /** Merge key: bare model id (strip provider prefix so openai/gpt-4o ≡ gpt-4o). */
 export function sightingMergeKey(modelId: string): string {
-  const n = normalizeBehaviorModelId(modelId);
-  const slash = n.lastIndexOf("/");
-  return slash >= 0 ? n.slice(slash + 1) : n;
-}
-
-function preferModelId(a: string, b: string): string {
-  // Prefer provider-prefixed ids for OpenRouter-style EVAL_MODELS.
-  if (a.includes("/") && !b.includes("/")) return a;
-  if (b.includes("/") && !a.includes("/")) return b;
-  return a.length >= b.length ? a : b;
+  return modelIdentityKey(modelId);
 }
 
 export function emptySightingsFile(): ModelSightingsFile {
@@ -71,7 +64,8 @@ function normalizeSighting(raw: unknown): ModelSighting | null {
   const seenAt =
     typeof row.seenAt === "string" && row.seenAt.trim() ? row.seenAt : new Date().toISOString();
   const source = row.source as ModelSightingSource | undefined;
-  return { modelId, seenAt, count, source };
+  const queueId = typeof row.queueId === "string" && row.queueId.trim() ? row.queueId.trim() : undefined;
+  return { modelId, seenAt, count, source, queueId };
 }
 
 export function mergeSighting(
@@ -95,6 +89,7 @@ export function mergeSighting(
       seenAt: at,
       count: prev.count + 1,
       source: source ?? prev.source,
+      queueId: prev.queueId,
     };
   } else {
     sightings.push({ modelId: id, seenAt: at, count: 1, source });
@@ -122,6 +117,7 @@ export function mergeSightingsFiles(...files: ModelSightingsFile[]): ModelSighti
           seenAt: prev.seenAt >= s.seenAt ? prev.seenAt : s.seenAt,
           count: prev.count + Math.max(1, s.count),
           source: s.source ?? prev.source,
+          queueId: s.queueId ?? prev.queueId,
         });
       }
     }
