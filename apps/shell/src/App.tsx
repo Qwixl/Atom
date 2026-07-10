@@ -127,7 +127,7 @@ import {
   type SecretStore,
 } from "@qwixl/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
-import { loadBriefingPreferences, BRIEFING_OPEN_MESSAGE, BRIEFING_FIRE_MESSAGE, applyCuratorBriefingTopics, formatBriefingContextForPrompt } from "./briefing/briefingPreferences.js";
+import { loadBriefingPreferences, BRIEFING_OPEN_MESSAGE, BRIEFING_FIRE_MESSAGE, applyCuratorBriefingTopics, formatBriefingContextForPrompt, rememberBriefingTopic, saveBriefingPreferences } from "./briefing/briefingPreferences.js";
 import { BriefingSettingsPanel } from "./briefing/BriefingSettingsPanel.js";
 import { StandingIntentsPanel } from "./brain/StandingIntentsPanel.js";
 import { PushSettingsPanel } from "./brain/PushSettingsPanel.js";
@@ -221,14 +221,29 @@ import { ConnectorsCatalog } from "./connectors/ConnectorsCatalog.js";
 import { requireCustodyApproval } from "./custody/approvalGate.js";
 import {
   loadAttestations,
+  loadBrainIntents,
   loadChatFeed,
   loadOwnerProposals,
   loadOwnerRecords,
+  newStandingIntentId,
   saveAttestations,
+  saveBrainIntents,
   saveChatFeed,
   saveOwnerProposals,
   saveOwnerRecords,
+  type StandingIntent,
 } from "./custody/client.js";
+import {
+  clearPendingSettingsProposal,
+  formatSettingsProposalAck,
+  isSoftAssentMessage,
+  isSoftDeclineMessage,
+  loadPendingSettingsProposal,
+  parseSettingsProposalFromAction,
+  savePendingSettingsProposal,
+  settingsProposalCustodyTerms,
+  type PendingSettingsProposal,
+} from "./settings/pendingSettingsProposal.js";
 import { loadCommsAgentConfig, loadCommsAgentConfigSecure, saveCommsAgentConfigSecure, clearCommsAdminToken, clearCommsAgentConfig, loadOwnerAgentKind, refreshCommsConfigCache, purgeStaleLocalAgentConfig, isLocalAgentUrl } from "./comms/storage.js";
 import { probeAgentConnection, reconcileAgentConnection } from "./comms/agentConnection.js";
 import { presentUserError } from "./comms/agentErrors.js";
@@ -1716,6 +1731,90 @@ export function App() {
     () => conversation.getSnapshot(),
   );
 
+  // Soft-confirm settings proposals: stash and hide chrome until the owner assents in chat.
+  useEffect(() => {
+    if (!pending?.action) return;
+    const proposal = parseSettingsProposalFromAction(pending.action);
+    if (!proposal) return;
+    savePendingSettingsProposal(proposal);
+    conversationRef.current.clearPending();
+  }, [pending]);
+
+  const commitPendingSettingsProposal = useCallback(
+    async (proposal: PendingSettingsProposal) => {
+      const config = vaultUnlocked
+        ? await loadCommsAgentConfigSecure()
+        : loadCommsAgentConfig();
+      const action = {
+        id: proposal.id,
+        kind: "permission" as const,
+        title: proposal.summary,
+        terms: settingsProposalCustodyTerms(proposal),
+        confirmLabel: "Approve",
+        declineLabel: "Cancel",
+      };
+      let approvalRef = "";
+      try {
+        const custody = await requireCustodyApproval(action, config);
+        approvalRef = custody.approvalRef;
+      } catch (error) {
+        conversationRef.current.appendLocalAgentText(
+          presentUserError(error, {
+            accountType: loadAccountType(),
+            showTechnicalDetail: SHOW_DEV_WORKFLOWS,
+          }) + " Say yes again when you're ready, or “not now” to cancel.",
+        );
+        conversationRef.current.setBusy(false);
+        return;
+      }
+
+      await attestationLog.append({
+        surfaceId: "settings-proposal",
+        action,
+        decision: "approved",
+      });
+      setAttestations([...attestationLog.list()]);
+
+      const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
+      if (proposal.rss) {
+        await client.addRssFeed(proposal.rss.url, proposal.rss.label, approvalRef);
+        await refreshRssState();
+      }
+      if (proposal.topic) {
+        const prefs = loadBriefingPreferences();
+        saveBriefingPreferences({ ...prefs, enabled: true });
+        rememberBriefingTopic(proposal.topic);
+      }
+      if (proposal.watch) {
+        const existing = await loadBrainIntents(config);
+        const nowIso = new Date().toISOString();
+        const watchIntent: StandingIntent = {
+          id: newStandingIntentId(),
+          kind: "watch",
+          enabled: true,
+          title: proposal.watch.query.slice(0, 80),
+          trigger: { type: "interval", everyMinutes: proposal.watch.everyMinutes },
+          scope: { query: proposal.watch.query },
+          delivery: { channel: "chat" },
+          lastFiredAt: null,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        };
+        await saveBrainIntents(config, [...existing, watchIntent]);
+      }
+
+      clearPendingSettingsProposal();
+      conversationRef.current.appendLocalAgentText(formatSettingsProposalAck(proposal));
+      conversationRef.current.setBusy(false);
+      try {
+        sessionRef.current.sendActionDecision(proposal.id, "approved");
+      } catch {
+        /* optional */
+      }
+    },
+    [vaultUnlocked, attestationLog, refreshRssState],
+  );
+
   const activeChatGame = useMemo(() => findActiveGameInFeed(feed), [feed]);
   const activeGameEngine = activeChatGame ? getGameEngine(activeChatGame.embed.moduleId) : null;
 
@@ -1927,6 +2026,40 @@ export function App() {
       setInput("");
       return;
     }
+
+    const pendingProposal = loadPendingSettingsProposal();
+    if (pendingProposal && isSoftDeclineMessage(trimmed)) {
+      clearPendingSettingsProposal();
+      conversationRef.current.appendUser(trimmed);
+      setInput("");
+      conversationRef.current.appendLocalAgentText(
+        "Okay — I won't change your feeds or alerts. Say if you want to revisit later.",
+      );
+      try {
+        sessionRef.current.sendActionDecision(pendingProposal.id, "declined");
+      } catch {
+        /* session may not care */
+      }
+      return;
+    }
+    if (pendingProposal && isSoftAssentMessage(trimmed)) {
+      conversationRef.current.appendUser(trimmed);
+      setInput("");
+      conversationRef.current.setBusy(true);
+      try {
+        await commitPendingSettingsProposal(pendingProposal);
+      } catch (error) {
+        conversationRef.current.appendLocalAgentText(
+          presentUserError(error, {
+            accountType,
+            showTechnicalDetail: SHOW_DEV_WORKFLOWS,
+          }),
+        );
+        conversationRef.current.setBusy(false);
+      }
+      return;
+    }
+
     const looksLikeBriefing =
       /\[briefing-(?:open|fire)\]/i.test(trimmed) ||
       /\b(?:today'?s?|daily)\s+brie?fing\b/i.test(trimmed) ||
@@ -2143,11 +2276,17 @@ export function App() {
     await decide(decision);
   }
 
+  const settingsProposalPending =
+    pending?.action && parseSettingsProposalFromAction(pending.action)
+      ? true
+      : false;
+
   const chromePending =
-    pending ??
-    (commsPending
-      ? { action: commsPending.action, surfaceId: "comms", dataRequest: undefined }
-      : null);
+    pending && !settingsProposalPending
+      ? pending
+      : commsPending
+        ? { action: commsPending.action, surfaceId: "comms", dataRequest: undefined }
+        : null;
 
   function switchProvider(next: Provider) {
     if (next === "llm" && !ALLOW_BROWSER_LLM) return;
@@ -2394,7 +2533,7 @@ export function App() {
             calendarEvents={demoCalendarEvents}
             scheduleSent={demoScheduleSent}
             calendarAdded={demoCalendarAdded}
-            waitingForConfirm={Boolean(pending && !commsPending)}
+            waitingForConfirm={Boolean(pending && !commsPending && !settingsProposalPending)}
             onSaveLlm={saveDemoLlmKey}
             onSaveWebcal={saveDemoWebcalFeed}
             onSendDemoMessage={sendDemoScheduleMessage}
