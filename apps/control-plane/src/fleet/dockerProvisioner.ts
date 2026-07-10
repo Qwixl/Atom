@@ -23,6 +23,20 @@ function agentImage(): string {
   return process.env.ATOM_AGENT_IMAGE?.trim() || "atom-agent:latest";
 }
 
+/** Fleet-wide Web Push / FCM secrets from control-plane env → every agent container. */
+function pushEnvArgs(): string[] {
+  const args: string[] = [];
+  const pub = process.env.ATOM_VAPID_PUBLIC_KEY?.trim();
+  const priv = process.env.ATOM_VAPID_PRIVATE_KEY?.trim();
+  const subject = process.env.ATOM_VAPID_SUBJECT?.trim();
+  const fcm = process.env.ATOM_FCM_SERVER_KEY?.trim();
+  if (pub) args.push("-e", `ATOM_VAPID_PUBLIC_KEY=${pub}`);
+  if (priv) args.push("-e", `ATOM_VAPID_PRIVATE_KEY=${priv}`);
+  if (subject) args.push("-e", `ATOM_VAPID_SUBJECT=${subject}`);
+  if (fcm) args.push("-e", `ATOM_FCM_SERVER_KEY=${fcm}`);
+  return args;
+}
+
 function publicBaseUrl(port: number): string {
   const template = process.env.ATOM_FLEET_PUBLIC_URL_TEMPLATE?.trim();
   const url = template
@@ -129,6 +143,7 @@ function dockerRunArgs(input: {
     `ATOM_WORKSPACE_KIND=${workspaceKind}`,
     "-e",
     `ATOM_BRAIN_ALWAYS_ON=${brainAlwaysOn ? "1" : "0"}`,
+    ...pushEnvArgs(),
     agentImage(),
   ];
   if (workspaceKind === "business") {

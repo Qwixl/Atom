@@ -127,9 +127,20 @@ import {
   type SecretStore,
 } from "@qwixl/secret-store";
 import { MockAgentSession } from "./mock-agent.js";
-import { loadBriefingPreferences, BRIEFING_OPEN_MESSAGE, applyCuratorBriefingTopics, formatBriefingContextForPrompt } from "./briefing/briefingPreferences.js";
+import { loadBriefingPreferences, BRIEFING_OPEN_MESSAGE, BRIEFING_FIRE_MESSAGE, applyCuratorBriefingTopics, formatBriefingContextForPrompt } from "./briefing/briefingPreferences.js";
 import { BriefingSettingsPanel } from "./briefing/BriefingSettingsPanel.js";
 import { StandingIntentsPanel } from "./brain/StandingIntentsPanel.js";
+import { PushSettingsPanel } from "./brain/PushSettingsPanel.js";
+import {
+  ensureCapacitorPush,
+  ensureWebPushSubscription,
+  loadPushOptIn,
+} from "./brain/pushRegistration.js";
+import {
+  VoicePushToTalk,
+  VoiceSettingsPanel,
+  loadVoiceOptIn,
+} from "./brain/VoicePushToTalk.js";
 import { useBrainPendingPoll } from "./brain/useBrainPendingPoll.js";
 import { SpendPolicySettingsPanel } from "./billing/SpendPolicySettingsPanel.js";
 import { formatLocationContextForPrompt } from "./location/locationContext.js";
@@ -1324,6 +1335,8 @@ export function App() {
   sessionRef.current = session;
 
   const briefingOpenSentRef = useRef(false);
+  /** Dedup brain-fire composition requests per notification id (and per local day). */
+  const briefingFireHandledRef = useRef(new Set<string>());
   useEffect(() => {
     if (IS_DEMO_MODE || !vaultUnlocked || !agentConnectionReady || provider !== "llm") return;
     const prefs = loadBriefingPreferences();
@@ -1556,7 +1569,42 @@ export function App() {
   useBrainPendingPoll({
     enabled: Boolean(agentConnectionReady && vaultUnlocked && !IS_DEMO_MODE && conversation),
     conversation,
+    onDailyBriefingFire: (n) => {
+      // Prefer agent-led composition (D055) over plain brain text for briefings.
+      if (provider !== "llm" && provider !== "ag-ui") return false;
+      if (briefingFireHandledRef.current.has(n.id)) return true;
+      // Session-open briefing already requested a composition this session — ack only.
+      if (briefingOpenSentRef.current) {
+        briefingFireHandledRef.current.add(n.id);
+        return true;
+      }
+      briefingFireHandledRef.current.add(n.id);
+      // Prevent session-open from double-firing after a brain-fire composition.
+      briefingOpenSentRef.current = true;
+      conversationRef.current.setBusy(true);
+      sessionRef.current.sendUserMessage(BRIEFING_FIRE_MESSAGE);
+      return true;
+    },
   });
+
+  useEffect(() => {
+    if (!agentConnectionReady || !vaultUnlocked || IS_DEMO_MODE || !loadPushOptIn()) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const config = await loadCommsAgentConfigSecure();
+        if (cancelled || !config.adminToken?.trim()) return;
+        const native = await ensureCapacitorPush(config);
+        if (cancelled || native === "subscribed") return;
+        await ensureWebPushSubscription(config);
+      } catch {
+        /* soft-fail */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [agentConnectionReady, vaultUnlocked]);
 
   gameCallbacksRef.current = {
     getActiveGame: () => findActiveGameInFeed(chatFeedRef.current),
@@ -2175,12 +2223,44 @@ export function App() {
         }
         composer={
           showMainComposer ? (
-            <ShellComposer
-              value={input}
-              busy={busy}
-              onChange={setInput}
-              onSubmit={submitMessage}
-            />
+            <>
+              <VoicePushToTalk
+                enabled={loadVoiceOptIn() && Boolean(agentConnectionReady && vaultUnlocked)}
+                onTranscript={async (text) => {
+                  conversationRef.current.setBusy(true);
+                  sessionRef.current.sendUserMessage(text);
+                  // Wait for the agent turn to finish, then return last agent text for TTS.
+                  return await new Promise<string | null>((resolve) => {
+                    let sawBusy = conversation.getSnapshot().busy;
+                    const unsub = conversation.subscribe(() => {
+                      const snap = conversation.getSnapshot();
+                      if (snap.busy) {
+                        sawBusy = true;
+                        return;
+                      }
+                      if (!sawBusy) return;
+                      unsub();
+                      const lastAgent = [...snap.feed]
+                        .reverse()
+                        .find((item) => item.kind === "agent-text");
+                      resolve(
+                        lastAgent && lastAgent.kind === "agent-text" ? lastAgent.text : null,
+                      );
+                    });
+                    window.setTimeout(() => {
+                      unsub();
+                      resolve(null);
+                    }, 90_000);
+                  });
+                }}
+              />
+              <ShellComposer
+                value={input}
+                busy={busy}
+                onChange={setInput}
+                onSubmit={submitMessage}
+              />
+            </>
           ) : undefined
         }
       >
@@ -3232,6 +3312,8 @@ function SettingsDialog({
             </div>
           </details>
           <StandingIntentsPanel vaultUnlocked={vaultUnlocked} embedded />
+          <PushSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
+          <VoiceSettingsPanel embedded />
         </>
       );
     }
@@ -3440,6 +3522,8 @@ function SettingsDialog({
         </section>
 
         <StandingIntentsPanel vaultUnlocked={vaultUnlocked} embedded />
+        <PushSettingsPanel vaultUnlocked={vaultUnlocked} embedded />
+        <VoiceSettingsPanel embedded />
       </>
     );
   }

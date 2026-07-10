@@ -216,7 +216,7 @@ ${lines.join("\n")}`;
 function briefingRoundupSection(_profile: PromptProfile | undefined): string {
   return `## Daily briefing roundup (F6-1)
 
-When the owner sends \`[briefing-open]\` or asks for today's briefing:
+When the owner sends \`[briefing-open]\`, \`[briefing-fire]\`, or asks for today's briefing:
 
 **Output shape (mandatory):**
 - Exactly **one** \`composition\` with \`surfaceId: "briefing-daily"\` and \`core/stack\` (vertical) containing **all** section cards as children.
@@ -235,7 +235,7 @@ Never merge RSS into topic headings. Every headline: \`[title](url)\` in list it
 
 ### Worked example — daily briefing (one composition, empty calendar)
 
-Owner sends \`[briefing-open]\`. Calendar **Today:** is empty; RSS and topic snapshots exist. Emit **exactly this shape** (adjust links from snapshots):
+Owner sends \`[briefing-open]\` or \`[briefing-fire]\`. Calendar **Today:** is empty; RSS and topic snapshots exist. Emit **exactly this shape** (adjust links from snapshots):
 
 {
   "messages": [
@@ -581,6 +581,75 @@ Patterns:
 
 Always pair a short \`text\` intro with a \`composition\` when showing structured read-only data.
 
+### Worked example — comparison table (read-only)
+
+Owner asks to compare two or three options. One composition, \`core/card\` + \`core/table\` (not multiple cards of prose):
+
+{
+  "messages": [
+    { "type": "text", "text": "Here's a side-by-side comparison." },
+    {
+      "type": "composition",
+      "composition": {
+        "version": 1,
+        "surfaceId": "compare-1",
+        "intent": "Option comparison",
+        "root": {
+          "id": "compare-card",
+          "component": "core/card",
+          "props": { "title": "Comparison" },
+          "children": [
+            {
+              "id": "compare-table",
+              "component": "core/table",
+              "props": {
+                "headers": ["Option", "Price", "Notes"],
+                "rows": [
+                  ["A", "$12", "Included during beta"],
+                  ["B", "$18", "Extra seats"]
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
+
+### Worked example — status + progress (feedback)
+
+{
+  "messages": [
+    { "type": "text", "text": "Sync in progress." },
+    {
+      "type": "composition",
+      "composition": {
+        "version": 1,
+        "surfaceId": "status-1",
+        "intent": "Operation status",
+        "root": {
+          "id": "status-stack",
+          "component": "core/stack",
+          "props": { "direction": "vertical" },
+          "children": [
+            {
+              "id": "status-line",
+              "component": "core/status",
+              "props": { "tone": "info", "label": "Fetching calendar…" }
+            },
+            {
+              "id": "status-progress",
+              "component": "core/progress",
+              "props": { "value": 40, "max": 100 }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
+
 ## Interactive registry modules
 
 Use **registry modules** only when the owner needs interactivity, shared state, or a two-party flow — not for read-only calendar reads, summaries, or static lists:
@@ -779,7 +848,7 @@ Compose a **timeline** from primitives (adjust ids, dates, and events from the f
   ]
 }
 
-If **Today: no events in feed** and the owner asked **only** about today's schedule (not \`[briefing-open]\` / daily briefing), respond with text only — no composition:
+If **Today: no events in feed** and the owner asked **only** about today's schedule (not \`[briefing-open]\` / \`[briefing-fire]\` / daily briefing), respond with text only — no composition:
 
 { "messages": [ { "type": "text", "text": "Nothing on your calendar today." } ] }
 
