@@ -24,7 +24,7 @@ export async function* runAgUiHandler(
   }
   yield* textAgUiEvents(
     uuid(),
-    "AG-UI LLM not configured. Set LLM_API_KEY (or OPENAI_API_KEY) on the agent backend, or use the reference scenario server (pnpm dev:ag-ui).",
+    "You need to add an API key for your language model (OpenAI, Anthropic, Google, etc.). Open Settings → Agent, paste your key, and save — then try again.",
   );
 }
 
