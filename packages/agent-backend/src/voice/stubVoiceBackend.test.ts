@@ -17,8 +17,15 @@ describe("StubVoiceBackend", () => {
 });
 
 describe("loadVoiceBackend", () => {
-  it("defaults to stub", () => {
+  it("defaults to stub without API key", () => {
     expect(loadVoiceBackend({}).id).toBe("stub");
+  });
+
+  it("selects openai-realtime when API key present", () => {
+    const backend = loadVoiceBackend({ LLM_API_KEY: "sk-test" });
+    expect(backend.id).toBe("openai-realtime");
+    expect(backend.status().configured).toBe(true);
+    expect(backend.status().duplex).toBe("half");
   });
 
   it("returns placeholder for unimplemented providers", () => {
