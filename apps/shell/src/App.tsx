@@ -1754,18 +1754,21 @@ export function App() {
         declineLabel: "Cancel",
       };
       let approvalRef = "";
-      try {
-        const custody = await requireCustodyApproval(action, config);
-        approvalRef = custody.approvalRef;
-      } catch (error) {
-        conversationRef.current.appendLocalAgentText(
-          presentUserError(error, {
-            accountType: loadAccountType(),
-            showTechnicalDetail: SHOW_DEV_WORKFLOWS,
-          }) + " Say yes again when you're ready, or “not now” to cancel.",
-        );
-        conversationRef.current.setBusy(false);
-        return;
+      // Passkey only when writing the connector vault (RSS). Topic/watch alone skip it.
+      if (proposal.rss) {
+        try {
+          const custody = await requireCustodyApproval(action, config);
+          approvalRef = custody.approvalRef;
+        } catch (error) {
+          conversationRef.current.appendLocalAgentText(
+            presentUserError(error, {
+              accountType: loadAccountType(),
+              showTechnicalDetail: SHOW_DEV_WORKFLOWS,
+            }) + " Say yes again when you're ready, or “not now” to cancel.",
+          );
+          conversationRef.current.setBusy(false);
+          return;
+        }
       }
 
       await attestationLog.append({
