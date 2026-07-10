@@ -29,9 +29,66 @@ export interface StoredOAuthClient {
 
 export interface StoredWebAuthnCredential {
   id: string;
+  /** In-memory COSE key bytes. Persisted as base64url (legacy object form is migrated on load). */
   publicKey: Uint8Array;
   counter: number;
   transports?: string[];
+}
+
+function bytesToBase64Url(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString("base64url");
+}
+
+function base64UrlToBytes(value: string): Uint8Array {
+  return new Uint8Array(Buffer.from(value, "base64url"));
+}
+
+/**
+ * JSON.stringify turns Uint8Array into `{ "0": n, ... }`, which breaks SimpleWebAuthn
+ * (`Error: No data`) after vault reload. Accept base64url string, Uint8Array, or legacy object.
+ */
+export function coerceWebAuthnPublicKey(raw: unknown): Uint8Array {
+  if (raw instanceof Uint8Array) return raw;
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(raw)) {
+    return new Uint8Array(raw);
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    return base64UrlToBytes(raw.trim());
+  }
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const record = raw as Record<string, unknown>;
+    const keys = Object.keys(record);
+    if (keys.length > 0 && keys.every((key) => /^\d+$/.test(key))) {
+      const bytes = keys
+        .sort((a, b) => Number(a) - Number(b))
+        .map((key) => Number(record[key]));
+      if (bytes.every((value) => Number.isInteger(value) && value >= 0 && value <= 255)) {
+        return new Uint8Array(bytes);
+      }
+    }
+  }
+  throw new Error("Invalid WebAuthn publicKey encoding in vault");
+}
+
+function normalizeWebAuthnCredentials(
+  creds: readonly StoredWebAuthnCredential[] | undefined,
+): StoredWebAuthnCredential[] {
+  if (!creds?.length) return [];
+  return creds.map((cred) => ({
+    ...cred,
+    publicKey: coerceWebAuthnPublicKey(cred.publicKey as unknown),
+  }));
+}
+
+/** Encode for JSON persist — never leave raw Uint8Array in the encrypted blob. */
+function encodeWebAuthnForPersist(
+  creds: readonly StoredWebAuthnCredential[] | undefined,
+): Array<Omit<StoredWebAuthnCredential, "publicKey"> & { publicKey: string }> | undefined {
+  if (!creds?.length) return creds as undefined;
+  return creds.map((cred) => ({
+    ...cred,
+    publicKey: bytesToBase64Url(coerceWebAuthnPublicKey(cred.publicKey as unknown)),
+  }));
 }
 
 export interface StoredWebcalFeed {
@@ -187,6 +244,16 @@ export class ConnectorVault {
     const blob = await readJsonFile<EncryptedBlob>(this.vaultPath);
     if (blob) {
       this.payload = decryptJson<ConnectorVaultPayload>(this.masterKey, blob);
+      const before = JSON.stringify(this.payload.webauthn ?? null);
+      this.payload.webauthn = normalizeWebAuthnCredentials(this.payload.webauthn);
+      const after = JSON.stringify(
+        encodeWebAuthnForPersist(this.payload.webauthn) ?? null,
+      );
+      // Re-persist when legacy object-form keys were recovered so future loads stay base64url.
+      if (before !== after && (this.payload.webauthn?.length ?? 0) > 0) {
+        this.persist();
+        await this.flush();
+      }
     } else if (legacyOAuth?.accessToken) {
       this.payload.oauth = {
         google: {
@@ -600,17 +667,21 @@ export class ConnectorVault {
   }
 
   listWebAuthnCredentials(): StoredWebAuthnCredential[] {
-    return this.payload.webauthn ?? [];
+    return normalizeWebAuthnCredentials(this.payload.webauthn);
   }
 
   async saveWebAuthnCredential(credential: StoredWebAuthnCredential): Promise<void> {
-    const existing = this.payload.webauthn ?? [];
-    this.payload.webauthn = [...existing.filter((item) => item.id !== credential.id), credential];
+    const normalized: StoredWebAuthnCredential = {
+      ...credential,
+      publicKey: coerceWebAuthnPublicKey(credential.publicKey),
+    };
+    const existing = this.listWebAuthnCredentials();
+    this.payload.webauthn = [...existing.filter((item) => item.id !== normalized.id), normalized];
     await this.persist();
   }
 
   async updateWebAuthnCounter(credentialId: string, counter: number): Promise<void> {
-    const creds = this.payload.webauthn ?? [];
+    const creds = this.listWebAuthnCredentials();
     this.payload.webauthn = creds.map((cred) =>
       cred.id === credentialId ? { ...cred, counter } : cred,
     );
@@ -690,7 +761,13 @@ export class ConnectorVault {
     if (!this.masterKey) return;
     this.persistQueue = this.persistQueue
       .then(async () => {
-        const blob = encryptJson(this.masterKey!, this.payload);
+        const wire: ConnectorVaultPayload = {
+          ...this.payload,
+          webauthn: encodeWebAuthnForPersist(this.payload.webauthn) as
+            | StoredWebAuthnCredential[]
+            | undefined,
+        };
+        const blob = encryptJson(this.masterKey!, wire);
         await atomicWriteJson(this.vaultPath, blob);
       })
       .catch((error) => {
