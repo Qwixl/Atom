@@ -10,6 +10,7 @@ import {
 } from "@simplewebauthn/browser";
 import type { ConsequentialAction } from "@qwixl/shell-core";
 import type { CommsAgentConfig } from "../comms/types.js";
+import { formatAgentError } from "../comms/agentErrors.js";
 
 async function custodyFetch<T>(
   config: CommsAgentConfig,
@@ -26,7 +27,9 @@ async function custodyFetch<T>(
   const resp = await fetch(`${base}${path}`, { ...init, headers });
   if (!resp.ok) {
     const body = (await resp.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `Custody request failed (${resp.status})`);
+    throw new Error(
+      formatAgentError(new Error(body.error ?? `Custody request failed (${resp.status})`)),
+    );
   }
   return resp.json() as Promise<T>;
 }

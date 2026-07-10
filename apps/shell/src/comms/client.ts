@@ -661,7 +661,7 @@ export class CommsAgentClient {
     });
     if (!resp.ok) {
       const err = (await resp.json().catch(() => ({}))) as { error?: string };
-      throw new Error(err.error ?? `Request failed (${resp.status})`);
+      throw new Error(formatAgentError(new Error(err.error ?? `Request failed (${resp.status})`)));
     }
     return resp.json() as Promise<{ connectorId: string; removed: boolean }>;
   }
@@ -685,7 +685,7 @@ export class CommsAgentClient {
     });
     if (!resp.ok) {
       const err = (await resp.json().catch(() => ({}))) as { error?: string };
-      throw new Error(err.error ?? `Request failed (${resp.status})`);
+      throw new Error(formatAgentError(new Error(err.error ?? `Request failed (${resp.status})`)));
     }
     return resp.json() as Promise<{ connectorId: string; removed: boolean }>;
   }
@@ -709,7 +709,7 @@ export class CommsAgentClient {
     });
     if (!resp.ok) {
       const err = (await resp.json().catch(() => ({}))) as { error?: string };
-      throw new Error(err.error ?? `Request failed (${resp.status})`);
+      throw new Error(formatAgentError(new Error(err.error ?? `Request failed (${resp.status})`)));
     }
     return resp.json() as Promise<{ connectorId: string; removed: boolean }>;
   }
@@ -734,7 +734,7 @@ export class CommsAgentClient {
     });
     if (!resp.ok) {
       const err = (await resp.json().catch(() => ({}))) as { error?: string };
-      throw new Error(err.error ?? `Request failed (${resp.status})`);
+      throw new Error(formatAgentError(new Error(err.error ?? `Request failed (${resp.status})`)));
     }
     return resp.json() as Promise<{ connectorId: string; removed: boolean }>;
   }
@@ -758,7 +758,7 @@ export class CommsAgentClient {
     });
     if (!resp.ok) {
       const err = (await resp.json().catch(() => ({}))) as { error?: string };
-      throw new Error(err.error ?? `Request failed (${resp.status})`);
+      throw new Error(formatAgentError(new Error(err.error ?? `Request failed (${resp.status})`)));
     }
     return resp.json() as Promise<{ connectorId: string; removed: boolean }>;
   }
@@ -795,7 +795,7 @@ export class CommsAgentClient {
     });
     if (!resp.ok) {
       const err = (await resp.json().catch(() => ({}))) as { error?: string };
-      throw new Error(err.error ?? `Request failed (${resp.status})`);
+      throw new Error(formatAgentError(new Error(err.error ?? `Request failed (${resp.status})`)));
     }
     return resp.json() as Promise<{ removed: boolean; accountId: string }>;
   }
@@ -825,7 +825,7 @@ export class CommsAgentClient {
     });
     if (!resp.ok) {
       const err = (await resp.json().catch(() => ({}))) as { error?: string };
-      throw new Error(err.error ?? `Request failed (${resp.status})`);
+      throw new Error(formatAgentError(new Error(err.error ?? `Request failed (${resp.status})`)));
     }
     return resp.json() as Promise<{ removed: boolean; accountId: string }>;
   }
@@ -875,7 +875,7 @@ export class CommsAgentClient {
     });
     if (!resp.ok) {
       const err = (await resp.json().catch(() => ({}))) as { error?: string };
-      throw new Error(err.error ?? `Request failed (${resp.status})`);
+      throw new Error(formatAgentError(new Error(err.error ?? `Request failed (${resp.status})`)));
     }
     return resp.json() as Promise<{ ok: boolean }>;
   }
@@ -941,7 +941,7 @@ export class CommsAgentClient {
     );
     if (!resp.ok) {
       const err = (await resp.json().catch(() => ({}))) as { error?: string };
-      throw new Error(err.error ?? `Request failed (${resp.status})`);
+      throw new Error(formatAgentError(new Error(err.error ?? `Request failed (${resp.status})`)));
     }
     return resp.json() as Promise<{ removed: boolean; feedId: string }>;
   }
@@ -963,7 +963,7 @@ export class CommsAgentClient {
     );
     if (!resp.ok) {
       const err = (await resp.json().catch(() => ({}))) as { error?: string };
-      throw new Error(err.error ?? `Request failed (${resp.status})`);
+      throw new Error(formatAgentError(new Error(err.error ?? `Request failed (${resp.status})`)));
     }
     return resp.json() as Promise<{ removed: boolean; feedId: string }>;
   }
@@ -985,7 +985,7 @@ export class CommsAgentClient {
     );
     if (!resp.ok) {
       const err = (await resp.json().catch(() => ({}))) as { error?: string };
-      throw new Error(err.error ?? `Request failed (${resp.status})`);
+      throw new Error(formatAgentError(new Error(err.error ?? `Request failed (${resp.status})`)));
     }
     return resp.json() as Promise<{ removed: boolean; bookmarkId: string }>;
   }

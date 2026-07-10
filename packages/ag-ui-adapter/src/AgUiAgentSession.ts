@@ -3,6 +3,7 @@ import { v4 as uuid } from "uuid";
 import { ATOM_AGUI_PROFILE_PROP, type PersonalAgentContext } from "@qwixl/owner-store";
 import {
   SessionEmitter,
+  presentChatAgentError,
   type AgentSession,
   type JsonValue,
   type UiEvent,
@@ -191,7 +192,7 @@ export class AgUiAgentSession extends SessionEmitter implements AgentSession {
       onRunErrorEvent: ({ event }) => {
         this.emit({
           type: "text",
-          text: `Agent run error: ${event.message ?? "unknown error"}`,
+          text: presentChatAgentError(new Error(event.message ?? "Agent run error")),
         });
       },
     };
@@ -211,7 +212,7 @@ export class AgUiAgentSession extends SessionEmitter implements AgentSession {
     } catch (error) {
       this.emit({
         type: "text",
-        text: `Could not reach the AG-UI agent: ${error instanceof Error ? error.message : String(error)}`,
+        text: presentChatAgentError(error),
       });
     }
   }

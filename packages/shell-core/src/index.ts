@@ -125,6 +125,8 @@ export {
 } from "./agentOutput.js";
 export type { AgentWireResult, AgentWireReject } from "./agentOutput.js";
 
+export { presentChatAgentError } from "./userFacingErrors.js";
+
 export {
   createJsonPersistence,
   createAttestationPersistence,
