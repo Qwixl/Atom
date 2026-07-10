@@ -100,6 +100,7 @@ export function resolveModelBehavior(
 /**
  * Propose a class from eval failure tallies (missing-call dominant → tool-shy, etc.).
  * Used by the maintenance script — not by Chat UI.
+ * Returns null when scores are inconclusive so --write does not clobber seeds.
  */
 export function proposeClassFromFailureCounts(counts: {
   missingCall: number;
@@ -107,12 +108,12 @@ export function proposeClassFromFailureCounts(counts: {
   settingsMissing: number;
   misRoute: number;
   toolScenarioCount: number;
-}): ModelBehaviorClassId {
+}): ModelBehaviorClassId | null {
   const n = Math.max(1, counts.toolScenarioCount);
   const missingRate = counts.missingCall / n;
   const unexpectedRate = counts.unexpectedCall / n;
   if (missingRate >= 0.4) return "tool-shy";
   if (unexpectedRate >= 0.25) return "tool-eager";
   if (counts.settingsMissing >= 2 && missingRate < 0.25) return "balanced";
-  return "balanced";
+  return null;
 }
