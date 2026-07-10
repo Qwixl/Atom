@@ -36,28 +36,8 @@
     },
     {
       "pattern": "gpt-4o-mini",
-      "classId": "tool-eager",
-      "note": "2026-07-10 scoreboard: stronger tool invocation than gpt-4o"
-    },
-    {
-      "pattern": "gpt-4.1",
-      "classId": "tool-shy",
-      "note": "Seed: frontier chat sibling of gpt-4o until re-scored"
-    },
-    {
-      "pattern": "gpt-4o",
-      "classId": "tool-shy",
-      "note": "2026-07-10 scoreboard: systematic missing-call under-invocation"
-    },
-    {
-      "pattern": "claude",
       "classId": "balanced",
-      "note": "Seed until multi-model scoreboard"
-    },
-    {
-      "pattern": "mistral",
-      "classId": "balanced",
-      "note": "Seed until scored"
+      "note": "auto 2026-07-10: missing=0 unexpected=0 settings=0 misRoute=0"
     },
     {
       "pattern": "command-r",
@@ -70,12 +50,27 @@
       "note": "Seed until scored"
     },
     {
-      "pattern": "gemini",
+      "pattern": "gpt-4.1",
+      "classId": "tool-shy",
+      "note": "Seed: frontier chat sibling of gpt-4o until re-scored"
+    },
+    {
+      "pattern": "mistral",
       "classId": "balanced",
       "note": "Seed until scored"
     },
     {
-      "pattern": "grok",
+      "pattern": "gpt-4o",
+      "classId": "tool-shy",
+      "note": "auto 2026-07-10: missing=22 unexpected=0 settings=3 misRoute=0"
+    },
+    {
+      "pattern": "claude",
+      "classId": "balanced",
+      "note": "Seed until multi-model scoreboard"
+    },
+    {
+      "pattern": "gemini",
       "classId": "balanced",
       "note": "Seed until scored"
     },
@@ -88,6 +83,11 @@
       "pattern": "gemma",
       "classId": "local-slm",
       "note": "Seed: small SLM"
+    },
+    {
+      "pattern": "grok",
+      "classId": "balanced",
+      "note": "Seed until scored"
     },
     {
       "pattern": "phi-",
