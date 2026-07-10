@@ -3,6 +3,9 @@ import { BRIEFING_SURFACE_ID } from "@qwixl/shell-core";
 import type { BrainPendingNotification } from "../custody/client.js";
 import { loadBriefingPreferences } from "../briefing/briefingPreferences.js";
 
+/** Survives full page reload in the same tab — blocks re-composition spam. */
+const SESSION_COMPOSED_KEY = "atom.briefing.compositionRequested";
+
 /** True when Chat can run an agent turn that emits briefing-daily. */
 export function canRequestBriefingComposition(provider: string): boolean {
   return provider === "llm" || provider === "ag-ui";
@@ -14,29 +17,46 @@ export function feedHasBriefingDailySurface(feed: readonly FeedItem[]): boolean 
   );
 }
 
+/** Legacy brain stub copy that never got a composition turn. */
+function isLegacyBriefingStubText(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("ask me for today's briefing") ||
+    (lower.includes("ask me") && lower.includes("briefing")) ||
+    lower.includes("later wave")
+  );
+}
+
 /**
- * Brain daily-briefing text already on the feed, but no briefing-daily surface yet
- * (e.g. stub delivered before auto-composition shipped, or hosted ag-ui skipped session-open).
+ * Brain daily-briefing text already on the feed, but no briefing-daily surface yet.
+ * Only true legacy stubs — thin titles ("Morning briefing") and "is ready" badges
+ * must NOT re-trigger composition (surfaces are not persisted across reload).
  */
 export function feedNeedsBriefingCompositionRecovery(feed: readonly FeedItem[]): boolean {
   if (feedHasBriefingDailySurface(feed)) return false;
   return feed.some((item) => {
     if (item.kind !== "agent-text") return false;
     if (item.origin === "brain" && item.brainKind === "daily-briefing") {
-      const text = item.text.toLowerCase();
-      return (
-        text.includes("ask me") ||
-        text.includes("later wave") ||
-        text.includes("is ready") ||
-        text === "morning briefing" ||
-        text === "daily briefing" ||
-        /^morning briefing:/i.test(item.text)
-      );
+      return isLegacyBriefingStubText(item.text);
     }
-    // Legacy feed lines before brainKind was persisted.
-    const text = item.text.toLowerCase();
-    return text.includes("ask me for today's briefing") || text.includes("later wave");
+    return isLegacyBriefingStubText(item.text);
   });
+}
+
+export function hasBriefingCompositionBeenRequestedThisSession(): boolean {
+  try {
+    return sessionStorage.getItem(SESSION_COMPOSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function markBriefingCompositionRequestedThisSession(): void {
+  try {
+    sessionStorage.setItem(SESSION_COMPOSED_KEY, "1");
+  } catch {
+    /* private mode / blocked storage */
+  }
 }
 
 export function shouldSessionOpenBriefing(options: {
@@ -44,13 +64,15 @@ export function shouldSessionOpenBriefing(options: {
   alreadyRequested: boolean;
 }): boolean {
   if (options.alreadyRequested) return false;
+  if (hasBriefingCompositionBeenRequestedThisSession()) return false;
   if (!canRequestBriefingComposition(options.provider)) return false;
   return loadBriefingPreferences().enabled === true;
 }
 
 /**
  * Standing-intent daily-briefing delivery: request composition unless this session
- * already requested one (session-open or prior fire).
+ * already requested one (in-memory). Do not use sessionStorage here — undelivered
+ * pending after reload must still be able to compose once.
  */
 export function shouldFireBriefingFromPending(options: {
   notification: BrainPendingNotification;
@@ -61,4 +83,15 @@ export function shouldFireBriefingFromPending(options: {
   if (options.handledIds.has(options.notification.id)) return false;
   if (options.alreadyRequested) return false;
   return true;
+}
+
+export function shouldRecoverBriefingComposition(options: {
+  provider: string;
+  alreadyRequested: boolean;
+  feed: readonly FeedItem[];
+}): boolean {
+  if (options.alreadyRequested) return false;
+  if (hasBriefingCompositionBeenRequestedThisSession()) return false;
+  if (!canRequestBriefingComposition(options.provider)) return false;
+  return feedNeedsBriefingCompositionRecovery(options.feed);
 }

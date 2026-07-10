@@ -45,7 +45,7 @@ describe("deliverBrainPendingToFeed", () => {
     expect(formatBrainNotificationText(n)).not.toContain('"messages"');
   });
 
-  it("fires daily-briefing hook instead of appending ask-me stub", async () => {
+  it("fires daily-briefing hook and appends thin badge (not ask-me stub)", async () => {
     const runtime = new ConversationRuntime({ catalog: new Catalog([]) });
     let fired = false;
     const n: BrainPendingNotification = {
@@ -64,6 +64,14 @@ describe("deliverBrainPendingToFeed", () => {
     });
     expect(fired).toBe(true);
     expect(ids).toEqual(["brain_b"]);
-    expect(runtime.getSnapshot().feed).toHaveLength(0);
+    const feed = runtime.getSnapshot().feed;
+    expect(feed).toHaveLength(1);
+    expect(feed[0]).toMatchObject({
+      kind: "agent-text",
+      id: "brain_b",
+      text: "Morning briefing",
+      origin: "brain",
+      brainKind: "daily-briefing",
+    });
   });
 });

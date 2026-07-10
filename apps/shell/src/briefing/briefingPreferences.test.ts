@@ -70,4 +70,9 @@ describe("briefingPreferences", () => {
     expect(ctx).toContain("eu policy");
     expect(ctx).toContain("Emerging interest themes");
   });
+
+  it("formatBriefingContextForPrompt omits Topics context without owner topics", () => {
+    expect(formatBriefingContextForPrompt({ enabled: true, topics: [] }, ["eu policy"])).toBeUndefined();
+    expect(formatBriefingContextForPrompt({ enabled: true, topics: [] })).toBeUndefined();
+  });
 });
