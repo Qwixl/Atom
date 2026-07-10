@@ -76,6 +76,38 @@ body {
   max-height: min(720px, calc(100vh - 24px));
 }
 
+/* Phone: edge-to-edge sheet with safe areas (BK-35). */
+@media (max-width: 719px) {
+  .settings-overlay {
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .settings-dialog,
+  .settings-dialog--sections {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    min-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    box-shadow: none;
+  }
+
+  .settings-dialog-header {
+    padding: 12px 14px;
+  }
+
+  .settings-dialog-footer {
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 .settings-dialog-layout {
   display: flex;
   flex-direction: column;
@@ -128,8 +160,6 @@ body {
 }
 
 .settings-nav-label {
-  grid-column: 1;
-  grid-row: 1;
   font-size: 14px;
   font-weight: 600;
 }
@@ -152,7 +182,35 @@ body {
   width: 18px;
   height: 18px;
   color: var(--text-dim);
+  justify-self: end;
   flex-shrink: 0;
+}
+
+.settings-nav-label-row {
+  grid-column: 1;
+  grid-row: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-nav-badge {
+  min-width: 1.25rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  background: var(--shell-border-strong, var(--border-strong));
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.settings-nav-badge--warn {
+  background: color-mix(in srgb, var(--shell-warn, #f59e0b) 35%, var(--bg-inset));
+  color: var(--text);
 }
 
 .settings-heading-back {
@@ -1390,6 +1448,13 @@ body {
   /* Prevent flex shrink collapsing surfaces to ~0px in long feeds (overflow:hidden + min-height:auto). */
   flex-shrink: 0;
   min-height: min-content;
+  padding: 10px;
+}
+
+/* Nested cards already have their own border — avoid double frame. */
+.feed-surface > .atom-surface > .atom-card {
+  border: none;
+  background: transparent;
 }
 
 .feed-surface--module {
@@ -1490,15 +1555,30 @@ body {
 
 .game-modal-body {
   flex: 1;
-  min-height: 440px;
+  min-height: min(440px, 55dvh);
   padding: 12px 16px 0;
 }
 
 .game-modal-iframe {
   width: 100%;
-  height: 440px;
+  height: min(440px, 55dvh);
   border-radius: var(--shell-radius-sm);
   background: var(--shell-bg);
+}
+
+@media (max-width: 640px) {
+  .game-modal {
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px));
+    border-radius: var(--shell-radius) var(--shell-radius) 0 0;
+  }
+
+  .game-modal-body {
+    min-height: min(320px, 42dvh);
+  }
+
+  .game-modal-iframe {
+    height: min(320px, 42dvh);
+  }
 }
 
 .game-modal-footnote {

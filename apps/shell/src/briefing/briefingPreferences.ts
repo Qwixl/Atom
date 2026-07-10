@@ -68,7 +68,7 @@ export function formatBriefingContextForPrompt(
   return [
     `Owner briefing topics (separate from subscribed RSS feeds): ${topics}.`,
     interestLine,
-    `Call atom_connector_invoke news-search searchItems with input { query: "<topic>", limit: ${BRIEFING_TOPIC_SEARCH_POOL} } for each topic (candidate pool).`,
+    `Call news_search with { query: "<topic>", limit: ${BRIEFING_TOPIC_SEARCH_POOL} } for each topic (candidate pool).`,
     `Present at most ${BRIEFING_TOPIC_HEADLINE_CAP} headlines total in Topics you follow after ranking — not ${BRIEFING_TOPIC_SEARCH_POOL} or more.`,
     "Ranking signals: owner profile records (tier, confidence, strength), retrieved memory and past link explorations / interest connections, recency, topic relevance.",
     "Reserve 1–2 slots for major breaking stories (elections, disasters, war, market shocks) even without profile match — highlight interests without insulating the owner.",

@@ -12,6 +12,8 @@
 /supabase/
 *.local.*
 *.private.*
+*.sightings.json
+**/model-behavior-sightings.json
 *.pem
 *.key
 credentials.json
