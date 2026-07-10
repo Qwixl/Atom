@@ -88,7 +88,10 @@ export function markSessionOpenBriefingRunToday(): void {
 export function shouldSessionOpenBriefing(options: {
   provider: string;
   alreadyRequested: boolean;
+  /** Calendar + RSS snapshots settled (connected or confirmed disconnected). */
+  connectorContextReady: boolean;
 }): boolean {
+  if (!options.connectorContextReady) return false;
   if (options.alreadyRequested) return false;
   if (hasBriefingCompositionBeenRequestedThisSession()) return false;
   if (hasSessionOpenBriefingRunToday()) return false;
@@ -105,7 +108,9 @@ export function shouldFireBriefingFromPending(options: {
   notification: BrainPendingNotification;
   alreadyRequested: boolean;
   handledIds: ReadonlySet<string>;
+  connectorContextReady: boolean;
 }): boolean {
+  if (!options.connectorContextReady) return false;
   if (options.notification.kind !== "daily-briefing") return false;
   if (options.handledIds.has(options.notification.id)) return false;
   if (options.alreadyRequested) return false;
@@ -116,7 +121,9 @@ export function shouldRecoverBriefingComposition(options: {
   provider: string;
   alreadyRequested: boolean;
   feed: readonly FeedItem[];
+  connectorContextReady: boolean;
 }): boolean {
+  if (!options.connectorContextReady) return false;
   if (options.alreadyRequested) return false;
   if (hasBriefingCompositionBeenRequestedThisSession()) return false;
   if (!canRequestBriefingComposition(options.provider)) return false;

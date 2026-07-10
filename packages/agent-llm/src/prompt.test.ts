@@ -41,4 +41,16 @@ describe("buildSystemPrompt calendar guidance", () => {
     expect(prompt).toContain("Berlin");
     expect(prompt).toContain("family/location-pin");
   });
+
+  it("includes Coming up briefing example and forbids feeds-only when connected", () => {
+    const prompt = buildSystemPrompt(catalog, {
+      open: [],
+      guardedCategories: [],
+      calendarContext: "Connected (read-only via WebCal).\nToday:\n(no events)\nUpcoming:\n- Team sync",
+      rssContext: "Connected.\n- [News](https://example.com)",
+    });
+    expect(prompt).toContain("Worked example — connected calendar with Upcoming + feeds");
+    expect(prompt).toContain("never emit a feeds-only briefing");
+    expect(prompt).toContain('"title": "Coming up"');
+  });
 });

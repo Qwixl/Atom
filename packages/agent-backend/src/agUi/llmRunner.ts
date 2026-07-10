@@ -4,6 +4,7 @@ import {
   buildAgentToolProfile,
   buildSystemPrompt,
   chatCompletionTools,
+  formatLlmProviderError,
   parseAtomConnectorInvokeArgs,
   wrapUntrustedContent,
   type AtomToolExecutor,
@@ -358,7 +359,7 @@ export async function* runLlmAgUiEvents(
   } catch (error) {
     yield* textAgUiEvents(
       uuid(),
-      `I couldn't reach the model endpoint: ${error instanceof Error ? error.message : String(error)}`,
+      `I couldn't reach the model endpoint: ${formatLlmProviderError(error)}`,
     );
     return;
   }
