@@ -36,3 +36,4 @@ export {
   detectInstructionLikeContent,
   type UntrustedContentOptions,
 } from "./untrusted.js";
+export { formatLlmProviderError, isResponsesApiFallbackEligible } from "./llmProviderErrors.js";

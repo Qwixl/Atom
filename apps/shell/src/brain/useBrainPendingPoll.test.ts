@@ -74,4 +74,21 @@ describe("deliverBrainPendingToFeed", () => {
       brainKind: "daily-briefing",
     });
   });
+
+  it("defers daily-briefing ack when the fire hook returns false", async () => {
+    const runtime = new ConversationRuntime({ catalog: new Catalog([]) });
+    const n: BrainPendingNotification = {
+      id: "brain_defer",
+      intentId: "intent_b",
+      kind: "daily-briefing",
+      title: "Morning briefing",
+      body: "ready",
+      createdAt: "2026-07-10T12:00:00.000Z",
+    };
+    const ids = await deliverBrainPendingToFeed(runtime, [n], {
+      onDailyBriefingFire: () => false,
+    });
+    expect(ids).toEqual([]);
+    expect(runtime.getSnapshot().feed).toHaveLength(0);
+  });
 });

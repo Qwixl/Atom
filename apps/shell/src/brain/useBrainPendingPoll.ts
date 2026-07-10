@@ -88,14 +88,13 @@ export async function deliverBrainPendingToFeed(
 
     if (n.kind === "daily-briefing" && hooks?.onDailyBriefingFire) {
       const handled = hooks.onDailyBriefingFire(n);
-      // Always leave a thin badge with stable id (dedup + history). Composition is separate;
-      // do not use stub copy that recovery would re-fire after surfaces drop on reload.
-      const badge = n.title?.trim() || "Daily briefing";
-      runtime.appendAgentTextWithId(n.id, badge, { origin: "brain", brainKind: n.kind });
-      if (handled) {
-        delivered.push(n.id);
+      if (!handled) {
+        // Defer ack (e.g. calendar/RSS context still loading) so the next poll can compose.
         continue;
       }
+      // Thin badge with stable id (dedup + history). Composition is a separate AgentSession turn.
+      const badge = n.title?.trim() || "Daily briefing";
+      runtime.appendAgentTextWithId(n.id, badge, { origin: "brain", brainKind: n.kind });
       delivered.push(n.id);
       continue;
     }

@@ -1,3 +1,5 @@
+import { presentChatAgentError } from "@qwixl/shell-core";
+
 /** Detect Responses API failures that can fall back to Chat Completions. */
 export function isResponsesApiFallbackEligible(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
@@ -8,7 +10,7 @@ export function isResponsesApiFallbackEligible(error: unknown): boolean {
   );
 }
 
-/** User-facing provider error text — strip raw JSON blobs when possible. */
+/** User-facing provider error text — never pass raw API/JSON blobs to owners. */
 export function formatLlmProviderError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   if (/Verify Organization|organization must be verified/i.test(message)) {
@@ -18,9 +20,5 @@ export function formatLlmProviderError(error: unknown): string {
       "Atom can still chat via Chat Completions when verification is pending."
     );
   }
-  const jsonMatch = message.match(/\{[\s\S]*"message"\s*:\s*"([^"]+)"/);
-  if (jsonMatch?.[1]) {
-    return jsonMatch[1];
-  }
-  return message.length > 280 ? `${message.slice(0, 280)}…` : message;
+  return presentChatAgentError(error);
 }
