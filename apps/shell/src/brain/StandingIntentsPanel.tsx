@@ -11,6 +11,7 @@ import {
 } from "../custody/client.js";
 import { SettingsToggle } from "../ui/SettingsToggle.js";
 import { CommsAgentClient } from "../comms/client.js";
+import { loadBriefingPreferences } from "../briefing/briefingPreferences.js";
 
 function kindLabel(kind: StandingIntentKind): string {
   switch (kind) {
@@ -34,6 +35,26 @@ function triggerSummary(intent: StandingIntent): string {
   }
 }
 
+function parseHhMm(value: string): { hours: number; minutes: number } | null {
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value.trim());
+  if (!m) return null;
+  return { hours: Number(m[1]), minutes: Number(m[2]) };
+}
+
+function isCurrentlyInQuietHours(quiet?: { start: string; end: string }): boolean {
+  if (!quiet) return false;
+  const start = parseHhMm(quiet.start);
+  const end = parseHhMm(quiet.end);
+  if (!start || !end) return false;
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const startMins = start.hours * 60 + start.minutes;
+  const endMins = end.hours * 60 + end.minutes;
+  if (startMins === endMins) return false;
+  if (startMins < endMins) return mins >= startMins && mins < endMins;
+  return mins >= startMins || mins < endMins;
+}
+
 export function StandingIntentsPanel({
   vaultUnlocked,
   embedded = false,
@@ -47,6 +68,7 @@ export function StandingIntentsPanel({
   const [billingTier, setBillingTier] = useState<"beta" | "subscribed" | "duty-cycled" | null>(
     null,
   );
+  const [displayPrice, setDisplayPrice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -57,6 +79,10 @@ export function StandingIntentsPanel({
   const [draftAt, setDraftAt] = useState("");
   const [draftMinutes, setDraftMinutes] = useState("60");
   const [draftQuery, setDraftQuery] = useState("");
+  const [draftTopics, setDraftTopics] = useState(() => loadBriefingPreferences().topics.join(", "));
+  const [draftQuietStart, setDraftQuietStart] = useState("");
+  const [draftQuietEnd, setDraftQuietEnd] = useState("");
+  const [draftChannel, setDraftChannel] = useState<"chat" | "push">("chat");
 
   const refresh = useCallback(async () => {
     if (!vaultUnlocked || !config.adminToken?.trim()) {
@@ -75,8 +101,14 @@ export function StandingIntentsPanel({
           adminToken: config.adminToken,
         }).billingStatus();
         setBillingTier(billing.alwaysOnBrainTier ?? (billing.betaFree ? "beta" : null));
+        setDisplayPrice(
+          typeof billing.alwaysOnBrainDisplayPrice === "string"
+            ? billing.alwaysOnBrainDisplayPrice
+            : null,
+        );
       } catch {
         setBillingTier(null);
+        setDisplayPrice(null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -129,17 +161,35 @@ export function StandingIntentsPanel({
       trigger = { type: "interval", everyMinutes };
     }
     const title = draftTitle.trim() || kindLabel(draftKind);
+    const quietStart = draftQuietStart.trim();
+    const quietEnd = draftQuietEnd.trim();
+    const quietHours =
+      quietStart && quietEnd && parseHhMm(quietStart) && parseHhMm(quietEnd)
+        ? { start: quietStart, end: quietEnd }
+        : undefined;
     const intent: StandingIntent = {
       id: newStandingIntentId(),
       kind: draftKind,
       enabled: true,
       title,
       trigger,
+      delivery: {
+        channel: draftChannel,
+        ...(quietHours ? { quietHours } : {}),
+      },
       createdAt: now,
       updatedAt: now,
       lastFiredAt: null,
     };
-    if (draftKind === "watch" && draftQuery.trim()) {
+    if (draftKind === "daily-briefing") {
+      const topics = draftTopics
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+      const prefsTopics = loadBriefingPreferences().topics;
+      const merged = topics.length > 0 ? topics : prefsTopics;
+      if (merged.length > 0) intent.scope = { topics: merged };
+    } else if (draftKind === "watch" && draftQuery.trim()) {
       intent.scope = { query: draftQuery.trim() };
     }
     void persist([...intents, intent]);
@@ -163,6 +213,7 @@ export function StandingIntentsPanel({
               {billingTier === "beta" ? " · beta included" : ""}
               {billingTier === "subscribed" ? " · subscribed" : ""}
               {billingTier === "duty-cycled" ? " · free tier" : ""}
+              {displayPrice ? ` · ${displayPrice} after beta` : ""}
               {status.lastTickAt
                 ? ` · last tick ${new Date(status.lastTickAt).toLocaleString()}`
                 : ""}
@@ -173,33 +224,40 @@ export function StandingIntentsPanel({
             <p className="settings-note">No standing intents yet.</p>
           ) : (
             <ul className="webcal-feeds">
-              {intents.map((intent) => (
-                <li key={intent.id}>
-                  <div>
-                    <strong>{intent.title}</strong>
-                    <div className="settings-note">
-                      {kindLabel(intent.kind)} · {triggerSummary(intent)}
-                      {intent.lastFiredAt
-                        ? ` · last fired ${new Date(intent.lastFiredAt).toLocaleString()}`
-                        : ""}
+              {intents.map((intent) => {
+                const quiet = intent.delivery?.quietHours;
+                const deferred = isCurrentlyInQuietHours(quiet);
+                return (
+                  <li key={intent.id}>
+                    <div>
+                      <strong>{intent.title}</strong>
+                      <div className="settings-note">
+                        {kindLabel(intent.kind)} · {triggerSummary(intent)}
+                        {intent.delivery?.channel ? ` · ${intent.delivery.channel}` : ""}
+                        {quiet ? ` · quiet ${quiet.start}–${quiet.end}` : ""}
+                        {deferred ? " · deferred (quiet hours)" : ""}
+                        {intent.lastFiredAt
+                          ? ` · last fired ${new Date(intent.lastFiredAt).toLocaleString()}`
+                          : ""}
+                      </div>
+                      <SettingsToggle
+                        checked={intent.enabled}
+                        label="Enabled"
+                        disabled={busy}
+                        onChange={(enabled) => toggleEnabled(intent.id, enabled)}
+                      />
                     </div>
-                    <SettingsToggle
-                      checked={intent.enabled}
-                      label="Enabled"
+                    <button
+                      type="button"
+                      className="webcal-remove"
                       disabled={busy}
-                      onChange={(enabled) => toggleEnabled(intent.id, enabled)}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    className="webcal-remove"
-                    disabled={busy}
-                    onClick={() => removeIntent(intent.id)}
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
+                      onClick={() => removeIntent(intent.id)}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
 
@@ -230,15 +288,26 @@ export function StandingIntentsPanel({
             />
           </label>
           {draftKind === "daily-briefing" ? (
-            <label className="atom-field">
-              <span className="atom-field-label">Local time (HH:MM)</span>
-              <input
-                value={draftTime}
-                onChange={(e) => setDraftTime(e.target.value)}
-                placeholder="08:00"
-                autoComplete="off"
-              />
-            </label>
+            <>
+              <label className="atom-field">
+                <span className="atom-field-label">Local time (HH:MM)</span>
+                <input
+                  value={draftTime}
+                  onChange={(e) => setDraftTime(e.target.value)}
+                  placeholder="08:00"
+                  autoComplete="off"
+                />
+              </label>
+              <label className="atom-field">
+                <span className="atom-field-label">Topics (comma-separated)</span>
+                <input
+                  value={draftTopics}
+                  onChange={(e) => setDraftTopics(e.target.value)}
+                  placeholder="tech, politics"
+                  autoComplete="off"
+                />
+              </label>
+            </>
           ) : null}
           {draftKind === "reminder" ? (
             <label className="atom-field">
@@ -273,6 +342,36 @@ export function StandingIntentsPanel({
               </label>
             </>
           ) : null}
+          <label className="atom-field">
+            <span className="atom-field-label">Delivery channel</span>
+            <select
+              value={draftChannel}
+              onChange={(e) => setDraftChannel(e.target.value as "chat" | "push")}
+            >
+              <option value="chat">Chat (in-app)</option>
+              <option value="push">Push notification</option>
+            </select>
+          </label>
+          <div className="atom-field-row" style={{ display: "flex", gap: "0.75rem" }}>
+            <label className="atom-field" style={{ flex: 1 }}>
+              <span className="atom-field-label">Quiet hours start (HH:MM)</span>
+              <input
+                value={draftQuietStart}
+                onChange={(e) => setDraftQuietStart(e.target.value)}
+                placeholder="22:00"
+                autoComplete="off"
+              />
+            </label>
+            <label className="atom-field" style={{ flex: 1 }}>
+              <span className="atom-field-label">Quiet hours end (HH:MM)</span>
+              <input
+                value={draftQuietEnd}
+                onChange={(e) => setDraftQuietEnd(e.target.value)}
+                placeholder="07:00"
+                autoComplete="off"
+              />
+            </label>
+          </div>
           <div className="chrome-actions settings-section-actions">
             <button
               type="button"

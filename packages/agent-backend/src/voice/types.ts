@@ -1,6 +1,6 @@
 /**
  * Pluggable realtime voice seam (D077 / BK-46).
- * Full-duplex WebRTC is deferred — providers implement STT/TTS streams first.
+ * MVP: STT → agent turn → TTS. Full-duplex WebRTC is deferred.
  */
 
 export type VoiceProviderId = "stub" | "openai-realtime" | "elevenlabs";
@@ -26,9 +26,23 @@ export interface VoiceSynthesisResult {
   textEcho: string;
 }
 
+export interface VoiceTranscriptionRequest {
+  /** Base64-encoded audio bytes. */
+  audioBase64: string;
+  mimeType?: string;
+  /** Filename hint for the provider (e.g. audio.webm). */
+  filename?: string;
+}
+
+export interface VoiceTranscriptionResult {
+  text: string;
+}
+
 export interface VoiceBackend {
   readonly id: VoiceProviderId;
   status(): VoiceBackendStatus;
   /** Text-to-speech. Stub echoes text without audio. */
   synthesize(request: VoiceSynthesisRequest): Promise<VoiceSynthesisResult>;
+  /** Speech-to-text. Stub returns empty when not configured. */
+  transcribe?(request: VoiceTranscriptionRequest): Promise<VoiceTranscriptionResult>;
 }

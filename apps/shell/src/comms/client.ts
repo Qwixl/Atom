@@ -1265,6 +1265,10 @@ export class CommsAgentClient {
     connectOnboarding?: string;
     alwaysOnBrain?: boolean;
     alwaysOnBrainTier?: "beta" | "subscribed" | "duty-cycled";
+    alwaysOnBrainPriceCents?: number;
+    alwaysOnBrainCurrency?: string;
+    alwaysOnBrainInterval?: string;
+    alwaysOnBrainDisplayPrice?: string;
   }> {
     return getJson(this.base(), "/billing/status", this.auth, true);
   }

@@ -23,6 +23,7 @@
     "@qwixl/shell-core": "workspace:*",
     "@qwixl/skin-default": "workspace:*",
     "@capacitor/core": "^7.4.2",
+    "@capacitor/push-notifications": "^7.0.1",
     "@capacitor/status-bar": "^7.0.1",
     "@simplewebauthn/browser": "^13.1.1",
     "@supabase/supabase-js": "^2.49.8",

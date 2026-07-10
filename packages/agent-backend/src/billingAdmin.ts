@@ -5,6 +5,8 @@ import { defaultSpendPolicy, spendPolicyAllows, type SpendCategory, type SpendPo
 import fs from "node:fs";
 import path from "node:path";
 import { resolveDataPath } from "./dataDir.js";
+import { ALWAYS_ON_BRAIN_PRICE, alwaysOnBrainPricePayload } from "./alwaysOnPricing.js";
+import { stripeRequest } from "./payment/stripeClient.js";
 
 const POLICIES_FILE = "spend-policies.json";
 
@@ -17,6 +19,11 @@ export interface BillingAdminDeps {
   brainAlwaysOn?: boolean;
   /** Beta: hosting fees waived (published model — no rug-pull). */
   betaFree?: boolean;
+  /** Optional pre-created Stripe Price id for always-on (else Checkout uses price_data). */
+  alwaysOnStripePriceId?: string | null;
+  /** Success/cancel URLs for Checkout (shell origin). */
+  checkoutSuccessUrl?: string | null;
+  checkoutCancelUrl?: string | null;
 }
 
 function readPolicies(): Record<string, SpendPolicy> {
@@ -73,6 +80,7 @@ export function registerBillingAdminRoutes(app: Express, deps: BillingAdminDeps)
         : deps.brainAlwaysOn !== false
           ? "subscribed"
           : "duty-cycled",
+      ...alwaysOnBrainPricePayload(),
     });
   });
 
@@ -150,32 +158,103 @@ export function registerBillingAdminRoutes(app: Express, deps: BillingAdminDeps)
   });
 
   /** Always-on Agent Brain subscription — charged at beta exit (D078 / Q13). */
-  app.post("/billing/hosting/subscribe", (req, res) => {
-    const workspaceId = (req.body as { workspaceId?: string }).workspaceId?.trim();
+  app.post("/billing/hosting/subscribe", async (req, res) => {
+    const body = req.body as { workspaceId?: string; successUrl?: string; cancelUrl?: string };
+    const workspaceId = body.workspaceId?.trim();
     if (!workspaceId) {
       res.status(400).json({ error: "workspaceId required" });
       return;
     }
+    const price = alwaysOnBrainPricePayload();
     const betaFree = deps.betaFree !== false;
     if (betaFree) {
       res.json({
         workspaceId,
         status: "beta_included",
         alwaysOnBrain: true,
-        message: "Always-on Agent Brain is included during beta. Pricing will be published before charges begin.",
+        ...price,
+        message: `Always-on Agent Brain is included during beta. Published price after beta: ${ALWAYS_ON_BRAIN_PRICE.displayPrice}.`,
       });
       return;
     }
-    if (!deps.stripeSecretKey?.trim()) {
-      res.status(503).json({ error: "Stripe not configured on agent backend" });
+    const secret = deps.stripeSecretKey?.trim();
+    if (!secret) {
+      res.status(503).json({
+        error: "Stripe not configured on agent backend",
+        ...price,
+      });
       return;
     }
-    res.json({
-      workspaceId,
-      status: "pending_implementation",
-      message:
-        "Always-on subscription Checkout Session will return when Q13 pricing ships and beta exits.",
-    });
+    const successUrl =
+      body.successUrl?.trim() ||
+      deps.checkoutSuccessUrl?.trim() ||
+      "https://atom.qwixl.com/app/?billing=always-on-success";
+    const cancelUrl =
+      body.cancelUrl?.trim() ||
+      deps.checkoutCancelUrl?.trim() ||
+      "https://atom.qwixl.com/app/?billing=always-on-cancel";
+    try {
+      const lineItem = deps.alwaysOnStripePriceId?.trim()
+        ? { price: deps.alwaysOnStripePriceId.trim(), quantity: 1 }
+        : {
+            quantity: 1,
+            price_data: {
+              currency: ALWAYS_ON_BRAIN_PRICE.currency,
+              unit_amount: ALWAYS_ON_BRAIN_PRICE.unitAmountCents,
+              recurring: { interval: ALWAYS_ON_BRAIN_PRICE.interval },
+              product_data: { name: ALWAYS_ON_BRAIN_PRICE.productName },
+            },
+          };
+      // Stripe Checkout expects nested form keys; flatten for stripeRequest.
+      const params: Record<string, string | number | boolean> = {
+        mode: "subscription",
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        "metadata[workspaceId]": workspaceId,
+        "metadata[atom_product]": "always_on_brain",
+        "subscription_data[metadata][workspaceId]": workspaceId,
+        "subscription_data[metadata][atom_product]": "always_on_brain",
+      };
+      if ("price" in lineItem && lineItem.price) {
+        params["line_items[0][price]"] = lineItem.price;
+        params["line_items[0][quantity]"] = lineItem.quantity;
+      } else {
+        const pd = (
+          lineItem as {
+            quantity: number;
+            price_data: {
+              currency: string;
+              unit_amount: number;
+              recurring: { interval: string };
+              product_data: { name: string };
+            };
+          }
+        ).price_data;
+        params["line_items[0][quantity]"] = lineItem.quantity;
+        params["line_items[0][price_data][currency]"] = pd.currency;
+        params["line_items[0][price_data][unit_amount]"] = pd.unit_amount;
+        params["line_items[0][price_data][recurring][interval]"] = pd.recurring.interval;
+        params["line_items[0][price_data][product_data][name]"] = pd.product_data.name;
+      }
+      const session = await stripeRequest<{ id: string; url: string | null }>(
+        { secretKey: secret },
+        "POST",
+        "/checkout/sessions",
+        params,
+      );
+      res.json({
+        workspaceId,
+        status: "checkout",
+        checkoutSessionId: session.id,
+        checkoutUrl: session.url,
+        ...price,
+      });
+    } catch (error) {
+      res.status(502).json({
+        error: error instanceof Error ? error.message : String(error),
+        ...price,
+      });
+    }
   });
 }
 

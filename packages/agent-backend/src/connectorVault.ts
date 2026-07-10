@@ -157,6 +157,8 @@ interface ConnectorVaultPayload {
   standingIntents?: unknown[];
   /** Queued brain notifications awaiting shell delivery (BK-43). */
   brainPendingNotifications?: unknown[];
+  /** Web Push / FCM subscriptions for closed-app brain delivery. */
+  pushSubscriptions?: unknown[];
 }
 
 export class ConnectorVault {
@@ -672,6 +674,15 @@ export class ConnectorVault {
 
   async setBrainPendingNotifications(entries: unknown[]): Promise<void> {
     this.payload.brainPendingNotifications = entries;
+    await this.persist();
+  }
+
+  getPushSubscriptions(): unknown[] {
+    return this.payload.pushSubscriptions ?? [];
+  }
+
+  async setPushSubscriptions(entries: unknown[]): Promise<void> {
+    this.payload.pushSubscriptions = entries;
     await this.persist();
   }
 

@@ -13,6 +13,14 @@ export const BRIEFING_TOPIC_SEARCH_POOL = 8;
 export const BRIEFING_OPEN_MESSAGE =
   "[briefing-open] One briefing-daily composition (core/stack of cards): Today calendar card even if empty, up to 5 RSS headlines with links, up to 5 curated topic headlines from news-search. Single JSON turn — no headline lists in text.";
 
+/**
+ * Sent when a standing-intent daily-briefing fires (Agent Brain → Chat composition).
+ * Same composition contract as BRIEFING_OPEN_MESSAGE; distinct tag so session-open
+ * and brain-fire can be guarded independently.
+ */
+export const BRIEFING_FIRE_MESSAGE =
+  "[briefing-fire] One briefing-daily composition (core/stack of cards): Today calendar card even if empty, up to 5 RSS headlines with links, up to 5 curated topic headlines from news-search. Single JSON turn — no headline lists in text.";
+
 export interface BriefingPreferences {
   enabled: boolean;
   /** Topic labels the owner cares about in roundups (e.g. politics, tech). */
