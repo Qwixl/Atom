@@ -135,3 +135,126 @@ export async function saveAttestations<T>(
     body: JSON.stringify({ entries: [...entries] }),
   });
 }
+
+export async function loadChatFeed(
+  config: CommsAgentConfig,
+  workspaceId = "personal",
+): Promise<unknown | null> {
+  const qs = new URLSearchParams({ workspaceId });
+  const body = await custodyFetch<{ feed: unknown | null }>(
+    config,
+    `/custody/store/chat-feed?${qs.toString()}`,
+  );
+  return body.feed ?? null;
+}
+
+export async function saveChatFeed(
+  config: CommsAgentConfig,
+  workspaceId: string,
+  feed: unknown,
+): Promise<void> {
+  await custodyFetch(config, "/custody/store/chat-feed", {
+    method: "PUT",
+    body: JSON.stringify({ workspaceId, feed }),
+  });
+}
+
+export type StandingIntentKind = "daily-briefing" | "reminder" | "watch";
+
+export type StandingIntentTrigger =
+  | { type: "daily-time"; time: string; timezone?: string }
+  | { type: "at"; at: string }
+  | { type: "interval"; everyMinutes: number };
+
+export interface StandingIntent {
+  id: string;
+  kind: StandingIntentKind;
+  enabled: boolean;
+  title: string;
+  trigger: StandingIntentTrigger;
+  scope?: { topics?: string[]; connectorIds?: string[]; query?: string };
+  delivery?: {
+    channel?: "inbox" | "chat" | "push";
+    quietHours?: { start: string; end: string };
+  };
+  lastFiredAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BrainStatus {
+  ok: boolean;
+  running: boolean;
+  alwaysOn: boolean;
+  intervalMs: number;
+  lastTickAt: string | null;
+  lastFireCount: number;
+  intentCount: number;
+  pendingCount: number;
+}
+
+export async function loadBrainIntents(config: CommsAgentConfig): Promise<StandingIntent[]> {
+  const body = await custodyFetch<{ intents: StandingIntent[] }>(config, "/brain/intents");
+  return Array.isArray(body.intents) ? body.intents : [];
+}
+
+export async function saveBrainIntents(
+  config: CommsAgentConfig,
+  intents: StandingIntent[],
+): Promise<StandingIntent[]> {
+  const body = await custodyFetch<{ ok: boolean; intents: StandingIntent[] }>(
+    config,
+    "/brain/intents",
+    {
+      method: "PUT",
+      body: JSON.stringify({ intents }),
+    },
+  );
+  return Array.isArray(body.intents) ? body.intents : intents;
+}
+
+export async function loadBrainStatus(config: CommsAgentConfig): Promise<BrainStatus | null> {
+  try {
+    return await custodyFetch<BrainStatus>(config, "/brain/status");
+  } catch {
+    return null;
+  }
+}
+
+export interface BrainPendingNotification {
+  id: string;
+  intentId: string;
+  kind: StandingIntentKind;
+  title: string;
+  body: string;
+  createdAt: string;
+  deliveredAt?: string | null;
+}
+
+export async function loadBrainPending(
+  config: CommsAgentConfig,
+  undeliveredOnly = true,
+): Promise<BrainPendingNotification[]> {
+  const qs = undeliveredOnly ? "?undelivered=1" : "";
+  const body = await custodyFetch<{ notifications: BrainPendingNotification[] }>(
+    config,
+    `/brain/pending${qs}`,
+  );
+  return Array.isArray(body.notifications) ? body.notifications : [];
+}
+
+export async function markBrainNotificationsDelivered(
+  config: CommsAgentConfig,
+  ids: readonly string[],
+): Promise<void> {
+  if (ids.length === 0) return;
+  await custodyFetch(config, "/brain/pending/delivered", {
+    method: "POST",
+    body: JSON.stringify({ ids: [...ids] }),
+  });
+}
+
+export function newStandingIntentId(): string {
+  return `intent_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
