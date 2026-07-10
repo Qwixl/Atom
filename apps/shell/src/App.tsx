@@ -89,9 +89,11 @@ import {
   capabilitiesNeedRefresh,
   formatNativeToolsLabel,
   shouldCurateTranscript,
+  recordShellModelSighting,
   type LlmConfig,
   type ModelCapabilityProfile,
   type AtomToolExecutor,
+  type AtomConnectorId,
   type McpToolExecutor,
 } from "@qwixl/agent-llm";
 import { AgUiAgentSession, type AgUiAgentConfig } from "@qwixl/ag-ui-adapter";
@@ -242,8 +244,16 @@ import {
   parseSettingsProposalFromAction,
   savePendingSettingsProposal,
   settingsProposalCustodyTerms,
+  synthesizeSettingsProposalFromFeed,
   type PendingSettingsProposal,
 } from "./settings/pendingSettingsProposal.js";
+import {
+  LLM_PROVIDER_PRESETS,
+  getLlmProviderPreset,
+  matchLlmProviderPresetId,
+  modelSelectOptions,
+  type LlmProviderPresetId,
+} from "./settings/llmProviderPresets.js";
 import { loadCommsAgentConfig, loadCommsAgentConfigSecure, saveCommsAgentConfigSecure, clearCommsAdminToken, clearCommsAgentConfig, loadOwnerAgentKind, refreshCommsConfigCache, purgeStaleLocalAgentConfig, isLocalAgentUrl } from "./comms/storage.js";
 import { probeAgentConnection, reconcileAgentConnection } from "./comms/agentConnection.js";
 import { presentUserError } from "./comms/agentErrors.js";
@@ -688,6 +698,17 @@ export function App() {
     };
   }, [llmConnection, provider, secretStore]);
 
+  // MBA-7: record model id only (never keys) for ops behavior-admin discovery.
+  useEffect(() => {
+    const model = llmConnection?.model?.trim();
+    if (!model) return;
+    try {
+      recordShellModelSighting(model);
+    } catch {
+      /* ignore storage errors */
+    }
+  }, [llmConnection?.model]);
+
   const savedLlmKeyHint = useMemo(() => {
     if (!llmConnection) return null;
     const key = secretStore.get(llmConnection.secretRef);
@@ -987,10 +1008,10 @@ export function App() {
       );
       const calendar =
         calendarContextRef.current ??
-        "Calendar snapshot still loading. Prefer atom_connector_invoke (webcal listEvents). Do not treat as disconnected.";
+        "Calendar snapshot still loading. Call calendar_list_events for fresh data. Do not treat as disconnected.";
       const rss =
         rssContextRef.current ??
-        "RSS snapshot still loading. Prefer atom_connector_invoke (rss listItems). Do not treat as disconnected.";
+        "RSS snapshot still loading. Call rss_list_items for fresh data. Do not treat as disconnected.";
       const location =
         formatLocationContextForPrompt(loadLocationPreferences(), deviceLocationRef.current) ??
         "No home city or one-shot device location. Owner can set home city or tap Use current location once in Settings → Briefing. Atom never tracks location in the background.";
@@ -1171,11 +1192,18 @@ export function App() {
     if (!vaultUnlocked) {
       applyCalendarContext(undefined);
       applyRssContext(undefined);
+      setConnectedConnectorIds(undefined);
       return;
     }
     void refreshWebcalState();
     void refreshRssState();
-  }, [vaultUnlocked, refreshWebcalState, refreshRssState, applyCalendarContext, applyRssContext]);
+  }, [
+    vaultUnlocked,
+    refreshWebcalState,
+    refreshRssState,
+    applyCalendarContext,
+    applyRssContext,
+  ]);
 
   const connectorContextReady = calendarContext !== undefined && rssContext !== undefined;
 
@@ -1280,6 +1308,40 @@ export function App() {
     }
   }, [ownerStore, curatorAutoAcceptOpen]);
 
+  const [connectedConnectorIds, setConnectedConnectorIds] = useState<
+    readonly AtomConnectorId[] | undefined
+  >(undefined);
+
+  const refreshConnectedConnectors = useCallback(async () => {
+    if (IS_DEMO_MODE) {
+      setConnectedConnectorIds(undefined);
+      return;
+    }
+    const config = vaultUnlocked
+      ? await loadCommsAgentConfigSecure()
+      : loadCommsAgentConfig();
+    if (!config.adminToken?.trim()) {
+      setConnectedConnectorIds(undefined);
+      return;
+    }
+    try {
+      const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
+      const { configured } = await client.listConfiguredConnectors();
+      setConnectedConnectorIds(configured as AtomConnectorId[]);
+    } catch {
+      // Keep prior list on transient failure; omit filter only when never loaded.
+    }
+  }, [vaultUnlocked]);
+
+  useEffect(() => {
+    if (IS_DEMO_MODE) return;
+    if (!vaultUnlocked) {
+      setConnectedConnectorIds(undefined);
+      return;
+    }
+    void refreshConnectedConnectors();
+  }, [vaultUnlocked, refreshConnectedConnectors]);
+
   const atomToolExecutor = useCallback<AtomToolExecutor>(async (call) => {
     const config = vaultUnlocked
       ? await loadCommsAgentConfigSecure()
@@ -1345,6 +1407,7 @@ export function App() {
       return new LlmAgentSession(llmConfig, catalog, profileProvider, {
         atomToolExecutor,
         atomConnectorsAvailable: agentConnectionReady && !IS_DEMO_MODE,
+        connectedConnectorIds,
         mcpToolExecutor,
         mcpServersAvailable: agentConnectionReady && !IS_DEMO_MODE,
       });
@@ -1363,12 +1426,26 @@ export function App() {
       profileProvider,
       webcalEventsProvider: mockWebcalEventsProvider,
     });
-  }, [provider, llmConfig, agUiSessionKey, catalog, profileProvider, mockWebcalEventsProvider, atomToolExecutor, mcpToolExecutor, agentConnectionReady]);
+  }, [
+    provider,
+    llmConfig,
+    agUiSessionKey,
+    catalog,
+    profileProvider,
+    mockWebcalEventsProvider,
+    atomToolExecutor,
+    mcpToolExecutor,
+    agentConnectionReady,
+    connectedConnectorIds,
+  ]);
 
   const sessionRef = useRef(session);
   sessionRef.current = session;
 
   const briefingOpenSentRef = useRef(false);
+  /** After [settings-assent], auto-commit the next settingsProposal action. */
+  const settingsAssentAwaitingRef = useRef(false);
+  const settingsAssentRetryRef = useRef(0);
   /** Dedup brain-fire composition requests per notification id. */
   const briefingFireHandledRef = useRef(new Set<string>());
 
@@ -1586,6 +1663,7 @@ export function App() {
         provider,
         alreadyRequested: briefingOpenSentRef.current,
         connectorContextReady,
+        feed: conversationRef.current.getSnapshot().feed,
       })
     ) {
       return;
@@ -1731,15 +1809,6 @@ export function App() {
     () => conversation.getSnapshot(),
   );
 
-  // Soft-confirm settings proposals: stash and hide chrome until the owner assents in chat.
-  useEffect(() => {
-    if (!pending?.action) return;
-    const proposal = parseSettingsProposalFromAction(pending.action);
-    if (!proposal) return;
-    savePendingSettingsProposal(proposal);
-    conversationRef.current.clearPending();
-  }, [pending]);
-
   const commitPendingSettingsProposal = useCallback(
     async (proposal: PendingSettingsProposal) => {
       const config = vaultUnlocked
@@ -1817,6 +1886,60 @@ export function App() {
     },
     [vaultUnlocked, attestationLog, refreshRssState],
   );
+
+  // Soft-confirm settings proposals: stash and hide chrome until the owner assents in chat.
+  // If the owner already assented (settings-assent path), commit immediately when the action arrives.
+  useEffect(() => {
+    if (!pending?.action) return;
+    const proposal = parseSettingsProposalFromAction(pending.action);
+    if (!proposal) return;
+    savePendingSettingsProposal(proposal);
+    conversationRef.current.clearPending();
+    if (settingsAssentAwaitingRef.current) {
+      settingsAssentAwaitingRef.current = false;
+      settingsAssentRetryRef.current = 0;
+      void commitPendingSettingsProposal(proposal);
+    }
+  }, [pending, commitPendingSettingsProposal]);
+
+  // Assent turn finished with no settingsProposal — retry once, then fail honestly.
+  useEffect(() => {
+    if (busy || !settingsAssentAwaitingRef.current) return;
+    if (loadPendingSettingsProposal()) return;
+    if (settingsAssentRetryRef.current < 1) {
+      settingsAssentRetryRef.current += 1;
+      conversationRef.current.appendLocalAgentText(
+        "I confirmed in words but didn't attach the setup action — retrying once.",
+      );
+      conversationRef.current.setBusy(true);
+      turnTranscript.current = [];
+      try {
+        sessionRef.current.sendUserMessage(
+          "[settings-assent-retry] Owner already confirmed. Emit exactly one consequential-action " +
+            "with settingsProposal:true, topic, and watchQuery from the prior track/alert request. " +
+            "Short ack only — no briefing-daily. Example terms: " +
+            '{"settingsProposal":true,"summary":"Keep me updated on XRP","topic":"XRP price",' +
+            '"watchQuery":"XRP price move of about 5% or more over a week","everyMinutes":60}',
+        );
+      } catch (error) {
+        settingsAssentAwaitingRef.current = false;
+        settingsAssentRetryRef.current = 0;
+        conversationRef.current.appendLocalAgentText(
+          presentUserError(error, {
+            accountType: loadAccountType(),
+            showTechnicalDetail: SHOW_DEV_WORKFLOWS,
+          }),
+        );
+        conversationRef.current.setBusy(false);
+      }
+      return;
+    }
+    settingsAssentAwaitingRef.current = false;
+    settingsAssentRetryRef.current = 0;
+    conversationRef.current.appendLocalAgentText(
+      "I still couldn't save that setup (missing the settings action). Ask me again to track it — I'll attach the proposal this time.",
+    );
+  }, [busy]);
 
   const activeChatGame = useMemo(() => findActiveGameInFeed(feed), [feed]);
   const activeGameEngine = activeChatGame ? getGameEngine(activeChatGame.embed.moduleId) : null;
@@ -2063,12 +2186,51 @@ export function App() {
         }
         return;
       }
-      // Assent with nothing pending — stop the model from hallucinating a successful setup.
+      // Agent soft-asked in text but never emitted settingsProposal — recover from the owner's request.
+      const synthesized = synthesizeSettingsProposalFromFeed(
+        conversationRef.current.getSnapshot().feed,
+      );
+      if (synthesized) {
+        conversationRef.current.appendUser(trimmed);
+        setInput("");
+        conversationRef.current.setBusy(true);
+        try {
+          await commitPendingSettingsProposal(synthesized);
+        } catch (error) {
+          conversationRef.current.appendLocalAgentText(
+            presentUserError(error, {
+              accountType,
+              showTechnicalDetail: SHOW_DEV_WORKFLOWS,
+            }),
+          );
+          conversationRef.current.setBusy(false);
+        }
+        return;
+      }
+      // Last resort: nudge the agent to emit a proposal, then auto-commit when it arrives.
       conversationRef.current.appendUser(trimmed);
       setInput("");
-      conversationRef.current.appendLocalAgentText(
-        "I don't have a pending setup to save yet. Ask me again to track something — I'll propose the feed, briefing topic, and alert, then you can confirm.",
-      );
+      conversationRef.current.setBusy(true);
+      turnTranscript.current = [];
+      settingsAssentAwaitingRef.current = true;
+      settingsAssentRetryRef.current = 0;
+      try {
+        sessionRef.current.sendUserMessage(
+          "[settings-assent] Owner confirmed your offer to track/update/alert. " +
+            "Emit exactly one consequential-action with settingsProposal:true " +
+            "(topic and/or watchQuery required; url/label only if you have a real RSS URL). " +
+            "Short text ack only — do NOT emit briefing-daily or claim settings are saved yet.",
+        );
+      } catch (error) {
+        settingsAssentAwaitingRef.current = false;
+        conversationRef.current.appendLocalAgentText(
+          presentUserError(error, {
+            accountType,
+            showTechnicalDetail: SHOW_DEV_WORKFLOWS,
+          }),
+        );
+        conversationRef.current.setBusy(false);
+      }
       return;
     }
 
@@ -2783,8 +2945,14 @@ export function App() {
           chatProvider={provider}
           chatProviderSummary={chatProviderSummary}
           allowBrowserLlm={ALLOW_BROWSER_LLM}
-          onWebcalFeedsChanged={refreshWebcalState}
-          onRssFeedsChanged={refreshRssState}
+          onWebcalFeedsChanged={() => {
+            void refreshWebcalState();
+            void refreshConnectedConnectors();
+          }}
+          onRssFeedsChanged={() => {
+            void refreshRssState();
+            void refreshConnectedConnectors();
+          }}
           deviceLocation={deviceLocation}
           onDeviceLocationChange={applyDeviceLocation}
           agentConnectionReady={agentConnectionReady}
@@ -2925,6 +3093,8 @@ export function App() {
               )}
             </>
           }
+          profileBadge={profileNavBadge}
+          logBadgeCount={attestations.length}
         />
       ) : null}
 
@@ -3216,6 +3386,8 @@ function SettingsDialog({
   activeWorkspaceId,
   profilePanel,
   logPanel,
+  profileBadge = null,
+  logBadgeCount = 0,
 }: {
   initialSection?: SettingsOpenTarget;
   llmConnectionInitial: LlmConnectionConfig | null;
@@ -3250,11 +3422,16 @@ function SettingsDialog({
   activeWorkspaceId: string;
   profilePanel: ReactNode;
   logPanel: ReactNode;
+  profileBadge?: { count: number; tone: "default" | "warn" } | null;
+  logBadgeCount?: number;
 }) {
   const [baseUrl, setBaseUrl] = useState(
     llmConnectionInitial?.baseUrl ?? "https://api.openai.com/v1",
   );
   const [model, setModel] = useState(llmConnectionInitial?.model ?? "");
+  const [providerPresetId, setProviderPresetId] = useState<LlmProviderPresetId>(() =>
+    matchLlmProviderPresetId(llmConnectionInitial?.baseUrl ?? "https://api.openai.com/v1"),
+  );
   const modelRef = useRef(model);
   modelRef.current = model;
   const [modelCapabilities, setModelCapabilities] = useState<ModelCapabilityProfile | null>(() => {
@@ -3274,6 +3451,26 @@ function SettingsDialog({
   const [modelsFromApi, setModelsFromApi] = useState<boolean | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [changingKey, setChangingKey] = useState(!savedLlmKeyHint);
+  const providerPreset = getLlmProviderPreset(providerPresetId);
+  const modelSelectIds = useMemo(
+    () =>
+      modelSelectOptions({
+        presetId: providerPresetId,
+        apiModels: modelOptions,
+        currentModel: model,
+        apiListOk: modelsFromApi === true,
+      }),
+    [providerPresetId, modelOptions, model, modelsFromApi],
+  );
+
+  function applyProviderPreset(id: LlmProviderPresetId) {
+    const next = getLlmProviderPreset(id);
+    setProviderPresetId(id);
+    if (next.baseUrl) setBaseUrl(next.baseUrl);
+    if (next.suggestedModels.length > 0 && !next.suggestedModels.includes(model.trim())) {
+      setModel(next.suggestedModels[0]!);
+    }
+  }
   const [agUiUrl, setAgUiUrl] = useState(agUiInitial.url);
   const [registryIndexUrl, setRegistryIndexUrl] = useState(registryInitial);
   const [appStoreUrl, setAppStoreUrl] = useState(
@@ -3638,6 +3835,33 @@ function SettingsDialog({
             <p className="settings-note">
               Connect a chat model for local development. Your key stays in this browser session only.
             </p>
+            <label className="atom-field">
+              <span className="atom-field-label">Provider</span>
+              <select
+                value={providerPresetId}
+                onChange={(e) => applyProviderPreset(e.target.value as LlmProviderPresetId)}
+              >
+                {LLM_PROVIDER_PRESETS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {providerPreset.note ? <p className="settings-note">{providerPreset.note}</p> : null}
+            <label className="atom-field">
+              <span className="atom-field-label">Endpoint base URL</span>
+              <input
+                value={baseUrl}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setBaseUrl(next);
+                  setProviderPresetId(matchLlmProviderPresetId(next));
+                }}
+                placeholder="https://api.openai.com/v1"
+                readOnly={providerPresetId !== "custom" && Boolean(providerPreset.baseUrl)}
+              />
+            </label>
             {hasSavedKey ? (
               <div className="settings-saved-key">
                 <span className="settings-saved-key-label">API key</span>
@@ -3672,14 +3896,16 @@ function SettingsDialog({
                 <p className="settings-note">Loading models…</p>
               ) : (
                 <div className="settings-inline-add">
-                  {modelsFromApi && modelOptions.length > 0 ? (
+                  {modelSelectIds.length > 0 &&
+                  (providerPresetId !== "custom" ||
+                    (modelsFromApi === true && modelOptions.length > 0 && modelOptions.length <= 40)) ? (
                     <select value={model} onChange={(e) => setModel(e.target.value)}>
                       {!model.trim() ? (
                         <option value="" disabled>
                           Please select a model
                         </option>
                       ) : null}
-                      {modelOptions.map((id) => (
+                      {modelSelectIds.map((id) => (
                         <option key={id} value={id}>
                           {id}
                         </option>
@@ -3688,7 +3914,7 @@ function SettingsDialog({
                   ) : (
                     <input
                       value={model}
-                      placeholder="e.g. gpt-4o-mini"
+                      placeholder="e.g. gpt-4o-mini or openai/gpt-4o-mini"
                       onChange={(e) => setModel(e.target.value)}
                     />
                   )}
@@ -3705,6 +3931,12 @@ function SettingsDialog({
                   </button>
                 </div>
               )}
+              {hasApiKey && modelsFromApi && modelOptions.length > 40 && providerPresetId !== "custom" ? (
+                <p className="settings-note">
+                  Showing a curated shortlist (this provider returns a large catalog). Switch Provider to
+                  Custom to type any model id.
+                </p>
+              ) : null}
               {hasApiKey && !modelOptionsLoading && modelsFromApi && !model.trim() ? (
                 <p className="settings-note">Please select a model</p>
               ) : null}
@@ -4100,7 +4332,14 @@ function SettingsDialog({
           className={`settings-dialog-layout${mobileDetailOpen ? " settings-dialog-layout--detail" : " settings-dialog-layout--list"}`}
         >
           <nav className="settings-nav" aria-label="Settings sections">
-            {navItems.map((item) => (
+            {navItems.map((item) => {
+              const badge =
+                item.id === "profile" && profileBadge
+                  ? profileBadge
+                  : item.id === "log" && logBadgeCount > 0
+                    ? { count: logBadgeCount, tone: "default" as const }
+                    : null;
+              return (
               <button
                 key={item.id}
                 type="button"
@@ -4108,11 +4347,21 @@ function SettingsDialog({
                 aria-current={activeSection === item.id ? "true" : undefined}
                 onClick={() => selectSettingsSection(item.id)}
               >
-                <span className="settings-nav-label">{item.label}</span>
+                <span className="settings-nav-label-row">
+                  <span className="settings-nav-label">{item.label}</span>
+                  {badge ? (
+                    <span
+                      className={`settings-nav-badge${badge.tone === "warn" ? " settings-nav-badge--warn" : ""}`}
+                    >
+                      {badge.count}
+                    </span>
+                  ) : null}
+                </span>
                 <span className="settings-nav-hint">{item.hint}</span>
                 <IconChevronRight className="settings-nav-chevron" />
               </button>
-            ))}
+              );
+            })}
           </nav>
           <div className="settings-dialog-body">
             {activeSection === "profile" ? (

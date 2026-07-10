@@ -1,0 +1,85 @@
+# Model behavior administration (ops cron)
+#
+# Weekly / manual maintenance: re-score models and open a PR that updates
+# packages/agent-llm/src/modelBehaviorRegistry.json (secret-free).
+# See MODEL-BEHAVIOR-ADMIN.md.
+#
+# Requires repo secret OPENROUTER_API_KEY (or LLM_API_KEY). Without a key,
+# only prints the registry (dry-run) — no PR.
+
+name: model-behavior-admin
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  admin:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Print registry (always)
+        run: pnpm --filter @qwixl/agent-llm admin:model-behavior
+
+      - name: Eval + write proposals
+        id: eval
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          EVAL_MODELS: ${{ vars.EVAL_MODELS }}
+          MODEL_BEHAVIOR_SIGHTINGS: ${{ vars.MODEL_BEHAVIOR_SIGHTINGS }}
+        run: |
+          if [ -z "${OPENROUTER_API_KEY}${LLM_API_KEY}" ]; then
+            echo "No OPENROUTER_API_KEY or LLM_API_KEY secret — skipping live eval / PR."
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skipped=false" >> "$GITHUB_OUTPUT"
+          export LLM_BASE_URL="${LLM_BASE_URL:-https://openrouter.ai/api/v1}"
+          # When EVAL_MODELS is unset, admin merges defaults ∪ sightings (MBA-7).
+          # Set repo variable EVAL_MODELS to pin an explicit shortlist.
+          pnpm --filter @qwixl/agent-llm admin:model-behavior -- --eval --write
+
+      - name: Upload registry artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-behavior-registry
+          path: packages/agent-llm/src/modelBehaviorRegistry.json
+
+      - name: Open PR when registry changed
+        if: steps.eval.outputs.skipped != 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(agent-llm): refresh model behavior registry from weekly eval"
+          title: "chore: model behavior registry (weekly admin)"
+          body: |
+            ## Summary
+            - Weekly `admin:model-behavior --eval --write` refreshed `modelBehaviorRegistry.json` from tool-judgment scores.
+            - Secret-free registry only (no API keys).
+
+            ## Review
+            - [ ] Spot-check class moves vs scoreboard in the workflow log
+            - [ ] Confirm no unexpected pattern deletions
+            - [ ] Merge when satisfied (do not auto-merge)
+
+            See [MODEL-BEHAVIOR-ADMIN.md](../blob/main/MODEL-BEHAVIOR-ADMIN.md).
+          branch: chore/model-behavior-admin
+          delete-branch: true
+          add-paths: |
+            packages/agent-llm/src/modelBehaviorRegistry.json

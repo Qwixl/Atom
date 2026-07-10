@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "updated": "2026-07-10",
+  "defaultClassId": "balanced",
+  "classes": {
+    "tool-eager": {
+      "description": "Calls tools readily; may over-call. Prefer when missing-call rate is low and unexpected-call appears.",
+      "toolChoice": "auto",
+      "includeDeprecatedAlias": true,
+      "promptAddendumId": "tool-eager"
+    },
+    "balanced": {
+      "description": "Default Atom tool loop. Unknown models land here.",
+      "toolChoice": "auto",
+      "includeDeprecatedAlias": true,
+      "promptAddendumId": "none"
+    },
+    "tool-shy": {
+      "description": "Under-invokes connectors; answers from snapshots/training. Strong invoke addendum.",
+      "toolChoice": "auto",
+      "includeDeprecatedAlias": true,
+      "promptAddendumId": "tool-shy"
+    },
+    "local-slm": {
+      "description": "Small/local models: fewer tools, tighter protocol reminder.",
+      "toolChoice": "auto",
+      "includeDeprecatedAlias": false,
+      "promptAddendumId": "local-slm"
+    }
+  },
+  "assignments": [
+    {
+      "pattern": "gpt-4.1-mini",
+      "classId": "tool-eager",
+      "note": "Seed: mini-class chat models"
+    },
+    {
+      "pattern": "gpt-4o-mini",
+      "classId": "tool-eager",
+      "note": "2026-07-10 scoreboard: stronger tool invocation than gpt-4o"
+    },
+    {
+      "pattern": "gpt-4.1",
+      "classId": "tool-shy",
+      "note": "Seed: frontier chat sibling of gpt-4o until re-scored"
+    },
+    {
+      "pattern": "gpt-4o",
+      "classId": "tool-shy",
+      "note": "2026-07-10 scoreboard: systematic missing-call under-invocation"
+    },
+    {
+      "pattern": "claude",
+      "classId": "balanced",
+      "note": "Seed until multi-model scoreboard"
+    },
+    {
+      "pattern": "mistral",
+      "classId": "balanced",
+      "note": "Seed until scored"
+    },
+    {
+      "pattern": "command-r",
+      "classId": "balanced",
+      "note": "Seed: Cohere Command R family"
+    },
+    {
+      "pattern": "deepseek",
+      "classId": "balanced",
+      "note": "Seed until scored"
+    },
+    {
+      "pattern": "gemini",
+      "classId": "balanced",
+      "note": "Seed until scored"
+    },
+    {
+      "pattern": "grok",
+      "classId": "balanced",
+      "note": "Seed until scored"
+    },
+    {
+      "pattern": "llama",
+      "classId": "local-slm",
+      "note": "Seed: open-weight / local"
+    },
+    {
+      "pattern": "gemma",
+      "classId": "local-slm",
+      "note": "Seed: small SLM"
+    },
+    {
+      "pattern": "phi-",
+      "classId": "local-slm",
+      "note": "Seed: small SLM"
+    },
+    {
+      "pattern": "qwen",
+      "classId": "balanced",
+      "note": "Seed until scored"
+    },
+    {
+      "pattern": "yi-",
+      "classId": "balanced",
+      "note": "Seed until scored"
+    },
+    {
+      "pattern": "glm",
+      "classId": "balanced",
+      "note": "Seed until scored"
+    },
+    {
+      "pattern": "o1",
+      "classId": "tool-shy",
+      "note": "Seed: reasoning models often skip tools — re-score before trusting"
+    },
+    {
+      "pattern": "o3",
+      "classId": "tool-shy",
+      "note": "Seed: reasoning family"
+    },
+    {
+      "pattern": "o4",
+      "classId": "tool-shy",
+      "note": "Seed: reasoning family"
+    }
+  ]
+}

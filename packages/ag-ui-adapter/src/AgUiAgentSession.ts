@@ -1,6 +1,7 @@
 import { HttpAgent, type AgentSubscriber } from "@ag-ui/client";
 import { v4 as uuid } from "uuid";
 import { ATOM_AGUI_PROFILE_PROP, type PersonalAgentContext } from "@qwixl/owner-store";
+import { resolveAgUiConnectorInvoke } from "@qwixl/agent-llm";
 import {
   SessionEmitter,
   presentChatAgentError,
@@ -13,10 +14,12 @@ import {
   mapCustomEventToOutput,
   parseConnectorInvokeRequest,
   resetA2uiAssembler,
+  type AtomConnectorId,
+  type AtomConnectorInvokeRequest,
 } from "./atom-events.js";
 import { formatConnectorResultMessage } from "./inbound.js";
 
-export type AtomConnectorId = "webcal" | "rss" | "news-search" | "bookmarks" | "todoist" | "github" | "notion" | "caldav" | "weather";
+export type { AtomConnectorId };
 
 export type AtomConnectorInvokeInput = {
   connectorId: AtomConnectorId;
@@ -143,15 +146,31 @@ export class AgUiAgentSession extends SessionEmitter implements AgentSession {
     }
   }
 
-  private queueConnectorInvoke(req: ReturnType<typeof parseConnectorInvokeRequest>): void {
+  private queueConnectorInvoke(req: AtomConnectorInvokeRequest | null): void {
     if (!req || !this.connectorExecutor) return;
     const executor = this.connectorExecutor;
     const promise = (async () => {
       try {
-        const result = await executor({
+        const resolved = resolveAgUiConnectorInvoke({
+          toolName: req.toolName,
           connectorId: req.connectorId,
           operation: req.operation,
           input: req.input,
+        });
+        if (!resolved.ok) {
+          this.connectorResultsToSend.push(
+            formatConnectorResultMessage({
+              callId: req.callId,
+              ok: false,
+              error: resolved.error,
+            }),
+          );
+          return;
+        }
+        const result = await executor({
+          connectorId: resolved.call.connectorId as AtomConnectorId,
+          operation: resolved.call.operation,
+          input: resolved.call.input,
         });
         this.connectorResultsToSend.push(
           formatConnectorResultMessage({ callId: req.callId, ok: true, result }),

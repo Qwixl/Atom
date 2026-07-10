@@ -7,6 +7,7 @@ Thin **Capacitor** WebView that remote-loads the hosted shell (`https://atom.qwi
 - JDK 17+
 - [Android Studio](https://developer.android.com/studio) with Android SDK + an emulator or USB device
 - From repo root: `pnpm install`
+- For push (FCM): a Firebase Android app + `google-services.json` (see below)
 
 ## Commands (repo root)
 
@@ -38,6 +39,16 @@ pnpm native:android
 
 Physical device: use your LAN IP instead of `10.0.2.2`, and ensure cleartext is allowed (config sets `cleartext` when the URL is `http://`).
 
+## Push notifications (FCM)
+
+1. Create a Firebase project → add Android app with package `com.qwixl.atom`.
+2. Download `google-services.json` into `apps/native/android/app/` (gitignored — never commit).
+3. Run `pnpm native:sync` so `@capacitor/push-notifications` is linked into the Android project.
+4. On the agent / fleet host, set `ATOM_FCM_SERVER_KEY` (legacy server key) so `sendPush` can deliver.
+5. In the shell: Settings → Standing intents / Push — opt in after vault unlock.
+
+Notification taps open `/app/` (or the `url` field in the FCM data payload).
+
 ## Layout
 
 | Path | Role |
@@ -52,4 +63,4 @@ iOS (`BK-40`) is not added yet — run `pnpm add:ios` on macOS after Android lea
 
 - Bundled web assets as the primary load path
 - Native Chat / Settings UI (Swift/Kotlin widgets)
-- Push, deep links, safe-area plugins (later)
+- Store release signing / Play Console upload (operator step)

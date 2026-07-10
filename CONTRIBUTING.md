@@ -14,6 +14,7 @@ By participating you agree to the [Code of Conduct](./CODE_OF_CONDUCT.md).
 | Author a module | [MODULES.md](./MODULES.md) |
 | Self-host an agent | [AGENT-BACKEND.md](./AGENT-BACKEND.md) |
 | Security model | [SECURITY.md](./SECURITY.md) |
+| Model behavior admin (ops) | [MODEL-BEHAVIOR-ADMIN.md](./MODEL-BEHAVIOR-ADMIN.md) |
 | Frozen contracts | [API-v1.md](./API-v1.md), [PROTOCOL-v1.md](./PROTOCOL-v1.md) |
 
 **Discussions** ([GitHub Discussions](https://github.com/Qwixl/Atom/discussions)) — ideas, Q&A, show-and-tell.  

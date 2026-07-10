@@ -40,6 +40,7 @@
   "dependencies": {
     "@ag-ui/client": "0.0.57",
     "@qwixl/a2ui-adapter": "workspace:*",
+    "@qwixl/agent-llm": "workspace:*",
     "@qwixl/owner-store": "workspace:*",
     "@qwixl/shell-core": "workspace:*",
     "uuid": "^11.1.0"

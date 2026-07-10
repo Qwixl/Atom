@@ -20,6 +20,7 @@ MCP Apps and vendor app SDKs put your widget inside an AI vendor's chat product 
 | Docs site | `pnpm dev:docs` → http://localhost:5206 |
 | Wire protocol | [PROTOCOL-v1.md](./PROTOCOL-v1.md) |
 | Security posture | [SECURITY.md](./SECURITY.md) |
+| Model behavior admin (ops) | [MODEL-BEHAVIOR-ADMIN.md](./MODEL-BEHAVIOR-ADMIN.md) — classes + cron script; not a Settings feature |
 | M16 launch gates | [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md) |
 
 ## Production hosting security (M21)

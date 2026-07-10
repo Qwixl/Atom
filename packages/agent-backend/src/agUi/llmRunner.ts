@@ -1,12 +1,15 @@
 import { type BaseEvent, type RunAgentInput } from "@ag-ui/client";
 import {
-  ATOM_CONNECTOR_INVOKE_TOOL,
   buildAgentToolProfile,
   buildSystemPrompt,
   chatCompletionTools,
   formatLlmProviderError,
-  parseAtomConnectorInvokeArgs,
+  resolveToolCallToConnectorInvoke,
   wrapUntrustedContent,
+  ownerMessageNeedsSettingsProposal,
+  protocolMessagesHaveSettingsProposal,
+  softConfirmRepairUserContent,
+  type AtomConnectorId,
   type AtomToolExecutor,
   type PromptProfile,
 } from "@qwixl/agent-llm";
@@ -18,6 +21,7 @@ import {
   type AgentOutput,
 } from "@qwixl/shell-core";
 import { v4 as uuid } from "uuid";
+import { recordHostedModelSighting } from "../modelBehaviorSightings.js";
 import { agentOutputToAgUiEvents, textAgUiEvents } from "./outputEvents.js";
 import { profileFromRunAgentInput } from "./profileFromInput.js";
 
@@ -37,10 +41,15 @@ export interface LlmAgUiConfig {
   onUsage?: (usage: { promptTokens?: number; completionTokens?: number; model: string }) => void;
   /**
    * When set with atomConnectorsAvailable, the hosted AG-UI runner runs the same
-   * atom_connector_invoke tool loop as browser Live LLM (calendar, RSS, etc.).
+   * per-intent connector tool loop as browser Live LLM (calendar, RSS, etc.).
    */
   connectorExecutor?: AtomToolExecutor;
   atomConnectorsAvailable?: boolean;
+  /**
+   * When set, only per-intent tools for these connectors (plus alwaysAvailable
+   * tools) are exposed to the model (D081 session filtering).
+   */
+  connectedConnectorIds?: readonly AtomConnectorId[];
 }
 
 const REQUEST_TIMEOUT_MS = 120_000;
@@ -128,30 +137,32 @@ function connectorsEnabled(config: LlmAgUiConfig): boolean {
 }
 
 async function executeNamedTool(config: LlmAgUiConfig, name: string, argsJson: string): Promise<string> {
-  if (name === ATOM_CONNECTOR_INVOKE_TOOL.function.name) {
-    if (!config.connectorExecutor) {
-      return JSON.stringify({ error: "Atom connector invoke is not configured" });
-    }
-    try {
-      const args = parseAtomConnectorInvokeArgs(argsJson);
-      const result = await config.connectorExecutor(args);
-      return wrapUntrustedContent(JSON.stringify(result, null, 2), {
-        source: `connector:${args.connectorId}`,
-        purpose: args.operation,
-      });
-    } catch (error) {
-      return JSON.stringify({
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+  const resolved = resolveToolCallToConnectorInvoke(name, argsJson);
+  if (!resolved.ok) {
+    return JSON.stringify({ error: resolved.error });
   }
-  return JSON.stringify({ error: `Unknown tool: ${name}` });
+  if (!config.connectorExecutor) {
+    return JSON.stringify({ error: "Atom connector invoke is not configured" });
+  }
+  try {
+    const args = resolved.call;
+    const result = await config.connectorExecutor(args);
+    return wrapUntrustedContent(JSON.stringify(result, null, 2), {
+      source: `connector:${args.connectorId}`,
+      purpose: args.operation,
+    });
+  } catch (error) {
+    return JSON.stringify({
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 async function callChatCompletions(
   config: LlmAgUiConfig,
   messages: ChatMessage[],
   tools?: unknown[],
+  toolChoice: "auto" | "required" = "auto",
 ): Promise<{
   message: ChatMessage;
   promptTokens?: number;
@@ -167,7 +178,7 @@ async function callChatCompletions(
     };
     if (tools && tools.length > 0) {
       body.tools = tools;
-      body.tool_choice = "auto";
+      body.tool_choice = toolChoice;
     }
     const response = await fetch(`${config.baseUrl.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
@@ -207,6 +218,8 @@ async function runChatWithOptionalTools(
 ): Promise<string> {
   const toolProfile = buildAgentToolProfile(undefined, {
     atomConnectorsAvailable: connectorsEnabled(config),
+    connectedConnectorIds: config.connectedConnectorIds,
+    model: config.model,
   });
   const tools = chatCompletionTools(toolProfile);
   if (tools.length === 0) {
@@ -223,8 +236,9 @@ async function runChatWithOptionalTools(
 
   const working = [...messages];
   const rounds = Math.max(1, Math.min(MAX_TOOL_ROUNDS, maxToolRounds));
+  const toolChoice = toolProfile.toolChoice ?? "auto";
   for (let round = 0; round < rounds; round += 1) {
-    const result = await callChatCompletions(config, working, tools);
+    const result = await callChatCompletions(config, working, tools, toolChoice);
     config.onUsage?.({
       promptTokens: result.promptTokens,
       completionTokens: result.completionTokens,
@@ -267,6 +281,7 @@ export async function runLlmTextCompletion(
   userMessage: string,
   options?: { maxToolRounds?: number },
 ): Promise<string> {
+  recordHostedModelSighting(config.model);
   if (config.modelAllowlist && config.modelAllowlist.length > 0) {
     if (!config.modelAllowlist.includes(config.model)) {
       throw new Error(
@@ -276,9 +291,11 @@ export async function runLlmTextCompletion(
   }
   const toolProfile = buildAgentToolProfile(undefined, {
     atomConnectorsAvailable: connectorsEnabled(config),
+    connectedConnectorIds: config.connectedConnectorIds,
+    model: config.model,
   });
   const toolHint = connectorsEnabled(config)
-    ? "\n\nYou may call atom_connector_invoke for read-only connector operations when needed."
+    ? "\n\nYou may call intent-named connector tools (calendar_list_events, news_search, rss_list_items, …) for read-only operations when needed."
     : "";
   const systemContent = [config.safetyPrefix?.trim(), systemPrompt.trim() + toolHint]
     .filter(Boolean)
@@ -311,6 +328,7 @@ export async function* runLlmAgUiEvents(
   input: RunAgentInput,
   config: LlmAgUiConfig,
 ): AsyncGenerator<BaseEvent> {
+  recordHostedModelSighting(config.model);
   if (config.modelAllowlist && config.modelAllowlist.length > 0) {
     if (!config.modelAllowlist.includes(config.model)) {
       yield* textAgUiEvents(
@@ -340,6 +358,8 @@ export async function* runLlmAgUiEvents(
       : undefined;
   const toolProfile = buildAgentToolProfile(undefined, {
     atomConnectorsAvailable: connectorsEnabled(config),
+    connectedConnectorIds: config.connectedConnectorIds,
+    model: config.model,
   });
   const baseSystem = buildSystemPrompt(catalog, mergedProfile, toolProfile);
   const systemContent = config.safetyPrefix?.trim()
@@ -364,10 +384,33 @@ export async function* runLlmAgUiEvents(
     return;
   }
 
-  const parsed = extractJson(raw);
+  let parsed = extractJson(raw);
   if (!parsed || !Array.isArray((parsed as { messages?: unknown }).messages)) {
     yield* textAgUiEvents(uuid(), raw);
     return;
+  }
+
+  const ownerAsk = lastUserContent(input);
+  if (
+    ownerAsk &&
+    ownerMessageNeedsSettingsProposal(ownerAsk) &&
+    !protocolMessagesHaveSettingsProposal((parsed as { messages: unknown[] }).messages)
+  ) {
+    messages.push({ role: "assistant", content: raw });
+    messages.push({ role: "user", content: softConfirmRepairUserContent() });
+    try {
+      raw = await runChatWithOptionalTools(config, messages);
+      const repaired = extractJson(raw);
+      if (
+        repaired &&
+        Array.isArray((repaired as { messages?: unknown }).messages) &&
+        protocolMessagesHaveSettingsProposal((repaired as { messages: unknown[] }).messages)
+      ) {
+        parsed = repaired;
+      }
+    } catch {
+      /* keep original parsed turn */
+    }
   }
 
   for (const message of (parsed as { messages: unknown[] }).messages) {

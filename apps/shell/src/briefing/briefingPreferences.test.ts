@@ -58,7 +58,7 @@ describe("briefingPreferences", () => {
       topics: ["agentic-web"],
     });
     expect(ctx).toContain("agentic-web");
-    expect(ctx).toContain("news-search");
+    expect(ctx).toContain("news_search");
     expect(ctx).toContain("at most 5 headlines");
     expect(ctx).toContain("breaking stories");
   });

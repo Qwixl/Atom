@@ -11,7 +11,7 @@ function collectEvents(gen: AsyncGenerator<unknown>): Promise<unknown[]> {
 }
 
 describe("runLlmAgUiEvents connector tool loop", () => {
-  it("invokes atom_connector_invoke and returns protocol text", async () => {
+  it("invokes calendar_list_events and returns protocol text", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -29,12 +29,8 @@ describe("runLlmAgUiEvents connector tool loop", () => {
                     id: "call_1",
                     type: "function",
                     function: {
-                      name: "atom_connector_invoke",
-                      arguments: JSON.stringify({
-                        connectorId: "webcal",
-                        operation: "listEvents",
-                        input: {},
-                      }),
+                      name: "calendar_list_events",
+                      arguments: JSON.stringify({}),
                     },
                   },
                 ],
@@ -87,7 +83,7 @@ describe("runLlmAgUiEvents connector tool loop", () => {
     expect(connectorExecutor).toHaveBeenCalledWith({
       connectorId: "webcal",
       operation: "listEvents",
-      input: {},
+      input: undefined,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const secondBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body ?? "{}")) as {

@@ -27,6 +27,11 @@ export function feedHasBriefingDailySurface(feed: readonly FeedItem[]): boolean 
   );
 }
 
+/** True when the owner has already sent a Chat message this session. */
+export function feedHasOwnerUserMessage(feed: readonly FeedItem[]): boolean {
+  return feed.some((item) => item.kind === "user");
+}
+
 /** Legacy brain stub copy that never got a composition turn. */
 function isLegacyBriefingStubText(text: string): boolean {
   const lower = text.toLowerCase();
@@ -90,11 +95,14 @@ export function shouldSessionOpenBriefing(options: {
   alreadyRequested: boolean;
   /** Calendar + RSS snapshots settled (connected or confirmed disconnected). */
   connectorContextReady: boolean;
+  /** Skip if the owner already started chatting (avoids mid-conversation auto-briefing). */
+  feed: readonly FeedItem[];
 }): boolean {
   if (!options.connectorContextReady) return false;
   if (options.alreadyRequested) return false;
   if (hasBriefingCompositionBeenRequestedThisSession()) return false;
   if (hasSessionOpenBriefingRunToday()) return false;
+  if (feedHasOwnerUserMessage(options.feed)) return false;
   if (!canRequestBriefingComposition(options.provider)) return false;
   return loadBriefingPreferences().enabled === true;
 }
@@ -126,6 +134,7 @@ export function shouldRecoverBriefingComposition(options: {
   if (!options.connectorContextReady) return false;
   if (options.alreadyRequested) return false;
   if (hasBriefingCompositionBeenRequestedThisSession()) return false;
+  if (feedHasOwnerUserMessage(options.feed)) return false;
   if (!canRequestBriefingComposition(options.provider)) return false;
   return feedNeedsBriefingCompositionRecovery(options.feed);
 }
