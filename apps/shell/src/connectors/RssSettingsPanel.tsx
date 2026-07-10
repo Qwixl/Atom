@@ -7,6 +7,25 @@ interface RssFeedSummary {
   label: string;
 }
 
+function validateRssFeedUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) throw new Error("Enter a feed URL.");
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error("That does not look like a valid URL. Example: https://feeds.bbci.co.uk/news/rss.xml");
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("Feed URL must start with https:// (or http://).");
+  }
+  // Prefer HTTPS when the user pasted a legacy http:// BBC-style link.
+  if (parsed.protocol === "http:") {
+    parsed.protocol = "https:";
+  }
+  return parsed.toString();
+}
+
 export function RssSettingsPanel({
   vaultUnlocked = true,
   embedded = false,
@@ -46,8 +65,13 @@ export function RssSettingsPanel({
   }, [refresh]);
 
   async function saveFeed() {
-    const url = feedUrl.trim();
-    if (!url) return;
+    let url: string;
+    try {
+      url = validateRssFeedUrl(feedUrl);
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+      return;
+    }
     setBusy(true);
     setNote("Saving RSS feed to your agent vault…");
     try {
@@ -55,10 +79,17 @@ export function RssSettingsPanel({
       await client.addRssFeed(url, feedLabel.trim() || undefined, approvalRef);
       setFeedUrl("");
       setFeedLabel("");
-      setNote(null);
       await refresh();
+      setNote("Feed saved.");
+      window.setTimeout(() => setNote(null), 2500);
     } catch (error) {
-      setNote(error instanceof Error ? error.message : String(error));
+      const message = error instanceof Error ? error.message : String(error);
+      setNote(
+        message.includes("Passkey") || message.includes("approval") || message.includes("Custody")
+          ? message
+          : `Could not save feed: ${message}`,
+      );
+    } finally {
       setBusy(false);
     }
   }
@@ -73,6 +104,7 @@ export function RssSettingsPanel({
       await refresh();
     } catch (error) {
       setNote(error instanceof Error ? error.message : String(error));
+    } finally {
       setBusy(false);
     }
   }
@@ -94,7 +126,7 @@ export function RssSettingsPanel({
           <input
             value={feedUrl}
             onChange={(e) => setFeedUrl(e.target.value)}
-            placeholder="https://…/feed.xml"
+            placeholder="https://feeds.bbci.co.uk/news/rss.xml"
             autoComplete="off"
             disabled={busy}
           />
@@ -132,7 +164,9 @@ export function RssSettingsPanel({
             ))}
           </ul>
         </div>
-      ) : null}
+      ) : (
+        <p className="settings-note">No feeds saved yet.</p>
+      )}
       {note ? <p className="settings-note webcal-settings-note">{note}</p> : null}
     </>
   );

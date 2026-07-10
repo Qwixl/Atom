@@ -143,8 +143,9 @@ import {
 } from "./brain/VoicePushToTalk.js";
 import {
   canRequestBriefingComposition,
-  feedNeedsBriefingCompositionRecovery,
+  markBriefingCompositionRequestedThisSession,
   shouldFireBriefingFromPending,
+  shouldRecoverBriefingComposition,
   shouldSessionOpenBriefing,
 } from "./brain/briefingAutoFire.js";
 import { useBrainPendingPoll } from "./brain/useBrainPendingPoll.js";
@@ -1535,12 +1536,14 @@ export function App() {
     if (briefingOpenSentRef.current) return false;
     if (!canRequestBriefingComposition(providerRef.current)) return false;
     briefingOpenSentRef.current = true;
+    markBriefingCompositionRequestedThisSession();
     conversationRef.current.setBusy(true);
     sessionRef.current.sendUserMessage(message);
     return true;
   }, []);
 
-  // Session-open / appear-online: hosted Chat is ag-ui (not Live LLM) — must include both.
+  // Session-open: only when Briefing prefs "show when I open Chat" is on (not standing intents).
+  // Hosted Chat is ag-ui — must include both providers. sessionStorage blocks reload spam.
   useEffect(() => {
     if (IS_DEMO_MODE || !vaultUnlocked || !agentConnectionReady) return;
     if (
@@ -1554,15 +1557,21 @@ export function App() {
     requestBriefingComposition(BRIEFING_OPEN_MESSAGE);
   }, [vaultUnlocked, agentConnectionReady, provider, requestBriefingComposition]);
 
-  // Recover stub brain briefings (including after chat-feed sync restores them).
+  // Recover legacy "ask me" stubs only — thin "Morning briefing" / "is ready" lines must not re-fire.
   useEffect(() => {
     if (IS_DEMO_MODE || !vaultUnlocked || !agentConnectionReady) return;
-    if (!canRequestBriefingComposition(provider)) return;
 
     const tryRecover = () => {
-      if (briefingOpenSentRef.current) return;
       const feed = conversationRef.current.getSnapshot().feed;
-      if (!feedNeedsBriefingCompositionRecovery(feed)) return;
+      if (
+        !shouldRecoverBriefingComposition({
+          provider,
+          alreadyRequested: briefingOpenSentRef.current,
+          feed,
+        })
+      ) {
+        return;
+      }
       requestBriefingComposition(BRIEFING_FIRE_MESSAGE);
     };
 

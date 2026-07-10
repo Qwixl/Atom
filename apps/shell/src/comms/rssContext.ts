@@ -7,16 +7,19 @@ export interface RssItemSummary {
   link?: string;
   published?: string;
   feedId: string;
+  excerpt?: string;
 }
 
 function formatItemLine(item: RssItemSummary): string {
   const date = item.published ? ` (${item.published})` : "";
   const link = item.link?.trim();
   const safeLink = link ? validateHttpsUrl(link) : null;
-  if (safeLink) {
-    return `- [${item.title}](${safeLink})${date}`;
-  }
-  return `- ${item.title}${date}`;
+  const headline = safeLink
+    ? `- [${item.title}](${safeLink})${date}`
+    : `- ${item.title}${date}`;
+  const excerpt = item.excerpt?.trim();
+  if (!excerpt) return headline;
+  return `${headline}\n  Excerpt: ${excerpt}`;
 }
 
 export async function isRssConnected(client: CommsAgentClient): Promise<boolean> {
@@ -71,7 +74,7 @@ export function formatRssContextForPrompt(opts: {
   return [
     `Optional owner RSS snapshot (not a restriction on what you can discuss). ${labels}`,
     lines.length > 0
-      ? `Recent items:\n${lines.join("\n")}\n\nIn daily briefings include up to 5 linked headlines from this list under a feed-oriented card — separate from briefing topic news.`
+      ? `Recent items (title, optional excerpt, link):\n${lines.join("\n")}\n\nWhen showing a feed as the main surface, prefer \`core/card\` + \`core/disclosure\` per story (summary = headline; children = excerpt). In daily briefings include up to 5 linked headlines from this list under a feed-oriented card — separate from briefing topic news.`
       : "Recent items: none returned from feeds.",
   ].join("\n\n");
 }
