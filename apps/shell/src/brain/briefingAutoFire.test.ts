@@ -3,7 +3,9 @@ import {
   canRequestBriefingComposition,
   feedNeedsBriefingCompositionRecovery,
   hasBriefingCompositionBeenRequestedThisSession,
+  hasSessionOpenBriefingRunToday,
   markBriefingCompositionRequestedThisSession,
+  markSessionOpenBriefingRunToday,
   shouldFireBriefingFromPending,
   shouldRecoverBriefingComposition,
   shouldSessionOpenBriefing,
@@ -66,6 +68,13 @@ describe("briefingAutoFire", () => {
     saveBriefingPreferences({ enabled: true, topics: [] });
     markBriefingCompositionRequestedThisSession();
     expect(hasBriefingCompositionBeenRequestedThisSession()).toBe(true);
+    expect(shouldSessionOpenBriefing({ provider: "ag-ui", alreadyRequested: false })).toBe(false);
+  });
+
+  it("session-open skips when already run today", () => {
+    saveBriefingPreferences({ enabled: true, topics: [] });
+    markSessionOpenBriefingRunToday();
+    expect(hasSessionOpenBriefingRunToday()).toBe(true);
     expect(shouldSessionOpenBriefing({ provider: "ag-ui", alreadyRequested: false })).toBe(false);
   });
 

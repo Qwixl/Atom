@@ -147,6 +147,7 @@ import {
   shouldFireBriefingFromPending,
   shouldRecoverBriefingComposition,
   shouldSessionOpenBriefing,
+  markSessionOpenBriefingRunToday,
 } from "./brain/briefingAutoFire.js";
 import { useBrainPendingPoll } from "./brain/useBrainPendingPoll.js";
 import { SpendPolicySettingsPanel } from "./billing/SpendPolicySettingsPanel.js";
@@ -1537,6 +1538,9 @@ export function App() {
     if (!canRequestBriefingComposition(providerRef.current)) return false;
     briefingOpenSentRef.current = true;
     markBriefingCompositionRequestedThisSession();
+    if (message.startsWith("[briefing-open]")) {
+      markSessionOpenBriefingRunToday();
+    }
     conversationRef.current.setBusy(true);
     sessionRef.current.sendUserMessage(message);
     return true;
