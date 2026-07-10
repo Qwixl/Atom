@@ -87,14 +87,17 @@ describe("runBrainTurn", () => {
     expect(n?.body).toBe("Dentist");
   });
 
-  it("aggregates worker overrides for briefing", async () => {
+  it("queues a thin daily-briefing notify without LLM workers (shell composes)", async () => {
+    const override = vi.fn(async () => "should-not-run");
     const n = await runBrainTurn({
       intent: intent({ kind: "daily-briefing", title: "Morning" }),
       llmConfig: null,
-      runWorkerOverride: async (task) => `result:${task.id}`,
+      runWorkerOverride: override,
     });
-    expect(n?.body).toContain("result:calendar");
-    expect(n?.body).toContain("result:feeds");
+    expect(override).not.toHaveBeenCalled();
+    expect(n?.kind).toBe("daily-briefing");
+    expect(n?.body).toBe("Morning");
+    expect(n?.body).not.toMatch(/ask me|later wave/i);
   });
 
   it("returns null for quiet watch", async () => {
@@ -106,22 +109,22 @@ describe("runBrainTurn", () => {
     expect(n).toBeNull();
   });
 
-  it("falls back to stub when no LLM config", async () => {
+  it("falls back to thin briefing when no LLM config", async () => {
     const n = await runBrainTurn({
       intent: intent({ kind: "daily-briefing", title: "Morning" }),
       llmConfig: null,
     });
     expect(n?.kind).toBe("daily-briefing");
-    expect(n?.body.length).toBeGreaterThan(0);
+    expect(n?.body).toBe("Morning");
   });
 
-  it("respects maxWorkers budget", async () => {
+  it("respects maxWorkers budget for watches", async () => {
     const calls: string[] = [];
     await runBrainTurn({
       intent: intent({
-        kind: "daily-briefing",
-        title: "Morning",
-        scope: { topics: ["a", "b", "c"] },
+        kind: "watch",
+        title: "Multi",
+        scope: { query: "x", connectorIds: ["a", "b", "c"] },
       }),
       llmConfig: null,
       budget: { maxWorkers: 2 },
@@ -131,6 +134,27 @@ describe("runBrainTurn", () => {
       },
     });
     expect(calls).toHaveLength(2);
+  });
+
+  it("coerces Chat JSON protocol into plain text for watches", async () => {
+    const n = await runBrainTurn({
+      intent: intent({ kind: "watch", title: "Cup" }),
+      llmConfig: null,
+      runWorkerOverride: async () =>
+        JSON.stringify({
+          messages: [
+            { type: "text", text: "France beat Brazil 2-1." },
+            {
+              type: "composition",
+              composition: {
+                root: { props: { items: ["[More](https://example.com)"] } },
+              },
+            },
+          ],
+        }),
+    });
+    expect(n?.body).toContain("France beat Brazil 2-1.");
+    expect(n?.body).not.toContain('"messages"');
   });
 
   it("aborts on wall clock via signal in override", async () => {
