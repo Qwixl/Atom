@@ -258,3 +258,42 @@ export function newStandingIntentId(): string {
   return `intent_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+export interface PushSubscriptionStatus {
+  ok: boolean;
+  vapidPublicKey: string | null;
+  webPushConfigured: boolean;
+  fcmConfigured: boolean;
+  subscriptions: unknown[];
+}
+
+export async function loadPushSubscriptionStatus(
+  config: CommsAgentConfig,
+): Promise<PushSubscriptionStatus> {
+  return custodyFetch<PushSubscriptionStatus>(config, "/brain/push-subscription");
+}
+
+export async function putPushSubscription(
+  config: CommsAgentConfig,
+  subscription: {
+    kind: "web-push" | "fcm";
+    endpoint: string;
+    keys?: { p256dh: string; auth: string };
+    userAgent?: string;
+  },
+): Promise<void> {
+  await custodyFetch(config, "/brain/push-subscription", {
+    method: "PUT",
+    body: JSON.stringify({ subscription }),
+  });
+}
+
+export async function deletePushSubscription(
+  config: CommsAgentConfig,
+  endpoint: string,
+): Promise<void> {
+  await custodyFetch(config, "/brain/push-subscription", {
+    method: "DELETE",
+    body: JSON.stringify({ endpoint }),
+  });
+}
+

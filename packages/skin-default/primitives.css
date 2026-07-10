@@ -426,3 +426,58 @@
   border: none;
   background: transparent;
 }
+
+/* BK-41 — denser read-only composition on small viewports */
+.atom-list a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-word;
+}
+
+.atom-list a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.atom-surface[data-surface-id="briefing-daily"] .atom-card + .atom-card,
+.atom-stack-vertical > .atom-card + .atom-card {
+  margin-top: 0;
+}
+
+@media (max-width: 640px) {
+  .atom-surface {
+    gap: var(--atom-space-sm, 8px);
+  }
+
+  .atom-card-header {
+    padding: var(--atom-space-md, 12px) var(--atom-space-md, 12px) var(--atom-space-sm, 8px);
+  }
+
+  .atom-card-body {
+    padding: var(--atom-space-sm, 8px) var(--atom-space-md, 12px) var(--atom-space-md, 12px);
+  }
+
+  .atom-card-title {
+    font-size: 15px;
+  }
+
+  .atom-list {
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .atom-table th,
+  .atom-table td {
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+
+  .atom-stack-horizontal {
+    flex-wrap: wrap;
+  }
+
+  .atom-module-frame {
+    min-height: 220px;
+  }
+}
