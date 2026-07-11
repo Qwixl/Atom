@@ -223,6 +223,8 @@ export function registerAccountRoutes(
         workspaceKind: "personal",
         handle: parsedHandle.handle,
         llmApiKey: llmKey || undefined,
+        llmBaseUrl: body.llmBaseUrl?.trim() || undefined,
+        llmModel: body.llmModel?.trim() || undefined,
       });
 
       await supabaseAdmin()
@@ -295,13 +297,20 @@ export function registerAccountRoutes(
     const user = await requireUser(req, res);
     if (!user) return;
 
-    const body = req.body as { llmApiKey?: string; llmProvider?: string };
+    const body = req.body as {
+      llmApiKey?: string;
+      llmProvider?: string;
+      llmBaseUrl?: string;
+      llmModel?: string;
+    };
     const llmKey = body.llmApiKey?.trim();
     if (!llmKey) {
       res.status(400).json({ error: "LLM API key is required" });
       return;
     }
     const provider = body.llmProvider?.trim() || "openai";
+    const llmBaseUrl = body.llmBaseUrl?.trim() || null;
+    const llmModel = body.llmModel?.trim() || null;
 
     try {
       const hosted = await loadPersonalHostedAgent(user.id);
@@ -315,6 +324,8 @@ export function registerAccountRoutes(
           user_id: user.id,
           provider,
           api_key: llmKey,
+          base_url: llmBaseUrl,
+          model: llmModel,
         },
         { onConflict: "user_id" },
       );
@@ -326,7 +337,11 @@ export function registerAccountRoutes(
         return;
       }
 
-      await fleet.updateLlmApiKey(fleetAgent, llmKey);
+      await fleet.updateLlmConnection(fleetAgent, {
+        llmApiKey: llmKey,
+        llmBaseUrl: llmBaseUrl || undefined,
+        llmModel: llmModel || undefined,
+      });
       await deps.persistAgents();
 
       res.json({ status: "updated" });
