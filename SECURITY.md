@@ -113,6 +113,7 @@ Each hosted agent receives a bearer token at signup. It is equivalent to **root 
 | Phishing ("paste your token") | User-facing copy avoids exposing token after setup | — |
 | Token in browser storage | Encrypted vault after passkey setup; session-scoped LLM metadata only | Optional control-plane proxy with httpOnly session |
 | Leaked signup JSON | Same-origin only; XSS is the main path | Rate limits on signup (M21.2) |
+| Chat / connector blast radius | Short-lived session bearers (`chat:agui`, `connector:read`); hosted mint via control-plane `/account/agent-session` so AG-UI Chat need not send the root admin bearer | Stop returning admin token to the browser (PR2); httpOnly BFF if still required |
 
 **Operator rule:** treat `ATOM_ADMIN_TOKEN` and signup responses like production root credentials. Rotate on compromise via re-provision or export→self-host.
 
