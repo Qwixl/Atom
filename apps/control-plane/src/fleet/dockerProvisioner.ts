@@ -5,6 +5,7 @@ import type { FleetProvisioner, HostedAgentRecord, ProvisionOutcome } from "./ty
 import { assertProductionAgentPublicUrl } from "./publicUrl.js";
 import { reservedCommunityHostPort, resolveCommunityHostPublicUrl } from "./communityHost.js";
 import { resolveHostedBrainAlwaysOn } from "./brainAlwaysOn.js";
+import { llmConnectionEnvArgs } from "./llmConnection.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -107,6 +108,8 @@ function dockerRunArgs(input: {
   handle: string;
   agentId: string;
   llmApiKey?: string;
+  llmBaseUrl?: string;
+  llmModel?: string;
   workspaceKind?: "personal" | "business" | "developer";
   brainAlwaysOn?: boolean;
 }): string[] {
@@ -155,8 +158,13 @@ function dockerRunArgs(input: {
   if (workspaceKind === "business") {
     runArgs.splice(runArgs.length - 1, 0, "-e", "ATOM_BUSINESS_MODE=true");
   }
-  if (input.llmApiKey?.trim()) {
-    runArgs.splice(runArgs.length - 1, 0, "-e", `LLM_API_KEY=${input.llmApiKey.trim()}`);
+  const llmEnv = llmConnectionEnvArgs({
+    apiKey: input.llmApiKey,
+    baseUrl: input.llmBaseUrl,
+    model: input.llmModel,
+  });
+  if (llmEnv.length > 0) {
+    runArgs.splice(runArgs.length - 1, 0, ...llmEnv);
   }
   const communityUrl = resolveCommunityHostPublicUrl();
   if (communityUrl) {
@@ -175,6 +183,8 @@ export class DockerFleetProvisioner implements FleetProvisioner {
     handle: string;
     email: string;
     llmApiKey?: string;
+    llmBaseUrl?: string;
+    llmModel?: string;
     workspaceKind?: "personal" | "business" | "developer";
     brainAlwaysOn?: boolean;
   }): Promise<ProvisionOutcome> {
@@ -191,6 +201,8 @@ export class DockerFleetProvisioner implements FleetProvisioner {
       handle: input.handle,
       agentId: input.id,
       llmApiKey: input.llmApiKey,
+      llmBaseUrl: input.llmBaseUrl,
+      llmModel: input.llmModel,
       workspaceKind: input.workspaceKind,
       brainAlwaysOn: input.brainAlwaysOn ?? resolveHostedBrainAlwaysOn(),
     });
@@ -241,8 +253,11 @@ export class DockerFleetProvisioner implements FleetProvisioner {
     await docker(["volume", "rm", `${agent.containerName}-data`]).catch(() => undefined);
   }
 
-  async updateLlmApiKey(agent: HostedAgentRecord, llmApiKey: string): Promise<void> {
-    const key = llmApiKey.trim();
+  async updateLlmConnection(
+    agent: HostedAgentRecord,
+    connection: { llmApiKey: string; llmBaseUrl?: string; llmModel?: string },
+  ): Promise<void> {
+    const key = connection.llmApiKey.trim();
     if (!key) throw new Error("LLM API key is required");
     if (!agent.containerName || agent.hostPort == null) {
       throw new Error("Agent container metadata missing");
@@ -257,6 +272,8 @@ export class DockerFleetProvisioner implements FleetProvisioner {
         handle: agent.handle,
         agentId: agent.id,
         llmApiKey: key,
+        llmBaseUrl: connection.llmBaseUrl,
+        llmModel: connection.llmModel,
         brainAlwaysOn: resolveHostedBrainAlwaysOn(),
       }),
     );

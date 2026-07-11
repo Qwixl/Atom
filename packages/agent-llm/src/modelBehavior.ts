@@ -186,8 +186,11 @@ export function isModelAssessed(
 /**
  * Propose a class from eval failure tallies (missing-call dominant → tool-shy, etc.).
  * Used by the maintenance script — not by Chat UI.
- * Returns null when scores are inconclusive so --write does not invent a class.
- * For first-use categorization, callers may map null → balanced (clean scoreboard).
+ * Returns null when scores are inconclusive or look like infra/API failure
+ * (so --write does not invent a class / false tool-shy).
+ *
+ * Note: classes are **remediation** knobs for characteristic failure modes.
+ * Models that pass the suite correctly land on balanced (no special addendum).
  */
 export function proposeClassFromFailureCounts(counts: {
   missingCall: number;
@@ -195,10 +198,26 @@ export function proposeClassFromFailureCounts(counts: {
   settingsMissing: number;
   misRoute: number;
   toolScenarioCount: number;
+  /** When set, used to reject “dead endpoint” scoreboards. */
+  passCount?: number;
+  scenarioCount?: number;
 }): ModelBehaviorClassId | null {
   const n = Math.max(1, counts.toolScenarioCount);
   const missingRate = counts.missingCall / n;
   const unexpectedRate = counts.unexpectedCall / n;
+  const scenarioCount = counts.scenarioCount ?? 0;
+  const passCount = counts.passCount;
+  // Fast-fail / empty-response pattern (e.g. bad OpenRouter id): only no-tool
+  // scenarios “pass”, everything else missing-call — do not call that tool-shy.
+  if (
+    typeof passCount === "number" &&
+    scenarioCount >= 10 &&
+    passCount <= 6 &&
+    counts.missingCall >= 15 &&
+    counts.unexpectedCall === 0
+  ) {
+    return null;
+  }
   if (missingRate >= 0.4) return "tool-shy";
   if (unexpectedRate >= 0.25) return "tool-eager";
   if (counts.settingsMissing >= 2 && missingRate < 0.25) return "balanced";

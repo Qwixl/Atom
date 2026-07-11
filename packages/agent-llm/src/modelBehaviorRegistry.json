@@ -31,22 +31,190 @@
   "assignments": [
     {
       "kind": "exact",
-      "pattern": "gpt-4o",
-      "classId": "tool-shy",
-      "note": "Assessed 2026-07-10: missing=22 unexpected=0 settings=3 misRoute=0",
+      "pattern": "llama-3.3-70b-instruct",
+      "classId": "balanced",
+      "note": "exact 2026-07-10: missing=3 unexpected=3 settings=2 misRoute=0 pass=22/30",
       "evalBaseline": {
-        "hash": "8dfd5439a33b6728",
+        "hash": "348dec8841149e6f",
         "scoredAt": "2026-07-10",
-        "modelId": "gpt-4o",
+        "modelId": "meta-llama/llama-3.3-70b-instruct",
         "baseUrl": "https://openrouter.ai/api/v1",
         "tallies": {
-          "missingCall": 22,
-          "unexpectedCall": 0,
-          "settingsMissing": 3,
+          "missingCall": 3,
+          "unexpectedCall": 3,
+          "settingsMissing": 2,
           "misRoute": 0,
-          "toolScenarioCount": 30
+          "toolScenarioCount": 24
         },
-        "passCount": 5,
+        "passCount": 22,
+        "scenarioCount": 30
+      }
+    },
+    {
+      "kind": "exact",
+      "pattern": "qwen-2.5-72b-instruct",
+      "classId": "balanced",
+      "note": "exact 2026-07-10: missing=1 unexpected=0 settings=0 misRoute=0 pass=29/30",
+      "evalBaseline": {
+        "hash": "348dec8841149e6f",
+        "scoredAt": "2026-07-10",
+        "modelId": "qwen/qwen-2.5-72b-instruct",
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "tallies": {
+          "missingCall": 1,
+          "unexpectedCall": 0,
+          "settingsMissing": 0,
+          "misRoute": 0,
+          "toolScenarioCount": 24
+        },
+        "passCount": 29,
+        "scenarioCount": 30
+      }
+    },
+    {
+      "kind": "exact",
+      "pattern": "deepseek-chat",
+      "classId": "balanced",
+      "note": "exact 2026-07-10: missing=0 unexpected=0 settings=0 misRoute=0 pass=30/30",
+      "evalBaseline": {
+        "hash": "348dec8841149e6f",
+        "scoredAt": "2026-07-10",
+        "modelId": "deepseek/deepseek-chat",
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "tallies": {
+          "missingCall": 0,
+          "unexpectedCall": 0,
+          "settingsMissing": 0,
+          "misRoute": 0,
+          "toolScenarioCount": 24
+        },
+        "passCount": 30,
+        "scenarioCount": 30
+      }
+    },
+    {
+      "kind": "exact",
+      "pattern": "gemini-2.5-flash",
+      "classId": "balanced",
+      "note": "exact 2026-07-10: missing=0 unexpected=0 settings=1 misRoute=0 pass=29/30",
+      "evalBaseline": {
+        "hash": "348dec8841149e6f",
+        "scoredAt": "2026-07-10",
+        "modelId": "google/gemini-2.5-flash",
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "tallies": {
+          "missingCall": 0,
+          "unexpectedCall": 0,
+          "settingsMissing": 1,
+          "misRoute": 0,
+          "toolScenarioCount": 24
+        },
+        "passCount": 29,
+        "scenarioCount": 30
+      }
+    },
+    {
+      "kind": "exact",
+      "pattern": "claude-sonnet-4",
+      "classId": "balanced",
+      "note": "exact 2026-07-10: missing=0 unexpected=0 settings=0 misRoute=0 pass=30/30",
+      "evalBaseline": {
+        "hash": "348dec8841149e6f",
+        "scoredAt": "2026-07-10",
+        "modelId": "anthropic/claude-sonnet-4",
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "tallies": {
+          "missingCall": 0,
+          "unexpectedCall": 0,
+          "settingsMissing": 0,
+          "misRoute": 0,
+          "toolScenarioCount": 24
+        },
+        "passCount": 30,
+        "scenarioCount": 30
+      }
+    },
+    {
+      "kind": "exact",
+      "pattern": "gpt-4.1",
+      "classId": "balanced",
+      "note": "exact 2026-07-10: missing=0 unexpected=0 settings=0 misRoute=1 pass=29/30",
+      "evalBaseline": {
+        "hash": "348dec8841149e6f",
+        "scoredAt": "2026-07-10",
+        "modelId": "openai/gpt-4.1",
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "tallies": {
+          "missingCall": 0,
+          "unexpectedCall": 0,
+          "settingsMissing": 0,
+          "misRoute": 1,
+          "toolScenarioCount": 24
+        },
+        "passCount": 29,
+        "scenarioCount": 30
+      }
+    },
+    {
+      "kind": "exact",
+      "pattern": "gpt-4.1-mini",
+      "classId": "balanced",
+      "note": "exact 2026-07-10: missing=0 unexpected=0 settings=0 misRoute=0 pass=30/30",
+      "evalBaseline": {
+        "hash": "348dec8841149e6f",
+        "scoredAt": "2026-07-10",
+        "modelId": "openai/gpt-4.1-mini",
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "tallies": {
+          "missingCall": 0,
+          "unexpectedCall": 0,
+          "settingsMissing": 0,
+          "misRoute": 0,
+          "toolScenarioCount": 24
+        },
+        "passCount": 30,
+        "scenarioCount": 30
+      }
+    },
+    {
+      "kind": "exact",
+      "pattern": "gpt-4o-mini",
+      "classId": "balanced",
+      "note": "exact 2026-07-10: missing=0 unexpected=0 settings=0 misRoute=0 pass=30/30",
+      "evalBaseline": {
+        "hash": "348dec8841149e6f",
+        "scoredAt": "2026-07-10",
+        "modelId": "openai/gpt-4o-mini",
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "tallies": {
+          "missingCall": 0,
+          "unexpectedCall": 0,
+          "settingsMissing": 0,
+          "misRoute": 0,
+          "toolScenarioCount": 24
+        },
+        "passCount": 30,
+        "scenarioCount": 30
+      }
+    },
+    {
+      "kind": "exact",
+      "pattern": "gpt-4o",
+      "classId": "balanced",
+      "note": "exact 2026-07-10: missing=0 unexpected=0 settings=0 misRoute=0 pass=30/30",
+      "evalBaseline": {
+        "hash": "348dec8841149e6f",
+        "scoredAt": "2026-07-10",
+        "modelId": "openai/gpt-4o",
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "tallies": {
+          "missingCall": 0,
+          "unexpectedCall": 0,
+          "settingsMissing": 0,
+          "misRoute": 0,
+          "toolScenarioCount": 24
+        },
+        "passCount": 30,
         "scenarioCount": 30
       }
     },
@@ -64,12 +232,6 @@
     },
     {
       "kind": "family",
-      "pattern": "gpt-4.1",
-      "classId": "tool-shy",
-      "note": "Family seed: frontier chat sibling of gpt-4o until exact assessment"
-    },
-    {
-      "kind": "family",
       "pattern": "command-r",
       "classId": "balanced",
       "note": "Family seed: Cohere Command R"
@@ -79,6 +241,12 @@
       "pattern": "deepseek",
       "classId": "balanced",
       "note": "Family seed until exact assessment"
+    },
+    {
+      "kind": "family",
+      "pattern": "gpt-4.1",
+      "classId": "tool-shy",
+      "note": "Family seed: frontier chat sibling of gpt-4o until exact assessment"
     },
     {
       "kind": "family",
