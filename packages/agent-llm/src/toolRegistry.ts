@@ -19,7 +19,8 @@ export type AtomConnectorId =
   | "carddav"
   | "bluesky"
   | "mastodon"
-  | "weather";
+  | "weather"
+  | "microsoft-graph";
 
 export interface AtomConnectorInvokeInput {
   connectorId: AtomConnectorId;
@@ -78,6 +79,14 @@ export const ATOM_TOOL_REGISTRY: readonly AtomToolRegistryEntry[] = [
       "Tool to list events from the owner's CalDAV calendar. Use when the owner uses CalDAV and asks about schedule. Not for WebCal feeds (use calendar_list_events).",
     parameters: emptyObjectSchema(),
     connectorId: "caldav",
+    operation: "listEvents",
+  },
+  {
+    name: "microsoft_list_events",
+    description:
+      "Tool to list Microsoft 365 calendar events via Graph. Use when the owner connected Microsoft and asks about schedule. Not for WebCal (calendar_list_events) or CalDAV (caldav_list_events).",
+    parameters: emptyObjectSchema(),
+    connectorId: "microsoft-graph",
     operation: "listEvents",
   },
   {
