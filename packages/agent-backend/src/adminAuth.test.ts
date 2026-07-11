@@ -46,8 +46,49 @@ describe("adminAuth", () => {
       status: vi.fn().mockReturnThis(),
       json: vi.fn(),
     };
-    middleware({ headers: {} } as never, res as never, next);
+    middleware({ headers: {}, method: "GET", path: "/inbox" } as never, res as never, next);
     expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("accepts chat:agui session token for POST /agent", async () => {
+    const { mintSessionToken } = await import("./sessionToken.js");
+    const middleware = requireAdminAuth("secret");
+    const next = vi.fn();
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    };
+    const token = mintSessionToken("secret", { scopes: ["chat:agui"], ttlMs: 60_000 });
+    const req = {
+      headers: { authorization: `Bearer ${token}` },
+      method: "POST",
+      path: "/agent",
+    };
+    middleware(req as never, res as never, next);
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it("rejects connector:read session token for POST /agent", async () => {
+    const { mintSessionToken } = await import("./sessionToken.js");
+    const middleware = requireAdminAuth("secret");
+    const next = vi.fn();
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    };
+    const token = mintSessionToken("secret", { scopes: ["connector:read"], ttlMs: 60_000 });
+    middleware(
+      {
+        headers: { authorization: `Bearer ${token}` },
+        method: "POST",
+        path: "/agent",
+      } as never,
+      res as never,
+      next,
+    );
+    expect(res.status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
   });
 });

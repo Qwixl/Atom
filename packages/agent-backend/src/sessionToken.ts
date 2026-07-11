@@ -1,7 +1,13 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 /** v1 session scopes — expand deliberately; session tokens never grant admin write routes. */
-export type SessionScope = "connector:read";
+export type SessionScope = "connector:read" | "chat:agui";
+
+export const SESSION_SCOPES: readonly SessionScope[] = ["connector:read", "chat:agui"] as const;
+
+export function isSessionScope(value: unknown): value is SessionScope {
+  return value === "connector:read" || value === "chat:agui";
+}
 
 export interface SessionTokenPayload {
   v: 1;
