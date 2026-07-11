@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { startAuthentication } from "@simplewebauthn/browser";
 import { loadCommsAgentConfig } from "../comms/storage.js";
+import { getChatSessionToken, setChatSessionToken } from "../comms/chatSessionToken.js";
+import { mintHostedAgentSession } from "../comms/hostedAgentSession.js";
+import { usesSupabaseHostedAuth } from "../hostConfig.js";
 import { fetchCustodyStatus } from "./client.js";
 import {
   isVaultInitialized,
@@ -33,17 +36,27 @@ export function VaultUnlockGate({
     setError(null);
     try {
       const config = loadCommsAgentConfig();
-      const status = await fetchCustodyStatus(config);
+      let bearer = getChatSessionToken()?.trim() || config.adminToken?.trim();
+      if (!bearer && usesSupabaseHostedAuth()) {
+        bearer = (await mintHostedAgentSession()) ?? undefined;
+        if (bearer) setChatSessionToken(bearer);
+      }
+      if (!bearer) {
+        throw new Error("Sign in again to unlock — no agent session available.");
+      }
+      const status = await fetchCustodyStatus({
+        ...config,
+        adminToken: config.adminToken ?? bearer,
+      });
       if (!status.passkeyRegistered) {
         throw new Error("Register a passkey in Settings → Security before unlocking the vault.");
       }
+      const authHeaders = { Authorization: `Bearer ${bearer}` };
       const resp = await fetch(`${config.adminUrl.replace(/\/$/, "")}/custody/unlock/options`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(config.adminToken?.trim()
-            ? { Authorization: `Bearer ${config.adminToken.trim()}` }
-            : {}),
+          ...authHeaders,
         },
         body: "{}",
       });
@@ -59,9 +72,7 @@ export function VaultUnlockGate({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(config.adminToken?.trim()
-            ? { Authorization: `Bearer ${config.adminToken.trim()}` }
-            : {}),
+          ...authHeaders,
         },
         body: JSON.stringify({
           response: assertion,

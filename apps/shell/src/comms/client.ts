@@ -30,7 +30,10 @@ export type CommsAgentAuth =
 
 function resolveAuthToken(auth: CommsAgentAuth | undefined, forWrite: boolean): string | undefined {
   if (typeof auth === "string") return auth.trim() || undefined;
-  const token = forWrite ? auth?.adminToken : auth?.readToken ?? auth?.adminToken;
+  // Prefer scoped session for both reads and writes when present (hosted PR2 / AS-09).
+  const session = auth?.readToken?.trim();
+  if (session) return session;
+  const token = forWrite ? auth?.adminToken : auth?.adminToken;
   return token?.trim() || undefined;
 }
 

@@ -70,7 +70,51 @@ describe("adminAuth", () => {
     expect(res.status).not.toHaveBeenCalled();
   });
 
-  it("rejects connector:read session token for POST /agent", async () => {
+  it("accepts owner:runtime session token for custody routes", async () => {
+    const { mintSessionToken } = await import("./sessionToken.js");
+    const middleware = requireAdminAuth("secret");
+    const next = vi.fn();
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    };
+    const token = mintSessionToken("secret", { scopes: ["owner:runtime"], ttlMs: 60_000 });
+    middleware(
+      {
+        headers: { authorization: `Bearer ${token}` },
+        method: "POST",
+        path: "/custody/unlock/options",
+      } as never,
+      res as never,
+      next,
+    );
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it("rejects owner:runtime session token for export", async () => {
+    const { mintSessionToken } = await import("./sessionToken.js");
+    const middleware = requireAdminAuth("secret");
+    const next = vi.fn();
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    };
+    const token = mintSessionToken("secret", { scopes: ["owner:runtime"], ttlMs: 60_000 });
+    middleware(
+      {
+        headers: { authorization: `Bearer ${token}` },
+        method: "POST",
+        path: "/admin/export",
+      } as never,
+      res as never,
+      next,
+    );
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("accepts connector:read for GET /connectors list", async () => {
     const { mintSessionToken } = await import("./sessionToken.js");
     const middleware = requireAdminAuth("secret");
     const next = vi.fn();
@@ -82,13 +126,12 @@ describe("adminAuth", () => {
     middleware(
       {
         headers: { authorization: `Bearer ${token}` },
-        method: "POST",
-        path: "/agent",
+        method: "GET",
+        path: "/connectors",
       } as never,
       res as never,
       next,
     );
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(next).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalled();
   });
 });
