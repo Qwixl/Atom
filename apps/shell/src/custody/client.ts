@@ -11,6 +11,11 @@ import {
 import type { ConsequentialAction } from "@qwixl/shell-core";
 import type { CommsAgentConfig } from "../comms/types.js";
 import { formatAgentError } from "../comms/agentErrors.js";
+import { getChatSessionToken } from "../comms/chatSessionToken.js";
+
+function custodyBearer(config: CommsAgentConfig): string | undefined {
+  return getChatSessionToken()?.trim() || config.adminToken?.trim() || undefined;
+}
 
 async function custodyFetch<T>(
   config: CommsAgentConfig,
@@ -21,8 +26,9 @@ async function custodyFetch<T>(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  if (config.adminToken?.trim()) {
-    headers.Authorization = `Bearer ${config.adminToken.trim()}`;
+  const bearer = custodyBearer(config);
+  if (bearer) {
+    headers.Authorization = `Bearer ${bearer}`;
   }
   const resp = await fetch(`${base}${path}`, { ...init, headers });
   if (!resp.ok) {

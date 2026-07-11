@@ -1,7 +1,7 @@
 import { CONTROL_PLANE_URL, usesSupabaseHostedAuth } from "../hostConfig.js";
 import { supabaseAccessToken } from "../auth/hostedAccount.js";
 
-const DEFAULT_SCOPES = ["connector:read", "chat:agui"] as const;
+const DEFAULT_SCOPES = ["owner:runtime", "connector:read", "chat:agui"] as const;
 
 /**
  * Mint a short-lived agent session via the control plane (hosted only).
