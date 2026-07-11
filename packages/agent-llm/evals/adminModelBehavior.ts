@@ -517,11 +517,21 @@ See MODEL-BEHAVIOR-ADMIN.md.`);
     const scoredAt = new Date().toISOString().slice(0, 10);
     for (const [model, scores] of byModel) {
       const t = tallies(scores);
-      const classId = proposeClassFromFailureCounts(t) ?? "balanced";
+      const passCount = scores.filter((s) => s.pass).length;
+      const classId = proposeClassFromFailureCounts({
+        ...t,
+        passCount,
+        scenarioCount: scores.length,
+      });
       const identity = parseModelIdentity(model);
       const pattern = identity.bare || model;
-      const passCount = scores.filter((s) => s.pass).length;
       const note = `exact ${scoredAt}: missing=${t.missingCall} unexpected=${t.unexpectedCall} settings=${t.settingsMissing} misRoute=${t.misRoute} pass=${passCount}/${scores.length}`;
+      if (!classId) {
+        console.log(
+          `- ${model} (exact \`${pattern}\`) → skip (inconclusive / likely infra failure; ${note})`,
+        );
+        continue;
+      }
       proposals.push({
         kind: "exact",
         pattern,
