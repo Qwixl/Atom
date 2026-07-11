@@ -49,6 +49,10 @@ export function adminTokenPath(): string {
 
 const PUBLIC_ADMIN_PATHS = new Set(["/mls/key-package"]);
 
+function isPublicOAuthCallback(req: Request): boolean {
+  return req.method === "GET" && req.path === "/connectors/microsoft/callback";
+}
+
 function isPublicRoomRoute(req: Request): boolean {
   if (req.method === "POST" && /^\/rooms\/[^/]+\/(join|relay|leave)$/.test(req.path)) return true;
   if (req.method !== "GET") return false;
@@ -77,6 +81,10 @@ function allowsSessionAuth(req: Request, scopes: SessionScope[]): boolean {
 export function createAdminAuthMiddleware(expectedToken: string) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (req.method === "GET" && PUBLIC_ADMIN_PATHS.has(req.path)) {
+      next();
+      return;
+    }
+    if (isPublicOAuthCallback(req)) {
       next();
       return;
     }

@@ -95,7 +95,8 @@ export type AtomConnectorId =
   | "carddav"
   | "bluesky"
   | "mastodon"
-  | "weather";
+  | "weather"
+  | "microsoft-graph";
 
 export type AtomConnectorInvokeRequest = {
   callId: string;
@@ -132,6 +133,7 @@ const KNOWN_CONNECTOR_IDS = new Set<string>([
   "bluesky",
   "mastodon",
   "weather",
+  "microsoft-graph",
 ]);
 
 function readConnectorInvokeRequest(value: unknown): AtomConnectorInvokeRequest | null {
