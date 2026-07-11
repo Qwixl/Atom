@@ -19,6 +19,13 @@ export interface ProvisionOutcome {
   message?: string;
 }
 
+export type FleetLlmProvisionFields = {
+  llmApiKey?: string;
+  /** OpenAI-compatible base URL (e.g. OpenRouter). */
+  llmBaseUrl?: string;
+  llmModel?: string;
+};
+
 export interface FleetProvisioner {
   readonly mode: "docker" | "dev-stub" | "unconfigured";
   provision(input: {
@@ -26,6 +33,8 @@ export interface FleetProvisioner {
     handle: string;
     email: string;
     llmApiKey?: string;
+    llmBaseUrl?: string;
+    llmModel?: string;
     /** personal | business | developer — sets ATOM_WORKSPACE_KIND / business mode on container. */
     workspaceKind?: "personal" | "business" | "developer";
     /** Agent Brain always-on heartbeat (ATOM_BRAIN_ALWAYS_ON). Default resolved from beta policy. */
@@ -34,6 +43,12 @@ export interface FleetProvisioner {
   suspend(agent: HostedAgentRecord, reason: string): Promise<void>;
   resume(agent: HostedAgentRecord): Promise<void>;
   destroy(agent: HostedAgentRecord): Promise<void>;
-  /** Recreate the agent container with a new LLM_API_KEY (preserves port, token, data). */
-  updateLlmApiKey(agent: HostedAgentRecord, llmApiKey: string): Promise<void>;
+  /**
+   * Recreate the agent container with LLM connection env
+   * (LLM_API_KEY / LLM_BASE_URL / LLM_MODEL). Preserves port, token, data volume.
+   */
+  updateLlmConnection(
+    agent: HostedAgentRecord,
+    connection: { llmApiKey: string; llmBaseUrl?: string; llmModel?: string },
+  ): Promise<void>;
 }

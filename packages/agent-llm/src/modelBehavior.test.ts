@@ -163,6 +163,20 @@ describe("model behavior classes", () => {
     ).toBe("balanced");
   });
 
+  it("proposeClassFromFailureCounts rejects infra fast-fail as inconclusive", () => {
+    expect(
+      proposeClassFromFailureCounts({
+        missingCall: 22,
+        unexpectedCall: 0,
+        settingsMissing: 3,
+        misRoute: 0,
+        toolScenarioCount: 24,
+        passCount: 5,
+        scenarioCount: 30,
+      }),
+    ).toBeNull();
+  });
+
   it("registry JSON stays secret-free", () => {
     const blob = JSON.stringify(MODEL_BEHAVIOR_REGISTRY);
     expect(blob).not.toMatch(/sk-[a-zA-Z0-9]{10,}|api[_-]?key\s*[:=]/i);

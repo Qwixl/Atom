@@ -45,7 +45,12 @@ import {
 } from "../hostConfig.js";
 import { probeLocalDevAgentBase } from "../devAgentProbe.js";
 import { defaultCommsAgentUrl, loadCommsAgentConfig } from "../comms/storage.js";
-import { FieldLabelWithHint, LlmApiKeyHintContent } from "../ui/FieldHint.js";
+import {
+  defaultHostedLlmConnectionFields,
+  HostedLlmConnectionFields,
+  type HostedLlmConnectionFieldsValue,
+} from "../settings/HostedLlmConnectionFields.js";
+import { resolveHostedLlmConnection } from "../settings/llmProviderPresets.js";
 import {
   claimEmailConfirmation,
   subscribeToEmailConfirmed,
@@ -113,7 +118,9 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
   const [handle, setHandle] = useState(() =>
     mode === "login" ? (loadOwnerHandle() ?? "") : "",
   );
-  const [llmApiKey, setLlmApiKey] = useState("");
+  const [llmConnection, setLlmConnection] = useState<HostedLlmConnectionFieldsValue>(() =>
+    defaultHostedLlmConnectionFields("openai"),
+  );
   const [adminUrl, setAdminUrl] = useState(() => {
     if (ATOM_BROWSER_MODE) return BROWSER_AGENT_API;
     return loadCommsAgentConfig().adminUrl || defaultCommsAgentUrl();
@@ -205,7 +212,20 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         if (pending) {
           setEmail(pending.email);
           if (pending.handle) setHandle(pending.handle);
-          if (pending.llmApiKey) setLlmApiKey(pending.llmApiKey);
+          if (pending.llmApiKey) {
+            setLlmConnection((prev) => ({
+              ...prev,
+              apiKey: pending.llmApiKey ?? prev.apiKey,
+              providerId:
+                pending.llmProvider === "openrouter" ||
+                pending.llmProvider === "custom" ||
+                pending.llmProvider === "openai"
+                  ? pending.llmProvider
+                  : prev.providerId,
+              baseUrl: pending.llmBaseUrl ?? prev.baseUrl,
+              model: pending.llmModel ?? prev.model,
+            }));
+          }
         }
         setHosting("hosted");
         goTo("provisioning");
@@ -226,7 +246,20 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
 
       setEmail(pending.email);
       if (pending.handle) setHandle(pending.handle);
-      if (pending.llmApiKey) setLlmApiKey(pending.llmApiKey);
+      if (pending.llmApiKey) {
+        setLlmConnection((prev) => ({
+          ...prev,
+          apiKey: pending.llmApiKey ?? prev.apiKey,
+          providerId:
+            pending.llmProvider === "openrouter" ||
+            pending.llmProvider === "custom" ||
+            pending.llmProvider === "openai"
+              ? pending.llmProvider
+              : prev.providerId,
+          baseUrl: pending.llmBaseUrl ?? prev.baseUrl,
+          model: pending.llmModel ?? prev.model,
+        }));
+      }
       if (pending.kind === "register") setHosting("hosted");
 
       if (hasSession) {
@@ -365,7 +398,14 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       }
 
       const connection = await fetchHostedAgentConnection();
-      const fields = resolveHostedSignupFields({ email, handle, llmApiKey });
+      const fields = resolveHostedSignupFields({
+        email,
+        handle,
+        llmApiKey: llmConnection.apiKey,
+        llmProvider: llmConnection.providerId,
+        llmBaseUrl: llmConnection.baseUrl,
+        llmModel: llmConnection.model,
+      });
       await completeAgentSetup({
         adminUrl: connection.adminUrl,
         adminToken: connection.adminToken,
@@ -379,7 +419,14 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       window.location.replace("/app/");
     } catch (connectErr) {
       releaseProvisioningLock();
-      const fields = resolveHostedSignupFields({ email, handle, llmApiKey });
+      const fields = resolveHostedSignupFields({
+        email,
+        handle,
+        llmApiKey: llmConnection.apiKey,
+        llmProvider: llmConnection.providerId,
+        llmBaseUrl: llmConnection.baseUrl,
+        llmModel: llmConnection.model,
+      });
       if (fields) {
         await runHostedSupabaseProvisioning();
         return;
@@ -410,7 +457,14 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         throw new Error("Sign in required — confirm your email first.");
       }
 
-      const fields = resolveHostedSignupFields({ email, handle, llmApiKey });
+      const fields = resolveHostedSignupFields({
+        email,
+        handle,
+        llmApiKey: llmConnection.apiKey,
+        llmProvider: llmConnection.providerId,
+        llmBaseUrl: llmConnection.baseUrl,
+        llmModel: llmConnection.model,
+      });
       if (!fields) {
         throw new Error("Signup details missing — go back to Profile and try again.");
       }
@@ -420,6 +474,9 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         handle: bareOwnerHandle(fields.handle),
         accountType,
         llmApiKey: fields.llmApiKey,
+        llmProvider: fields.llmProvider,
+        llmBaseUrl: fields.llmBaseUrl,
+        llmModel: fields.llmModel,
       });
       advanceTask("agent", "connect");
       const connection = await fetchHostedAgentConnection();
@@ -498,7 +555,10 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         kind: "register",
         email: email.trim(),
         handle,
-        llmApiKey,
+        llmApiKey: llmConnection.apiKey,
+        llmProvider: llmConnection.providerId,
+        llmBaseUrl: llmConnection.baseUrl,
+        llmModel: llmConnection.model,
       });
       try {
         if (await hasSupabaseSession()) {
@@ -691,8 +751,21 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       return true;
     }
     if (hosting === "hosted") {
-      if (!llmApiKey.trim()) {
+      if (!llmConnection.apiKey.trim()) {
         setError("Add your LLM API key to continue.");
+        return false;
+      }
+      const resolved = resolveHostedLlmConnection({
+        providerId: llmConnection.providerId,
+        baseUrl: llmConnection.baseUrl,
+        model: llmConnection.model,
+      });
+      if (!resolved.baseUrl.trim() || !resolved.model.trim()) {
+        setError(
+          llmConnection.providerId === "custom"
+            ? "Add an endpoint base URL and model id."
+            : "Choose a model for your provider.",
+        );
         return false;
       }
       if (handleStatus?.includes("taken")) {
@@ -889,16 +962,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
             {handleStatus ? <p className="atom-note">{handleStatus}</p> : null}
 
             {mode === "register" && hosting === "hosted" ? (
-              <label className="atom-field">
-                <FieldLabelWithHint label="LLM API key" hint={<LlmApiKeyHintContent />} />
-                <input
-                  type="password"
-                  autoComplete="off"
-                  value={llmApiKey}
-                  onChange={(e) => setLlmApiKey(e.target.value)}
-                  placeholder="sk-…"
-                />
-              </label>
+              <HostedLlmConnectionFields value={llmConnection} onChange={setLlmConnection} />
             ) : (
               <>
                 <label className="atom-field">

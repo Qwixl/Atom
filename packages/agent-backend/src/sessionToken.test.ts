@@ -11,6 +11,14 @@ describe("sessionToken", () => {
     expect(payload?.exp).toBeGreaterThan(Date.now());
   });
 
+  it("mints chat:agui scope for AG-UI Chat", () => {
+    const token = mintSessionToken(secret, {
+      scopes: ["connector:read", "chat:agui"],
+      ttlMs: 60_000,
+    });
+    expect(verifySessionToken(secret, token)?.scopes).toEqual(["connector:read", "chat:agui"]);
+  });
+
   it("rejects tampered tokens", () => {
     const token = mintSessionToken(secret, { scopes: ["connector:read"] });
     expect(verifySessionToken(secret, `${token}x`)).toBeNull();

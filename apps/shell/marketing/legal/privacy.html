@@ -9,6 +9,7 @@
             <li><a href="#bases">Legal bases</a></li>
             <li><a href="#sharing">Sharing and processors</a></li>
             <li><a href="#llm">LLM and third-party AI providers</a></li>
+            <li><a href="#microsoft">Microsoft 365 and Graph data</a></li>
             <li><a href="#hosted-self">Hosted vs self-hosted</a></li>
             <li><a href="#cookies">Cookies and local storage</a></li>
             <li><a href="#transfers">International transfers</a></li>
@@ -108,31 +109,62 @@
           </section>
           <section id="sharing">
             <h2>6. Sharing and processors</h2>
-            <p>We share personal data only as needed to operate the service:</p>
+            <p>We share personal data only as needed to operate the service. Current hosted subprocessors include:</p>
             <ul>
-              <li><strong>Infrastructure providers</strong> — hosting, databases, and deployment platforms (e.g. cloud compute, object storage);</li>
-              <li><strong>Authentication providers</strong> — account sign-up and login services;</li>
-              <li><strong>Payment processors</strong> — if and when paid plans launch (not during free beta);</li>
-              <li><strong>Professional advisers</strong> — lawyers, accountants, insurers where necessary;</li>
-              <li><strong>Authorities</strong> — when required by law or to protect rights and safety.</li>
+              <li><strong>Supabase</strong> — authentication and account database (identity, handle, hosted-agent metadata);</li>
+              <li><strong>DigitalOcean</strong> — control plane, per-owner agent containers, and persistent volumes;</li>
+              <li><strong>Vercel</strong> — hosted shell and public registry front-end;</li>
+              <li><strong>Stripe</strong> — payment processing if and when paid plans are enabled (not required for free beta);</li>
+              <li><strong>Owner-chosen LLM providers</strong> — OpenAI, Anthropic, OpenRouter, or other endpoints you configure (prompts and tool results under their terms);</li>
+              <li><strong>Microsoft</strong> — when you connect Microsoft 365 / Graph (see section 8); Microsoft processes data under its terms for the scopes you grant.</li>
             </ul>
-            <p>We require processors to handle data only on our instructions and under appropriate contractual safeguards. We do not permit processors to use your data for their own marketing.</p>
+            <p>We may also share data with professional advisers and authorities where necessary. We require processors to handle data only on our instructions and under appropriate contractual safeguards. We do not permit processors to use your data for their own marketing.</p>
           </section>
           <section id="llm">
             <h2>7. LLM and third-party AI providers</h2>
-            <p>When you enable live LLM chat, your agent sends prompts and context to the model endpoint you configure. That provider processes data under <strong>its own terms and privacy policy</strong>. We do not control how OpenAI, Anthropic, Google, Groq, or self-hosted inference servers handle prompts.</p>
+            <p>When you enable live LLM chat, your agent sends prompts and context to the model endpoint you configure. That provider processes data under <strong>its own terms and privacy policy</strong>. We do not control how OpenAI, Anthropic, Google, Groq, OpenRouter, or self-hosted inference servers handle prompts.</p>
             <p>On hosted accounts, your LLM API key is stored on your provisioned agent server (not in the browser) and used solely to authenticate requests to your chosen provider. You may rotate or remove the key in Settings.</p>
             <p>Agent-to-agent coordination (scheduling, commerce objects, encrypted MLS sessions) does not require sending those payloads to your LLM provider unless your agent explicitly summarizes them for you in chat.</p>
+            <p><strong>No Qwixl model training:</strong> we do not use your hosted agent store, chat content, or Microsoft organizational payloads to train foundation models owned by Qwixl. We do not operate such models today.</p>
+          </section>
+          <section id="microsoft">
+            <h2>8. Microsoft 365 and Graph data</h2>
+            <p>Atom may offer an optional Microsoft Graph connector (calendar, mail, and tasks) so your agent can read Microsoft 365 data you authorize. This section describes how that data is handled when the connector is enabled. Until you connect Microsoft, we do not receive Graph payloads from your tenant.</p>
+            <h3>8.1 Categories and purposes</h3>
+            <ul>
+              <li><strong>OAuth tokens</strong> — refresh and access tokens needed to call Graph on your behalf;</li>
+              <li><strong>Graph read results</strong> — calendar events, messages, or tasks returned for a specific agent turn or connector invoke;</li>
+              <li><strong>Connection metadata</strong> — which Microsoft account/tenant you linked, scopes granted, and disconnect status.</li>
+            </ul>
+            <p>Purposes: provide the features you request in Chat and related surfaces; enforce approval chrome for consequential writes; security, abuse prevention, and support.</p>
+            <h3>8.2 Custody and minimization</h3>
+            <ul>
+              <li>Microsoft refresh tokens are stored only in the encrypted agent connector vault — not returned to the browser shell, modules, or model context as reusable credentials;</li>
+              <li>Atom is a <strong>connector, not a warehouse</strong>: we prefer just-in-time Graph reads over bulk copies of your mailbox or calendar;</li>
+              <li>Short-lived invoke caches (minutes, server-capped) may hold recent read results and expire automatically;</li>
+              <li>Minimum tool results may be sent to your chosen LLM provider to answer your request; that provider’s policy applies to those payloads.</li>
+            </ul>
+            <h3>8.3 No training on Microsoft organizational data</h3>
+            <p>Qwixl does <strong>not</strong> use Microsoft organizational data (mail, calendar, tasks, or related Graph payloads) to train or fine-tune models. Owner-selected LLM providers process only what is sent for a turn under their terms and DPAs.</p>
+            <h3>8.4 Disconnect and deletion</h3>
+            <p>When you disconnect Microsoft Graph (once available in product):</p>
+            <ul>
+              <li>We revoke the refresh token at Microsoft where the API allows;</li>
+              <li>We delete OAuth slots from the encrypted vault and clear related invoke cache entries;</li>
+              <li>Residual copies in encrypted backups age out within the backup window below.</li>
+            </ul>
+            <h3>8.5 Transfers</h3>
+            <p>Graph calls go to Microsoft endpoints. Hosted agent runtime and vault storage for tokens run on Qwixl infrastructure (see processors above). International transfer safeguards in section 11 apply where personal data leaves the UK.</p>
           </section>
           <section id="hosted-self">
-            <h2>8. Hosted vs self-hosted</h2>
+            <h2>9. Hosted vs self-hosted</h2>
             <h3>Hosted (Qwixl-operated)</h3>
             <p>We process and store your agent data on infrastructure we manage. You may export your agent store and migrate to self-hosting from Settings. Export formats and procedures are documented in the product and on GitHub.</p>
             <h3>Self-hosted (you-operated)</h3>
             <p>If you run <code>atom agent start</code> or Docker on your own hardware, you are the data controller for that deployment. Data stays on your systems unless you connect to external peers or cloud LLMs. The shell may still connect to atom.qwixl.com for registry modules or discovery if you configure it to do so.</p>
           </section>
           <section id="cookies">
-            <h2>9. Cookies and local storage</h2>
+            <h2>10. Cookies and local storage</h2>
             <p>We use:</p>
             <ul>
               <li><strong>Strictly necessary storage</strong> — session tokens, authentication state, security flags;</li>
@@ -142,27 +174,30 @@
             <p>You can control cookies through your browser settings. Blocking strictly necessary cookies may prevent login or hosted agent access.</p>
           </section>
           <section id="transfers">
-            <h2>10. International transfers</h2>
+            <h2>11. International transfers</h2>
             <p>Qwixl is based in the United Kingdom. Some processors may store or process data in the United States or other countries. Where personal data is transferred outside the UK, we use appropriate safeguards such as the UK International Data Transfer Agreement, UK Addendum to EU Standard Contractual Clauses, or adequacy regulations, as applicable.</p>
           </section>
           <section id="retention">
-            <h2>11. Retention</h2>
-            <p>We retain personal data only as long as necessary:</p>
+            <h2>12. Retention</h2>
+            <p>We retain personal data only as long as necessary for the purposes above:</p>
             <ul>
-              <li><strong>Account data</strong> — for the life of your account plus a reasonable period after deletion for backups and legal compliance;</li>
-              <li><strong>Agent store and logs</strong> — while your hosted agent is active; deleted or anonymized within 90 days of account closure unless law requires longer retention;</li>
-              <li><strong>Security and abuse logs</strong> — typically up to 12 months;</li>
+              <li><strong>Account profile and handle</strong> — for the life of your account;</li>
+              <li><strong>Hosted agent store and operational data</strong> — while your hosted agent is active; deleted or anonymized within 90 days of account closure unless law requires longer retention;</li>
+              <li><strong>Control-plane abuse and signup metadata</strong> — typically up to 90 days;</li>
+              <li><strong>Microsoft OAuth tokens</strong> — until you disconnect Microsoft or delete the account;</li>
+              <li><strong>Graph invoke cache</strong> — minutes (server-capped; not a durable warehouse);</li>
+              <li><strong>Encrypted infrastructure backups</strong> — rolling window of up to 35 days (target), after which aged data is not indefinitely restorable;</li>
               <li><strong>Support correspondence</strong> — up to 24 months after resolution.</li>
             </ul>
             <p>Retention periods may be adjusted during beta as we refine operational practices. Material changes will be reflected in this policy.</p>
           </section>
           <section id="security">
-            <h2>12. Security</h2>
-            <p>We implement technical and organizational measures appropriate to the risk, including encryption in transit (TLS), access controls, isolated hosted agent containers, and secret handling practices that avoid storing LLM keys in browser storage on production hosts.</p>
+            <h2>13. Security</h2>
+            <p>We implement technical and organizational measures appropriate to the risk, including encryption in transit (TLS), access controls, isolated hosted agent containers, encrypted connector vaults for provider credentials, and secret handling practices that avoid storing LLM keys in browser storage on production hosts. Chat and connector reads on hosted accounts use short-lived scoped session tokens where implemented, reducing reliance on long-lived admin credentials in the browser.</p>
             <p>No system is perfectly secure. Report vulnerabilities responsibly via <a href="https://github.com/Qwixl/Atom/security">GitHub Security Advisories</a> or <a href="mailto:support@qwixl.com">support@qwixl.com</a>. We will investigate and respond in good faith.</p>
           </section>
           <section id="rights">
-            <h2>13. Your rights</h2>
+            <h2>14. Your rights</h2>
             <p>Under UK data protection law, you have the right to:</p>
             <ul>
               <li>Access a copy of personal data we hold about you;</li>
@@ -171,24 +206,26 @@
               <li>Restrict or object to processing in certain circumstances;</li>
               <li>Data portability for data processed by automated means under contract or consent;</li>
               <li>Withdraw consent where processing is consent-based;</li>
+              <li>Disconnect Microsoft Graph and request deletion of related tokens and cached Graph results;</li>
+              <li>Export your agent data via the encrypted export bundle in Settings (where available);</li>
               <li>Not be subject to solely automated decisions with legal or similarly significant effects (Atom does not make such decisions about you).</li>
             </ul>
             <p>To exercise rights, email <a href="mailto:support@qwixl.com">support@qwixl.com</a>. We may need to verify your identity. We respond within one month, extendable where permitted by law.</p>
           </section>
           <section id="children">
-            <h2>14. Children</h2>
+            <h2>15. Children</h2>
             <p>Atom is not directed at children under 18. We do not knowingly collect personal data from anyone under 18. If you believe a child has provided us data, contact us and we will delete it promptly.</p>
           </section>
           <section id="changes">
-            <h2>15. Changes to this policy</h2>
+            <h2>16. Changes to this policy</h2>
             <p>We may update this policy as the product, law, or our processing practices change. We will post the revised version on this page with an updated date. For material changes affecting hosted users, we will provide notice in-product or by email where appropriate.</p>
           </section>
           <section id="complaints">
-            <h2>16. Complaints</h2>
+            <h2>17. Complaints</h2>
             <p>If you have concerns about our use of personal data, contact us first at <a href="mailto:support@qwixl.com">support@qwixl.com</a>. You also have the right to lodge a complaint with the Information Commissioner’s Office (ICO): <a href="https://ico.org.uk/make-a-complaint/" rel="noopener noreferrer">ico.org.uk/make-a-complaint</a>.</p>
           </section>
           <section id="contact">
-            <h2>17. Contact</h2>
+            <h2>18. Contact</h2>
             <p>Privacy and data enquiries: <a href="mailto:support@qwixl.com">support@qwixl.com</a></p>
             <p>General contact: <a href="mailto:hello@qwixl.com">hello@qwixl.com</a></p>
             <p>Qwixl — Atom, United Kingdom</p>
