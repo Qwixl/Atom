@@ -21,7 +21,7 @@ import { createRateLimiter } from "./rateLimit.js";
 import { loadAgentBackendConfig, type AgentBackendConfig } from "./config.js";
 import { publicBaseUrlForPort, resolvePortWithPrompt } from "./portConflict.js";
 import { loadOrCreateAdminToken, requireAdminAuth, adminTokenPath, isAdminAuth, type AuthenticatedRequest } from "./adminAuth.js";
-import { mintSessionToken, parseSessionTtlMs, type SessionScope } from "./sessionToken.js";
+import { mintSessionToken, parseSessionTtlMs, isSessionScope, type SessionScope } from "./sessionToken.js";
 import { agentConnectionPath, writeAgentConnectionFile } from "./agentConnectionFile.js";
 import { registerAdminDataRoutes } from "./adminDataRoutes.js";
 import { registerCustodyAdminRoutes } from "./custodyAdmin.js";
@@ -396,9 +396,11 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     }
     const body = req.body as { scopes?: SessionScope[]; ttlSeconds?: number };
     const scopes =
-      body.scopes?.filter((scope): scope is SessionScope => scope === "connector:read") ?? [
-        "connector:read",
-      ];
+      body.scopes?.filter(isSessionScope) ?? (["connector:read", "chat:agui"] as SessionScope[]);
+    if (scopes.length === 0) {
+      res.status(400).json({ error: "At least one valid session scope is required" });
+      return;
+    }
     const ttlMs = parseSessionTtlMs(body.ttlSeconds);
     res.json({
       token: mintSessionToken(adminAuth.token, { scopes, ttlMs }),
