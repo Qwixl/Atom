@@ -252,8 +252,14 @@ import {
   getLlmProviderPreset,
   matchLlmProviderPresetId,
   modelSelectOptions,
+  resolveHostedLlmConnection,
   type LlmProviderPresetId,
 } from "./settings/llmProviderPresets.js";
+import {
+  defaultHostedLlmConnectionFields,
+  HostedLlmConnectionFields,
+  type HostedLlmConnectionFieldsValue,
+} from "./settings/HostedLlmConnectionFields.js";
 import { loadCommsAgentConfig, loadCommsAgentConfigSecure, saveCommsAgentConfigSecure, clearCommsAdminToken, clearCommsAgentConfig, loadOwnerAgentKind, refreshCommsConfigCache, purgeStaleLocalAgentConfig, isLocalAgentUrl } from "./comms/storage.js";
 import { probeAgentConnection, reconcileAgentConnection } from "./comms/agentConnection.js";
 import { presentUserError } from "./comms/agentErrors.js";
@@ -277,8 +283,13 @@ import {
 import { AGUI_CONFIG_KEY, DEFAULT_AGUI_URL, agUiAuthHeaders, loadAgUiConfig, saveAgUiConfigForAgent } from "./agUiConfig.js";
 import { validateProductionAgUiUrl } from "./productionGuard.js";
 import { applyAtomSkin, ATOM_SKINS, isAtomSkinId, type AtomSkinId } from "@qwixl/skin-default/tokens";
-import { FieldLabelWithHint, LlmApiKeyHintContent } from "./ui/FieldHint.js";
-import { updateHostedLlmApiKey, signOutSupabase, fetchHostedAccountStatus, fetchHostedAgentConnection, createHostedWorkspace } from "./auth/hostedAccount.js";
+import {
+  updateHostedLlmConnection,
+  signOutSupabase,
+  fetchHostedAccountStatus,
+  fetchHostedAgentConnection,
+  createHostedWorkspace,
+} from "./auth/hostedAccount.js";
 import { ShellComposer } from "./shell/ShellComposer.js";
 import { ConfirmationChrome } from "./shell/ConfirmationChrome.js";
 import { AtomShell, type SettingsOpenTarget } from "./shell/AtomShell.js";
@@ -459,6 +470,8 @@ export function App() {
   const [agentConnectionReady, setAgentConnectionReady] = useState(false);
   const [agentBootstrapPending, setAgentBootstrapPending] = useState(!IS_DEMO_MODE);
   const [vaultUnlocked, setVaultUnlocked] = useState(() => !isVaultInitialized() || isVaultUnlocked());
+  /** React copy of the in-memory chat session bearer so AG-UI rebuilds when it refreshes. */
+  const [chatSessionBearer, setChatSessionBearer] = useState<string | null>(null);
 
   useEffect(() => {
     if (IS_PRODUCTION_HOST) purgeInsecureLocalCredentials(LLM_CONNECTION_STORAGE_KEY);
@@ -587,15 +600,19 @@ export function App() {
   useEffect(() => {
     if (!vaultUnlocked) {
       setChatSessionToken(null);
+      setChatSessionBearer(null);
       return;
     }
     void (async () => {
       const config = await loadCommsAgentConfigSecure();
-      if (!config.adminToken?.trim()) {
+      if (!config.adminToken?.trim() && !usesSupabaseHostedAuth()) {
         setChatSessionToken(null);
+        setChatSessionBearer(null);
         return;
       }
-      setChatSessionToken(await mintChatSessionToken(config));
+      const minted = await mintChatSessionToken(config);
+      setChatSessionToken(minted);
+      setChatSessionBearer(minted);
     })();
   }, [vaultUnlocked, agentConnectionReady]);
 
@@ -1367,6 +1384,7 @@ export function App() {
       if (!/unauthorized|401|403|session token|expired/i.test(message)) throw error;
       const refreshed = await refreshChatSessionToken(config);
       if (!refreshed) throw error;
+      setChatSessionBearer(refreshed);
       return await invokeOnce();
     }
   }, [vaultUnlocked]);
@@ -1396,11 +1414,16 @@ export function App() {
       if (!/unauthorized|401|403|session token|expired/i.test(message)) throw error;
       const refreshed = await refreshChatSessionToken(config);
       if (!refreshed) throw error;
+      setChatSessionBearer(refreshed);
       return await invokeOnce();
     }
   }, [vaultUnlocked]);
 
   const agUiSessionKey = provider === "ag-ui" ? agUiConfig.url : null;
+  const agUiBearer =
+    chatSessionBearer?.trim() ||
+    (provider === "ag-ui" ? loadCommsAgentConfig().adminToken?.trim() : undefined) ||
+    undefined;
 
   const session: ShellSession = useMemo(() => {
     if (provider === "llm" && llmConfig) {
@@ -1413,10 +1436,9 @@ export function App() {
       });
     }
     if (provider === "ag-ui") {
-      const comms = loadCommsAgentConfig();
       return new AgUiAgentSession({
         ...agUiConfig,
-        headers: agUiAuthHeaders(comms.adminToken),
+        headers: agUiAuthHeaders(agUiBearer),
         profileProvider,
         connectorExecutor: atomToolExecutor,
         connectorsAvailable: agentConnectionReady && !IS_DEMO_MODE,
@@ -1430,6 +1452,7 @@ export function App() {
     provider,
     llmConfig,
     agUiSessionKey,
+    agUiBearer,
     catalog,
     profileProvider,
     mockWebcalEventsProvider,
@@ -3527,7 +3550,9 @@ function SettingsDialog({
   const agUiChanged = agUiUrl.trim() !== agUiInitial.url.trim();
   const isHostedAgent =
     productionLocked && MANAGED_HOSTING && loadOwnerAgentKind(loadCommsAgentConfig()) === "hosted";
-  const [hostedLlmKey, setHostedLlmKey] = useState("");
+  const [hostedLlm, setHostedLlm] = useState<HostedLlmConnectionFieldsValue>(() =>
+    defaultHostedLlmConnectionFields("openai"),
+  );
   const [hostedLlmBusy, setHostedLlmBusy] = useState(false);
   const [hostedLlmNote, setHostedLlmNote] = useState<string | null>(null);
   const [hostedLlmError, setHostedLlmError] = useState<string | null>(null);
@@ -3580,18 +3605,38 @@ function SettingsDialog({
   }, [productionLocked]);
 
   async function saveHostedLlmKey() {
-    const key = hostedLlmKey.trim();
+    const resolved = resolveHostedLlmConnection({
+      providerId: hostedLlm.providerId,
+      baseUrl: hostedLlm.baseUrl,
+      model: hostedLlm.model,
+    });
+    const key = hostedLlm.apiKey.trim();
     if (!key) {
       setHostedLlmError("Enter your LLM API key.");
+      return;
+    }
+    if (!resolved.baseUrl.trim() || !resolved.model.trim()) {
+      setHostedLlmError(
+        hostedLlm.providerId === "custom"
+          ? "Add an endpoint base URL and model id."
+          : "Choose a model for your provider.",
+      );
       return;
     }
     setHostedLlmBusy(true);
     setHostedLlmError(null);
     setHostedLlmNote(null);
     try {
-      await updateHostedLlmApiKey(key);
-      setHostedLlmKey("");
-      setHostedLlmNote("LLM API key updated. Your agent will restart briefly — try chat again in a moment.");
+      await updateHostedLlmConnection({
+        llmApiKey: key,
+        llmProvider: resolved.provider,
+        llmBaseUrl: resolved.baseUrl,
+        llmModel: resolved.model,
+      });
+      setHostedLlm((prev) => ({ ...prev, apiKey: "" }));
+      setHostedLlmNote(
+        "LLM connection updated. Your agent will restart briefly — try chat again in a moment.",
+      );
     } catch (error) {
       setHostedLlmError(
         presentUserError(error, {
@@ -3732,21 +3777,12 @@ function SettingsDialog({
         <>
           <p className="settings-note">
             {isHostedAgent
-              ? "Chat runs on your Atom agent. Update your API key if chat stops working or you rotate credentials."
+              ? "Chat runs on your Atom agent. Choose OpenAI, OpenRouter (one key, many models), or a custom OpenAI-compatible endpoint."
               : "Chat runs through your agent on this site. Your API keys stay on the server, not in the browser."}
           </p>
           {isHostedAgent ? (
             <>
-              <label className="atom-field">
-                <FieldLabelWithHint label="LLM API key" hint={<LlmApiKeyHintContent />} />
-                <input
-                  type="password"
-                  autoComplete="off"
-                  value={hostedLlmKey}
-                  onChange={(e) => setHostedLlmKey(e.target.value)}
-                  placeholder="sk-…"
-                />
-              </label>
+              <HostedLlmConnectionFields value={hostedLlm} onChange={setHostedLlm} />
               {hostedLlmError ? (
                 <p className="settings-note settings-error">{hostedLlmError}</p>
               ) : null}
@@ -3755,10 +3791,10 @@ function SettingsDialog({
                 <button
                   type="button"
                   className="chrome-approve"
-                  disabled={hostedLlmBusy || !hostedLlmKey.trim()}
+                  disabled={hostedLlmBusy || !hostedLlm.apiKey.trim()}
                   onClick={() => void saveHostedLlmKey()}
                 >
-                  {hostedLlmBusy ? "Updating…" : "Update LLM key"}
+                  {hostedLlmBusy ? "Updating…" : "Update LLM connection"}
                 </button>
               </div>
             </>

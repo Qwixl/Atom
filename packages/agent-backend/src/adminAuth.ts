@@ -60,9 +60,17 @@ export function requireAdminAuth(expectedToken: string) {
   return createAdminAuthMiddleware(expectedToken);
 }
 
-function allowsSessionAuth(req: Request): boolean {
-  if (req.method === "GET" && /^\/connectors\//.test(req.path)) return true;
-  if (req.method === "POST" && /^\/connectors\/[^/]+\/invoke$/.test(req.path)) return true;
+function allowsSessionAuth(req: Request, scopes: SessionScope[]): boolean {
+  if (req.method === "GET" && /^\/connectors\//.test(req.path)) {
+    return scopes.includes("connector:read");
+  }
+  if (req.method === "POST" && /^\/connectors\/[^/]+\/invoke$/.test(req.path)) {
+    return scopes.includes("connector:read");
+  }
+  // AG-UI Chat SSE — short-lived chat:agui only (M21.4 / AS-09 interim).
+  if (req.method === "POST" && (req.path === "/agent" || req.path.endsWith("/agent"))) {
+    return scopes.includes("chat:agui");
+  }
   return false;
 }
 
@@ -86,7 +94,7 @@ export function createAdminAuthMiddleware(expectedToken: string) {
     if (bearer) {
       const payload = verifySessionToken(expectedToken, bearer);
       if (payload) {
-        if (!allowsSessionAuth(req)) {
+        if (!allowsSessionAuth(req, payload.scopes)) {
           res.status(403).json({ error: "Session token not valid for this route" });
           return;
         }

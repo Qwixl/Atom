@@ -25,9 +25,12 @@ export function loadAgUiConfig(): AgUiAgentConfig {
   return { url: DEFAULT_AGUI_URL };
 }
 
-/** Bearer auth for POST /agent (same admin token as comms API). */
-export function agUiAuthHeaders(adminToken?: string): Record<string, string> | undefined {
-  const token = adminToken?.trim();
+/**
+ * Bearer auth for POST /agent.
+ * Prefer a short-lived `chat:agui` session token; fall back to admin only if mint failed (M21.4).
+ */
+export function agUiAuthHeaders(bearerToken?: string): Record<string, string> | undefined {
+  const token = bearerToken?.trim();
   if (!token) return undefined;
   return { Authorization: `Bearer ${token}` };
 }

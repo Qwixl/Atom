@@ -11,6 +11,15 @@ export type LlmProviderPresetId =
   | "ollama"
   | "custom";
 
+/** Hosted agents use OpenAI-compatible chat completions only (no Anthropic-native adapter). */
+export type HostedLlmProviderId = "openai" | "openrouter" | "custom";
+
+export const HOSTED_LLM_PROVIDER_IDS: readonly HostedLlmProviderId[] = [
+  "openai",
+  "openrouter",
+  "custom",
+] as const;
+
 export interface LlmProviderPreset {
   id: LlmProviderPresetId;
   label: string;
@@ -68,6 +77,26 @@ export function getLlmProviderPreset(id: LlmProviderPresetId): LlmProviderPreset
   return LLM_PROVIDER_PRESETS.find((p) => p.id === id) ?? LLM_PROVIDER_PRESETS[4]!;
 }
 
+export function isHostedLlmProviderId(id: string): id is HostedLlmProviderId {
+  return (HOSTED_LLM_PROVIDER_IDS as readonly string[]).includes(id);
+}
+
+/** Resolve provider + base URL + model for hosted signup / Settings. */
+export function resolveHostedLlmConnection(input: {
+  providerId: HostedLlmProviderId;
+  baseUrl?: string;
+  model?: string;
+}): { provider: HostedLlmProviderId; baseUrl: string; model: string } {
+  const preset = getLlmProviderPreset(input.providerId);
+  const baseUrl =
+    input.providerId === "custom" ? (input.baseUrl?.trim() ?? "") : preset.baseUrl;
+  const model =
+    input.model?.trim() ||
+    preset.suggestedModels[0] ||
+    (input.providerId === "openrouter" ? "openai/gpt-4o-mini" : "gpt-4o-mini");
+  return { provider: input.providerId, baseUrl, model };
+}
+
 /** Match a saved base URL to a preset (custom if unknown). */
 export function matchLlmProviderPresetId(baseUrl: string): LlmProviderPresetId {
   const normalized = baseUrl.trim().replace(/\/+$/, "").toLowerCase();
@@ -83,6 +112,12 @@ export function matchLlmProviderPresetId(baseUrl: string): LlmProviderPresetId {
   if (normalized.includes("api.openai.com")) return "openai";
   if (normalized.includes("anthropic.com")) return "anthropic";
   if (normalized.includes("11434") || normalized.includes("ollama")) return "ollama";
+  return "custom";
+}
+
+export function matchHostedLlmProviderId(baseUrl: string): HostedLlmProviderId {
+  const matched = matchLlmProviderPresetId(baseUrl);
+  if (matched === "openrouter" || matched === "openai" || matched === "custom") return matched;
   return "custom";
 }
 
