@@ -470,6 +470,8 @@ export function App() {
   const [agentConnectionReady, setAgentConnectionReady] = useState(false);
   const [agentBootstrapPending, setAgentBootstrapPending] = useState(!IS_DEMO_MODE);
   const [vaultUnlocked, setVaultUnlocked] = useState(() => !isVaultInitialized() || isVaultUnlocked());
+  /** React copy of the in-memory chat session bearer so AG-UI rebuilds when it refreshes. */
+  const [chatSessionBearer, setChatSessionBearer] = useState<string | null>(null);
 
   useEffect(() => {
     if (IS_PRODUCTION_HOST) purgeInsecureLocalCredentials(LLM_CONNECTION_STORAGE_KEY);
@@ -598,15 +600,19 @@ export function App() {
   useEffect(() => {
     if (!vaultUnlocked) {
       setChatSessionToken(null);
+      setChatSessionBearer(null);
       return;
     }
     void (async () => {
       const config = await loadCommsAgentConfigSecure();
-      if (!config.adminToken?.trim()) {
+      if (!config.adminToken?.trim() && !usesSupabaseHostedAuth()) {
         setChatSessionToken(null);
+        setChatSessionBearer(null);
         return;
       }
-      setChatSessionToken(await mintChatSessionToken(config));
+      const minted = await mintChatSessionToken(config);
+      setChatSessionToken(minted);
+      setChatSessionBearer(minted);
     })();
   }, [vaultUnlocked, agentConnectionReady]);
 
@@ -1378,6 +1384,7 @@ export function App() {
       if (!/unauthorized|401|403|session token|expired/i.test(message)) throw error;
       const refreshed = await refreshChatSessionToken(config);
       if (!refreshed) throw error;
+      setChatSessionBearer(refreshed);
       return await invokeOnce();
     }
   }, [vaultUnlocked]);
@@ -1407,11 +1414,16 @@ export function App() {
       if (!/unauthorized|401|403|session token|expired/i.test(message)) throw error;
       const refreshed = await refreshChatSessionToken(config);
       if (!refreshed) throw error;
+      setChatSessionBearer(refreshed);
       return await invokeOnce();
     }
   }, [vaultUnlocked]);
 
   const agUiSessionKey = provider === "ag-ui" ? agUiConfig.url : null;
+  const agUiBearer =
+    chatSessionBearer?.trim() ||
+    (provider === "ag-ui" ? loadCommsAgentConfig().adminToken?.trim() : undefined) ||
+    undefined;
 
   const session: ShellSession = useMemo(() => {
     if (provider === "llm" && llmConfig) {
@@ -1424,10 +1436,9 @@ export function App() {
       });
     }
     if (provider === "ag-ui") {
-      const comms = loadCommsAgentConfig();
       return new AgUiAgentSession({
         ...agUiConfig,
-        headers: agUiAuthHeaders(comms.adminToken),
+        headers: agUiAuthHeaders(agUiBearer),
         profileProvider,
         connectorExecutor: atomToolExecutor,
         connectorsAvailable: agentConnectionReady && !IS_DEMO_MODE,
@@ -1441,6 +1452,7 @@ export function App() {
     provider,
     llmConfig,
     agUiSessionKey,
+    agUiBearer,
     catalog,
     profileProvider,
     mockWebcalEventsProvider,
