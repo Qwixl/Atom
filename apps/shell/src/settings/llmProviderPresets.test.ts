@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   matchLlmProviderPresetId,
+  matchHostedLlmProviderId,
   modelSelectOptions,
   getLlmProviderPreset,
+  resolveHostedLlmConnection,
 } from "./llmProviderPresets.js";
 
 describe("llmProviderPresets", () => {
@@ -39,5 +41,17 @@ describe("llmProviderPresets", () => {
 
   it("openrouter preset has curated models", () => {
     expect(getLlmProviderPreset("openrouter").suggestedModels.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("resolveHostedLlmConnection defaults OpenRouter base URL and model", () => {
+    expect(resolveHostedLlmConnection({ providerId: "openrouter" })).toEqual({
+      provider: "openrouter",
+      baseUrl: "https://openrouter.ai/api/v1",
+      model: "openai/gpt-4o-mini",
+    });
+  });
+
+  it("matchHostedLlmProviderId maps OpenRouter URLs", () => {
+    expect(matchHostedLlmProviderId("https://openrouter.ai/api/v1")).toBe("openrouter");
   });
 });

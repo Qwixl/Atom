@@ -18,11 +18,15 @@ class DevStubProvisioner implements FleetProvisioner {
     handle: string;
     email: string;
     llmApiKey?: string;
+    llmBaseUrl?: string;
+    llmModel?: string;
     workspaceKind?: "personal" | "business" | "developer";
     brainAlwaysOn?: boolean;
   }): Promise<ProvisionOutcome> {
     void input.workspaceKind;
     void input.brainAlwaysOn;
+    void input.llmBaseUrl;
+    void input.llmModel;
     const stub = devStubCredentials();
     if (!stub) {
       throw new Error("Dev stub credentials not configured");
@@ -57,8 +61,11 @@ class DevStubProvisioner implements FleetProvisioner {
     /* dev stub */
   }
 
-  async updateLlmApiKey(_agent: HostedAgentRecord, _llmApiKey: string): Promise<void> {
-    /* dev stub — LLM key lives on the shared stub agent process */
+  async updateLlmConnection(
+    _agent: HostedAgentRecord,
+    _connection: { llmApiKey: string; llmBaseUrl?: string; llmModel?: string },
+  ): Promise<void> {
+    /* dev stub — LLM connection lives on the shared stub agent process */
   }
 }
 
@@ -70,6 +77,8 @@ class UnconfiguredProvisioner implements FleetProvisioner {
     handle: string;
     email: string;
     llmApiKey?: string;
+    llmBaseUrl?: string;
+    llmModel?: string;
     workspaceKind?: "personal" | "business" | "developer";
     brainAlwaysOn?: boolean;
   }): Promise<ProvisionOutcome> {
@@ -90,7 +99,7 @@ class UnconfiguredProvisioner implements FleetProvisioner {
     throw new Error("Fleet not configured");
   }
 
-  async updateLlmApiKey(): Promise<void> {
+  async updateLlmConnection(): Promise<void> {
     throw new Error("Fleet not configured");
   }
 }
