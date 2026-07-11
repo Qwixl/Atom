@@ -73,6 +73,13 @@ import {
   mastodonConnectorOperation,
 } from "./mastodonConnector.js";
 import {
+  MICROSOFT_GRAPH_CONNECTOR_ID,
+  MICROSOFT_GRAPH_CONNECTOR_OPERATIONS,
+  invokeMicrosoftGraphConnector,
+  isMicrosoftGraphConfigured,
+  microsoftGraphConnectorOperation,
+} from "./microsoftGraphConnector.js";
+import {
   CALDAV_CONNECTOR_ID,
   CALDAV_CONNECTOR_OPERATIONS,
   caldavConnectorOperation,
@@ -432,6 +439,33 @@ const CONNECTOR_BACKENDS = new Map<string, ConnectorBackend>([
       },
       operationSpec(operation) {
         return mastodonConnectorOperation(operation);
+      },
+    },
+  ],
+  [
+    MICROSOFT_GRAPH_CONNECTOR_ID,
+    {
+      id: MICROSOFT_GRAPH_CONNECTOR_ID,
+      moduleId: "connectors/microsoft-graph",
+      provider: "microsoft",
+      label: "Microsoft 365",
+      async status(vault) {
+        return {
+          connectorId: MICROSOFT_GRAPH_CONNECTOR_ID,
+          moduleId: "connectors/microsoft-graph",
+          provider: "microsoft",
+          label: "Microsoft 365",
+          configured: isMicrosoftGraphConfigured(vault),
+          vaultOnly: true,
+          oauthAvailable: true,
+          operations: MICROSOFT_GRAPH_CONNECTOR_OPERATIONS,
+        };
+      },
+      async invoke(vault, operation, input) {
+        return invokeMicrosoftGraphConnector({ vault }, operation, input);
+      },
+      operationSpec(operation) {
+        return microsoftGraphConnectorOperation(operation);
       },
     },
   ],
