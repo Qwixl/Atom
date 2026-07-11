@@ -305,7 +305,9 @@ export async function fetchHostedAccountStatus(): Promise<{
 
 export async function fetchHostedAgentConnection(workspaceId?: string): Promise<{
   adminUrl: string;
-  adminToken: string;
+  /** Present only on legacy control planes; hosted PR2 omits root admin. */
+  adminToken?: string;
+  sessionToken?: string;
   handle?: string;
   workspaceId?: string;
 }> {
@@ -327,17 +329,22 @@ export async function fetchHostedAgentConnection(workspaceId?: string): Promise<
   const data = (await resp.json()) as {
     agentUrl?: string;
     adminToken?: string;
+    sessionToken?: string;
     handle?: string;
     workspaceId?: string;
     error?: string;
   };
   if (!resp.ok) throw new Error(data.error ?? `Connect failed (${resp.status})`);
-  if (!data.agentUrl || !data.adminToken) {
-    throw new Error("Hosted agent credentials were not returned");
+  if (!data.agentUrl?.trim()) {
+    throw new Error("Hosted agent URL was not returned");
+  }
+  if (!data.sessionToken?.trim() && !data.adminToken?.trim()) {
+    throw new Error("Hosted agent session was not returned");
   }
   return {
     adminUrl: data.agentUrl.replace(/\/$/, ""),
-    adminToken: data.adminToken,
+    adminToken: data.adminToken?.trim() || undefined,
+    sessionToken: data.sessionToken?.trim() || undefined,
     handle: data.handle,
     workspaceId: data.workspaceId,
   };
