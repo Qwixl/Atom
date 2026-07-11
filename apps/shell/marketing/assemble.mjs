@@ -342,7 +342,7 @@ subPage(
   },
   `
         <h1 class="page-title">Privacy policy</h1>
-        <p class="eyebrow">Last updated: 6 July 2026 · Beta</p>
+        <p class="eyebrow">Last updated: 11 July 2026 · Beta</p>
 ${privacyBody}`,
   path.join(marketingRoot, "privacy"),
   { mainClass: "site-main site-main--legal" },
