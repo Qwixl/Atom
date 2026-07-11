@@ -20,6 +20,7 @@ import { loadAgentStore, resolveDataDir, saveAgentStore } from "./fleet/store.js
 import type { FleetProvisioner, HostedAgentRecord } from "./fleet/types.js";
 import { createRateLimiter } from "./rateLimit.js";
 import { registerAccountRoutes } from "./accountRoutes.js";
+import { registerAgentSessionRoutes } from "./agentSessionRoutes.js";
 import { registerWorkspaceRoutes } from "./workspaceRoutes.js";
 import { registerModelBehaviorSightingsRoutes } from "./modelBehaviorSightingsRoutes.js";
 import { isSupabaseConfigured } from "./supabaseAdmin.js";
@@ -95,6 +96,7 @@ registerAccountRoutes(app, {
   fleetAgents: () => agents,
   persistAgents,
 });
+registerAgentSessionRoutes(app);
 registerWorkspaceRoutes(app, {
   fleet: () => fleet,
   fleetAgents: () => agents,
