@@ -768,6 +768,43 @@ export class CommsAgentClient {
     return resp.json() as Promise<{ connectorId: string; removed: boolean }>;
   }
 
+  async startMicrosoftOAuth(): Promise<{
+    connectorId: string;
+    authorizeUrl: string;
+    redirectUri: string;
+  }> {
+    return postJson(this.base(), "/connectors/microsoft/oauth/start", {}, this.auth);
+  }
+
+  async setMicrosoftOAuthClient(
+    input: { clientId: string; clientSecret?: string },
+    approvalRef?: string,
+  ): Promise<{ provider: string; configured: boolean }> {
+    return postJson(
+      this.base(),
+      "/connectors/microsoft/oauth/client",
+      { ...input, approvalRef },
+      this.auth,
+      true,
+    );
+  }
+
+  async disconnectMicrosoftOAuth(approvalRef?: string): Promise<{ connectorId: string; removed: boolean }> {
+    const query = approvalRef?.trim() ? `?approvalRef=${encodeURIComponent(approvalRef.trim())}` : "";
+    const headers: Record<string, string> = {};
+    const bearer = this.bearer(true);
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    const resp = await fetch(`${this.base()}/connectors/microsoft/oauth${query}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (!resp.ok) {
+      const err = (await resp.json().catch(() => ({}))) as { error?: string };
+      throw new Error(formatAgentError(new Error(err.error ?? `Request failed (${resp.status})`)));
+    }
+    return resp.json() as Promise<{ connectorId: string; removed: boolean }>;
+  }
+
   async createTodoistTask(
     content: string,
     opts?: { projectId?: string; dueString?: string },
