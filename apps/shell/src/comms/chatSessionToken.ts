@@ -36,16 +36,18 @@ async function mintViaAgentAdmin(config: CommsAgentConfig): Promise<string | nul
 
 /**
  * Mint a short-lived session for AG-UI Chat + connector reads.
- * Hosted: prefer control-plane mint (admin token stays server-side).
- * Self-host / fallback: mint with the browser-held admin bearer.
+ * Hosted: control-plane mint only (admin token stays server-side). If CP mint
+ * fails, return null so Chat/connectors fall back to the browser admin bearer
+ * (PR1 interim) — do not mint via the agent with the browser admin token, which
+ * can strand Chat on a connector:read-only session when fleet images skew.
+ * Self-host: mint with the browser-held admin bearer.
  */
 export async function mintChatSessionToken(config: CommsAgentConfig): Promise<string | null> {
   if (usesSupabaseHostedAuth()) {
-    const hosted = await mintHostedAgentSession({
+    return mintHostedAgentSession({
       scopes: [...CHAT_SESSION_SCOPES],
       ttlSeconds: 900,
     });
-    if (hosted) return hosted;
   }
   return mintViaAgentAdmin(config);
 }
