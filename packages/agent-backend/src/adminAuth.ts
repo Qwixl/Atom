@@ -65,7 +65,8 @@ export function requireAdminAuth(expectedToken: string) {
 }
 
 function allowsSessionAuth(req: Request, scopes: SessionScope[]): boolean {
-  if (req.method === "GET" && /^\/connectors\//.test(req.path)) {
+  // List + per-connector reads (GET /connectors and GET /connectors/:id…).
+  if (req.method === "GET" && (req.path === "/connectors" || req.path.startsWith("/connectors/"))) {
     return scopes.includes("connector:read");
   }
   if (req.method === "POST" && /^\/connectors\/[^/]+\/invoke$/.test(req.path)) {
