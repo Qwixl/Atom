@@ -40,3 +40,13 @@ Qwixl `scripts/atom_host_*.sh` wrappers exec these paths when `~/atom/repos/atom
 ## Discover
 
 `discover-index.seed.json` — seed listings (`agentKind: swarm-npc`). Police is internal.
+
+## Operator dashboard (LAN)
+
+Aggregates live NPC mood/goals/intents/memories/logs + police findings.
+
+```bash
+bash ops/swarm-host/dashboard_start.sh
+# http://192.168.1.100:8080/  (or Tailscale IP :8080)
+bash ops/swarm-host/dashboard_stop.sh
+```
