@@ -33,6 +33,26 @@ export type {
   SwarmMemoryKind,
   SwarmMemoryRecord,
 } from "./swarmMemoryStore.js";
+export {
+  SwarmToolBudget,
+  sharedSwarmToolBudget,
+  resetSharedSwarmToolBudget,
+  SWARM_ALLOWED_TOOL_NAMES,
+  SWARM_MEMORY_REMEMBER_TOOL,
+  SWARM_SEARCH_TOOL_NAMES,
+  DEFAULT_SWARM_TOOL_BUDGET,
+} from "./swarmToolBudget.js";
+export {
+  buildSwarmPromptContext,
+  applySwarmMemoryRemember,
+  parseSwarmMemoryRememberArgs,
+  MEMORY_REMEMBER_CHAT_TOOL,
+} from "./swarmTurnContext.js";
+export {
+  formatSwarmCommunityBlock,
+  loadSwarmCommunityRoster,
+  loadSwarmVenueBriefs,
+} from "./swarmCommunity.js";
 export { GreeterGovernor, sharedGreeterGovernor, DEFAULT_GREETER_CAP } from "./greeterGovernor.js";
 export { registerSwarmAdminRoutes } from "./swarmAdmin.js";
 export {
