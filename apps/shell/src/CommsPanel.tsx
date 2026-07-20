@@ -6,6 +6,7 @@ import type { AttestationEntry, Catalog, ModuleRegistry, BattleshipsMove } from 
 import { BattleshipsA2AHost } from "@qwixl/shell-core";
 import { ThreadItemView, useRespondedProposalIds, useRespondedTransactionIds, threadItemNeedsActions } from "./comms/CoordinationCard.js";
 import { CommsAgentClient } from "./comms/client.js";
+import { CommsGameModal } from "./comms/CommsGameModal.js";
 import { CommsModuleEmbed } from "./comms/CommsModuleEmbed.js";
 import { mergeThread } from "./comms/coordinationThread.js";
 import { deriveSharedListStates } from "./comms/sharedListLogic.js";
@@ -198,6 +199,9 @@ export function CommsPanel({
   );
   const [conversationPane, setConversationPane] = useState<"chat" | "contact">("chat");
   const [inlineModuleId, setInlineModuleId] = useState<string | null>(null);
+  /** Peer A2A tic-tac-toe played in overlay (not as thread cards). */
+  const [tttModalOpen, setTttModalOpen] = useState(false);
+  const autoOpenedTttGameIdRef = useRef<string | null>(null);
   const [contactSearch, setContactSearch] = useState("");
   const [webcalBusyEvents, setWebcalBusyEvents] = useState<WebcalBusyEvent[]>([]);
   const [abuseReportOpen, setAbuseReportOpen] = useState(false);
@@ -374,10 +378,42 @@ export function CommsPanel({
   }, [inbox, outbound, selected]);
 
   const sharedListStates = useMemo(() => deriveSharedListStates(thread), [thread]);
+  /** Latest tic-tac-toe state for the selected peer (A2A wire stays; UI uses modal). */
+  const latestTtt = useMemo(() => {
+    if (!selected) return null;
+    for (let i = thread.length - 1; i >= 0; i--) {
+      const item = thread[i];
+      if (item?.kind === "ttt-state" && item.peerDid === selected.did) return item;
+    }
+    return null;
+  }, [thread, selected]);
+  const tttMyMark = useMemo((): "X" | "O" => {
+    if (!latestTtt || !selected) return "X";
+    const first = thread.find(
+      (item): item is Extract<CommsThreadItem, { kind: "ttt-state" }> =>
+        item.kind === "ttt-state" && item.gameId === latestTtt.gameId,
+    );
+    if (!first) return "X";
+    // Opener (outbound first state) is X; invitee facing a peer challenge is O.
+    return first.direction === "out" ? "X" : "O";
+  }, [latestTtt, selected, thread]);
   const visibleThread = useMemo(
-    () => thread.filter((item) => item.kind !== "shared-list-update"),
+    () =>
+      thread.filter(
+        (item) =>
+          item.kind !== "shared-list-update" &&
+          item.kind !== "ttt-move" &&
+          item.kind !== "ttt-state",
+      ),
     [thread],
   );
+
+  useEffect(() => {
+    if (!latestTtt || latestTtt.status !== "active") return;
+    if (autoOpenedTttGameIdRef.current === latestTtt.gameId) return;
+    autoOpenedTttGameIdRef.current = latestTtt.gameId;
+    setTttModalOpen(true);
+  }, [latestTtt]);
 
   useEffect(() => {
     if (!awaitingReply) return;
@@ -964,7 +1000,9 @@ export function CommsPanel({
         encrypt: sessionReady,
       });
       setOutbound((current) => [
-        ...current,
+        ...current.filter(
+          (item) => !(item.kind === "ttt-state" && item.gameId === gameId && item.peerDid === selected.did),
+        ),
         {
           kind: "ttt-state",
           id: objectId,
@@ -978,8 +1016,9 @@ export function CommsPanel({
         },
       ]);
       setInlineModuleId(null);
-      setConversationPane("chat");
-      setActionNote("Game started.");
+      autoOpenedTttGameIdRef.current = gameId;
+      setTttModalOpen(true);
+      setActionNote("Game started — play in the game window.");
       await refreshInbox();
     } catch (error) {
       setActionNote(error instanceof Error ? error.message : String(error));
@@ -997,6 +1036,7 @@ export function CommsPanel({
           item.kind === "ttt-state" && item.gameId === gameId,
       );
     if (!stateItem || stateItem.status !== "active") return;
+    if (stateItem.turn !== mark) return;
     setBusy(true);
     setActionNote(null);
     try {
@@ -1019,18 +1059,16 @@ export function CommsPanel({
         winner: next.winner,
         encrypt: sessionReady,
       });
+      // Keep latest board for the modal; do not append move cards to the DM thread.
       setOutbound((current) => [
-        ...current,
-        {
-          kind: "ttt-move",
-          id: crypto.randomUUID(),
-          direction: "out",
-          at: new Date().toISOString(),
-          peerDid: selected.did,
-          gameId,
-          cell,
-          mark,
-        },
+        ...current.filter(
+          (item) =>
+            !(
+              (item.kind === "ttt-state" || item.kind === "ttt-move") &&
+              item.gameId === gameId &&
+              item.peerDid === selected.did
+            ),
+        ),
         {
           kind: "ttt-state",
           id: objectId,
@@ -1044,6 +1082,7 @@ export function CommsPanel({
           winner: next.winner,
         },
       ]);
+      setTttModalOpen(true);
       await refreshInbox();
     } catch (error) {
       setActionNote(error instanceof Error ? error.message : String(error));
@@ -2458,6 +2497,27 @@ export function CommsPanel({
                         />
                       ))
                     )}
+                    {latestTtt ? (
+                      <div className="comms-game-chip">
+                        <div>
+                          <strong>Tic-tac-toe</strong>
+                          <p>
+                            {latestTtt.status === "active"
+                              ? "Playing in game view"
+                              : latestTtt.status === "won"
+                                ? `${latestTtt.winner} wins`
+                                : "Draw"}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          className="panel-btn"
+                          onClick={() => setTttModalOpen(true)}
+                        >
+                          Open game
+                        </button>
+                      </div>
+                    ) : null}
                     {awaitingReply && selected && awaitingReply.did === selected.did ? (
                       <div className="comms-thinking" aria-live="polite">
                         <span className="comms-thinking-name">{awaitingReply.name} is thinking</span>
@@ -2546,6 +2606,23 @@ export function CommsPanel({
                     />
                   ))
                 )}
+                {latestTtt ? (
+                  <div className="comms-game-chip">
+                    <div>
+                      <strong>Tic-tac-toe</strong>
+                      <p>
+                        {latestTtt.status === "active"
+                          ? "Playing in game view"
+                          : latestTtt.status === "won"
+                            ? `${latestTtt.winner} wins`
+                            : "Draw"}
+                      </p>
+                    </div>
+                    <button type="button" className="panel-btn" onClick={() => setTttModalOpen(true)}>
+                      Open game
+                    </button>
+                  </div>
+                ) : null}
                 {awaitingReply && selected && awaitingReply.did === selected.did ? (
                   <div className="comms-thinking" aria-live="polite">
                     <span className="comms-thinking-name">{awaitingReply.name} is thinking</span>
@@ -2700,6 +2777,27 @@ export function CommsPanel({
       </div>
 
       {actionNote ? <p className="comms-toast">{actionNote}</p> : null}
+
+      {tttModalOpen && latestTtt && modulesReady && catalog && registry ? (
+        <CommsGameModal
+          title={`Tic-tac-toe with ${selected ? contactDisplayName(selected) : "peer"}`}
+          moduleId="games/tictactoe"
+          catalog={catalog}
+          registry={registry}
+          peerBusy={latestTtt.status === "active" && latestTtt.turn !== tttMyMark}
+          props={{
+            gameId: latestTtt.gameId,
+            board: latestTtt.board,
+            turn: latestTtt.turn,
+            status: latestTtt.status,
+            winner: latestTtt.winner ?? null,
+            myMark: tttMyMark,
+            peerName: selected ? contactDisplayName(selected) : "Peer",
+          }}
+          onClose={() => setTttModalOpen(false)}
+          onEvent={(name, payload) => handleModuleEvent(name, payload)}
+        />
+      ) : null}
     </aside>
   );
 }
