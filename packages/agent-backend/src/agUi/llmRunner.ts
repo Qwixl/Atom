@@ -22,6 +22,19 @@ import {
 } from "@qwixl/shell-core";
 import { v4 as uuid } from "uuid";
 import { recordHostedModelSighting } from "../modelBehaviorSightings.js";
+import type { SwarmMemoryStore } from "../swarmMemoryStore.js";
+import {
+  SWARM_ALLOWED_TOOL_NAMES,
+  SWARM_MEMORY_REMEMBER_TOOL,
+  SWARM_SEARCH_TOOL_NAMES,
+  type SwarmToolBudget,
+} from "../swarmToolBudget.js";
+import {
+  applySwarmMemoryRemember,
+  buildSwarmPromptContext,
+  MEMORY_REMEMBER_CHAT_TOOL,
+  parseSwarmMemoryRememberArgs,
+} from "../swarmTurnContext.js";
 import { agentOutputToAgUiEvents, textAgUiEvents } from "./outputEvents.js";
 import { profileFromRunAgentInput } from "./profileFromInput.js";
 
@@ -50,8 +63,16 @@ export interface LlmAgUiConfig {
    * tools) are exposed to the model (D081 session filtering).
    */
   connectedConnectorIds?: readonly AtomConnectorId[];
-  /** D087 — injects constitution addendum; disables owner connectors for swarm. */
+  /** D087 — injects constitution addendum; D089 swarm tools/memory when swarm-npc. */
   agentKind?: import("@qwixl/agent-llm").SwarmAgentKind;
+  /** D089 — per-NPC selective memory store (swarm-npc). */
+  swarmMemory?: SwarmMemoryStore | null;
+  /** Peer DID for impression retrieve/remember (DM). */
+  swarmPeerDid?: string;
+  /** Seed id (e.g. mira-barista) for community roster self-filter. */
+  swarmSeedId?: string;
+  /** Fair-use budget for news_search / page_read. */
+  swarmToolBudget?: SwarmToolBudget;
 }
 
 const REQUEST_TIMEOUT_MS = 120_000;
@@ -138,7 +159,58 @@ function connectorsEnabled(config: LlmAgUiConfig): boolean {
   return Boolean(config.atomConnectorsAvailable && config.connectorExecutor);
 }
 
+function isSwarmNpc(config: LlmAgUiConfig): boolean {
+  return config.agentKind === "swarm-npc";
+}
+
+function toolNameFromChatTool(tool: unknown): string | null {
+  if (!tool || typeof tool !== "object") return null;
+  const fn = (tool as { function?: { name?: string } }).function;
+  return typeof fn?.name === "string" ? fn.name : null;
+}
+
+function swarmToolsForConfig(config: LlmAgUiConfig, baseTools: unknown[]): unknown[] {
+  const allow = new Set<string>(SWARM_ALLOWED_TOOL_NAMES);
+  const filtered = baseTools.filter((tool) => {
+    const name = toolNameFromChatTool(tool);
+    return name != null && allow.has(name) && name !== SWARM_MEMORY_REMEMBER_TOOL;
+  });
+  if (config.swarmMemory) {
+    filtered.push(MEMORY_REMEMBER_CHAT_TOOL);
+  }
+  return filtered;
+}
+
 async function executeNamedTool(config: LlmAgUiConfig, name: string, argsJson: string): Promise<string> {
+  if (name === SWARM_MEMORY_REMEMBER_TOOL) {
+    if (!config.swarmMemory) {
+      return JSON.stringify({ error: "swarm memory not loaded" });
+    }
+    const parsed = parseSwarmMemoryRememberArgs(argsJson);
+    if ("error" in parsed) return JSON.stringify(parsed);
+    const saved = applySwarmMemoryRemember(config.swarmMemory, parsed, config.swarmPeerDid);
+    return JSON.stringify(saved);
+  }
+
+  if (isSwarmNpc(config) && !(SWARM_ALLOWED_TOOL_NAMES as readonly string[]).includes(name)) {
+    return JSON.stringify({ error: `tool "${name}" is not available to swarm NPCs` });
+  }
+
+  if (
+    isSwarmNpc(config) &&
+    (SWARM_SEARCH_TOOL_NAMES as readonly string[]).includes(name) &&
+    config.swarmToolBudget
+  ) {
+    const gate = config.swarmToolBudget.tryConsumeSearch(name);
+    if (!gate.ok) {
+      return JSON.stringify({
+        error: "rate_limited",
+        retryAfterSec: gate.retryAfterSec,
+        message: "Search fair-use limit reached. Continue without inventing results.",
+      });
+    }
+  }
+
   const resolved = resolveToolCallToConnectorInvoke(name, argsJson);
   if (!resolved.ok) {
     return JSON.stringify({ error: resolved.error });
@@ -218,12 +290,20 @@ async function runChatWithOptionalTools(
   messages: ChatMessage[],
   maxToolRounds: number = MAX_TOOL_ROUNDS,
 ): Promise<string> {
+  const swarmNpc = isSwarmNpc(config);
   const toolProfile = buildAgentToolProfile(undefined, {
     atomConnectorsAvailable: connectorsEnabled(config),
     connectedConnectorIds: config.connectedConnectorIds,
     model: config.model,
   });
-  const tools = chatCompletionTools(toolProfile);
+  if (swarmNpc) {
+    // Avoid deprecated atom_connector_invoke opening the full connector surface.
+    toolProfile.includeDeprecatedAlias = false;
+  }
+  let tools = chatCompletionTools(toolProfile);
+  if (swarmNpc) {
+    tools = swarmToolsForConfig(config, tools);
+  }
   if (tools.length === 0) {
     const result = await callChatCompletions(config, messages);
     config.onUsage?.({
@@ -237,7 +317,11 @@ async function runChatWithOptionalTools(
   }
 
   const working = [...messages];
-  const rounds = Math.max(1, Math.min(MAX_TOOL_ROUNDS, maxToolRounds));
+  const swarmCap = config.swarmToolBudget?.maxToolRoundsPerTurn ?? 2;
+  const rounds = Math.max(
+    1,
+    Math.min(MAX_TOOL_ROUNDS, swarmNpc ? Math.min(maxToolRounds, swarmCap) : maxToolRounds),
+  );
   const toolChoice = toolProfile.toolChoice ?? "auto";
   for (let round = 0; round < rounds; round += 1) {
     const result = await callChatCompletions(config, working, tools, toolChoice);
@@ -248,12 +332,13 @@ async function runChatWithOptionalTools(
     });
     const message = result.message;
     if (message.tool_calls?.length) {
+      const calls = swarmNpc ? message.tool_calls.slice(0, 1) : message.tool_calls;
       working.push({
         role: "assistant",
         content: message.content ?? null,
-        tool_calls: message.tool_calls,
+        tool_calls: calls,
       });
-      for (const call of message.tool_calls) {
+      for (const call of calls) {
         const output = await executeNamedTool(config, call.function.name, call.function.arguments);
         working.push({
           role: "tool",
@@ -296,9 +381,11 @@ export async function runLlmTextCompletion(
     connectedConnectorIds: config.connectedConnectorIds,
     model: config.model,
   });
-  const toolHint = connectorsEnabled(config)
-    ? "\n\nYou may call intent-named connector tools (calendar_list_events, news_search, rss_list_items, …) for read-only operations when needed."
-    : "";
+  const toolHint = isSwarmNpc(config)
+    ? "\n\nYou may call memory_remember, news_search, and page_read when needed (fair-use limits apply)."
+    : connectorsEnabled(config)
+      ? "\n\nYou may call intent-named connector tools (calendar_list_events, news_search, rss_list_items, …) for read-only operations when needed."
+      : "";
   const systemContent = [config.safetyPrefix?.trim(), systemPrompt.trim() + toolHint]
     .filter(Boolean)
     .join("\n\n");
@@ -306,7 +393,10 @@ export async function runLlmTextCompletion(
     { role: "system", content: systemContent },
     { role: "user", content: userMessage },
   ];
-  return runChatWithOptionalTools(config, messages, options?.maxToolRounds ?? MAX_TOOL_ROUNDS);
+  const defaultRounds = isSwarmNpc(config)
+    ? (config.swarmToolBudget?.maxToolRoundsPerTurn ?? 2)
+    : MAX_TOOL_ROUNDS;
+  return runChatWithOptionalTools(config, messages, options?.maxToolRounds ?? defaultRounds);
 }
 
 export function loadLlmAgUiConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LlmAgUiConfig | null {
@@ -376,29 +466,45 @@ export async function* runLlmAgUiEvents(
   const profile = profileFromRunAgentInput(input, config.profile);
   const agentKind = config.agentKind ?? config.profile?.agentKind ?? "owner";
   const swarmRole = agentKind === "swarm-npc" || agentKind === "swarm-police";
+  const swarmNpc = agentKind === "swarm-npc";
+  const swarmContext = swarmNpc
+    ? buildSwarmPromptContext(config.swarmMemory, {
+        query: inboundAsk || "conversation",
+        peerDid: config.swarmPeerDid,
+        selfSeedId: config.swarmSeedId,
+      })
+    : "";
   const mergedProfile: PromptProfile | undefined = profile
     ? {
         ...profile,
         agentKind,
-        businessContext: [profile.businessContext, config.businessContext]
+        businessContext: [profile.businessContext, config.businessContext, swarmContext]
           .filter((s) => s?.trim())
           .join("\n\n") || undefined,
       }
-    : config.businessContext?.trim() || swarmRole
+    : config.businessContext?.trim() || swarmRole || swarmContext
       ? {
           open: [],
           guardedCategories: [],
-          businessContext: config.businessContext?.trim() || undefined,
+          businessContext:
+            [config.businessContext?.trim(), swarmContext].filter(Boolean).join("\n\n") || undefined,
           agentKind,
         }
       : agentKind !== "owner"
         ? { open: [], guardedCategories: [], agentKind }
         : undefined;
   const toolProfile = buildAgentToolProfile(undefined, {
-    atomConnectorsAvailable: !swarmRole && connectorsEnabled(config),
-    connectedConnectorIds: swarmRole ? [] : config.connectedConnectorIds,
+    atomConnectorsAvailable: swarmNpc
+      ? connectorsEnabled(config)
+      : !swarmRole && connectorsEnabled(config),
+    connectedConnectorIds: swarmNpc
+      ? (["news-search", "page-fetch"] as AtomConnectorId[])
+      : swarmRole
+        ? []
+        : config.connectedConnectorIds,
     model: config.model,
   });
+  if (swarmNpc) toolProfile.includeDeprecatedAlias = false;
   const baseSystem = buildSystemPrompt(catalog, mergedProfile, toolProfile);
   const systemContent = config.safetyPrefix?.trim()
     ? `${config.safetyPrefix.trim()}\n\n${baseSystem}`
@@ -413,7 +519,10 @@ export async function* runLlmAgUiEvents(
 
   let raw: string;
   try {
-    raw = await runChatWithOptionalTools(config, messages);
+    const rounds = swarmNpc
+      ? (config.swarmToolBudget?.maxToolRoundsPerTurn ?? 2)
+      : MAX_TOOL_ROUNDS;
+    raw = await runChatWithOptionalTools(config, messages, rounds);
   } catch (error) {
     yield* textAgUiEvents(
       uuid(),
