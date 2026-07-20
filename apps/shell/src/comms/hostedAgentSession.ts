@@ -13,7 +13,10 @@ export async function mintHostedAgentSession(options?: {
 }): Promise<string | null> {
   if (!usesSupabaseHostedAuth()) return null;
   const accessToken = await supabaseAccessToken();
-  if (!accessToken) return null;
+  if (!accessToken) {
+    console.warn("[hosted-session] no Supabase access token — sign in again");
+    return null;
+  }
 
   const resp = await fetch(`${CONTROL_PLANE_URL.replace(/\/$/, "")}/account/agent-session`, {
     method: "POST",
@@ -26,7 +29,20 @@ export async function mintHostedAgentSession(options?: {
       ttlSeconds: options?.ttlSeconds ?? 900,
     }),
   });
-  if (!resp.ok) return null;
-  const body = (await resp.json()) as { sessionToken?: string };
-  return body.sessionToken?.trim() || null;
+  const body = (await resp.json().catch(() => ({}))) as {
+    sessionToken?: string;
+    token?: string;
+    error?: string;
+  };
+  if (!resp.ok) {
+    console.warn(
+      `[hosted-session] mint failed (${resp.status}): ${body.error ?? "unknown error"}`,
+    );
+    return null;
+  }
+  const token = body.sessionToken?.trim() || body.token?.trim() || null;
+  if (!token) {
+    console.warn("[hosted-session] mint response missing sessionToken");
+  }
+  return token;
 }
