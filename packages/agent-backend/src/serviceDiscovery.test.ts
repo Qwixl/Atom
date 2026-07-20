@@ -51,6 +51,8 @@ describe("serviceDiscovery", () => {
     interactivePortResolve: false,
     brainAlwaysOn: true,
     brainIntervalMs: 60000,
+    agentKind: "owner",
+    killSwitch: false,
     };
     const localCapabilities = buildAgentCapabilities({
       config,

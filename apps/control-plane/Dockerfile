@@ -1,18 +1,30 @@
+# Managed hosting control plane. Build from monorepo root:
+#   docker compose build control-plane
+
 FROM node:22-alpine AS build
+
 WORKDIR /app
-COPY apps/control-plane/package.json apps/control-plane/tsconfig.json ./apps/control-plane/
-RUN cd apps/control-plane && npm install
-COPY apps/control-plane/src ./apps/control-plane/src
-WORKDIR /app/apps/control-plane
-RUN npm run build
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.build.base.json ./
+COPY packages/ packages/
+COPY apps/control-plane/ apps/control-plane/
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @qwixl/control-plane... build
+RUN pnpm --filter @qwixl/control-plane --prod deploy --legacy /out
 
 FROM node:22-alpine
+
 RUN apk add --no-cache docker-cli
-WORKDIR /app/apps/control-plane
-COPY apps/control-plane/package.json ./
-RUN npm install --omit=dev
-COPY --from=build /app/apps/control-plane/dist ./dist
-COPY apps/control-plane/AUP.md ./AUP.md
+
+ENV NODE_ENV=production
 ENV PORT=5300
+
+WORKDIR /app
+COPY --from=build /out /app
+# Ensure AUP is present even if deploy pruning drops non-JS assets.
+COPY apps/control-plane/AUP.md ./AUP.md
+
 EXPOSE 5300
 CMD ["node", "dist/server.js"]

@@ -49,6 +49,10 @@ export function adminTokenPath(): string {
 
 const PUBLIC_ADMIN_PATHS = new Set(["/mls/key-package"]);
 
+function isPublicOAuthCallback(req: Request): boolean {
+  return req.method === "GET" && req.path === "/connectors/microsoft/callback";
+}
+
 function isPublicRoomRoute(req: Request): boolean {
   if (req.method === "POST" && /^\/rooms\/[^/]+\/(join|relay|leave)$/.test(req.path)) return true;
   if (req.method !== "GET") return false;
@@ -60,11 +64,10 @@ export function requireAdminAuth(expectedToken: string) {
   return createAdminAuthMiddleware(expectedToken);
 }
 
-function isSessionAdminDenied(req: Request): boolean {
-  // Root-only: minting sessions and vault export/import.
-  if (req.method === "POST" && req.path === "/admin/session-token") return true;
-  if (req.method === "POST" && (req.path === "/admin/export" || req.path === "/admin/import")) {
-    return true;
+function allowsSessionAuth(req: Request, scopes: SessionScope[]): boolean {
+  // List + per-connector reads (GET /connectors and GET /connectors/:id…).
+  if (req.method === "GET" && (req.path === "/connectors" || req.path.startsWith("/connectors/"))) {
+    return scopes.includes("connector:read");
   }
   return false;
 }
@@ -91,6 +94,10 @@ function allowsSessionAuth(req: Request, scopes: SessionScope[]): boolean {
 export function createAdminAuthMiddleware(expectedToken: string) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (req.method === "GET" && PUBLIC_ADMIN_PATHS.has(req.path)) {
+      next();
+      return;
+    }
+    if (isPublicOAuthCallback(req)) {
       next();
       return;
     }

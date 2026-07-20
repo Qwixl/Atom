@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "updated": "2026-07-10",
+  "updated": "2026-07-20",
   "defaultClassId": "balanced",
   "classes": {
     "tool-eager": {
@@ -29,6 +29,48 @@
     }
   },
   "assignments": [
+    {
+      "kind": "exact",
+      "pattern": "mistral-small-3.2-24b-instruct",
+      "classId": "balanced",
+      "note": "exact 2026-07-20: missing=0 unexpected=0 settings=2 misRoute=0 pass=28/30",
+      "evalBaseline": {
+        "hash": "0c1b776d3dd2e436",
+        "scoredAt": "2026-07-20",
+        "modelId": "mistralai/mistral-small-3.2-24b-instruct",
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "tallies": {
+          "missingCall": 0,
+          "unexpectedCall": 0,
+          "settingsMissing": 2,
+          "misRoute": 0,
+          "toolScenarioCount": 24
+        },
+        "passCount": 28,
+        "scenarioCount": 30
+      }
+    },
+    {
+      "kind": "exact",
+      "pattern": "claude-haiku-4.5",
+      "classId": "balanced",
+      "note": "exact 2026-07-20: missing=0 unexpected=0 settings=1 misRoute=0 pass=29/30",
+      "evalBaseline": {
+        "hash": "0c1b776d3dd2e436",
+        "scoredAt": "2026-07-20",
+        "modelId": "anthropic/claude-haiku-4.5",
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "tallies": {
+          "missingCall": 0,
+          "unexpectedCall": 0,
+          "settingsMissing": 1,
+          "misRoute": 0,
+          "toolScenarioCount": 24
+        },
+        "passCount": 29,
+        "scenarioCount": 30
+      }
+    },
     {
       "kind": "exact",
       "pattern": "llama-3.3-70b-instruct",

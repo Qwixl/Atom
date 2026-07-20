@@ -2,6 +2,7 @@ import type { BusinessIndexEntry, IndexEntryKind } from "@qwixl/business-index";
 import type { ResolvedDiscoverTarget } from "./comms/client.js";
 import { entryTitle } from "./discoverActions.js";
 import { discoverTrustSignals } from "./discoverTrust.js";
+import { swarmDiscoverBadge } from "./swarmBadge.js";
 
 export interface DiscoverChatResult {
   entry: BusinessIndexEntry;
@@ -37,6 +38,7 @@ export function DiscoverChatResults({
         {results.map((result) => {
           const { entry } = result;
           const trust = discoverTrustSignals(entry, result.indexLabel, result.indexUrl);
+          const swarm = swarmDiscoverBadge(entry);
           const subtitle =
             entry.handle?.trim() && entry.displayName.trim() && entry.handle !== entry.displayName
               ? entry.displayName
@@ -52,6 +54,11 @@ export function DiscoverChatResults({
                 <div className="discover-row-title">
                   <span>{entryTitle(entry)}</span>
                   <span className="discover-kind">{kindLabel(entry.kind)}</span>
+                  {swarm ? (
+                    <span className={swarm.className} title="Qwixl-operated labeled swarm agent">
+                      {swarm.label}
+                    </span>
+                  ) : null}
                   <span
                     className={`discover-trust discover-trust--${trust.badge}`}
                     title={

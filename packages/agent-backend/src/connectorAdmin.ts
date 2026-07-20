@@ -61,6 +61,14 @@ import {
   normalizeMastodonInstanceUrl,
 } from "./mastodonConnector.js";
 
+import {
+  beginMicrosoftOAuth,
+  completeMicrosoftOAuth,
+  MICROSOFT_GRAPH_CONNECTOR_ID,
+  MICROSOFT_OAUTH_PROVIDER,
+  revokeMicrosoftOAuth,
+} from "./microsoftOAuth.js";
+
 import { getConnectorBackend } from "./connectorRegistry.js";
 
 import { invalidateConnectorCache, invokeConnectorCached } from "./connectorInvoke.js";
@@ -89,6 +97,14 @@ export const TOKEN_CONNECTOR_IDS = new Set([
 ]);
 
 
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 function connectorIdParam(req: Request): string {
 
@@ -143,6 +159,20 @@ function assertConnectorReadAuth(req: Request, res: { status: (code: number) => 
 function assertAdminWriteAuth(req: Request, res: { status: (code: number) => { json: (body: unknown) => void } }): boolean {
   if (isAdminAuth(req as AuthenticatedRequest)) return true;
   res.status(403).json({ error: "Admin token required for connector writes" });
+  return false;
+}
+
+/** Admin or short-lived owner:runtime session (hosted PR2). */
+function assertOwnerMutateAuth(
+  req: Request,
+  res: { status: (code: number) => { json: (body: unknown) => void } },
+): boolean {
+  if (isAdminAuth(req as AuthenticatedRequest)) return true;
+  const auth = (req as AuthenticatedRequest).auth;
+  if (auth?.kind === "session" && (auth.scopes as string[]).includes("owner:runtime")) {
+    return true;
+  }
+  res.status(403).json({ error: "Admin or owner session required" });
   return false;
 }
 
@@ -720,7 +750,95 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
     res.json({ connectorId: MASTODON_CONNECTOR_ID, removed: true });
   });
 
+  /** Configure Entra app credentials (optional if MICROSOFT_CLIENT_ID is set in env). */
+  adminApp.post("/connectors/microsoft/oauth/client", async (req, res) => {
+    if (!assertOwnerMutateAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const body = req.body as { clientId?: string; clientSecret?: string };
+    const clientId = body.clientId?.trim();
+    if (!clientId) {
+      res.status(400).json({ error: "clientId required" });
+      return;
+    }
+    await config.vault.setOAuthClient(MICROSOFT_OAUTH_PROVIDER, {
+      clientId,
+      clientSecret: body.clientSecret?.trim() ?? "",
+      configuredAt: Date.now(),
+    });
+    res.json({ provider: MICROSOFT_OAUTH_PROVIDER, configured: true });
+  });
 
+  adminApp.post("/connectors/microsoft/oauth/start", async (req, res) => {
+    if (!assertConnectorReadAuth(req, res)) return;
+    try {
+      const started = beginMicrosoftOAuth(config.vault, config.publicBaseUrl);
+      res.json({
+        connectorId: MICROSOFT_GRAPH_CONNECTOR_ID,
+        authorizeUrl: started.authorizeUrl,
+        redirectUri: started.redirectUri,
+      });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  /** Browser redirect from Microsoft — no bearer (public allowlist in adminAuth). */
+  adminApp.get("/connectors/microsoft/callback", async (req, res) => {
+    const code = typeof req.query.code === "string" ? req.query.code : "";
+    const state = typeof req.query.state === "string" ? req.query.state : "";
+    const oauthError =
+      typeof req.query.error === "string"
+        ? String(req.query.error_description || req.query.error)
+        : undefined;
+    if (oauthError) {
+      res
+        .status(400)
+        .type("html")
+        .send(
+          `<!doctype html><html><body><h1>Microsoft sign-in failed</h1><p>${escapeHtml(oauthError)}</p><p>You can close this window.</p></body></html>`,
+        );
+      return;
+    }
+    if (!code || !state) {
+      res.status(400).type("html").send("<!doctype html><html><body><h1>Missing code/state</h1></body></html>");
+      return;
+    }
+    try {
+      await completeMicrosoftOAuth(config.vault, { code, state });
+      invalidateConnectorCache(MICROSOFT_GRAPH_CONNECTOR_ID);
+      res
+        .type("html")
+        .send(
+          "<!doctype html><html><body><h1>Microsoft 365 connected</h1><p>You can close this window and return to Atom Settings.</p><script>window.close();</script></body></html>",
+        );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res
+        .status(400)
+        .type("html")
+        .send(
+          `<!doctype html><html><body><h1>Microsoft connect failed</h1><p>${escapeHtml(message)}</p></body></html>`,
+        );
+    }
+  });
+
+  adminApp.delete("/connectors/microsoft/oauth", async (req, res) => {
+    if (!assertOwnerMutateAuth(req, res)) return;
+    try {
+      assertConnectorWriteApproval(req);
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    await revokeMicrosoftOAuth(config.vault);
+    invalidateConnectorCache(MICROSOFT_GRAPH_CONNECTOR_ID);
+    res.json({ connectorId: MICROSOFT_GRAPH_CONNECTOR_ID, removed: true });
+  });
 
   adminApp.post("/connectors/todoist/tasks", async (req, res) => {
     if (!assertAdminWriteAuth(req, res)) return;
