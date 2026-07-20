@@ -33,7 +33,6 @@ fi
 
 TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 DAY="$(date -u +"%Y-%m-%d")"
-URL_TEMPLATE="${ATOM_NPC_PUBLIC_URL_TEMPLATE:-http://127.0.0.1:{port}}"
 
 # Collect up NPCs (exclude police): id|port|token_file|did
 mapfile -t CANDIDATES < <(
@@ -74,9 +73,8 @@ if [[ "${FRIEND_IDX}" -eq "${IDX}" ]]; then
 fi
 IFS='|' read -r FRIEND_ID FRIEND_PORT _FRIEND_TOKEN FRIEND_DID <<<"${CANDIDATES[$FRIEND_IDX]}"
 
-FRIEND_BASE="${URL_TEMPLATE//\{port\}/${FRIEND_PORT}}"
-FRIEND_BASE="${FRIEND_BASE%/}"
-FRIEND_PEER_URL="${FRIEND_BASE}/a2a/jsonrpc"
+# Co-hosted NPCs: MLS/deliver via loopback (fabric hairpin is flaky for Node fetch).
+FRIEND_PEER_URL="http://127.0.0.1:${FRIEND_PORT}/a2a/jsonrpc"
 
 token="$(tr -d '\n\r' <"${INIT_TOKEN_FILE}")"
 BODY_FILE="$(mktemp)"
