@@ -198,7 +198,13 @@ import { PersonalDemoWalkthrough } from "./PersonalDemoWalkthrough.js";
 import { calendarAddUrlFromAction } from "./calendarAddLink.js";
 import { type DemoCalendarEvent } from "./demoScheduling.js";
 import { CommsAgentClient } from "./comms/client.js";
-import { commsClientAuth, mintChatSessionToken, refreshChatSessionToken, setChatSessionToken } from "./comms/chatSessionToken.js";
+import {
+  commsClientAuth,
+  getChatSessionToken,
+  mintChatSessionToken,
+  refreshChatSessionToken,
+  setChatSessionToken,
+} from "./comms/chatSessionToken.js";
 import {
   formatCalendarContextForPrompt,
   isWebcalConnected,
@@ -610,9 +616,31 @@ export function App() {
         setChatSessionBearer(null);
         return;
       }
-      const minted = await mintChatSessionToken(config);
-      setChatSessionToken(minted);
-      setChatSessionBearer(minted);
+      let minted = await mintChatSessionToken(config);
+      if (!minted && usesSupabaseHostedAuth()) {
+        try {
+          const connection = await fetchHostedAgentConnection();
+          await saveCommsAgentConfigSecure({
+            adminUrl: connection.adminUrl,
+            adminToken: connection.adminToken,
+          });
+          minted =
+            connection.sessionToken?.trim() ||
+            (await mintChatSessionToken(await loadCommsAgentConfigSecure()));
+        } catch (error) {
+          console.warn(
+            `[session] hosted reconnect failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+      // Never wipe a good in-memory session on a flaky remint.
+      if (minted) {
+        setChatSessionToken(minted);
+        setChatSessionBearer(minted);
+      } else {
+        const existing = getChatSessionToken();
+        setChatSessionBearer(existing);
+      }
     })();
   }, [vaultUnlocked, agentConnectionReady]);
 
