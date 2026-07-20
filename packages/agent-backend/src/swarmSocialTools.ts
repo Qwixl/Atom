@@ -73,7 +73,10 @@ export const CHALLENGE_GAME_CHAT_TOOL = {
     name: SWARM_CHALLENGE_GAME_TOOL,
     description:
       "Start a tic-tac-toe game with a Messages contact or community friend. " +
-      "You play as X and make the opening move. Works for human peers and other NPCs.",
+      "You play as X and make the opening move. Works for human peers and other NPCs. " +
+      "Only tic-tac-toe is available today (not a free choice among many games). " +
+      "After calling this tool, reply in one short sentence — do NOT draw ASCII boards " +
+      "or ask them to type cell numbers; the shell opens a game window for moves.",
     parameters: {
       type: "object",
       properties: {
@@ -85,7 +88,7 @@ export const CHALLENGE_GAME_CHAT_TOOL = {
         game: {
           type: "string",
           enum: ["tictactoe"],
-          description: "Game type (only tictactoe for now).",
+          description: "Game type. Only tictactoe is implemented.",
         },
       },
       required: ["opponent"],

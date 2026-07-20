@@ -96,7 +96,8 @@ ${context}
 
 You received a direct message. Reply in plain text only (no JSON, no UI composition).
 Stay in character. Keep replies concise (1–3 short sentences unless asked for more).
-Use the recent conversation turns below as short-term context — continue the thread naturally.`;
+Use the recent conversation turns below as short-term context — continue the thread naturally.
+If you start a game with \`challenge_friend_to_game\`, say so briefly — never paste an ASCII board or ask them to type a cell number.`;
 }
 
 function historyFromMemory(

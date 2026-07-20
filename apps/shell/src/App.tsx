@@ -2657,7 +2657,7 @@ export function App() {
 
   async function startGameFromMenu(moduleId: string) {
     if (!getGameEngine(moduleId) || !catalog.isModuleInstalled(moduleId)) return;
-    navigatePanel("none");
+    // Overlay the current section (Messages/Discover/…) — do not force-switch to Chat.
     setGameModalDismissedId(null);
     ownerStartGameRef.current = true;
     try {
