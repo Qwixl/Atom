@@ -66,4 +66,16 @@ describe("chatSessionToken", () => {
     expect(token).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("refreshChatSessionToken keeps prior token when remint fails", async () => {
+    hostedAuth.enabled = true;
+    setChatSessionToken("keep-me");
+    const { mintHostedAgentSession } = await import("./hostedAgentSession.js");
+    vi.mocked(mintHostedAgentSession).mockResolvedValueOnce(null);
+    const token = await refreshChatSessionToken({
+      adminUrl: "https://5311.agents.atom.qwixl.com",
+    });
+    expect(token).toBe("keep-me");
+    expect(getChatSessionToken()).toBe("keep-me");
+  });
 });
