@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Droplet: rebuild atom-agent:latest and recreate atom-hosted-* keeping *-data volumes.
+# Prefer adminToken from control-plane hosted-agents.json when present (env can be empty).
 # Usage (as root on 209.97.183.106): bash /opt/atom/ops/swarm-host/recreate_hosted_on_droplet.sh
 set -euo pipefail
 cd /opt/atom
@@ -7,6 +8,24 @@ git fetch origin main
 git checkout main
 git pull --ff-only origin main
 docker build -t atom-agent:latest -f packages/agent-backend/Dockerfile .
+
+REGISTRY_JSON="/var/lib/docker/volumes/atom_control-plane-data/_data/hosted-agents.json"
+
+registry_token_for() {
+  local name="$1"
+  [[ -f "${REGISTRY_JSON}" ]] || return 0
+  python3 - "$name" "${REGISTRY_JSON}" <<'PY'
+import json, sys
+name, path = sys.argv[1], sys.argv[2]
+data = json.load(open(path))
+agents = data if isinstance(data, list) else data.get("agents") or []
+for a in agents:
+    n = a.get("containerName") or a.get("name") or ""
+    if n == name:
+        print(a.get("adminToken") or "")
+        break
+PY
+}
 
 recreate_one() {
   local name="$1"
@@ -18,15 +37,36 @@ recreate_one() {
   env_file="$(mktemp)"
   docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "${name}" \
     | grep -E '^(PORT|HOST|PUBLIC_BASE_URL|AGENT_NAME|LLM_|ATOM_|NODE_ENV)=' \
-    >"${env_file}"
-  # Ensure container listens correctly inside the image.
-  grep -q '^PORT=' "${env_file}" || echo 'PORT=5204' >>"${env_file}"
-  grep -q '^HOST=' "${env_file}" || echo 'HOST=0.0.0.0' >>"${env_file}"
-  sed -i 's/^PORT=.*/PORT=5204/' "${env_file}"
-  sed -i 's/^HOST=.*/HOST=0.0.0.0/' "${env_file}"
-
+    | grep -v '^ATOM_ADMIN_TOKEN=' \
+    >"${env_file}" || true
+  echo 'PORT=5204' >>"${env_file}"
+  echo 'HOST=0.0.0.0' >>"${env_file}"
   local admin
-  admin="$(sed -n 's/^ATOM_ADMIN_TOKEN=//p' "${env_file}" | head -1)"
+  admin="$(registry_token_for "${name}")"
+  if [[ -z "${admin}" ]]; then
+    admin="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "${name}" | sed -n 's/^ATOM_ADMIN_TOKEN=//p' | head -1)"
+  fi
+  if [[ -z "${admin}" ]]; then
+    echo "missing admin token for ${name}" >&2
+    rm -f "${env_file}"
+    return 1
+  fi
+  echo "ATOM_ADMIN_TOKEN=${admin}" >>"${env_file}"
+  # dedupe keys
+  python3 - "${env_file}" <<'PY'
+import sys
+path = sys.argv[1]
+kv = {}
+for line in open(path):
+    line = line.strip()
+    if not line or "=" not in line:
+        continue
+    k, v = line.split("=", 1)
+    kv[k] = v
+kv["PORT"] = "5204"
+kv["HOST"] = "0.0.0.0"
+open(path, "w").write("\n".join(f"{k}={v}" for k, v in kv.items()) + "\n")
+PY
 
   docker stop "${name}"
   docker rm "${name}"
@@ -37,9 +77,17 @@ recreate_one() {
     --env-file "${env_file}" \
     atom-agent:latest
   rm -f "${env_file}"
-  sleep 2
-  curl -fsS --max-time 10 -H "Authorization: Bearer ${admin}" "http://127.0.0.1:${host_port}/health" | head -c 200
-  echo
+  local ok=0
+  for _ in $(seq 1 20); do
+    if curl -fsS --max-time 3 -H "Authorization: Bearer ${admin}" "http://127.0.0.1:${host_port}/health" >/tmp/hosted_health.json; then
+      head -c 200 /tmp/hosted_health.json
+      echo
+      ok=1
+      break
+    fi
+    sleep 1
+  done
+  [[ "${ok}" -eq 1 ]] || { echo "health failed ${name}" >&2; return 1; }
   echo "OK ${name} :${host_port} vol=${vol}"
 }
 
