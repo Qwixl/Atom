@@ -22,10 +22,11 @@ describe("sendFounderAlert", () => {
     );
     expect(result.ok).toBe(true);
     expect(fetchImpl).toHaveBeenCalledOnce();
-    const [url, init] = fetchImpl.mock.calls[0]!;
-    expect(String(url)).toContain("/brain/pending/inject");
-    expect((init as RequestInit).headers).toMatchObject({
+    const call = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(String(call[0])).toContain("/brain/pending/inject");
+    expect(call[1].headers).toMatchObject({
       Authorization: "Bearer secret",
     });
   });
 });
+
