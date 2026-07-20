@@ -89,8 +89,8 @@ export function RoomsPanel({
   onAgentAuthFailure,
   onRequestReconnect,
 }: RoomsPanelProps) {
-  const { client, config: agentConfig } = useAgentConfig(vaultUnlocked);
-  const connectionActive = agentConnectionReady && vaultUnlocked;
+  const { client, config: agentConfig, sessionReady } = useAgentConfig(vaultUnlocked);
+  const connectionActive = agentConnectionReady && vaultUnlocked && sessionReady;
   const [localDid, setLocalDid] = useState<string | null>(null);
   const [hosted, setHosted] = useState<RoomDescriptorWire[]>([]);
   const [joined, setJoined] = useState<
