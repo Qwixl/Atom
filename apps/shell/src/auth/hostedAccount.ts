@@ -200,7 +200,13 @@ export interface BootstrapHostedAccountInput {
 export async function signupHostedDevAccount(input: {
   email: string;
   handle: string;
-}): Promise<{ adminUrl: string; adminToken: string; handle: string }> {
+}): Promise<{
+  adminUrl: string;
+  /** Present only on legacy control planes; hosted PR2 omits root admin. */
+  adminToken?: string;
+  sessionToken?: string;
+  handle: string;
+}> {
   const { CONTROL_PLANE_URL } = await import("../hostConfig.js");
   const resp = await fetch(`${CONTROL_PLANE_URL.replace(/\/$/, "")}/signup`, {
     method: "POST",
@@ -213,16 +219,21 @@ export async function signupHostedDevAccount(input: {
   const data = (await resp.json()) as {
     agentUrl?: string;
     adminToken?: string;
+    sessionToken?: string;
     handle?: string;
     error?: string;
   };
   if (!resp.ok) throw new Error(data.error ?? `Signup failed (${resp.status})`);
-  if (!data.agentUrl || !data.adminToken) {
+  if (!data.agentUrl?.trim()) {
     throw new Error("Hosted agent credentials were not returned");
+  }
+  if (!data.sessionToken?.trim() && !data.adminToken?.trim()) {
+    throw new Error("Hosted agent session was not returned");
   }
   return {
     adminUrl: data.agentUrl.replace(/\/$/, ""),
-    adminToken: data.adminToken,
+    adminToken: data.adminToken?.trim() || undefined,
+    sessionToken: data.sessionToken?.trim() || undefined,
     handle: data.handle ?? input.handle,
   };
 }
