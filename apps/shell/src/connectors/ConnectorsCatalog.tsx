@@ -6,6 +6,7 @@ import { TokenConnectorsSettingsPanel } from "./TokenConnectorsSettingsPanel.js"
 import { CalDavSettingsPanel } from "./CalDavSettingsPanel.js";
 import { CardDavSettingsPanel } from "./CardDavSettingsPanel.js";
 import { BookmarksSettingsPanel } from "./BookmarksSettingsPanel.js";
+import { MicrosoftGraphSettingsPanel } from "./MicrosoftGraphSettingsPanel.js";
 
 type ConnectorCategory = "calendar" | "contacts" | "news" | "apps" | "developer" | "web";
 
@@ -41,6 +42,13 @@ const CONNECTORS: ConnectorEntry[] = [
     hint: "Sign in to a CalDAV calendar (Fastmail, Nextcloud, etc.).",
     category: "calendar",
     keywords: "caldav fastmail nextcloud calendar account",
+  },
+  {
+    id: "microsoft-graph",
+    label: "Microsoft 365",
+    hint: "Connect Outlook / Microsoft 365 calendar via Graph (read-only first).",
+    category: "calendar",
+    keywords: "microsoft graph outlook office 365 calendar entra oauth",
   },
   {
     id: "carddav",
@@ -123,6 +131,9 @@ export function ConnectorsCatalog({
         break;
       case "caldav":
         detail = <CalDavSettingsPanel vaultUnlocked={vaultUnlocked} embedded />;
+        break;
+      case "microsoft-graph":
+        detail = <MicrosoftGraphSettingsPanel vaultUnlocked={vaultUnlocked} embedded />;
         break;
       case "carddav":
         detail = <CardDavSettingsPanel vaultUnlocked={vaultUnlocked} embedded />;

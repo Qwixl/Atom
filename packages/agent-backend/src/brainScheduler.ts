@@ -21,6 +21,8 @@ export interface BrainSchedulerOptions {
    * is enabled — used for free-tier duty-cycle later (BK-45). Default true.
    */
   alwaysOn?: boolean;
+  /** D087 — ATOM_KILL_SWITCH pauses all ticks (swarm + owner). */
+  killSwitch?: boolean;
   /** Injected clock for tests. */
   now?: () => Date;
   onFire?: (intent: StandingIntent, notification: BrainPendingNotification) => void;
@@ -38,6 +40,7 @@ export class BrainScheduler {
   private readonly vault: ConnectorVault;
   private readonly intervalMs: number;
   private readonly alwaysOn: boolean;
+  private readonly killSwitch: boolean;
   private readonly now: () => Date;
   private readonly onFire?: (intent: StandingIntent, notification: BrainPendingNotification) => void;
   private readonly resolveNotification?: (
@@ -53,6 +56,7 @@ export class BrainScheduler {
     this.vault = options.vault;
     this.intervalMs = Math.max(5_000, options.intervalMs ?? 60_000);
     this.alwaysOn = options.alwaysOn !== false;
+    this.killSwitch = options.killSwitch === true;
     this.now = options.now ?? (() => new Date());
     this.onFire = options.onFire;
     this.resolveNotification = options.resolveNotification;
@@ -77,6 +81,7 @@ export class BrainScheduler {
   getStatus(): {
     running: boolean;
     alwaysOn: boolean;
+    killSwitch: boolean;
     intervalMs: number;
     lastTickAt: string | null;
     lastFireCount: number;
@@ -86,6 +91,7 @@ export class BrainScheduler {
     return {
       running: this.timer !== null,
       alwaysOn: this.alwaysOn,
+      killSwitch: this.killSwitch,
       intervalMs: this.intervalMs,
       lastTickAt: this.lastTickAt,
       lastFireCount: this.lastFireCount,
@@ -101,7 +107,7 @@ export class BrainScheduler {
     try {
       const now = this.now();
       this.lastTickAt = now.toISOString();
-      if (!this.alwaysOn) {
+      if (this.killSwitch || !this.alwaysOn) {
         this.lastFireCount = 0;
         return { fired: [], notifications: [] };
       }

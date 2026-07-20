@@ -47,6 +47,8 @@ function testConfig(
     interactivePortResolve: false,
     brainAlwaysOn: true,
     brainIntervalMs: 60000,
+  agentKind: "owner",
+  killSwitch: false,
   };
 }
 

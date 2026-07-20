@@ -153,4 +153,37 @@ export function registerBrainAdminRoutes(app: Express, deps: BrainAdminDeps): vo
       notifications: result.notifications,
     });
   });
+
+  /** Class C / Police → founder inject (AS-08). Admin bearer required (same as other brain routes). */
+  app.post("/brain/pending/inject", async (req, res) => {
+    const body = req.body as { notification?: unknown };
+    const n = body.notification;
+    if (!n || typeof n !== "object") {
+      res.status(400).json({ error: "notification object required" });
+      return;
+    }
+    const r = n as Record<string, unknown>;
+    const id = typeof r.id === "string" && r.id.trim() ? r.id.trim() : `inject-${Date.now()}`;
+    const title = typeof r.title === "string" ? r.title.trim() : "";
+    const notificationBody = typeof r.body === "string" ? r.body.trim() : "";
+    if (!title || !notificationBody) {
+      res.status(400).json({ error: "notification.title and notification.body required" });
+      return;
+    }
+    const kind =
+      r.kind === "daily-briefing" || r.kind === "reminder" || r.kind === "watch"
+        ? r.kind
+        : "watch";
+    const entry = {
+      id,
+      intentId: typeof r.intentId === "string" ? r.intentId : `inject-${id}`,
+      kind,
+      title,
+      body: notificationBody,
+      createdAt: typeof r.createdAt === "string" ? r.createdAt : new Date().toISOString(),
+    };
+    const existing = normalizeBrainPendingNotifications(deps.vault.getBrainPendingNotifications());
+    await deps.vault.setBrainPendingNotifications([...existing, entry].slice(-100));
+    res.json({ ok: true, notification: entry });
+  });
 }
