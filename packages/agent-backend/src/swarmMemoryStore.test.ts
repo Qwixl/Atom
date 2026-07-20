@@ -58,5 +58,30 @@ describe("SwarmMemoryStore", () => {
       store.close();
     }
   });
+
+  it("keeps short-term dialogue and archives outlines separately from normal retrieve", async () => {
+    const store = tempStore();
+    await store.load();
+    try {
+      const peer = "did:peer";
+      for (let i = 0; i < 14; i++) {
+        store.appendDialogueTurn(peer, i % 2 === 0 ? "user" : "assistant", `turn ${i} about lattes`);
+      }
+      expect(store.countDialogueTurns(peer)).toBe(14);
+      const archived = store.archiveDialogueOutline(
+        peer,
+        "Outline with this peer: They talked about lattes",
+        6,
+      );
+      expect(archived.archived).toBe(true);
+      expect(store.countDialogueTurns(peer)).toBe(6);
+      const normal = store.retrieve("lattes");
+      expect(normal.every((m) => m.kind !== "summary")).toBe(true);
+      const summaries = store.retrieveSummaries(peer, "lattes", 4);
+      expect(summaries.some((m) => m.kind === "summary")).toBe(true);
+    } finally {
+      store.close();
+    }
+  });
 });
 
