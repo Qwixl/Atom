@@ -31,6 +31,8 @@ export {
   GAME_BS_SHOT_PURPOSE,
   GAME_BS_MOVE_PURPOSE,
   GAME_PURPOSES,
+  ROOM_INVITE_PURPOSE,
+  ROOM_INVITE_SCHEMA,
   TTT_STATE_SCHEMA,
   TTT_MOVE_SCHEMA,
   BS_STATE_SCHEMA,
@@ -119,9 +121,11 @@ export {
   createLocationPin,
   createTttMove,
   createTttState,
+  createRoomInvite,
   createBattleshipsState,
   createBattleshipsShot,
   createBattleshipsMove,
+  verifyRoomInvite,
   verifyPollRequest,
   verifyPollVote,
   verifySharedList,
@@ -149,6 +153,7 @@ export {
   type BattleshipsStatePayload,
   type BattleshipsShotPayload,
   type BattleshipsMovePayload,
+  type RoomInvitePayload,
 } from "./groupObjects.js";
 export {
   createActionReserve,

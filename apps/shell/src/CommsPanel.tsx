@@ -173,6 +173,12 @@ export function CommsPanel({
   const [compose, setCompose] = useState("");
   const composeRef = useRef<HTMLTextAreaElement | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Peer DID we are waiting on for a DM reply (thinking indicator). */
+  const [awaitingReply, setAwaitingReply] = useState<{
+    did: string;
+    name: string;
+    sinceMs: number;
+  } | null>(null);
   const [actionNote, setActionNote] = useState<string | null>(null);
   const [myInviteToken, setMyInviteToken] = useState<string | null>(null);
   const [outbound, setOutbound] = useState<CommsThreadItem[]>(() => loadThreadOutbound());
@@ -373,6 +379,31 @@ export function CommsPanel({
     [thread],
   );
 
+  useEffect(() => {
+    if (!awaitingReply) return;
+    const peerDid = awaitingReply.did;
+    const sinceIso = new Date(awaitingReply.sinceMs).toISOString();
+    const replied = inbox.some((entry) => {
+      const obj = entry.object;
+      if (!obj || obj.issuerDid !== peerDid) return false;
+      const purpose = obj.governance?.purpose;
+      if (purpose !== "comms:message") return false;
+      const at = entry.receivedAt || obj.issuedAt;
+      return typeof at === "string" && at >= sinceIso;
+    });
+    if (replied) setAwaitingReply(null);
+  }, [inbox, awaitingReply]);
+
+  useEffect(() => {
+    if (!awaitingReply) return;
+    const timer = window.setTimeout(() => setAwaitingReply(null), 90_000);
+    return () => window.clearTimeout(timer);
+  }, [awaitingReply]);
+
+  useEffect(() => {
+    setAwaitingReply(null);
+  }, [selectedId]);
+
   const bsInlineProps = useMemo(() => {
     const engineState = [...thread]
       .reverse()
@@ -548,6 +579,7 @@ export function CommsPanel({
         encrypt: sessionReady,
       });
       const sentText = compose.trim();
+      const sentAt = Date.now();
       setOutbound((current) => [
         ...current,
         {
@@ -555,12 +587,17 @@ export function CommsPanel({
           id: crypto.randomUUID(),
           direction: "out",
           text: sentText,
-          at: new Date().toISOString(),
+          at: new Date(sentAt).toISOString(),
           peerDid: selected.did,
         },
       ]);
       setCompose("");
       setActionNote("Message sent.");
+      setAwaitingReply({
+        did: selected.did,
+        name: contactDisplayName(selected),
+        sinceMs: sentAt,
+      });
       await refreshInbox();
     } catch (error) {
       setActionNote(error instanceof Error ? error.message : String(error));
@@ -2421,6 +2458,16 @@ export function CommsPanel({
                         />
                       ))
                     )}
+                    {awaitingReply && selected && awaitingReply.did === selected.did ? (
+                      <div className="comms-thinking" aria-live="polite">
+                        <span className="comms-thinking-name">{awaitingReply.name} is thinking</span>
+                        <span className="comms-thinking-dots" aria-hidden="true">
+                          <span />
+                          <span />
+                          <span />
+                        </span>
+                      </div>
+                    ) : null}
                     <div ref={messagesEndRef} aria-hidden="true" />
                   </div>
                 </div>
@@ -2499,6 +2546,16 @@ export function CommsPanel({
                     />
                   ))
                 )}
+                {awaitingReply && selected && awaitingReply.did === selected.did ? (
+                  <div className="comms-thinking" aria-live="polite">
+                    <span className="comms-thinking-name">{awaitingReply.name} is thinking</span>
+                    <span className="comms-thinking-dots" aria-hidden="true">
+                      <span />
+                      <span />
+                      <span />
+                    </span>
+                  </div>
+                ) : null}
                 <div ref={messagesEndRef} aria-hidden="true" />
               </div>
               </div>
