@@ -33,8 +33,9 @@ jobs:
 
       - name: Fulcio-sign contact-card (ephemeral)
         run: |
+          # pnpm --filter exec uses package cwd; module-dir must be absolute (repo root).
           pnpm --filter @qwixl/registry-tools exec node dist/cli.js sign \
-            --module-dir apps/shell/public/registry/core-examples/contact-card \
+            --module-dir "$GITHUB_WORKSPACE/apps/shell/public/registry/core-examples/contact-card" \
             --fulcio
 
       - name: Crypto-verify only the Fulcio-signed module
