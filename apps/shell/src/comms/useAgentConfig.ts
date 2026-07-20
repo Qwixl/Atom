@@ -5,10 +5,14 @@ import {
   mintChatSessionToken,
   setChatSessionToken,
 } from "./chatSessionToken.js";
-import { loadCommsAgentConfig, refreshCommsConfigCache } from "./storage.js";
+import {
+  loadCommsAgentConfig,
+  refreshCommsConfigCache,
+  saveCommsAgentConfigSecure,
+} from "./storage.js";
 import type { CommsAgentConfig } from "./types.js";
 import { usesSupabaseHostedAuth } from "../hostConfig.js";
-import { tryReconnectHostedAgent } from "../auth/completeSetup.js";
+import { fetchHostedAgentConnection } from "../auth/hostedAccount.js";
 
 /** Load agent URL + token (including from the unlocked vault) for API clients. */
 export function useAgentConfig(vaultUnlocked: boolean): {
@@ -29,8 +33,21 @@ export function useAgentConfig(vaultUnlocked: boolean): {
     if (vaultUnlocked && canMint) {
       let minted = await mintChatSessionToken(next);
       if (!minted && usesSupabaseHostedAuth()) {
-        if (await tryReconnectHostedAgent()) {
-          minted = getChatSessionToken() ?? (await mintChatSessionToken(await refreshCommsConfigCache()));
+        try {
+          const connection = await fetchHostedAgentConnection();
+          await saveCommsAgentConfigSecure({
+            adminUrl: connection.adminUrl,
+            adminToken: connection.adminToken,
+          });
+          if (connection.sessionToken?.trim()) {
+            minted = connection.sessionToken.trim();
+          } else {
+            minted = await mintChatSessionToken(await refreshCommsConfigCache());
+          }
+        } catch (error) {
+          console.warn(
+            `[agent-config] hosted reconnect failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
       if (minted) {
