@@ -64,15 +64,29 @@ export function requireAdminAuth(expectedToken: string) {
   return createAdminAuthMiddleware(expectedToken);
 }
 
+/** Routes that require the root admin bearer even when a session scope is otherwise broad. */
+function isSessionAdminDenied(req: Request): boolean {
+  // Root-only: minting sessions and vault export/import.
+  if (req.method === "POST" && req.path === "/admin/session-token") return true;
+  if (req.method === "POST" && (req.path === "/admin/export" || req.path === "/admin/import")) {
+    return true;
+  }
+  return false;
+}
+
 function allowsSessionAuth(req: Request, scopes: SessionScope[]): boolean {
-  // List + per-connector reads (GET /connectors and GET /connectors/:id…).
-  if (req.method === "GET" && (req.path === "/connectors" || req.path.startsWith("/connectors/"))) {
+  if (isSessionAdminDenied(req)) return false;
+
+  // Broad owner runtime: custody, comms, brain, settings writes — short-lived only (AS-09 / M21.4).
+  if (scopes.includes("owner:runtime")) return true;
+
+  if (
+    (req.method === "GET" && (req.path === "/connectors" || /^\/connectors\//.test(req.path))) ||
+    (req.method === "POST" && /^\/connectors\/[^/]+\/invoke$/.test(req.path))
+  ) {
     return scopes.includes("connector:read");
   }
-  if (req.method === "POST" && /^\/connectors\/[^/]+\/invoke$/.test(req.path)) {
-    return scopes.includes("connector:read");
-  }
-  // AG-UI Chat SSE — short-lived chat:agui only (M21.4 / AS-09 interim).
+  // AG-UI Chat SSE — short-lived chat:agui only.
   if (req.method === "POST" && (req.path === "/agent" || req.path.endsWith("/agent"))) {
     return scopes.includes("chat:agui");
   }
