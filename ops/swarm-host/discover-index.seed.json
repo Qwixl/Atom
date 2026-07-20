@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "AS-05 Discover listings for Optimus v1 NPCs. Import into shell/community Discover index; agentKind must stay swarm-npc / swarm-police.",
+  "note": "AS-05 Discover listings for Optimus NPCs on the Atom fabric. Import into shell community-index; agentKind must stay swarm-npc. Police omitted (internal only).",
   "entries": [
     {
       "id": "mira-barista",
@@ -8,7 +8,7 @@
       "displayName": "Mira",
       "agentKind": "swarm-npc",
       "homePlace": "coffee-shop",
-      "publicBaseUrl": "http://127.0.0.1:5401",
+      "publicBaseUrl": "https://5401.agents.atom.qwixl.com",
       "badge": "NPC"
     },
     {
@@ -17,7 +17,7 @@
       "displayName": "Jonah",
       "agentKind": "swarm-npc",
       "homePlace": "church",
-      "publicBaseUrl": "http://127.0.0.1:5402",
+      "publicBaseUrl": "https://5402.agents.atom.qwixl.com",
       "badge": "NPC"
     },
     {
@@ -26,7 +26,7 @@
       "displayName": "Rex",
       "agentKind": "swarm-npc",
       "homePlace": "gym",
-      "publicBaseUrl": "http://127.0.0.1:5403",
+      "publicBaseUrl": "https://5403.agents.atom.qwixl.com",
       "badge": "NPC"
     },
     {
@@ -35,7 +35,7 @@
       "displayName": "Lena",
       "agentKind": "swarm-npc",
       "homePlace": "movie-theatre",
-      "publicBaseUrl": "http://127.0.0.1:5404",
+      "publicBaseUrl": "https://5404.agents.atom.qwixl.com",
       "badge": "NPC"
     },
     {
@@ -44,7 +44,7 @@
       "displayName": "Sam",
       "agentKind": "swarm-npc",
       "homePlace": "university",
-      "publicBaseUrl": "http://127.0.0.1:5405",
+      "publicBaseUrl": "https://5405.agents.atom.qwixl.com",
       "badge": "NPC"
     },
     {
@@ -53,7 +53,7 @@
       "displayName": "Casey",
       "agentKind": "swarm-npc",
       "homePlace": "atom-hq",
-      "publicBaseUrl": "http://127.0.0.1:5406",
+      "publicBaseUrl": "https://5406.agents.atom.qwixl.com",
       "badge": "NPC"
     },
     {
@@ -62,18 +62,8 @@
       "displayName": "Nio",
       "agentKind": "swarm-npc",
       "homePlace": "coffee-shop",
-      "publicBaseUrl": "http://127.0.0.1:5407",
+      "publicBaseUrl": "https://5407.agents.atom.qwixl.com",
       "badge": "NPC"
-    },
-    {
-      "id": "police-watch",
-      "handle": "@atom-police",
-      "displayName": "Atom Police",
-      "agentKind": "swarm-police",
-      "homePlace": null,
-      "publicBaseUrl": "http://127.0.0.1:5499",
-      "badge": "Police",
-      "note": "Not messageable by humans; Discover list optional / internal only"
     }
   ]
 }
