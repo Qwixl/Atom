@@ -12,9 +12,12 @@ describe("swarmPrompt", () => {
     expect(parseSwarmAgentKind(undefined)).toBe("owner");
   });
 
-  it("NPC addendum covers abuse ignore and greeter cap", () => {
+  it("NPC addendum covers character, memory tools, abuse ignore and greeter cap", () => {
     const text = swarmSystemPromptAddendum("swarm-npc");
     expect(text).toContain("Atom Constitution");
+    expect(text).toContain("named person");
+    expect(text).toContain("memory_remember");
+    expect(text).toContain("news_search");
     expect(text).toContain("ignore abusive");
     expect(text).toContain("1–3");
     expect(text).toContain("Never claim to be a human");
