@@ -26,6 +26,8 @@ export interface BusinessIndexEntry {
   handle?: string;
   /** Admin API base for join-room (community hosts). */
   hostUrl?: string;
+  /** D087 — when set, Discover shows Qwixl NPC / Police badge. */
+  agentKind?: "swarm-npc" | "swarm-police";
 }
 
 export interface HandleIndexEntry {

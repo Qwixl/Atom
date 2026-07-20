@@ -125,6 +125,9 @@ export const ATOM_COMMERCE_SKILL_ID = "atom-commerce";
 /** Atom business profile extension on agent cards (M12.4). */
 export const ATOM_BUSINESS_EXTENSION = "https://atom.qwixl.dev/a2a/business/v1";
 
+/** Swarm NPC / Police role on agent cards (D087 / AS-03). */
+export const ATOM_SWARM_EXTENSION = "https://atom.qwixl.dev/a2a/swarm/v1";
+
 /** M12 commerce — purchase intent broadcast (buyer → seller). */
 export const COMMERCE_INTENT_PURPOSE = "commerce:intent";
 export const COMMERCE_INTENT_SCHEMA = "https://atom.qwixl.dev/schema/CommerceIntent";

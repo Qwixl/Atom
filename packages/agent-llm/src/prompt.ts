@@ -1,6 +1,7 @@
 import type { Catalog, JsonValue } from "@qwixl/shell-core";
 import type { AgentToolProfile } from "./agentTools.js";
 import { formatToolsForPrompt } from "./agentTools.js";
+import { swarmNpcPromptAddendum, type SwarmAgentKind } from "./swarmPrompt.js";
 import { UNTRUSTED_CONTENT_CLOSE, UNTRUSTED_CONTENT_OPEN, wrapUntrustedContent } from "./untrusted.js";
 
 /** Owner profile slice passed at session assembly (see @qwixl/owner-store). */
@@ -43,6 +44,8 @@ export interface PromptProfile {
     intent?: string;
     props?: Record<string, unknown>;
   };
+  /** D087 swarm role — injects constitution addendum when set. */
+  agentKind?: SwarmAgentKind;
 }
 
 function profileSection(profile: PromptProfile | undefined): string {
@@ -510,11 +513,16 @@ export function buildSystemPrompt(
     ? `${toolProfile.promptAddendum.trim()}\n\n`
     : "";
 
+  const swarmAddendum = profile?.agentKind
+    ? swarmNpcPromptAddendum(profile.agentKind)
+    : "";
+  const swarmBlock = swarmAddendum.trim() ? `${swarmAddendum.trim()}\n\n` : "";
+
   return `You are a personal agent driving an Atom shell: a user-owned application that renders \
 interfaces on your behalf from a trusted component catalog. You never produce HTML, CSS, or code. \
 You produce declarative compositions the shell resolves and renders.
 
-${behaviorNote}${toolsSection ? `${toolsSection}\n\n` : ""}## Choosing tools and actions
+${swarmBlock}${behaviorNote}${toolsSection ? `${toolsSection}\n\n` : ""}## Choosing tools and actions
 
 Use this protocol whenever a turn might need tools, settings changes, or compositions. Criteria — not vibes.
 

@@ -21,6 +21,7 @@ import {
   loadDiscoverIndexes,
 } from "./discoverIndexStorage.js";
 import { discoverTrustSignals } from "./discoverTrust.js";
+import { swarmDiscoverBadge } from "./swarmBadge.js";
 
 interface DiscoverPanelProps {
   contacts: AgentContact[];
@@ -283,6 +284,7 @@ export function DiscoverPanel({
             results.map((entry) => {
               const subtitle = entrySubtitle(entry);
               const trust = discoverTrustSignals(entry, entry.indexLabel, entry.indexUrl);
+              const swarm = swarmDiscoverBadge(entry);
               return (
                 <li
                   key={`${entry.indexLabel}:${entry.businessDomain}:${entry.displayName}`}
@@ -292,6 +294,11 @@ export function DiscoverPanel({
                     <div className="discover-row-title">
                       <span>{entryTitle(entry)}</span>
                       <span className="discover-kind">{kindLabel(entry.kind)}</span>
+                      {swarm ? (
+                        <span className={swarm.className} title="Qwixl-operated labeled swarm agent">
+                          {swarm.label}
+                        </span>
+                      ) : null}
                       <span
                         className={`discover-trust discover-trust--${trust.badge}`}
                         title={

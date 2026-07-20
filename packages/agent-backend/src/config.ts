@@ -1,5 +1,7 @@
 import { PRODUCTION_SHELL_ORIGIN } from "@qwixl/shell-core";
 
+export type AgentKindConfig = "owner" | "swarm-npc" | "swarm-police";
+
 export interface AgentBackendConfig {
   port: number;
   host: string;
@@ -26,6 +28,17 @@ export interface AgentBackendConfig {
   brainAlwaysOn: boolean;
   /** BrainScheduler tick interval ms (default 60000). */
   brainIntervalMs: number;
+  /** D087 swarm role (ATOM_AGENT_KIND). */
+  agentKind: AgentKindConfig;
+  /** When true, swarm ticks must not run. */
+  killSwitch: boolean;
+}
+
+function parseAgentKind(raw: string | undefined): AgentKindConfig {
+  const value = raw?.trim().toLowerCase();
+  if (value === "swarm-npc" || value === "npc") return "swarm-npc";
+  if (value === "swarm-police" || value === "police") return "swarm-police";
+  return "owner";
 }
 
 const DEFAULT_SHELL_ORIGINS = [
@@ -87,5 +100,7 @@ export function loadAgentBackendConfig(env: NodeJS.ProcessEnv = process.env): Ag
       5_000,
       Number(env.ATOM_BRAIN_INTERVAL_MS?.trim() || 60_000) || 60_000,
     ),
+    agentKind: parseAgentKind(env.ATOM_AGENT_KIND),
+    killSwitch: env.ATOM_KILL_SWITCH === "1" || env.ATOM_KILL_SWITCH === "true",
   };
 }
