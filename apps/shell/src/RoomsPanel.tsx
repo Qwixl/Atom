@@ -4,6 +4,7 @@ import { CommsAgentClient } from "./comms/client.js";
 import { quickJoinCoffeeShop } from "./discoverActions.js";
 import { loadCommsAgentConfig, loadContacts, saveContacts } from "./comms/storage.js";
 import { isAgentAuthError, formatDiscoverHostError } from "./comms/agentErrors.js";
+import { getChatSessionToken } from "./comms/chatSessionToken.js";
 import { useAgentConfig } from "./comms/useAgentConfig.js";
 import type { AgentContact } from "./comms/types.js";
 import { loadRoomAttendance, saveRoomAttendance, type RoomAttendanceMode } from "./roomAttendance.js";
@@ -66,7 +67,7 @@ interface RoomsPanelProps {
   onActivity?: (note: string) => void;
   vaultUnlocked?: boolean;
   agentConnectionReady?: boolean;
-  onAgentAuthFailure?: () => void;
+  onAgentAuthFailure?: () => void | Promise<void>;
   onRequestReconnect?: () => void;
 }
 
@@ -194,11 +195,27 @@ export function RoomsPanel({
       setJoined(body.joined ?? []);
       setStatus(null);
     } catch (error) {
+      if (isAgentAuthError(error)) {
+        await onAgentAuthFailure?.();
+        try {
+          const token = getChatSessionToken() ?? agentConfig.adminToken;
+          const retry = new CommsAgentClient(agentConfig.adminUrl, {
+            readToken: token,
+            adminToken: agentConfig.adminToken,
+          });
+          const body = await retry.listRooms();
+          setHosted(body.hosted ?? []);
+          setJoined(body.joined ?? []);
+          setStatus(null);
+          return;
+        } catch {
+          /* fall through */
+        }
+      }
       const message = error instanceof Error ? error.message : String(error);
       setStatus(message);
-      if (isAgentAuthError(error)) onAgentAuthFailure?.();
     }
-  }, [client, connectionActive, onAgentAuthFailure]);
+  }, [agentConfig.adminToken, agentConfig.adminUrl, client, connectionActive, onAgentAuthFailure]);
 
   const refreshMessages = useCallback(async () => {
     if (!selectedId) return;

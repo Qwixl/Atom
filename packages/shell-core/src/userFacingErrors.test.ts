@@ -17,4 +17,8 @@ describe("presentChatAgentError", () => {
       "Something went wrong talking to your agent. Try again.",
     );
   });
+
+  it("maps 401 to session reconnect guidance", () => {
+    expect(presentChatAgentError(new Error("Unauthorized"))).toMatch(/session expired|sign out/i);
+  });
 });

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CommsAgentClient } from "./client.js";
 import {
+  ensureFreshChatSessionToken,
   getChatSessionToken,
   mintChatSessionToken,
   setChatSessionToken,
+  subscribeChatSessionToken,
 } from "./chatSessionToken.js";
 import {
   loadCommsAgentConfig,
@@ -13,6 +15,8 @@ import {
 import type { CommsAgentConfig } from "./types.js";
 import { usesSupabaseHostedAuth } from "../hostConfig.js";
 import { fetchHostedAgentConnection } from "../auth/hostedAccount.js";
+
+const SESSION_KEEPALIVE_MS = 60_000;
 
 /** Load agent URL + token (including from the unlocked vault) for API clients. */
 export function useAgentConfig(vaultUnlocked: boolean): {
@@ -70,6 +74,34 @@ export function useAgentConfig(vaultUnlocked: boolean): {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    return subscribeChatSessionToken((token) => {
+      setSessionToken(token);
+      setSessionReady(Boolean(token || loadCommsAgentConfig().adminToken?.trim()));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!vaultUnlocked) return;
+    let cancelled = false;
+    const tick = async () => {
+      const next = await refreshCommsConfigCache();
+      const canMint = Boolean(next.adminToken?.trim()) || usesSupabaseHostedAuth();
+      if (!canMint || cancelled) return;
+      const fresh = await ensureFreshChatSessionToken(next);
+      if (cancelled || !fresh) return;
+      setConfig(next);
+      setSessionToken(fresh);
+      setSessionReady(true);
+    };
+    void tick();
+    const timer = window.setInterval(() => void tick(), SESSION_KEEPALIVE_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [vaultUnlocked]);
 
   const client = useMemo(
     () =>
