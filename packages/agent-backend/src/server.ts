@@ -74,6 +74,7 @@ import { QualifyStore } from "./qualifyStore.js";
 import { DisputeChannelStore } from "./disputeChannelStore.js";
 import { deliverSignedObject } from "./deliverObject.js";
 import { maybeSendDemoSchedulingProposal } from "./demoPeer.js";
+import { maybeReplySwarmDm } from "./swarmDmReply.js";
 import { DataObjectInbox } from "./inbox.js";
 import { identityPath, loadOrCreateIdentity } from "./identity.js";
 import {
@@ -266,6 +267,14 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
           `[business] inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       });
+      void maybeReplySwarmDm(
+        { agentKind: config.agentKind, identity, mlsStore, peerRecords },
+        event.object,
+      ).catch((error) => {
+        console.warn(
+          `[swarm-dm] reply failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
       console.log(
         `[inbox] ${event.object.governance.purpose} from ${event.object.issuerDid} id=${event.object.id}`,
       );
@@ -348,6 +357,14 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       void businessStore.handleInboxObject(verified).catch((error) => {
         console.warn(
           `[business] mls inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+      void maybeReplySwarmDm(
+        { agentKind: config.agentKind, identity, mlsStore, peerRecords },
+        verified,
+      ).catch((error) => {
+        console.warn(
+          `[swarm-dm] reply failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       });
       console.log(
