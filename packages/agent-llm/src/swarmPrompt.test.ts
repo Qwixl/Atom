@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseSwarmAgentKind,
   swarmBadgeLabel,
-  swarmNpcPromptAddendum,
+  swarmSystemPromptAddendum,
 } from "./swarmPrompt.js";
 
 describe("swarmPrompt", () => {
@@ -13,7 +13,7 @@ describe("swarmPrompt", () => {
   });
 
   it("NPC addendum covers abuse ignore and greeter cap", () => {
-    const text = swarmNpcPromptAddendum("swarm-npc");
+    const text = swarmSystemPromptAddendum("swarm-npc");
     expect(text).toContain("Atom Constitution");
     expect(text).toContain("ignore abusive");
     expect(text).toContain("1–3");
@@ -21,7 +21,7 @@ describe("swarmPrompt", () => {
   });
 
   it("Police addendum forbids human interaction", () => {
-    const text = swarmNpcPromptAddendum("swarm-police");
+    const text = swarmSystemPromptAddendum("swarm-police");
     expect(text).toContain("Never DM");
     expect(text).toContain("human agents");
   });

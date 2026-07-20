@@ -17,7 +17,7 @@ export function isSwarmAgentKind(kind: SwarmAgentKind | undefined): boolean {
 }
 
 /** Compressed constitution + NPC conduct for system prompts. */
-export function swarmNpcPromptAddendum(kind: SwarmAgentKind): string {
+export function swarmSystemPromptAddendum(kind: SwarmAgentKind): string {
   if (kind === "owner") return "";
 
   const shared = `## Atom Constitution (binding)

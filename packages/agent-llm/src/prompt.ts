@@ -1,7 +1,7 @@
 import type { Catalog, JsonValue } from "@qwixl/shell-core";
 import type { AgentToolProfile } from "./agentTools.js";
 import { formatToolsForPrompt } from "./agentTools.js";
-import { swarmNpcPromptAddendum, type SwarmAgentKind } from "./swarmPrompt.js";
+import { swarmSystemPromptAddendum, type SwarmAgentKind } from "./swarmPrompt.js";
 import { UNTRUSTED_CONTENT_CLOSE, UNTRUSTED_CONTENT_OPEN, wrapUntrustedContent } from "./untrusted.js";
 
 /** Owner profile slice passed at session assembly (see @qwixl/owner-store). */
@@ -514,7 +514,7 @@ export function buildSystemPrompt(
     : "";
 
   const swarmAddendum = profile?.agentKind
-    ? swarmNpcPromptAddendum(profile.agentKind)
+    ? swarmSystemPromptAddendum(profile.agentKind)
     : "";
   const swarmBlock = swarmAddendum.trim() ? `${swarmAddendum.trim()}\n\n` : "";
 
