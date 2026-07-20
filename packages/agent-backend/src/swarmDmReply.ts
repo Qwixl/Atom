@@ -1,6 +1,6 @@
 /**
- * Swarm NPC reply-on-DM (D087 / D089): human/peer MLS or A2A `comms:message` → LLM → encrypted reply.
- * Selective memory + allowlisted search tools (fair-use budget).
+ * Swarm NPC reply-on-DM (D087 / D089 / D090):
+ * short-term thread history + selective long-term memory + vague recall on remember prompts.
  */
 
 import {
@@ -18,14 +18,26 @@ import {
   SWARM_ABUSE_REFUSE_TEXT,
 } from "./swarmAbuseGate.js";
 import type { SwarmMemoryStore } from "./swarmMemoryStore.js";
+import {
+  formatVagueRecallBlock,
+  isVagueRecallPrompt,
+  outlineFromTurns,
+} from "./swarmRecall.js";
+import type { SwarmSocialDeps } from "./swarmSocialTools.js";
 import { sharedSwarmToolBudget } from "./swarmToolBudget.js";
 import { buildSwarmPromptContext } from "./swarmTurnContext.js";
 import {
   loadLlmAgUiConfigFromEnv,
   runLlmTextCompletion,
   type LlmAgUiConfig,
+  type LlmChatTurn,
 } from "./agUi/llmRunner.js";
 import type { AtomToolExecutor } from "@qwixl/agent-llm";
+
+const SHORT_TERM_TURN_LIMIT = 16;
+/** Archive older turns into a held-back outline once buffer exceeds this. */
+const ARCHIVE_TURN_THRESHOLD = 12;
+const ARCHIVE_KEEP_LAST = 6;
 
 export interface SwarmDmReplyDeps {
   agentKind: AgentKindConfig;
@@ -34,11 +46,16 @@ export interface SwarmDmReplyDeps {
   peerRecords: MlsPeerRecordStore;
   swarmMemory?: SwarmMemoryStore | null;
   swarmSeedId?: string;
+  swarmSocial?: SwarmSocialDeps | null;
   connectorExecutor?: AtomToolExecutor;
   /** Optional override for tests. */
   llmConfig?: LlmAgUiConfig | null;
   /** Optional override for tests. */
-  complete?: (system: string, user: string) => Promise<string>;
+  complete?: (
+    system: string,
+    user: string,
+    history?: LlmChatTurn[],
+  ) => Promise<string>;
 }
 
 export function extractCommsMessageText(object: DataObject): string | null {
@@ -56,13 +73,20 @@ function peerUrlFor(peerRecords: MlsPeerRecordStore, peerDid: string): string | 
 function buildDmSystemPrompt(
   memory: SwarmMemoryStore | null | undefined,
   peerDid: string,
-  seedId?: string,
-  inbound?: string,
+  seedId: string | undefined,
+  inbound: string,
+  vagueRecall: boolean,
 ): string {
+  let vagueRecallBlock: string | undefined;
+  if (vagueRecall && memory) {
+    const summaries = memory.retrieveSummaries(peerDid, inbound, 6);
+    vagueRecallBlock = formatVagueRecallBlock(summaries.map((s) => s.text));
+  }
   const context = buildSwarmPromptContext(memory, {
     query: inbound || "conversation",
     peerDid,
     selfSeedId: seedId,
+    vagueRecallBlock,
   });
   return `${swarmSystemPromptAddendum("swarm-npc")}
 
@@ -71,7 +95,32 @@ ${context}
 ## DM reply
 
 You received a direct message. Reply in plain text only (no JSON, no UI composition).
-Stay in character. Keep replies concise (1–3 short sentences unless asked for more).`;
+Stay in character. Keep replies concise (1–3 short sentences unless asked for more).
+Use the recent conversation turns below as short-term context — continue the thread naturally.`;
+}
+
+function historyFromMemory(
+  memory: SwarmMemoryStore | null | undefined,
+  peerDid: string,
+): LlmChatTurn[] {
+  if (!memory) return [];
+  return memory.recentDialogueTurns(peerDid, SHORT_TERM_TURN_LIMIT).map((t) => ({
+    role: t.role,
+    content: t.text,
+  }));
+}
+
+function maybeArchiveOutline(memory: SwarmMemoryStore, peerDid: string): void {
+  if (memory.countDialogueTurns(peerDid) < ARCHIVE_TURN_THRESHOLD) return;
+  const turns = memory.recentDialogueTurns(peerDid, 40);
+  const older = turns.slice(0, Math.max(0, turns.length - ARCHIVE_KEEP_LAST));
+  const outline = outlineFromTurns(older);
+  if (!outline) return;
+  memory.archiveDialogueOutline(
+    peerDid,
+    `Outline with this peer: ${outline}`,
+    ARCHIVE_KEEP_LAST,
+  );
 }
 
 /**
@@ -115,15 +164,18 @@ export async function maybeReplySwarmDm(
       console.warn("[swarm-dm] skip reply — LLM_API_KEY not configured");
       return { replied: false, reason: "no_llm" };
     }
+    const recall = isVagueRecallPrompt(inbound);
     const system = buildDmSystemPrompt(
       deps.swarmMemory,
       peerDid,
       deps.swarmSeedId,
       inbound,
+      recall,
     );
+    const history = historyFromMemory(deps.swarmMemory, peerDid);
     try {
       if (deps.complete) {
-        replyText = (await deps.complete(system, inbound)).trim();
+        replyText = (await deps.complete(system, inbound, history)).trim();
       } else {
         const budget = sharedSwarmToolBudget();
         const withTools: LlmAgUiConfig = {
@@ -133,6 +185,7 @@ export async function maybeReplySwarmDm(
           swarmPeerDid: peerDid,
           swarmSeedId: deps.swarmSeedId,
           swarmToolBudget: budget,
+          swarmSocial: deps.swarmSocial ?? null,
           atomConnectorsAvailable: Boolean(deps.connectorExecutor),
           connectorExecutor: deps.connectorExecutor,
           connectedConnectorIds: ["news-search", "page-fetch"],
@@ -140,6 +193,7 @@ export async function maybeReplySwarmDm(
         replyText = (
           await runLlmTextCompletion(withTools, system, inbound, {
             maxToolRounds: budget.maxToolRoundsPerTurn,
+            history,
           })
         ).trim();
       }
@@ -170,6 +224,13 @@ export async function maybeReplySwarmDm(
     object: signed,
     encrypt: true,
   });
+
+  if (deps.swarmMemory) {
+    deps.swarmMemory.appendDialogueTurn(peerDid, "user", inbound);
+    deps.swarmMemory.appendDialogueTurn(peerDid, "assistant", replyText);
+    maybeArchiveOutline(deps.swarmMemory, peerDid);
+  }
+
   console.log(`[swarm-dm] replied to ${peerDid} id=${signed.id}`);
   return { replied: true };
 }

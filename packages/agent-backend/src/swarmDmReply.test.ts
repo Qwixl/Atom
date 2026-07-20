@@ -117,6 +117,48 @@ describe("maybeReplySwarmDm", () => {
     expect(sent.object.governance.purpose).toBe(COMMS_MESSAGE_PURPOSE);
   });
 
+  it("passes short-term history into complete", async () => {
+    const identity = await generateAgentKeyPair();
+    const complete = vi.fn(async (_system: string, _user: string, history?: unknown[]) => {
+      expect(Array.isArray(history)).toBe(true);
+      return "Still here — oat milk, right?";
+    });
+    const memory = {
+      recentDialogueTurns: () => [
+        { role: "user" as const, text: "I like oat milk", createdAt: "t1" },
+        { role: "assistant" as const, text: "Noted!", createdAt: "t2" },
+      ],
+      appendDialogueTurn: vi.fn(),
+      countDialogueTurns: () => 2,
+      retrieveSummaries: () => [],
+      getCoreSheet: () => null,
+      getMutableSheet: () => ({ mood: "steady", shortGoals: [], traits: {} }),
+      retrieve: () => [],
+      getImpression: () => null,
+    };
+    const result = await maybeReplySwarmDm(
+      {
+        agentKind: "swarm-npc",
+        identity,
+        mlsStore: { hasSession: () => true } as never,
+        peerRecords: {
+          list: () => [{ peerDid: "did:peer", peerUrl: "https://peer.example", connectedAt: 1 }],
+        } as never,
+        swarmMemory: memory as never,
+        complete,
+      },
+      fakeObject({ issuerDid: "did:peer", text: "Do you remember?" }),
+    );
+    expect(result).toEqual({ replied: true });
+    expect(complete).toHaveBeenCalledOnce();
+    expect(memory.appendDialogueTurn).toHaveBeenCalledWith("did:peer", "user", "Do you remember?");
+    expect(memory.appendDialogueTurn).toHaveBeenCalledWith(
+      "did:peer",
+      "assistant",
+      "Still here — oat milk, right?",
+    );
+  });
+
   it("reports empty reply", async () => {
     const identity = await generateAgentKeyPair();
     const result = await maybeReplySwarmDm(

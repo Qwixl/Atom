@@ -98,6 +98,10 @@ export const GAME_PURPOSES = [
   GAME_BS_MOVE_PURPOSE,
 ] as const;
 
+/** D090 — NPC/friend invite into an open room (guest auto-joins on receive). */
+export const ROOM_INVITE_PURPOSE = "room:invite";
+export const ROOM_INVITE_SCHEMA = "https://atom.qwixl.dev/schema/RoomInvite";
+
 /** All M8 coordination purposes (receiver allowlists). */
 export const COORDINATION_PURPOSES = [
   COORDINATION_PROPOSAL_PURPOSE,
