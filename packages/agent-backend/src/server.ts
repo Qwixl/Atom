@@ -191,9 +191,14 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   const verification = verificationStore.get();
   const agentCard = buildAtomAgentCard({
     name: config.agentName,
-    description: config.businessMode
-      ? "Atom business agent — catalog, signed offers, and commerce flow."
-      : "Atom agent — signed data objects and MLS E2E over A2A.",
+    description:
+      config.agentKind === "swarm-npc"
+        ? "Qwixl-operated Atom NPC — labeled swarm agent for venues and Discover."
+        : config.agentKind === "swarm-police"
+          ? "Qwixl Police-Agent — monitors swarm NPCs only; does not interact with humans."
+          : config.businessMode
+            ? "Atom business agent — catalog, signed offers, and commerce flow."
+            : "Atom agent — signed data objects and MLS E2E over A2A.",
     baseUrl: config.publicBaseUrl,
     publisherDid: identity.did,
     business: verification
@@ -203,6 +208,10 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
           tierLabel: verification.tierLabel,
         }
       : undefined,
+    swarmKind:
+      config.agentKind === "swarm-npc" || config.agentKind === "swarm-police"
+        ? config.agentKind
+        : undefined,
   });
 
   const inboxPurposes = [
@@ -479,10 +488,32 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   });
   registerMcpAdminRoutes(adminApp, { store: mcpServersStore, runtime: mcpRuntime });
   registerCustodyAdminRoutes(adminApp, connectorVault);
+
+  let swarmMemory: import("./swarmMemoryStore.js").SwarmMemoryStore | null = null;
+  let banLadder: import("./banLadder.js").BanLadderStore | null = null;
+  {
+    const { resolveDataPath } = await import("./dataDir.js");
+    if (config.agentKind === "swarm-npc" || config.agentKind === "swarm-police") {
+      const { SwarmMemoryStore } = await import("./swarmMemoryStore.js");
+      swarmMemory = new SwarmMemoryStore(resolveDataPath("swarm-memory.sqlite"));
+      await swarmMemory.load();
+    }
+    const { BanLadderStore } = await import("./banLadder.js");
+    banLadder = new BanLadderStore(resolveDataPath("ban-ladder.sqlite"));
+    await banLadder.load();
+  }
+  const { registerSwarmAdminRoutes } = await import("./swarmAdmin.js");
+  registerSwarmAdminRoutes(adminApp, {
+    memory: swarmMemory,
+    agentKind: config.agentKind,
+    bans: banLadder,
+  });
+
   const readOnlyConnectorExecutor = createReadOnlyConnectorExecutor(connectorVault);
   const brainScheduler = new BrainScheduler({
     vault: connectorVault,
     alwaysOn: config.brainAlwaysOn,
+    killSwitch: config.killSwitch,
     intervalMs: config.brainIntervalMs,
     resolveNotification: async (intent, firedAt) => {
       const { loadLlmAgUiConfigFromEnv } = await import("./agUi/llmRunner.js");
@@ -490,17 +521,27 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       const { recordLlmInferenceSpend } = await import("./llmSpendMeter.js");
       const { listConfiguredConnectorIds } = await import("./connectorRegistry.js");
       const llmConfig = loadLlmAgUiConfigFromEnv();
-      const connectedConnectorIds = llmConfig
-        ? await listConfiguredConnectorIds(connectorVault)
-        : [];
+      const swarmRole = config.agentKind === "swarm-npc" || config.agentKind === "swarm-police";
+      const connectedConnectorIds =
+        llmConfig && !swarmRole ? await listConfiguredConnectorIds(connectorVault) : [];
+      if (config.agentKind === "swarm-npc" && swarmMemory) {
+        const { runSwarmReflectPass, runSwarmPlanPass } = await import("./swarmReflect.js");
+        runSwarmReflectPass(swarmMemory, intent.title || intent.scope?.query || "venue plans");
+        runSwarmPlanPass(
+          swarmMemory,
+          "coffee-shop",
+          `Standing intent fired: ${intent.title}`,
+        );
+      }
       return runBrainTurn({
         intent,
         firedAt,
         llmConfig: llmConfig
           ? {
               ...llmConfig,
-              atomConnectorsAvailable: true,
-              connectorExecutor: readOnlyConnectorExecutor,
+              agentKind: config.agentKind,
+              atomConnectorsAvailable: !swarmRole,
+              connectorExecutor: swarmRole ? undefined : readOnlyConnectorExecutor,
               connectedConnectorIds,
               onUsage: ({ promptTokens, completionTokens, model }) => {
                 recordLlmInferenceSpend(budgetLedger, {

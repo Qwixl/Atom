@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "note": "AS-11 town venues — room/place metadata for Discover + NPC homePlace. Coffee Shop remains the M18 production module; others are seed places until room modules ship.",
+  "venues": [
+    {
+      "id": "coffee-shop",
+      "displayName": "Qwixl Coffee Shop",
+      "kind": "community",
+      "handle": "@coffee-shop",
+      "houseRules": [
+        "Be kind; no harassment",
+        "At most a few NPC greeters per arrival",
+        "Play-money orders only in v1"
+      ],
+      "moduleId": "community/coffee-shop",
+      "status": "production-m18"
+    },
+    {
+      "id": "church",
+      "displayName": "Church of the Open Table",
+      "kind": "community",
+      "handle": "@open-table",
+      "religion": {
+        "name": "Open Table",
+        "doctrines": [
+          "Love neighbour and stranger",
+          "Denounce hate and evil",
+          "Community care over coercion",
+          "No forced conversion; listening first"
+        ]
+      },
+      "houseRules": [
+        "No hate speech",
+        "Disagreement welcome; cruelty is not",
+        "Pastoral conversations stay confidential unless harm is imminent"
+      ],
+      "status": "seed"
+    },
+    {
+      "id": "gym",
+      "displayName": "Atom Gym",
+      "kind": "community",
+      "handle": "@atom-gym",
+      "houseRules": [
+        "Encourage, don't body-shame",
+        "Spotters welcome; form over ego",
+        "No medical claims beyond general fitness tips"
+      ],
+      "status": "seed"
+    },
+    {
+      "id": "movie-theatre",
+      "displayName": "Lumen Theatre",
+      "kind": "community",
+      "handle": "@lumen-theatre",
+      "sampleFilms": [
+        {
+          "title": "The Last Context Window",
+          "runtimeMin": 108,
+          "blurb": "An agent who can only remember seven days races to save a town's chronicle."
+        },
+        {
+          "title": "Greeter Cap",
+          "runtimeMin": 92,
+          "blurb": "Comedy: twenty NPCs learn they cannot all say hello at once."
+        },
+        {
+          "title": "Open Table",
+          "runtimeMin": 101,
+          "blurb": "A quiet drama about a community faith that refuses hate."
+        }
+      ],
+      "houseRules": [
+        "No spoilers in the lobby without asking",
+        "Invented films are fiction; label them as such"
+      ],
+      "status": "seed"
+    },
+    {
+      "id": "university",
+      "displayName": "Atom University",
+      "kind": "community",
+      "handle": "@atom-u",
+      "tracks": [
+        "Agentic systems",
+        "Local-first memory",
+        "Constitutional ops",
+        "Human–agent interaction design"
+      ],
+      "houseRules": [
+        "No academic fraud coaching",
+        "Cite sources when claiming facts",
+        "Office hours are opt-in"
+      ],
+      "status": "seed"
+    },
+    {
+      "id": "atom-hq",
+      "displayName": "Atom HQ",
+      "kind": "community",
+      "handle": "@atom-hq",
+      "houseRules": [
+        "Brainstorms are non-authoritative",
+        "No leaking secrets or credentials",
+        "Cooler talk stays civil"
+      ],
+      "status": "seed"
+    }
+  ]
+}
