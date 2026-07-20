@@ -41,6 +41,7 @@ import { loadThreadOutbound, saveThreadOutbound } from "./comms/threadStorage.js
 import { persistCommerceReceiptsFromInbox } from "./comms/persistReceipts.js";
 import { DEFAULT_COMMS_AGENT_URL, loadCommsAgentConfig, saveCommsAgentConfig, saveContacts } from "./comms/storage.js";
 import { isAgentAuthError } from "./comms/agentErrors.js";
+import { getChatSessionToken } from "./comms/chatSessionToken.js";
 import { useAgentConfig } from "./comms/useAgentConfig.js";
 import {
   contactToTrustedAgentPayload,
@@ -143,7 +144,7 @@ export function CommsPanel({
   demoPersona?: DemoPersonaId;
   vaultUnlocked?: boolean;
   agentConnectionReady?: boolean;
-  onAgentAuthFailure?: () => void;
+  onAgentAuthFailure?: () => void | Promise<void>;
   onRequestReconnect?: () => void;
   /** Ephemeral demo session — do not read/write live agent config. */
   agentConfigOverride?: CommsAgentConfig;
@@ -258,6 +259,15 @@ export function CommsPanel({
     });
   }, [contactSearch, contacts]);
 
+  const liveClient = useCallback(() => {
+    const cfg = loadCommsAgentConfig();
+    const token = getChatSessionToken() ?? cfg.adminToken;
+    return new CommsAgentClient(cfg.adminUrl, {
+      readToken: token,
+      adminToken: cfg.adminToken,
+    });
+  }, []);
+
   const refreshAgentStatus = useCallback(async () => {
     if (!connectionActive) {
       setStatusError(null);
@@ -269,18 +279,28 @@ export function CommsPanel({
       setMlsPeers(health.mlsPeers);
       setStatusError(null);
     } catch (error) {
+      if (isAgentAuthError(error)) {
+        await onAgentAuthFailure?.();
+        try {
+          const health = await liveClient().health();
+          setLocalDid(health.did);
+          setMlsPeers(health.mlsPeers);
+          setStatusError(null);
+          return;
+        } catch {
+          /* fall through to surface error if recovery did not restore auth */
+        }
+      }
       setLocalDid(null);
       setMlsPeers([]);
       const message = error instanceof Error ? error.message : String(error);
       setStatusError(message);
-      if (isAgentAuthError(error)) onAgentAuthFailure?.();
     }
-  }, [client, connectionActive, onAgentAuthFailure]);
+  }, [client, connectionActive, liveClient, onAgentAuthFailure]);
 
   const refreshInbox = useCallback(async () => {
     if (!connectionActive) return;
-    try {
-      const entries = await client.inbox();
+    const applyEntries = (entries: InboxEntryWire[]) => {
       setInbox(entries);
       const attestationCrossRefs = attestationEntries.map((entry) => ({
         seq: entry.seq,
@@ -293,10 +313,29 @@ export function CommsPanel({
         persistedReceiptIds: persistedReceiptIds.current,
       });
       if (added > 0) onProfileChanged();
-    } catch {
-      // inbox errors surface via status poll when agent is down
+    };
+    try {
+      applyEntries(await client.inbox());
+    } catch (error) {
+      if (isAgentAuthError(error)) {
+        await onAgentAuthFailure?.();
+        try {
+          applyEntries(await liveClient().inbox());
+        } catch {
+          /* next poll retries after session remint */
+        }
+      }
+      // other inbox errors surface via status poll when agent is down
     }
-  }, [attestationEntries, client, connectionActive, onProfileChanged, ownerStore]);
+  }, [
+    attestationEntries,
+    client,
+    connectionActive,
+    liveClient,
+    onAgentAuthFailure,
+    onProfileChanged,
+    ownerStore,
+  ]);
 
   useEffect(() => {
     void refreshAgentStatus();

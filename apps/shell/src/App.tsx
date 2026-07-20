@@ -200,10 +200,13 @@ import { type DemoCalendarEvent } from "./demoScheduling.js";
 import { CommsAgentClient } from "./comms/client.js";
 import {
   commsClientAuth,
+  ensureFreshChatSessionToken,
   getChatSessionToken,
   mintChatSessionToken,
   refreshChatSessionToken,
+  remintChatSessionToken,
   setChatSessionToken,
+  subscribeChatSessionToken,
 } from "./comms/chatSessionToken.js";
 import {
   formatCalendarContextForPrompt,
@@ -582,7 +585,31 @@ export function App() {
     void refreshCommsConfigCache();
   }, [vaultUnlocked]);
 
-  const handleAgentAuthFailure = useCallback(() => {
+  const handleAgentAuthFailure = useCallback(async () => {
+    // Expired chat sessions look like 401s — remint before treating as a hard logout.
+    try {
+      const config = await loadCommsAgentConfigSecure();
+      let reminted = await remintChatSessionToken(config);
+      if (!reminted && usesSupabaseHostedAuth()) {
+        const connection = await fetchHostedAgentConnection();
+        await saveCommsAgentConfigSecure({
+          adminUrl: connection.adminUrl,
+          adminToken: connection.adminToken,
+        });
+        reminted =
+          connection.sessionToken?.trim() ||
+          (await remintChatSessionToken(await loadCommsAgentConfigSecure()));
+      }
+      if (reminted) {
+        setChatSessionBearer(reminted);
+        setAgentConnectionReady(true);
+        return;
+      }
+    } catch (error) {
+      console.warn(
+        `[session] auth recovery failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     clearCommsAdminToken();
     if (MANAGED_HOSTING) {
       clearCommsAgentConfig();
@@ -645,11 +672,41 @@ export function App() {
   }, [vaultUnlocked, agentConnectionReady]);
 
   useEffect(() => {
+    return subscribeChatSessionToken((token) => {
+      setChatSessionBearer(token);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!vaultUnlocked || !agentConnectionReady) return;
+    let cancelled = false;
+    const keepAlive = async () => {
+      try {
+        const config = await loadCommsAgentConfigSecure();
+        if (!config.adminToken?.trim() && !usesSupabaseHostedAuth()) return;
+        const fresh = await ensureFreshChatSessionToken(config);
+        if (!cancelled && fresh) setChatSessionBearer(fresh);
+      } catch (error) {
+        console.warn(
+          `[session] keepalive failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    };
+    void keepAlive();
+    const timer = window.setInterval(() => void keepAlive(), 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [vaultUnlocked, agentConnectionReady]);
+
+  useEffect(() => {
     if (!agentConnectionReady || !vaultUnlocked) return;
     void (async () => {
       try {
         const config = await loadCommsAgentConfigSecure();
-        if (!config.adminToken?.trim()) return;
+        if (!config.adminToken?.trim() && !usesSupabaseHostedAuth()) return;
+        await ensureFreshChatSessionToken(config);
         const [remoteRecords, remoteProposals, remoteAttestations] = await Promise.all([
           loadOwnerRecords<OwnerRecord>(config),
           loadOwnerProposals<RecordProposal>(config),
@@ -680,15 +737,13 @@ export function App() {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (/unauthorized|401/i.test(message)) {
-          clearCommsAdminToken();
-          setAgentConnectionReady(false);
-          navigate("/app/?auth=login", true);
+          await handleAgentAuthFailure();
           return;
         }
         console.warn("[custody] backend hydrate failed", error);
       }
     })();
-  }, [ownerStore, agentConnectionReady, vaultUnlocked]);
+  }, [ownerStore, agentConnectionReady, vaultUnlocked, handleAgentAuthFailure]);
 
   const [provider, setProvider] = useState<Provider>(() => loadSavedProvider(secretStore));
   const [llmConnection, setLlmConnection] = useState<LlmConnectionConfig | null>(() =>
@@ -889,8 +944,9 @@ export function App() {
     let cancelled = false;
     const poll = async () => {
       const config = loadCommsAgentConfig();
-      if (!config.adminToken?.trim()) return;
+      if (!config.adminToken?.trim() && !usesSupabaseHostedAuth() && !getChatSessionToken()) return;
       try {
+        await ensureFreshChatSessionToken(config);
         const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
         const entries = await client.inbox();
         if (cancelled) return;
@@ -1452,7 +1508,6 @@ export function App() {
     chatSessionBearer?.trim() ||
     (provider === "ag-ui" ? loadCommsAgentConfig().adminToken?.trim() : undefined) ||
     undefined;
-
   const session: ShellSession = useMemo(() => {
     if (provider === "llm" && llmConfig) {
       return new LlmAgentSession(llmConfig, catalog, profileProvider, {
@@ -1476,11 +1531,12 @@ export function App() {
       profileProvider,
       webcalEventsProvider: mockWebcalEventsProvider,
     });
+    // agUiBearer is applied via setRequestHeaders so remints do not reset the thread.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: bearer updates handled below
   }, [
     provider,
     llmConfig,
     agUiSessionKey,
-    agUiBearer,
     catalog,
     profileProvider,
     mockWebcalEventsProvider,
@@ -1492,6 +1548,11 @@ export function App() {
 
   const sessionRef = useRef(session);
   sessionRef.current = session;
+
+  useEffect(() => {
+    if (!(session instanceof AgUiAgentSession)) return;
+    session.setRequestHeaders(agUiAuthHeaders(agUiBearer));
+  }, [session, agUiBearer]);
 
   const briefingOpenSentRef = useRef(false);
   /** After [settings-assent], auto-commit the next settingsProposal action. */
