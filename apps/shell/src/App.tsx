@@ -618,9 +618,19 @@ export function App() {
       }
       let minted = await mintChatSessionToken(config);
       if (!minted && usesSupabaseHostedAuth()) {
-        const { tryReconnectHostedAgent } = await import("./auth/completeSetup.js");
-        if (await tryReconnectHostedAgent()) {
-          minted = getChatSessionToken() ?? (await mintChatSessionToken(await loadCommsAgentConfigSecure()));
+        try {
+          const connection = await fetchHostedAgentConnection();
+          await saveCommsAgentConfigSecure({
+            adminUrl: connection.adminUrl,
+            adminToken: connection.adminToken,
+          });
+          minted =
+            connection.sessionToken?.trim() ||
+            (await mintChatSessionToken(await loadCommsAgentConfigSecure()));
+        } catch (error) {
+          console.warn(
+            `[session] hosted reconnect failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       }
       // Never wipe a good in-memory session on a flaky remint.
