@@ -68,8 +68,10 @@ const baseConfig: AgentBackendConfig = {
   businessKnowledgeBackend: "json",
   businessKnowledgeRemoteUrl: null,
   interactivePortResolve: false,
-    brainAlwaysOn: true,
-    brainIntervalMs: 60000,
+  brainAlwaysOn: true,
+  brainIntervalMs: 60000,
+  agentKind: "owner",
+  killSwitch: false,
 };
 
 describe("runDiscoverSearch", () => {

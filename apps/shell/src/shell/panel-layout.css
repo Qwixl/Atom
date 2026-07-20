@@ -442,6 +442,29 @@
   border: 1px solid var(--shell-accent-border);
 }
 
+.discover-swarm {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: var(--shell-radius-full);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid var(--shell-border);
+}
+
+.discover-swarm--npc {
+  color: var(--shell-text);
+  background: color-mix(in srgb, var(--shell-accent, #2563eb) 12%, transparent);
+  border-color: color-mix(in srgb, var(--shell-accent, #2563eb) 40%, var(--shell-border));
+}
+
+.discover-swarm--police {
+  color: var(--shell-text);
+  background: color-mix(in srgb, var(--shell-warning, #b45309) 14%, transparent);
+  border-color: color-mix(in srgb, var(--shell-warning, #b45309) 40%, var(--shell-border));
+}
+
 .discover-trust {
   display: inline-flex;
   padding: 2px 8px;

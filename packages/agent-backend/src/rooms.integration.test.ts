@@ -43,6 +43,8 @@ function testConfig(port: number, publicBaseUrl: string, communityHostMode = fal
     interactivePortResolve: false,
     brainAlwaysOn: true,
     brainIntervalMs: 60000,
+  agentKind: "owner",
+  killSwitch: false,
   };
 }
 

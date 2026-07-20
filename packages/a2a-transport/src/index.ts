@@ -62,6 +62,7 @@ export {
   ATOM_ACTIONS_SKILL_ID,
   ATOM_COMMERCE_SKILL_ID,
   ATOM_BUSINESS_EXTENSION,
+  ATOM_SWARM_EXTENSION,
   BUSINESS_VERIFICATION_TIER_1_LABEL,
   COMMERCE_INTENT_PURPOSE,
   COMMERCE_INTENT_SCHEMA,
@@ -201,7 +202,12 @@ export {
   type CommercePurpose,
   type SplitProposalPayload,
 } from "./commerce.js";
-export { buildAtomAgentCard, type AtomAgentCardOptions, type AtomBusinessProfile } from "./agentCard.js";
+export {
+  buildAtomAgentCard,
+  type AtomAgentCardOptions,
+  type AtomBusinessProfile,
+  type AtomSwarmAgentKind,
+} from "./agentCard.js";
 
 export {
   sendDataObject,
