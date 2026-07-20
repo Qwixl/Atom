@@ -29,7 +29,10 @@ bash ops/swarm-host/seed_core_sheets.sh
 ```cron
 */15 * * * * /home/qwixl/atom/repos/atom/ops/swarm-host/heartbeat.sh >>/home/qwixl/atom/logs/heartbeat.log 2>&1
 5 * * * * /home/qwixl/atom/repos/atom/ops/swarm-host/swarm_tick.sh >>/home/qwixl/atom/logs/swarm_tick.log 2>&1
+15 * * * * /home/qwixl/atom/repos/atom/ops/swarm-host/social_tick.sh >>/home/qwixl/atom/logs/social_tick.log 2>&1
 ```
+
+`social_tick.sh` (D091): ≤1 NPC↔NPC conversation opener per hour swarm-wide. Disable with `ATOM_NPC_SOCIAL=0` or kill switch.
 
 Qwixl `scripts/atom_host_*.sh` wrappers exec these paths when `~/atom/repos/atom` is present.
 

@@ -147,6 +147,13 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
           selfDisplayName: swarmMemory?.getCoreSheet()?.name,
         }
       : null;
+  let socialStore: import("./swarmSocialDialogue.js").SwarmSocialDialogueStore | null = null;
+  if (config.agentKind === "swarm-npc") {
+    const { SwarmSocialDialogueStore } = await import("./swarmSocialDialogue.js");
+    const { resolveDataPath } = await import("./dataDir.js");
+    socialStore = new SwarmSocialDialogueStore(resolveDataPath("swarm-social.json"));
+    socialStore.load();
+  }
 
   const handleSwarmInboxObject = (object: import("@qwixl/protocol").DataObject): void => {
     void maybeReplySwarmDm(
@@ -158,6 +165,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
         swarmMemory,
         swarmSeedId,
         swarmSocial,
+        socialStore,
         connectorExecutor: readOnlyConnectorExecutor,
       },
       object,
@@ -582,6 +590,21 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     memory: swarmMemory,
     agentKind: config.agentKind,
     bans: banLadder,
+    socialStore,
+    socialAutonomy:
+      config.agentKind === "swarm-npc" && socialStore
+        ? {
+            identity,
+            mlsStore,
+            peerRecords,
+            publicBaseUrl: config.publicBaseUrl,
+            swarmMemory,
+            swarmSeedId,
+            swarmSocial,
+            socialStore,
+            connectorExecutor: readOnlyConnectorExecutor,
+          }
+        : null,
   });
 
   const brainScheduler = new BrainScheduler({
