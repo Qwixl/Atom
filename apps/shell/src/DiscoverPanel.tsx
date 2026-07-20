@@ -31,7 +31,7 @@ interface DiscoverPanelProps {
   onActivity?: (note: string) => void;
   vaultUnlocked?: boolean;
   agentConnectionReady?: boolean;
-  onAgentAuthFailure?: () => void;
+  onAgentAuthFailure?: () => void | Promise<void>;
   onRequestReconnect?: () => void;
 }
 

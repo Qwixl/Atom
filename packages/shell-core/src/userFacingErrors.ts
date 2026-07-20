@@ -12,7 +12,7 @@ export function presentChatAgentError(error: unknown): string {
   const lower = message.toLowerCase();
 
   if (/unauthorized|401/.test(lower)) {
-    return "Connection token was rejected. Open Settings → Agent connection and enter your token again.";
+    return "Your agent session expired or was rejected. Wait a moment for reconnect, or sign out and back in.";
   }
   if (/failed to fetch|networkerror|load failed|could not reach the ag-ui|could not reach your agent/.test(lower)) {
     return "Could not reach your agent. Check that it is running and the URL is correct.";

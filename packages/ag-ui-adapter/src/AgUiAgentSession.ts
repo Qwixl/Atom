@@ -51,6 +51,8 @@ export class AgUiAgentSession extends SessionEmitter implements AgentSession {
   private static readonly MAX_CONNECTOR_ROUNDS = 8;
 
   private agent: HttpAgent;
+  private readonly agentUrl: string;
+  private readonly threadId: string;
   private profileProvider?: () => PersonalAgentContext;
   private connectorExecutor?: AtomConnectorExecutor;
   private connectorsAvailable: boolean;
@@ -67,11 +69,24 @@ export class AgUiAgentSession extends SessionEmitter implements AgentSession {
     this.profileProvider = config.profileProvider;
     this.connectorExecutor = config.connectorExecutor;
     this.connectorsAvailable = config.connectorsAvailable ?? Boolean(config.connectorExecutor);
+    this.agentUrl = config.url;
+    this.threadId = config.threadId ?? uuid();
     this.agent = new HttpAgent({
-      url: config.url,
-      threadId: config.threadId ?? uuid(),
+      url: this.agentUrl,
+      threadId: this.threadId,
       headers: config.headers,
     });
+  }
+
+  /** Rotate auth headers without resetting the AG-UI thread (session remint). */
+  setRequestHeaders(headers: Record<string, string> | undefined): void {
+    const messages = this.agent.messages;
+    this.agent = new HttpAgent({
+      url: this.agentUrl,
+      threadId: this.threadId,
+      headers,
+    });
+    this.agent.messages = messages;
   }
 
   sendUserMessage(text: string): void {
