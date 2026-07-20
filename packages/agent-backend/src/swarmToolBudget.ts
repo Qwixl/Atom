@@ -7,11 +7,15 @@ export const SWARM_SEARCH_TOOL_NAMES = ["news_search", "page_read"] as const;
 export type SwarmSearchToolName = (typeof SWARM_SEARCH_TOOL_NAMES)[number];
 
 export const SWARM_MEMORY_REMEMBER_TOOL = "memory_remember";
+export const SWARM_INVITE_FRIEND_TOOL = "invite_friend_to_room";
+export const SWARM_CHALLENGE_GAME_TOOL = "challenge_friend_to_game";
 
 /** Registry + in-process tools exposed to swarm NPCs. */
 export const SWARM_ALLOWED_TOOL_NAMES = [
   ...SWARM_SEARCH_TOOL_NAMES,
   SWARM_MEMORY_REMEMBER_TOOL,
+  SWARM_INVITE_FRIEND_TOOL,
+  SWARM_CHALLENGE_GAME_TOOL,
 ] as const;
 
 export interface SwarmToolBudgetLimits {
