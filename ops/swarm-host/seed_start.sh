@@ -35,7 +35,6 @@ if [[ ! -d "${NPC_DIR}" ]] || ! ls "${NPC_DIR}"/*/meta.json >/dev/null 2>&1; the
 fi
 
 gen_token() {
-  # portable-ish token
   if command -v openssl >/dev/null 2>&1; then
     openssl rand -base64 32 | tr -d '/+=' | head -c 43
   else
@@ -43,12 +42,38 @@ gen_token() {
   fi
 }
 
+# Fabric membership: https://{port}.agents.atom.qwixl.com (droplet Caddy + reverse tunnel).
+# Laptop default: loopback. Set ATOM_NPC_PUBLIC_URL_TEMPLATE=https://{port}.agents.atom.qwixl.com on Optimus.
+URL_TEMPLATE="${ATOM_NPC_PUBLIC_URL_TEMPLATE:-http://127.0.0.1:{port}}"
+if [[ "${URL_TEMPLATE}" != *'{port}'* ]]; then
+  echo "seed_start: ATOM_NPC_PUBLIC_URL_TEMPLATE must contain {port}, got: ${URL_TEMPLATE}" >&2
+  exit 2
+fi
+
+# Non-interactive cron/nohup has no nvm on PATH.
+NODE_BIN="${ATOM_NODE_BIN:-}"
+if [[ -z "${NODE_BIN}" || ! -x "${NODE_BIN}" ]]; then
+  if command -v node >/dev/null 2>&1; then
+    NODE_BIN="$(command -v node)"
+  else
+    NODE_BIN="$(ls -1 "${HOME}/.nvm/versions/node/"*/bin/node 2>/dev/null | sort -V | tail -1 || true)"
+  fi
+fi
+if [[ -z "${NODE_BIN}" || ! -x "${NODE_BIN}" ]]; then
+  echo "seed_start: node not found (set ATOM_NODE_BIN)" >&2
+  exit 2
+fi
+
 for meta in "${NPC_DIR}"/*/meta.json; do
   dir="$(dirname "${meta}")"
   id="$(basename "${dir}")"
   port="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["port"])' "${meta}")"
   kind="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("agentKind","swarm-npc"))' "${meta}")"
   name="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("displayName",sys.argv[2]))' "${meta}" "${id}")"
+  # Prefer python replace — bash ${var//\{port\}/${port}} can leave a stray '}'.
+  public_base_url="$(URL_TEMPLATE="${URL_TEMPLATE}" PORT="${port}" python3 -c 'import os; print(os.environ["URL_TEMPLATE"].replace("{port}", os.environ["PORT"]))')"
+  python3 -c 'import json,sys; p=sys.argv[1]; u=sys.argv[2]; m=json.load(open(p)); m["publicBaseUrl"]=u; open(p,"w").write(json.dumps(m, indent=2)+"\n")' \
+    "${meta}" "${public_base_url}"
 
   token_file="${dir}/admin.token"
   if [[ ! -f "${token_file}" ]] || [[ ! -s "${token_file}" ]]; then
@@ -61,25 +86,24 @@ for meta in "${NPC_DIR}"/*/meta.json; do
   if [[ -f "${pid_file}" ]]; then
     old_pid="$(tr -d '\n\r' <"${pid_file}")"
     if [[ -n "${old_pid}" ]] && kill -0 "${old_pid}" 2>/dev/null; then
-      echo "seed_start: ${id} already running pid=${old_pid}"
+      echo "seed_start: ${id} already running pid=${old_pid} ${public_base_url}"
       continue
     fi
   fi
 
-  # Already healthy?
   if curl -fsS --max-time 2 \
     -H "Authorization: Bearer ${token}" \
     "http://127.0.0.1:${port}/health" >/dev/null 2>&1; then
-    echo "seed_start: ${id} already healthy :${port}"
+    echo "seed_start: ${id} already healthy :${port} ${public_base_url} (no pid file — not restarted)"
     continue
   fi
 
   log_file="${LOG_DIR}/${id}.log"
-  echo "seed_start: launching ${id} :${port} (${kind})"
+  echo "seed_start: launching ${id} :${port} (${kind}) ${public_base_url}"
   nohup env \
     PORT="${port}" \
     HOST=127.0.0.1 \
-    PUBLIC_BASE_URL="http://127.0.0.1:${port}" \
+    PUBLIC_BASE_URL="${public_base_url}" \
     AGENT_NAME="${name}" \
     ATOM_AGENT_KIND="${kind}" \
     ATOM_DATA_DIR="${dir}" \
@@ -93,10 +117,10 @@ for meta in "${NPC_DIR}"/*/meta.json; do
     ATOM_FOUNDER_AGENT_URL="${ATOM_FOUNDER_AGENT_URL:-}" \
     ATOM_FOUNDER_ADMIN_TOKEN="${ATOM_FOUNDER_ADMIN_TOKEN:-}" \
     ATOM_BRAIN_ALWAYS_ON="${ATOM_BRAIN_ALWAYS_ON:-1}" \
-    node "${BACKEND}/dist/cli.js" \
+    "${NODE_BIN}" "${BACKEND}/dist/cli.js" \
     >>"${log_file}" 2>&1 &
   echo $! >"${pid_file}"
-  sleep 0.4
+  sleep 0.8
 done
 
 echo "seed_start: done — next: bash ${OPS}/seed_core_sheets.sh"
