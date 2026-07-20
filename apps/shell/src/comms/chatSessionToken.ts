@@ -36,10 +36,7 @@ async function mintViaAgentAdmin(config: CommsAgentConfig): Promise<string | nul
 
 /**
  * Mint a short-lived session for AG-UI Chat + connector reads.
- * Hosted: control-plane mint only (admin token stays server-side). If CP mint
- * fails, return null so Chat/connectors fall back to the browser admin bearer
- * (PR1 interim) — do not mint via the agent with the browser admin token, which
- * can strand Chat on a connector:read-only session when fleet images skew.
+ * Hosted: control-plane mint only (admin token stays server-side).
  * Self-host: mint with the browser-held admin bearer.
  */
 export async function mintChatSessionToken(config: CommsAgentConfig): Promise<string | null> {
@@ -52,11 +49,17 @@ export async function mintChatSessionToken(config: CommsAgentConfig): Promise<st
   return mintViaAgentAdmin(config);
 }
 
-/** Mint + store a fresh scoped session token (F6-4 / M21.4). */
+/**
+ * Mint + store a fresh scoped session token (F6-4 / M21.4).
+ * On mint failure, keep any existing in-memory token (do not wipe a good connect session).
+ */
 export async function refreshChatSessionToken(config: CommsAgentConfig): Promise<string | null> {
   const token = await mintChatSessionToken(config);
-  setChatSessionToken(token);
-  return token;
+  if (token) {
+    setChatSessionToken(token);
+    return token;
+  }
+  return getChatSessionToken();
 }
 
 export function commsClientAuth(config: CommsAgentConfig): {

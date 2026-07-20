@@ -229,8 +229,8 @@ export function CommsPanel({
     else saveContacts(next);
   }
 
-  const { client: syncedClient } = useAgentConfig(vaultUnlocked);
-  const connectionActive = agentConnectionReady && vaultUnlocked;
+  const { client: syncedClient, sessionReady: agentSessionReady } = useAgentConfig(vaultUnlocked);
+  const connectionActive = agentConnectionReady && vaultUnlocked && agentSessionReady;
 
   const client = useMemo(() => {
     if (agentConfigOverride) {
