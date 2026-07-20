@@ -44,7 +44,13 @@ gen_token() {
 
 # Fabric membership: https://{port}.agents.atom.qwixl.com (droplet Caddy + reverse tunnel).
 # Laptop default: loopback. Set ATOM_NPC_PUBLIC_URL_TEMPLATE=https://{port}.agents.atom.qwixl.com on Optimus.
-URL_TEMPLATE="${ATOM_NPC_PUBLIC_URL_TEMPLATE:-http://127.0.0.1:{port}}"
+# Do not use ${VAR:-http://127.0.0.1:{port}} — bash treats the } in {port} as
+# closing the parameter expansion and appends a literal '}'.
+if [[ -n "${ATOM_NPC_PUBLIC_URL_TEMPLATE:-}" ]]; then
+  URL_TEMPLATE="${ATOM_NPC_PUBLIC_URL_TEMPLATE}"
+else
+  URL_TEMPLATE='http://127.0.0.1:{port}'
+fi
 if [[ "${URL_TEMPLATE}" != *'{port}'* ]]; then
   echo "seed_start: ATOM_NPC_PUBLIC_URL_TEMPLATE must contain {port}, got: ${URL_TEMPLATE}" >&2
   exit 2
