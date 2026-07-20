@@ -68,8 +68,8 @@ export function DiscoverPanel({
   onAgentAuthFailure,
   onRequestReconnect,
 }: DiscoverPanelProps) {
-  const { client } = useAgentConfig(vaultUnlocked);
-  const connectionActive = agentConnectionReady && vaultUnlocked;
+  const { client, sessionReady } = useAgentConfig(vaultUnlocked);
+  const connectionActive = agentConnectionReady && vaultUnlocked && sessionReady;
   const indexConfigs = useMemo(() => loadDiscoverIndexes(), []);
 
   const [terms, setTerms] = useState("");
