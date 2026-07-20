@@ -1,9 +1,7 @@
-import type { BusinessIndexEntry } from "@qwixl/business-index";
-
 /** Discover / chrome label for D087 swarm listings. */
-export function swarmDiscoverBadge(
-  entry: Pick<BusinessIndexEntry, "agentKind">,
-): { label: string; className: string } | null {
+export function swarmDiscoverBadge(entry: {
+  agentKind?: "swarm-npc" | "swarm-police" | null;
+}): { label: string; className: string } | null {
   if (entry.agentKind === "swarm-npc") {
     return { label: "Qwixl NPC", className: "discover-swarm discover-swarm--npc" };
   }
