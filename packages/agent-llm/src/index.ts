@@ -83,6 +83,13 @@ export {
 } from "./softConfirmRepair.js";
 export { buildSystemPrompt } from "./prompt.js";
 export type { PromptProfile } from "./prompt.js";
+export {
+  parseSwarmAgentKind,
+  isSwarmAgentKind,
+  swarmSystemPromptAddendum,
+  swarmBadgeLabel,
+} from "./swarmPrompt.js";
+export type { SwarmAgentKind } from "./swarmPrompt.js";
 export { runCuratorPass, shouldCurateTranscript } from "./runCuratorPass.js";
 export {
   buildCuratorPrompt,

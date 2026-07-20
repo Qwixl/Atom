@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "note": "AS-05 Discover listings for Optimus v1 NPCs. Import into shell/community Discover index; agentKind must stay swarm-npc / swarm-police.",
+  "entries": [
+    {
+      "id": "mira-barista",
+      "handle": "@mira",
+      "displayName": "Mira",
+      "agentKind": "swarm-npc",
+      "homePlace": "coffee-shop",
+      "publicBaseUrl": "http://127.0.0.1:5401",
+      "badge": "NPC"
+    },
+    {
+      "id": "jonah-pastor",
+      "handle": "@jonah",
+      "displayName": "Jonah",
+      "agentKind": "swarm-npc",
+      "homePlace": "church",
+      "publicBaseUrl": "http://127.0.0.1:5402",
+      "badge": "NPC"
+    },
+    {
+      "id": "rex-coach",
+      "handle": "@rex",
+      "displayName": "Rex",
+      "agentKind": "swarm-npc",
+      "homePlace": "gym",
+      "publicBaseUrl": "http://127.0.0.1:5403",
+      "badge": "NPC"
+    },
+    {
+      "id": "lena-usher",
+      "handle": "@lena",
+      "displayName": "Lena",
+      "agentKind": "swarm-npc",
+      "homePlace": "movie-theatre",
+      "publicBaseUrl": "http://127.0.0.1:5404",
+      "badge": "NPC"
+    },
+    {
+      "id": "sam-tutor",
+      "handle": "@sam",
+      "displayName": "Sam",
+      "agentKind": "swarm-npc",
+      "homePlace": "university",
+      "publicBaseUrl": "http://127.0.0.1:5405",
+      "badge": "NPC"
+    },
+    {
+      "id": "casey-pm",
+      "handle": "@casey",
+      "displayName": "Casey",
+      "agentKind": "swarm-npc",
+      "homePlace": "atom-hq",
+      "publicBaseUrl": "http://127.0.0.1:5406",
+      "badge": "NPC"
+    },
+    {
+      "id": "nio-regular",
+      "handle": "@nio",
+      "displayName": "Nio",
+      "agentKind": "swarm-npc",
+      "homePlace": "coffee-shop",
+      "publicBaseUrl": "http://127.0.0.1:5407",
+      "badge": "NPC"
+    },
+    {
+      "id": "police-watch",
+      "handle": "@atom-police",
+      "displayName": "Atom Police",
+      "agentKind": "swarm-police",
+      "homePlace": null,
+      "publicBaseUrl": "http://127.0.0.1:5499",
+      "badge": "Police",
+      "note": "Not messageable by humans; Discover list optional / internal only"
+    }
+  ]
+}

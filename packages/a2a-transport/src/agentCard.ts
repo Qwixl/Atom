@@ -1,5 +1,13 @@
 import type { AgentCard } from "@a2a-js/sdk";
-import { ATOM_A2A_EXTENSION, ATOM_ACTIONS_SKILL_ID, ATOM_COMMS_SKILL_ID, ATOM_COMMERCE_SKILL_ID, ATOM_COORDINATION_SKILL_ID, ATOM_BUSINESS_EXTENSION } from "./constants.js";
+import {
+  ATOM_A2A_EXTENSION,
+  ATOM_ACTIONS_SKILL_ID,
+  ATOM_COMMS_SKILL_ID,
+  ATOM_COMMERCE_SKILL_ID,
+  ATOM_COORDINATION_SKILL_ID,
+  ATOM_BUSINESS_EXTENSION,
+  ATOM_SWARM_EXTENSION,
+} from "./constants.js";
 
 /** Build an A2A agent card for Atom comms agents. */
 export interface AtomBusinessProfile {
@@ -7,6 +15,8 @@ export interface AtomBusinessProfile {
   businessDomain: string;
   tierLabel: string;
 }
+
+export type AtomSwarmAgentKind = "swarm-npc" | "swarm-police";
 
 export interface AtomAgentCardOptions {
   name: string;
@@ -16,6 +26,8 @@ export interface AtomAgentCardOptions {
   publisherDid?: string;
   /** M12 business storefront fields (D039 tier disclosure). */
   business?: AtomBusinessProfile;
+  /** D087 — labeled swarm roles for Discover / peers. */
+  swarmKind?: AtomSwarmAgentKind;
 }
 
 /** Build an A2A agent card for Atom comms agents. */
@@ -71,6 +83,19 @@ export function buildAtomAgentCard(options: AtomAgentCardOptions): AgentCard {
                   businessDomain: options.business.businessDomain,
                   tierLabel: options.business.tierLabel,
                   ...(options.publisherDid ? { agentDid: options.publisherDid } : {}),
+                },
+              },
+            ]
+          : []),
+        ...(options.swarmKind
+          ? [
+              {
+                uri: ATOM_SWARM_EXTENSION,
+                required: false,
+                params: {
+                  agentKind: options.swarmKind,
+                  labeled: true,
+                  operator: "Qwixl",
                 },
               },
             ]
