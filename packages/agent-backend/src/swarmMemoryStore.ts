@@ -92,7 +92,139 @@ export class SwarmMemoryStore {
         valid_to TEXT,
         created_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS dialogue_turns (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        peer_did TEXT NOT NULL,
+        role TEXT NOT NULL,
+        text TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS dialogue_turns_peer ON dialogue_turns(peer_did, id);
     `);
+  }
+
+  /** Short-term DM turns for one peer (working memory). */
+  appendDialogueTurn(peerDid: string, role: "user" | "assistant", text: string): void {
+    const trimmed = text.trim();
+    if (!trimmed || !peerDid.trim()) return;
+    this.requireDb()
+      .prepare(
+        `INSERT INTO dialogue_turns (peer_did, role, text, created_at) VALUES (?, ?, ?, ?)`,
+      )
+      .run(peerDid.trim(), role, trimmed.slice(0, 4000), new Date().toISOString());
+  }
+
+  recentDialogueTurns(
+    peerDid: string,
+    limit = 16,
+  ): Array<{ role: "user" | "assistant"; text: string; createdAt: string }> {
+    const rows = this.requireDb()
+      .prepare(
+        `SELECT role, text, created_at FROM dialogue_turns
+         WHERE peer_did = ? ORDER BY id DESC LIMIT ?`,
+      )
+      .all(peerDid.trim(), Math.max(1, limit)) as Array<{
+      role: string;
+      text: string;
+      created_at: string;
+    }>;
+    return rows
+      .reverse()
+      .map((row) => ({
+        role: row.role === "assistant" ? ("assistant" as const) : ("user" as const),
+        text: row.text,
+        createdAt: row.created_at,
+      }));
+  }
+
+  countDialogueTurns(peerDid: string): number {
+    const row = this.requireDb()
+      .prepare(`SELECT COUNT(*) AS n FROM dialogue_turns WHERE peer_did = ?`)
+      .get(peerDid.trim()) as { n: number };
+    return Number(row?.n ?? 0);
+  }
+
+  /**
+   * Archive older short-term turns into a held-back summary memory, keep the newest `keepLast`.
+   * Returns the outline text when a summary was written.
+   */
+  archiveDialogueOutline(
+    peerDid: string,
+    outline: string,
+    keepLast = 6,
+  ): { archived: boolean; summaryId?: string } {
+    const did = peerDid.trim();
+    const trimmed = outline.trim();
+    if (!did || !trimmed) return { archived: false };
+    const keep = Math.max(0, keepLast);
+    const ids = this.requireDb()
+      .prepare(`SELECT id FROM dialogue_turns WHERE peer_did = ? ORDER BY id DESC`)
+      .all(did) as Array<{ id: number }>;
+    if (ids.length <= keep) return { archived: false };
+    const dropIds = ids.slice(keep).map((r) => r.id);
+    const summaryId = `summary-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    this.appendMemory({
+      id: summaryId,
+      kind: "summary",
+      text: trimmed.slice(0, 2000),
+      importance: 0.55,
+      counterpartDid: did,
+    });
+    const del = this.requireDb().prepare(`DELETE FROM dialogue_turns WHERE id = ?`);
+    for (const id of dropIds) del.run(id);
+    return { archived: true, summaryId };
+  }
+
+  /** Search held-back summary memories for a peer (vague recall). */
+  retrieveSummaries(
+    peerDid: string,
+    query: string,
+    limit = 6,
+  ): SwarmMemoryRecord[] {
+    const did = peerDid.trim();
+    const trimmed = query.trim();
+    if (!did || !trimmed) return [];
+    const rows = this.requireDb()
+      .prepare(
+        `SELECT id, kind, text, importance, created_at, counterpart_did, place_id, embedding_json
+         FROM memories WHERE kind = 'summary' AND counterpart_did = ?
+         ORDER BY created_at DESC LIMIT 200`,
+      )
+      .all(did) as Array<{
+      id: string;
+      kind: string;
+      text: string;
+      importance: number;
+      created_at: string;
+      counterpart_did: string | null;
+      place_id: string | null;
+      embedding_json: string;
+    }>;
+    const queryEmbedding = this.embedder(trimmed);
+    return rows
+      .map((row) => {
+        let embedding: number[] = [];
+        try {
+          embedding = JSON.parse(row.embedding_json) as number[];
+        } catch {
+          embedding = [];
+        }
+        const lexical = scoreTokenOverlap(trimmed, row.text);
+        const hybrid = hybridRetrievalScore(lexical, queryEmbedding, embedding);
+        return { row, combined: hybrid * 0.85 + row.importance * 0.15 };
+      })
+      .filter((item) => item.combined >= MIN_SCORE * 0.5 || rows.length <= 3)
+      .sort((a, b) => b.combined - a.combined)
+      .slice(0, limit)
+      .map(({ row }) => ({
+        id: row.id,
+        kind: row.kind as SwarmMemoryKind,
+        text: row.text,
+        importance: row.importance,
+        createdAt: row.created_at,
+        counterpartDid: row.counterpart_did ?? undefined,
+        placeId: row.place_id ?? undefined,
+      }));
   }
 
   private requireDb(): DatabaseSync {
@@ -194,7 +326,15 @@ export class SwarmMemoryStore {
       );
   }
 
-  retrieve(query: string, limit = 12): SwarmMemoryRecord[] {
+  /**
+   * Retrieve selective long-term memories. By default **excludes** `summary` rows
+   * (held back for vague-recall triggers — D090).
+   */
+  retrieve(
+    query: string,
+    limit = 12,
+    options?: { includeSummaries?: boolean },
+  ): SwarmMemoryRecord[] {
     const trimmed = query.trim();
     if (!trimmed) return [];
     const rows = this.requireDb()
@@ -214,7 +354,9 @@ export class SwarmMemoryStore {
     }>;
     const queryEmbedding = this.embedder(trimmed);
     const now = Date.now();
+    const includeSummaries = options?.includeSummaries === true;
     return rows
+      .filter((row) => includeSummaries || row.kind !== "summary")
       .map((row) => {
         let embedding: number[] = [];
         try {
