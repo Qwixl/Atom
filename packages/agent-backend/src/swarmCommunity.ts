@@ -13,6 +13,7 @@ export interface SwarmCommunityMember {
   role: string;
   homePlace: string | null;
   agentKind: string;
+  portHint?: number;
 }
 
 export interface SwarmVenueBrief {
@@ -37,6 +38,7 @@ export function loadSwarmCommunityRoster(): SwarmCommunityMember[] {
       displayName: string;
       homePlace?: string | null;
       agentKind?: string;
+      portHint?: number;
       core: { role: string };
     }>;
   };
@@ -49,8 +51,35 @@ export function loadSwarmCommunityRoster(): SwarmCommunityMember[] {
       role: n.core.role,
       homePlace: n.homePlace ?? null,
       agentKind: n.agentKind === "swarm-police" ? "swarm-police" : "swarm-npc",
+      portHint: typeof n.portHint === "number" ? n.portHint : undefined,
     }));
   return cachedRoster;
+}
+
+/** Resolve a community friend by handle, display name, or seed id. */
+export function findSwarmCommunityMember(query: string): SwarmCommunityMember | null {
+  const q = query.trim().toLowerCase().replace(/^@/, "");
+  if (!q) return null;
+  const roster = loadSwarmCommunityRoster();
+  return (
+    roster.find((m) => m.id.toLowerCase() === q) ||
+    roster.find((m) => m.handle.toLowerCase().replace(/^@/, "") === q) ||
+    roster.find((m) => m.displayName.toLowerCase() === q) ||
+    roster.find((m) => m.displayName.toLowerCase().startsWith(q)) ||
+    null
+  );
+}
+
+/**
+ * Public base URL for a community NPC.
+ * Uses ATOM_NPC_PUBLIC_URL_TEMPLATE (e.g. https://{port}.agents.atom.qwixl.com) or localhost.
+ */
+export function resolveCommunityMemberPublicUrl(member: SwarmCommunityMember): string | null {
+  if (member.portHint == null) return null;
+  const template =
+    process.env.ATOM_NPC_PUBLIC_URL_TEMPLATE?.trim() || "http://127.0.0.1:{port}";
+  if (!template.includes("{port}")) return null;
+  return template.replaceAll("{port}", String(member.portHint)).replace(/\/$/, "");
 }
 
 export function loadSwarmVenueBriefs(): SwarmVenueBrief[] {
