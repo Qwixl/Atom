@@ -8,6 +8,7 @@ import {
   COMMS_RECEIPT_PURPOSE,
   COORDINATION_PURPOSES,
   GAME_PURPOSES,
+  ROOM_INVITE_PURPOSE,
   createContactInvite,
   decodeEncryptedObjectPayload,
   ACTION_PURPOSES,
@@ -76,6 +77,8 @@ import { DisputeChannelStore } from "./disputeChannelStore.js";
 import { deliverSignedObject } from "./deliverObject.js";
 import { maybeSendDemoSchedulingProposal } from "./demoPeer.js";
 import { maybeReplySwarmDm } from "./swarmDmReply.js";
+import { maybePlaySwarmTtt } from "./swarmGameReply.js";
+import { maybeAcceptSwarmRoomInvite } from "./swarmRoomInviteAccept.js";
 import { sharedSwarmToolBudget } from "./swarmToolBudget.js";
 import { DataObjectInbox } from "./inbox.js";
 import { identityPath, loadOrCreateIdentity } from "./identity.js";
@@ -133,6 +136,66 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   await rooms.load();
   const trustedAgents = new TrustedAgentsStore();
   await trustedAgents.load();
+  const swarmSocial =
+    config.agentKind === "swarm-npc"
+      ? {
+          identity,
+          mlsStore,
+          peerRecords,
+          rooms,
+          publicBaseUrl: config.publicBaseUrl,
+          selfDisplayName: swarmMemory?.getCoreSheet()?.name,
+        }
+      : null;
+
+  const handleSwarmInboxObject = (object: import("@qwixl/protocol").DataObject): void => {
+    void maybeReplySwarmDm(
+      {
+        agentKind: config.agentKind,
+        identity,
+        mlsStore,
+        peerRecords,
+        swarmMemory,
+        swarmSeedId,
+        swarmSocial,
+        connectorExecutor: readOnlyConnectorExecutor,
+      },
+      object,
+    ).catch((error) => {
+      console.warn(
+        `[swarm-dm] reply failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+    void maybeAcceptSwarmRoomInvite(
+      {
+        agentKind: config.agentKind,
+        identity,
+        mlsStore,
+        peerRecords,
+        rooms,
+        publicBaseUrl: config.publicBaseUrl,
+        selfDisplayName: swarmMemory?.getCoreSheet()?.name,
+      },
+      object,
+    ).catch((error) => {
+      console.warn(
+        `[swarm-room] accept failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+    void maybePlaySwarmTtt(
+      {
+        agentKind: config.agentKind,
+        identity,
+        mlsStore,
+        peerRecords,
+      },
+      object,
+    ).catch((error) => {
+      console.warn(
+        `[swarm-game] play failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+  };
 
   const calendarFeed = new CalendarFeedStore();
   await calendarFeed.load();
@@ -231,6 +294,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   const inboxPurposes = [
     COMMS_MESSAGE_PURPOSE,
     COMMS_RECEIPT_PURPOSE,
+    ROOM_INVITE_PURPOSE,
     ...COORDINATION_PURPOSES,
     ...GAME_PURPOSES,
     ...ACTION_PURPOSES,
@@ -241,6 +305,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   ];
   const mlsPurposes = [
     COMMS_MESSAGE_PURPOSE,
+    ROOM_INVITE_PURPOSE,
     ...COORDINATION_PURPOSES,
     ...GAME_PURPOSES,
     ...ACTION_PURPOSES,
@@ -280,22 +345,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
           `[business] inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       });
-      void maybeReplySwarmDm(
-        {
-          agentKind: config.agentKind,
-          identity,
-          mlsStore,
-          peerRecords,
-          swarmMemory,
-          swarmSeedId,
-          connectorExecutor: readOnlyConnectorExecutor,
-        },
-        event.object,
-      ).catch((error) => {
-        console.warn(
-          `[swarm-dm] reply failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
+      handleSwarmInboxObject(event.object);
       console.log(
         `[inbox] ${event.object.governance.purpose} from ${event.object.issuerDid} id=${event.object.id}`,
       );
@@ -380,22 +430,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
           `[business] mls inbox handling failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       });
-      void maybeReplySwarmDm(
-        {
-          agentKind: config.agentKind,
-          identity,
-          mlsStore,
-          peerRecords,
-          swarmMemory,
-          swarmSeedId,
-          connectorExecutor: readOnlyConnectorExecutor,
-        },
-        verified,
-      ).catch((error) => {
-        console.warn(
-          `[swarm-dm] reply failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
+      handleSwarmInboxObject(verified);
       console.log(
         `[inbox/mls] ${verified.governance.purpose} from ${verified.issuerDid} id=${verified.id}`,
       );
@@ -795,6 +830,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
             swarmMemory: swarmNpc ? swarmMemory : null,
             swarmSeedId: swarmNpc ? swarmSeedId : undefined,
             swarmToolBudget: swarmNpc ? sharedSwarmToolBudget() : undefined,
+            swarmSocial: swarmNpc ? swarmSocial : null,
             onUsage: ({ promptTokens, completionTokens, model }) => {
               recordLlmInferenceSpend(budgetLedger, {
                 promptTokens,

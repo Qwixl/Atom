@@ -16,6 +16,8 @@ import {
   GAME_BS_MOVE_PURPOSE,
   GAME_TTT_MOVE_PURPOSE,
   GAME_TTT_STATE_PURPOSE,
+  ROOM_INVITE_PURPOSE,
+  ROOM_INVITE_SCHEMA,
   BS_MOVE_SCHEMA,
   BS_SHOT_SCHEMA,
   BS_STATE_SCHEMA,
@@ -196,6 +198,37 @@ export async function createPollVote(opts: {
     payload: opts.payload as unknown as Record<string, unknown>,
     ttlSeconds: opts.ttlSeconds,
   });
+}
+
+export interface RoomInvitePayload {
+  roomId: string;
+  hostUrl: string;
+  roomName: string;
+  note?: string;
+}
+
+export async function createRoomInvite(opts: {
+  identity: AgentKeyPair;
+  payload: RoomInvitePayload;
+  ttlSeconds?: number;
+}): Promise<DataObject> {
+  assertNonEmptyString(opts.payload.roomId, "roomId");
+  assertNonEmptyString(opts.payload.hostUrl, "hostUrl");
+  assertNonEmptyString(opts.payload.roomName, "roomName");
+  return signGroupObject(opts.identity, {
+    schema: ROOM_INVITE_SCHEMA,
+    purpose: ROOM_INVITE_PURPOSE,
+    payload: opts.payload as unknown as Record<string, unknown>,
+    ttlSeconds: opts.ttlSeconds,
+  });
+}
+
+export async function verifyRoomInvite(object: DataObject): Promise<{ payload: RoomInvitePayload }> {
+  const verified = await verifyDataObject(object);
+  if (verified.governance.purpose !== ROOM_INVITE_PURPOSE) {
+    throw new Error("Not a room invite object");
+  }
+  return { payload: verified.payload as unknown as RoomInvitePayload };
 }
 
 export async function createTttState(opts: {
