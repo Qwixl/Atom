@@ -409,6 +409,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       await completeAgentSetup({
         adminUrl: connection.adminUrl,
         adminToken: connection.adminToken,
+        sessionToken: connection.sessionToken,
         handle: connection.handle ?? (fields ? bareOwnerHandle(fields.handle) : undefined),
         kind: "hosted",
         skipConnectionProbe: true,
@@ -483,6 +484,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       await completeAgentSetup({
         adminUrl: connection.adminUrl,
         adminToken: connection.adminToken,
+        sessionToken: connection.sessionToken,
         handle: connection.handle ?? bareOwnerHandle(fields.handle),
         kind: "hosted",
         skipConnectionProbe: true,
@@ -519,6 +521,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       await completeAgentSetup({
         adminUrl: connection.adminUrl,
         adminToken: connection.adminToken,
+        sessionToken: connection.sessionToken,
         handle: connection.handle,
         kind: "hosted",
         skipConnectionProbe: true,
@@ -635,8 +638,9 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
           });
           advanceTask("agent", "connect");
           await completeAgentSetup({
-            adminUrl: connection.adminUrl,
-            adminToken: connection.adminToken,
+        adminUrl: connection.adminUrl,
+        adminToken: connection.adminToken,
+        sessionToken: connection.sessionToken,
             handle: bareOwnerHandle(connection.handle),
             kind: "hosted",
           });
