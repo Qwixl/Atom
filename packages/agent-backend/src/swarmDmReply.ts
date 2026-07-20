@@ -23,6 +23,15 @@ import {
   isVagueRecallPrompt,
   outlineFromTurns,
 } from "./swarmRecall.js";
+import { peerLooksLikeCommunityNpc } from "./swarmSocialAutonomy.js";
+import {
+  formatSocialTurnBudget,
+  looksLikeGoodbye,
+  SOCIAL_MAX_MESSAGES,
+  SOCIAL_MIN_MESSAGES,
+  socialMessageTotal,
+  type SwarmSocialDialogueStore,
+} from "./swarmSocialDialogue.js";
 import type { SwarmSocialDeps } from "./swarmSocialTools.js";
 import { sharedSwarmToolBudget } from "./swarmToolBudget.js";
 import { buildSwarmPromptContext } from "./swarmTurnContext.js";
@@ -47,6 +56,8 @@ export interface SwarmDmReplyDeps {
   swarmMemory?: SwarmMemoryStore | null;
   swarmSeedId?: string;
   swarmSocial?: SwarmSocialDeps | null;
+  /** D091 — NPC↔NPC dialogue turn budget / cooldowns. */
+  socialStore?: SwarmSocialDialogueStore | null;
   connectorExecutor?: AtomToolExecutor;
   /** Optional override for tests. */
   llmConfig?: LlmAgUiConfig | null;
@@ -76,6 +87,7 @@ function buildDmSystemPrompt(
   seedId: string | undefined,
   inbound: string,
   vagueRecall: boolean,
+  socialBudget?: string,
 ): string {
   let vagueRecallBlock: string | undefined;
   if (vagueRecall && memory) {
@@ -88,9 +100,11 @@ function buildDmSystemPrompt(
     selfSeedId: seedId,
     vagueRecallBlock,
   });
+  const socialBlock = socialBudget ? `\n\n${socialBudget}` : "";
   return `${swarmSystemPromptAddendum("swarm-npc")}
 
 ${context}
+${socialBlock}
 
 ## DM reply
 
@@ -154,6 +168,39 @@ export async function maybeReplySwarmDm(
     return { replied: false, reason: "no_mls_session" };
   }
 
+  const socialStore = deps.socialStore ?? null;
+  let socialDialogue = socialStore?.getActive(peerDid) ?? null;
+  if (
+    socialStore &&
+    !socialDialogue &&
+    peerLooksLikeCommunityNpc(deps.peerRecords, peerDid)
+  ) {
+    // Peer NPC started a neighbour chat — join as invitee.
+    socialDialogue = socialStore.startDialogue(peerDid, "invitee", {
+      sentByUs: 0,
+      sentByThem: 0,
+    });
+  }
+  if (socialStore && socialDialogue) {
+    socialStore.noteInbound(peerDid);
+    socialDialogue = socialStore.getActive(peerDid);
+  }
+
+  // Closed or over-budget neighbour chats: do not keep ping-ponging.
+  if (socialStore && socialDialogue) {
+    const total = socialMessageTotal(socialDialogue);
+    if (socialDialogue.status !== "active" || total >= SOCIAL_MAX_MESSAGES) {
+      socialStore.closeDialogue(peerDid);
+      return { replied: false, reason: "social_dialogue_closed" };
+    }
+  }
+
+  const nextSocialTotal = socialDialogue
+    ? socialMessageTotal(socialDialogue) + 1
+    : null;
+  const socialBudget =
+    nextSocialTotal != null ? formatSocialTurnBudget(nextSocialTotal) : undefined;
+
   const verdict = evaluateInboundForNpc(inbound);
   let replyText: string;
   if (verdict.action === "refuse") {
@@ -172,6 +219,7 @@ export async function maybeReplySwarmDm(
       deps.swarmSeedId,
       inbound,
       recall,
+      socialBudget,
     );
     const history = historyFromMemory(deps.swarmMemory, peerDid);
     try {
@@ -230,6 +278,19 @@ export async function maybeReplySwarmDm(
     deps.swarmMemory.appendDialogueTurn(peerDid, "user", inbound);
     deps.swarmMemory.appendDialogueTurn(peerDid, "assistant", replyText);
     maybeArchiveOutline(deps.swarmMemory, peerDid);
+  }
+
+  if (socialStore && socialDialogue) {
+    socialStore.noteOutbound(peerDid);
+    const after = socialStore.getActive(peerDid);
+    const total = after ? socialMessageTotal(after) : nextSocialTotal ?? 0;
+    const shouldClose =
+      total >= SOCIAL_MAX_MESSAGES ||
+      (total >= SOCIAL_MIN_MESSAGES && looksLikeGoodbye(replyText));
+    if (shouldClose) {
+      socialStore.closeDialogue(peerDid);
+      console.log(`[swarm-social] closed dialogue with ${peerDid} after ${total} messages`);
+    }
   }
 
   console.log(`[swarm-dm] replied to ${peerDid} id=${signed.id}`);
