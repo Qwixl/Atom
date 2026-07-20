@@ -111,6 +111,7 @@ for meta in "${NPC_DIR}"/*/meta.json; do
     HOST=127.0.0.1 \
     PUBLIC_BASE_URL="${public_base_url}" \
     AGENT_NAME="${name}" \
+    ATOM_NPC_SEED_ID="${id}" \
     ATOM_AGENT_KIND="${kind}" \
     ATOM_DATA_DIR="${dir}" \
     ATOM_AGENT_IDENTITY_PATH="${dir}/agent-identity.json" \
