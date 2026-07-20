@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import path from "node:path";
 import express from "express";
 import {
   AtomDataObjectExecutor,
@@ -75,6 +76,7 @@ import { DisputeChannelStore } from "./disputeChannelStore.js";
 import { deliverSignedObject } from "./deliverObject.js";
 import { maybeSendDemoSchedulingProposal } from "./demoPeer.js";
 import { maybeReplySwarmDm } from "./swarmDmReply.js";
+import { sharedSwarmToolBudget } from "./swarmToolBudget.js";
 import { DataObjectInbox } from "./inbox.js";
 import { identityPath, loadOrCreateIdentity } from "./identity.js";
 import {
@@ -107,6 +109,17 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   const adminAuth = await loadOrCreateAdminToken();
   const connectorVault = new ConnectorVault();
   await connectorVault.load();
+  const readOnlyConnectorExecutor = createReadOnlyConnectorExecutor(connectorVault);
+  let swarmMemory: import("./swarmMemoryStore.js").SwarmMemoryStore | null = null;
+  if (config.agentKind === "swarm-npc" || config.agentKind === "swarm-police") {
+    const { resolveDataPath } = await import("./dataDir.js");
+    const { SwarmMemoryStore } = await import("./swarmMemoryStore.js");
+    swarmMemory = new SwarmMemoryStore(resolveDataPath("swarm-memory.sqlite"));
+    await swarmMemory.load();
+  }
+  const swarmSeedId =
+    process.env.ATOM_NPC_SEED_ID?.trim() ||
+    (process.env.ATOM_DATA_DIR ? path.basename(process.env.ATOM_DATA_DIR) : undefined);
   const inbox = new DataObjectInbox();
   await inbox.load();
   const mlsStore = new MlsSessionStore();
@@ -268,7 +281,15 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
         );
       });
       void maybeReplySwarmDm(
-        { agentKind: config.agentKind, identity, mlsStore, peerRecords },
+        {
+          agentKind: config.agentKind,
+          identity,
+          mlsStore,
+          peerRecords,
+          swarmMemory,
+          swarmSeedId,
+          connectorExecutor: readOnlyConnectorExecutor,
+        },
         event.object,
       ).catch((error) => {
         console.warn(
@@ -360,7 +381,15 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
         );
       });
       void maybeReplySwarmDm(
-        { agentKind: config.agentKind, identity, mlsStore, peerRecords },
+        {
+          agentKind: config.agentKind,
+          identity,
+          mlsStore,
+          peerRecords,
+          swarmMemory,
+          swarmSeedId,
+          connectorExecutor: readOnlyConnectorExecutor,
+        },
         verified,
       ).catch((error) => {
         console.warn(
@@ -506,15 +535,9 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   registerMcpAdminRoutes(adminApp, { store: mcpServersStore, runtime: mcpRuntime });
   registerCustodyAdminRoutes(adminApp, connectorVault);
 
-  let swarmMemory: import("./swarmMemoryStore.js").SwarmMemoryStore | null = null;
   let banLadder: import("./banLadder.js").BanLadderStore | null = null;
   {
     const { resolveDataPath } = await import("./dataDir.js");
-    if (config.agentKind === "swarm-npc" || config.agentKind === "swarm-police") {
-      const { SwarmMemoryStore } = await import("./swarmMemoryStore.js");
-      swarmMemory = new SwarmMemoryStore(resolveDataPath("swarm-memory.sqlite"));
-      await swarmMemory.load();
-    }
     const { BanLadderStore } = await import("./banLadder.js");
     banLadder = new BanLadderStore(resolveDataPath("ban-ladder.sqlite"));
     await banLadder.load();
@@ -526,7 +549,6 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     bans: banLadder,
   });
 
-  const readOnlyConnectorExecutor = createReadOnlyConnectorExecutor(connectorVault);
   const brainScheduler = new BrainScheduler({
     vault: connectorVault,
     alwaysOn: config.brainAlwaysOn,
@@ -752,9 +774,11 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     }
     const { recordLlmInferenceSpend } = await import("./llmSpendMeter.js");
     const { listConfiguredConnectorIds } = await import("./connectorRegistry.js");
-    const connectorExecutor = createReadOnlyConnectorExecutor(connectorVault);
+    const swarmNpc = config.agentKind === "swarm-npc";
     const connectedConnectorIds = llmConfig
-      ? await listConfiguredConnectorIds(connectorVault)
+      ? swarmNpc
+        ? (["news-search", "page-fetch"] as const)
+        : await listConfiguredConnectorIds(connectorVault)
       : [];
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -763,10 +787,14 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       llmConfig: llmConfig
         ? {
             ...llmConfig,
+            agentKind: config.agentKind,
             businessContext: serverBusinessContext?.trim() || undefined,
             atomConnectorsAvailable: true,
-            connectorExecutor,
-            connectedConnectorIds,
+            connectorExecutor: readOnlyConnectorExecutor,
+            connectedConnectorIds: [...connectedConnectorIds],
+            swarmMemory: swarmNpc ? swarmMemory : null,
+            swarmSeedId: swarmNpc ? swarmSeedId : undefined,
+            swarmToolBudget: swarmNpc ? sharedSwarmToolBudget() : undefined,
             onUsage: ({ promptTokens, completionTokens, model }) => {
               recordLlmInferenceSpend(budgetLedger, {
                 promptTokens,

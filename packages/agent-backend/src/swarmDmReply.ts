@@ -1,6 +1,6 @@
 /**
- * Swarm NPC reply-on-DM (D087): human/peer MLS or A2A `comms:message` → LLM → encrypted reply.
- * AG-UI `/agent` already replies; this covers the peer DM path used by the shell.
+ * Swarm NPC reply-on-DM (D087 / D089): human/peer MLS or A2A `comms:message` → LLM → encrypted reply.
+ * Selective memory + allowlisted search tools (fair-use budget).
  */
 
 import {
@@ -17,24 +17,24 @@ import {
   evaluateInboundForNpc,
   SWARM_ABUSE_REFUSE_TEXT,
 } from "./swarmAbuseGate.js";
+import type { SwarmMemoryStore } from "./swarmMemoryStore.js";
+import { sharedSwarmToolBudget } from "./swarmToolBudget.js";
+import { buildSwarmPromptContext } from "./swarmTurnContext.js";
 import {
   loadLlmAgUiConfigFromEnv,
   runLlmTextCompletion,
   type LlmAgUiConfig,
 } from "./agUi/llmRunner.js";
-
-const DM_SYSTEM = `${swarmSystemPromptAddendum("swarm-npc")}
-
-## DM reply
-
-You received a direct message. Reply in plain text only (no JSON, no UI composition).
-Stay in character. Keep replies concise (1–3 short sentences unless asked for more).`;
+import type { AtomToolExecutor } from "@qwixl/agent-llm";
 
 export interface SwarmDmReplyDeps {
   agentKind: AgentKindConfig;
   identity: AgentKeyPair;
   mlsStore: MlsSessionStore;
   peerRecords: MlsPeerRecordStore;
+  swarmMemory?: SwarmMemoryStore | null;
+  swarmSeedId?: string;
+  connectorExecutor?: AtomToolExecutor;
   /** Optional override for tests. */
   llmConfig?: LlmAgUiConfig | null;
   /** Optional override for tests. */
@@ -51,6 +51,27 @@ export function extractCommsMessageText(object: DataObject): string | null {
 
 function peerUrlFor(peerRecords: MlsPeerRecordStore, peerDid: string): string | undefined {
   return peerRecords.list().find((p) => p.peerDid === peerDid)?.peerUrl?.trim() || undefined;
+}
+
+function buildDmSystemPrompt(
+  memory: SwarmMemoryStore | null | undefined,
+  peerDid: string,
+  seedId?: string,
+  inbound?: string,
+): string {
+  const context = buildSwarmPromptContext(memory, {
+    query: inbound || "conversation",
+    peerDid,
+    selfSeedId: seedId,
+  });
+  return `${swarmSystemPromptAddendum("swarm-npc")}
+
+${context}
+
+## DM reply
+
+You received a direct message. Reply in plain text only (no JSON, no UI composition).
+Stay in character. Keep replies concise (1–3 short sentences unless asked for more).`;
 }
 
 /**
@@ -94,12 +115,32 @@ export async function maybeReplySwarmDm(
       console.warn("[swarm-dm] skip reply — LLM_API_KEY not configured");
       return { replied: false, reason: "no_llm" };
     }
+    const system = buildDmSystemPrompt(
+      deps.swarmMemory,
+      peerDid,
+      deps.swarmSeedId,
+      inbound,
+    );
     try {
       if (deps.complete) {
-        replyText = (await deps.complete(DM_SYSTEM, inbound)).trim();
+        replyText = (await deps.complete(system, inbound)).trim();
       } else {
+        const budget = sharedSwarmToolBudget();
+        const withTools: LlmAgUiConfig = {
+          ...llmConfig!,
+          agentKind: "swarm-npc",
+          swarmMemory: deps.swarmMemory ?? null,
+          swarmPeerDid: peerDid,
+          swarmSeedId: deps.swarmSeedId,
+          swarmToolBudget: budget,
+          atomConnectorsAvailable: Boolean(deps.connectorExecutor),
+          connectorExecutor: deps.connectorExecutor,
+          connectedConnectorIds: ["news-search", "page-fetch"],
+        };
         replyText = (
-          await runLlmTextCompletion(llmConfig!, DM_SYSTEM, inbound, { maxToolRounds: 0 })
+          await runLlmTextCompletion(withTools, system, inbound, {
+            maxToolRounds: budget.maxToolRoundsPerTurn,
+          })
         ).trim();
       }
     } catch (error) {
