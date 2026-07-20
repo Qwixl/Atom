@@ -3,8 +3,8 @@ import { assertProductionAgentUrl } from "../productionGuard.js";
 import { usesSupabaseHostedAuth } from "../hostConfig.js";
 import { mintHostedAgentSession } from "./hostedAgentSession.js";
 
-/** Scopes for Chat + connector reads (M21.4 / AS-09 interim). */
-export const CHAT_SESSION_SCOPES = ["connector:read", "chat:agui"] as const;
+/** Scopes for hosted owner runtime (AS-09 / M21.4). Never includes export or session mint. */
+export const CHAT_SESSION_SCOPES = ["owner:runtime", "connector:read", "chat:agui"] as const;
 
 /** In-memory scoped token for Chat + connector reads. Never persisted. */
 let chatSessionToken: string | null = null;
