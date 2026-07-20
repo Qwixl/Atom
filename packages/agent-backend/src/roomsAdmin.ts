@@ -3,7 +3,6 @@ import { ClientFactory } from "@a2a-js/sdk/client";
 import { sendMlsWire } from "@qwixl/a2a-transport";
 import { base64ToBytes } from "@qwixl/protocol";
 import type { AgentKeyPair } from "@qwixl/protocol";
-import { connectMlsPeer } from "./mlsReconnect.js";
 import {
   adminBaseFromPeerUrl,
   encodeRoomPayload,
@@ -13,6 +12,7 @@ import {
 } from "./mlsSessions.js";
 import { normalizePeerBaseUrl } from "./deliverObject.js";
 import type { MlsPeerRecordStore } from "./mlsPeerRecords.js";
+import { joinRemoteRoom } from "./roomJoinRemote.js";
 import type { RoomDescriptor, RoomStore } from "./roomStore.js";
 
 export interface RoomsAdminDeps {
@@ -208,87 +208,17 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
         res.status(400).json({ error: "hostUrl and roomId required" });
         return;
       }
-      const adminBase = adminBaseFromPeerUrl(hostUrl);
-      const joinedLocal = rooms.getJoinedRoom(roomId);
-      if (joinedLocal && mlsStore.hasRoomSession(roomId)) {
-        res.json({ joined: roomId, descriptor: joinedLocal.descriptor, alreadyMember: true });
-        return;
-      }
-      const memberKp = await mlsStore.memberKeyPackage(identity.did);
-      const joinResp = await fetch(`${adminBase}/rooms/${encodeURIComponent(roomId)}/join`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          memberDid: identity.did,
-          memberEndpoint: `${publicBaseUrl.replace(/\/$/, "")}/a2a/jsonrpc`,
-          memberName: body.memberName?.trim(),
-          keyPackageWire: Buffer.from(memberKp.wire).toString("base64"),
-        }),
-      });
-      if (!joinResp.ok) {
-        const err = (await joinResp.json().catch(() => ({}))) as { error?: string };
-        throw new Error(err.error ?? `Host join failed (${joinResp.status})`);
-      }
-      const joined = (await joinResp.json()) as {
-        alreadyMember?: boolean;
-        handshake?: {
-          initiatorDid: string;
-          welcome: string;
-          ratchetTree: string;
-          memberDids?: string[];
-        };
-      };
-      if (joined.alreadyMember) {
-        if (!mlsStore.hasRoomSession(roomId)) {
-          throw new Error(
-            "You are listed in this room but MLS keys are missing on your agent — restart your agent or ask the host to remove and re-invite you.",
-          );
-        }
-      } else if (joined.handshake) {
-        await mlsStore.joinRoom({
-          localDid: identity.did,
-          roomId,
-          handshake: {
-            mediaType: "application/vnd.atom.mls-handshake+json;version=1",
-            initiatorDid: joined.handshake.initiatorDid,
-            welcome: joined.handshake.welcome,
-            ratchetTree: joined.handshake.ratchetTree,
-            memberDids: joined.handshake.memberDids,
-          },
-          memberPackages: memberKp.packages,
-        });
-      } else {
-        throw new Error("Host join returned no handshake");
-      }
-      const descriptorResp = await fetch(`${adminBase}/rooms/${encodeURIComponent(roomId)}`);
-      const descriptorBody = descriptorResp.ok
-        ? ((await descriptorResp.json()) as { descriptor?: RoomDescriptor })
-        : {};
-      const descriptor = descriptorBody.descriptor;
-      if (descriptor) {
-        rooms.rememberJoinedRoom({
-          roomId,
-          hostUrl: adminBase,
-          descriptor,
-        });
-      }
-      if (descriptor && !mlsStore.hasSession(descriptor.hostDid)) {
-        try {
-          await connectMlsPeer({
-            mlsStore,
-            peerRecords: deps.peerRecords,
-            localDid: identity.did,
-            peerDid: descriptor.hostDid,
-            peerUrl: `${adminBase}/a2a/jsonrpc`,
-            initiatorEndpoint: `${publicBaseUrl.replace(/\/$/, "")}/a2a/jsonrpc`,
-          });
-        } catch (error) {
-          console.warn(
-            `[rooms] host MLS pair connect failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-      }
-      res.json({ joined: roomId, descriptor: descriptor ?? null, alreadyMember: Boolean(joined.alreadyMember) });
+      const result = await joinRemoteRoom(
+        {
+          identity,
+          mlsStore,
+          rooms,
+          peerRecords: deps.peerRecords,
+          publicBaseUrl,
+        },
+        { hostUrl, roomId, memberName: body.memberName },
+      );
+      res.json(result);
     } catch (error) {
       res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
     }

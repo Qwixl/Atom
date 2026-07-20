@@ -50,9 +50,20 @@ export {
 } from "./swarmTurnContext.js";
 export {
   formatSwarmCommunityBlock,
+  findSwarmCommunityMember,
   loadSwarmCommunityRoster,
   loadSwarmVenueBriefs,
+  resolveCommunityMemberPublicUrl,
 } from "./swarmCommunity.js";
+export {
+  isVagueRecallPrompt,
+  outlineFromTurns,
+  formatVagueRecallBlock,
+} from "./swarmRecall.js";
+export {
+  SWARM_INVITE_FRIEND_TOOL,
+  SWARM_CHALLENGE_GAME_TOOL,
+} from "./swarmToolBudget.js";
 export { GreeterGovernor, sharedGreeterGovernor, DEFAULT_GREETER_CAP } from "./greeterGovernor.js";
 export { registerSwarmAdminRoutes } from "./swarmAdmin.js";
 export {

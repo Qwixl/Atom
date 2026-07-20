@@ -8,6 +8,7 @@ import type {
   SwarmMemoryStore,
 } from "./swarmMemoryStore.js";
 import { formatSwarmCommunityBlock } from "./swarmCommunity.js";
+import { formatVagueRecallBlock } from "./swarmRecall.js";
 import { SWARM_MEMORY_REMEMBER_TOOL } from "./swarmToolBudget.js";
 
 export interface SwarmTurnContextOptions {
@@ -16,6 +17,13 @@ export interface SwarmTurnContextOptions {
   /** Seed id e.g. mira-barista — used to omit self from community roster. */
   selfSeedId?: string;
   retrieveLimit?: number;
+  /**
+   * When true, inject held-back conversation outlines for this peer (vague recall).
+   * Summaries are otherwise excluded from normal retrieve (D090).
+   */
+  vagueRecall?: boolean;
+  /** Preformatted vague-recall markdown block (optional override). */
+  vagueRecallBlock?: string;
 }
 
 export interface SwarmMemoryRememberArgs {
@@ -175,11 +183,22 @@ ${lines.join("\n")}`);
           : `## Impression of this peer\n\n(None stored yet. You may set one via \`${SWARM_MEMORY_REMEMBER_TOOL}\` with an impression field when appropriate.)`,
       );
     }
+
+    if (options.vagueRecallBlock) {
+      parts.push(options.vagueRecallBlock);
+    } else if (options.vagueRecall && options.peerDid) {
+      const summaries = memory.retrieveSummaries(options.peerDid, options.query, 6);
+      parts.push(formatVagueRecallBlock(summaries.map((s) => s.text)));
+    }
   }
 
   parts.push(`## Memory and search tools
 
-- \`${SWARM_MEMORY_REMEMBER_TOOL}\`: choose what to keep. Prefer lasting facts, feelings, commitments, and peer impressions. Skip small talk.
+- \`${SWARM_MEMORY_REMEMBER_TOOL}\`: choose what to keep in **long-term** memory. Prefer lasting facts, feelings, commitments, and peer impressions. Skip small talk.
+- Recent turns in this DM are already in your short-term conversation context — you do not need to remember every line.
+- Conversation outlines are held back until someone asks if you remember; then you get vague recall only.
+- \`invite_friend_to_room\`: invite a named community friend into an open room (Coffee Shop or a new hangout) — not into a private 1:1 DM.
+- \`challenge_friend_to_game\`: start tic-tac-toe with a contact or community friend over Messages.
 - \`news_search\` / \`page_read\`: use when you lack facts needed for a good answer. Do not search every turn. If rate-limited or the tool fails, say so briefly — never invent search results.
 - Never rewrite your core identity via tools.`);
 

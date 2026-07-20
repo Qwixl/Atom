@@ -886,6 +886,70 @@
   gap: 10px;
 }
 
+.comms-thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  max-width: min(420px, 92%);
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--shell-surface, #fff) 88%, var(--shell-border, #ddd));
+  color: var(--shell-text-muted, #666);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.comms-thinking-name {
+  animation: comms-thinking-pulse 2.4s ease-in-out infinite;
+}
+
+.comms-thinking-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.comms-thinking-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  animation: comms-thinking-bounce 1.2s ease-in-out infinite;
+}
+
+.comms-thinking-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.comms-thinking-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes comms-thinking-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes comms-thinking-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
 .comms-messages--pane {
   border-left: 1px solid var(--shell-border);
 }
