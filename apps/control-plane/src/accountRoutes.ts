@@ -5,6 +5,7 @@ import { isSupabaseConfigured, supabaseAdmin } from "./supabaseAdmin.js";
 import { verifySupabaseAccessToken } from "./supabaseAuth.js";
 import type { HostedAgentRecord } from "./fleet/types.js";
 import { ensurePersonalWorkspaceId, provisionWorkspaceAgent } from "./workspaceRoutes.js";
+import { mintHostedOwnerSession } from "./hostedSessionMint.js";
 
 type AccountType = "user" | "business" | "developer";
 
@@ -268,16 +269,21 @@ export function registerAccountRoutes(
         res.status(409).json({ error: "Hosted agent not ready. Complete signup first." });
         return;
       }
-      const adminToken = await loadAdminTokenForAgent(agent.id, user.id);
-      if (!adminToken) {
-        res.status(500).json({ error: "Agent credentials missing" });
-        return;
-      }
+      const minted = await mintHostedOwnerSession({
+        userId: user.id,
+        hostedAgentId: agent.id,
+        agentUrl: agent.agent_url,
+        handle: agent.handle,
+        workspaceId: agent.workspace_id,
+      });
+      // Root admin token stays server-side (AS-09 / M21.4). Shell uses sessionToken.
       res.json({
-        agentUrl: agent.agent_url.replace(/\/$/, ""),
-        adminToken,
-        handle: publicHandle(agent.handle),
-        workspaceId: agent.workspace_id ?? undefined,
+        agentUrl: minted.agentUrl,
+        sessionToken: minted.sessionToken,
+        scopes: minted.scopes,
+        expiresInSeconds: minted.expiresInSeconds,
+        handle: minted.handle,
+        workspaceId: minted.workspaceId,
       });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });

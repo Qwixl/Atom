@@ -161,7 +161,7 @@ import { SettingsToggle } from "./ui/SettingsToggle.js";
 import { useDirtyForm } from "./ui/useDirtyForm.js";
 import { DiscoverPanel } from "./DiscoverPanel.js";
 import { RoomsPanel } from "./RoomsPanel.js";
-import { tryReconnectHostedAgent } from "./auth/completeSetup.js";
+import { tryReconnectHostedAgent, completeAgentSetup } from "./auth/completeSetup.js";
 import { loadAccountType, saveAccountType, clearAccountType } from "./accountType.js";
 import { bareOwnerHandle, loadOwnerHandle, saveOwnerHandle } from "./ownerHandle.js";
 import { WorkspaceSwitcher } from "./workspace/WorkspaceSwitcher.js";
@@ -3136,9 +3136,13 @@ export function App() {
             if (MANAGED_HOSTING && loadOwnerAgentKind(loadCommsAgentConfig()) === "hosted") {
               try {
                 const connection = await fetchHostedAgentConnection(workspaceId);
-                await saveCommsAgentConfigSecure({
+                await completeAgentSetup({
                   adminUrl: connection.adminUrl,
                   adminToken: connection.adminToken,
+                  sessionToken: connection.sessionToken,
+                  handle: connection.handle,
+                  kind: "hosted",
+                  skipConnectionProbe: true,
                 });
                 setAgUiConfig(saveAgUiConfigForAgent(connection.adminUrl));
                 refreshCommsConfigCache();
@@ -3166,12 +3170,17 @@ export function App() {
                 setWorkspaces(listWorkspaces());
                 const next = setActiveWorkspace(workspace.id);
                 if (next) setActiveWorkspaceId(next.id);
-                if (agent?.agentUrl && agent.adminToken && !agent.status.startsWith("failed")) {
-                  await saveCommsAgentConfigSecure({
-                    adminUrl: agent.agentUrl.replace(/\/$/, ""),
-                    adminToken: agent.adminToken,
+                if (agent?.agentUrl && !agent.status.startsWith("failed")) {
+                  const connection = await fetchHostedAgentConnection(workspace.id);
+                  await completeAgentSetup({
+                    adminUrl: connection.adminUrl,
+                    adminToken: connection.adminToken,
+                    sessionToken: connection.sessionToken,
+                    handle: connection.handle,
+                    kind: "hosted",
+                    skipConnectionProbe: true,
                   });
-                  setAgUiConfig(saveAgUiConfigForAgent(agent.agentUrl));
+                  setAgUiConfig(saveAgUiConfigForAgent(connection.adminUrl));
                   refreshCommsConfigCache();
                 }
                 return;
