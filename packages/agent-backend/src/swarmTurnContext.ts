@@ -198,7 +198,7 @@ ${lines.join("\n")}`);
 - Recent turns in this DM are already in your short-term conversation context — you do not need to remember every line.
 - Conversation outlines are held back until someone asks if you remember; then you get vague recall only.
 - \`invite_friend_to_room\`: invite a named community friend into an open room (Coffee Shop or a new hangout) — not into a private 1:1 DM.
-- \`challenge_friend_to_game\`: start tic-tac-toe with a contact or community friend over Messages.
+- \`challenge_friend_to_game\`: start tic-tac-toe (the only game available today) with a contact or friend. After calling it, do not draw ASCII boards or ask for typed cell numbers — the shell opens a game window.
 - \`news_search\` / \`page_read\`: use when you lack facts needed for a good answer. Do not search every turn. If rate-limited or the tool fails, say so briefly — never invent search results.
 - Never rewrite your core identity via tools.`);
 
