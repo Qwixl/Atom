@@ -95,8 +95,19 @@ export function registerSwarmAdminRoutes(
       res.status(400).json({ error: "friend required (or empty roster)" });
       return;
     }
+    const peerDid =
+      typeof req.body?.peerDid === "string" && req.body.peerDid.trim()
+        ? req.body.peerDid.trim()
+        : undefined;
+    const peerUrl =
+      typeof req.body?.peerUrl === "string" && req.body.peerUrl.trim()
+        ? req.body.peerUrl.trim()
+        : undefined;
     try {
-      const result = await openSwarmSocialDialogue(deps.socialAutonomy, friend);
+      const result = await openSwarmSocialDialogue(deps.socialAutonomy, friend, {
+        peerDid,
+        peerUrl,
+      });
       if (!result.ok) {
         res.status(409).json(result);
         return;
