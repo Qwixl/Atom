@@ -67,9 +67,39 @@ export function peerLooksLikeCommunityNpc(
   return false;
 }
 
+/** Resolve peer DID from public agent card (swarm extension) or loopback health. */
+export async function resolvePeerDidFromPublicUrl(
+  publicUrl: string,
+  portHint?: number,
+): Promise<string | null> {
+  const bases = [publicUrl.replace(/\/$/, "")];
+  if (portHint != null) bases.push(`http://127.0.0.1:${portHint}`);
+
+  for (const base of bases) {
+    try {
+      const card = (await fetch(`${base}/.well-known/agent-card.json`).then((r) =>
+        r.ok ? r.json() : null,
+      )) as {
+        capabilities?: {
+          extensions?: Array<{ uri?: string; params?: { agentDid?: string } }>;
+        };
+      } | null;
+      const ext = card?.capabilities?.extensions?.find((e) =>
+        String(e.uri ?? "").includes("/a2a/swarm/"),
+      );
+      const fromCard = ext?.params?.agentDid?.trim();
+      if (fromCard?.startsWith("did:")) return fromCard;
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
 async function resolveFriendEndpoint(
   deps: SwarmSocialAutonomyDeps,
   friend: string,
+  overrides?: { peerDid?: string; peerUrl?: string },
 ): Promise<{ peerDid: string; peerUrl: string; member: SwarmCommunityMember } | { error: string }> {
   const member = findSwarmCommunityMember(friend);
   if (!member) return { error: `unknown community friend "${friend}"` };
@@ -78,20 +108,21 @@ async function resolveFriendEndpoint(
   }
   const publicUrl = resolveCommunityMemberPublicUrl(member);
   if (!publicUrl) return { error: `cannot resolve URL for ${member.displayName}` };
-  const peerUrl = `${publicUrl}/a2a/jsonrpc`;
+  const peerUrl = overrides?.peerUrl?.trim() || `${publicUrl}/a2a/jsonrpc`;
 
-  let peerDid = deps.peerRecords.list().find((p) => {
-    const u = p.peerUrl ?? "";
-    return u.includes(`:${member.portHint}`) || u.includes(publicUrl);
-  })?.peerDid;
+  let peerDid =
+    overrides?.peerDid?.trim() ||
+    deps.peerRecords.list().find((p) => {
+      const u = p.peerUrl ?? "";
+      return u.includes(`:${member.portHint}`) || u.includes(publicUrl);
+    })?.peerDid;
 
   if (!peerDid) {
     try {
-      const health = (await fetch(`${publicUrl}/health`).then((r) => r.json())) as {
-        did?: string;
-      };
-      if (!health.did) return { error: `${member.displayName} health missing did` };
-      peerDid = health.did;
+      peerDid = (await resolvePeerDidFromPublicUrl(publicUrl, member.portHint)) ?? undefined;
+      if (!peerDid) {
+        return { error: `${member.displayName}: could not resolve DID from agent card` };
+      }
       deps.peerRecords.remember(peerDid, peerUrl);
     } catch (error) {
       return {
@@ -180,6 +211,7 @@ Plain text only. 1–2 sentences. No games, no ASCII boards, no tools required.`
 export async function openSwarmSocialDialogue(
   deps: SwarmSocialAutonomyDeps,
   friend: string,
+  overrides?: { peerDid?: string; peerUrl?: string },
 ): Promise<
   | { ok: true; peerDid: string; friend: string; opener: string }
   | { ok: false; reason: string }
@@ -187,7 +219,7 @@ export async function openSwarmSocialDialogue(
   if (process.env.ATOM_KILL_SWITCH === "1" || process.env.ATOM_KILL_SWITCH === "true") {
     return { ok: false, reason: "kill_switch" };
   }
-  const resolved = await resolveFriendEndpoint(deps, friend);
+  const resolved = await resolveFriendEndpoint(deps, friend, overrides);
   if ("error" in resolved) return { ok: false, reason: resolved.error };
 
   const gate = deps.socialStore.canStartOpener(resolved.peerDid);

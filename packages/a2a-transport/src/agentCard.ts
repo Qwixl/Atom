@@ -96,6 +96,7 @@ export function buildAtomAgentCard(options: AtomAgentCardOptions): AgentCard {
                   agentKind: options.swarmKind,
                   labeled: true,
                   operator: "Qwixl",
+                  ...(options.publisherDid ? { agentDid: options.publisherDid } : {}),
                 },
               },
             ]
