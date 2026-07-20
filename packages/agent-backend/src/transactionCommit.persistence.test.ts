@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { readFile } from "node:fs/promises";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Server } from "node:http";
@@ -10,6 +11,25 @@ import { startAgentServer } from "./server.js";
 import type { AgentBackendConfig } from "./config.js";
 import { adminGetJson, adminPostJson, installTestAdminToken } from "./testHelpers.js";
 import type { TransactionCommitRecord } from "./transactionCommitStore.js";
+
+/** Bind port 0 so Windows Hyper-V excluded ranges cannot EACCES a hard-coded port. */
+async function reserveLoopbackPort(): Promise<number> {
+  const probe = createServer();
+  await new Promise<void>((resolve, reject) => {
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", () => resolve());
+  });
+  const address = probe.address();
+  if (!address || typeof address === "string") {
+    probe.close();
+    throw new Error("failed to reserve loopback port");
+  }
+  const { port } = address;
+  await new Promise<void>((resolve, reject) => {
+    probe.close((error) => (error ? reject(error) : resolve()));
+  });
+  return port;
+}
 
 async function writeIdentityFile(filePath: string): Promise<void> {
   const keyPair = await generateAgentKeyPair();
@@ -43,8 +63,8 @@ function testConfig(port: number, publicBaseUrl: string): AgentBackendConfig {
     interactivePortResolve: false,
     brainAlwaysOn: true,
     brainIntervalMs: 60000,
-  agentKind: "owner",
-  killSwitch: false,
+    agentKind: "owner",
+    killSwitch: false,
   };
 }
 
@@ -57,7 +77,7 @@ describe("M13.6 durable commerce state", () => {
     process.env.ATOM_AGENT_IDENTITY_PATH = identityPath;
     await writeIdentityFile(identityPath);
 
-    const port = 59010;
+    const port = await reserveLoopbackPort();
     const base = `http://127.0.0.1:${port}`;
     const transactionId = "txn-persist-001";
     let server: Server | undefined;
