@@ -886,6 +886,30 @@
   gap: 10px;
 }
 
+.comms-game-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  align-self: stretch;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--shell-border, #ddd);
+  background: var(--shell-surface, #fff);
+}
+
+.comms-game-chip strong {
+  display: block;
+  font-size: 13px;
+  color: var(--shell-text, #111);
+}
+
+.comms-game-chip p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--shell-text-muted, #666);
+}
+
 .comms-thinking {
   display: flex;
   align-items: center;
