@@ -43,6 +43,8 @@ function testConfig(port: number, publicBaseUrl: string): AgentBackendConfig {
     interactivePortResolve: false,
     brainAlwaysOn: true,
     brainIntervalMs: 60000,
+  agentKind: "owner",
+  killSwitch: false,
   };
 }
 

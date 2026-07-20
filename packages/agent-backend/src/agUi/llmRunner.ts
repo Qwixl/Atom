@@ -50,6 +50,8 @@ export interface LlmAgUiConfig {
    * tools) are exposed to the model (D081 session filtering).
    */
   connectedConnectorIds?: readonly AtomConnectorId[];
+  /** D087 — injects constitution addendum; disables owner connectors for swarm. */
+  agentKind?: import("@qwixl/agent-llm").SwarmAgentKind;
 }
 
 const REQUEST_TIMEOUT_MS = 120_000;
@@ -313,6 +315,13 @@ export function loadLlmAgUiConfigFromEnv(env: NodeJS.ProcessEnv = process.env): 
   const modelAllowlist = env.ATOM_MODEL_ALLOWLIST?.split(",")
     .map((value) => value.trim())
     .filter(Boolean);
+  const kindRaw = env.ATOM_AGENT_KIND?.trim().toLowerCase();
+  const agentKind =
+    kindRaw === "swarm-npc" || kindRaw === "npc"
+      ? ("swarm-npc" as const)
+      : kindRaw === "swarm-police" || kindRaw === "police"
+        ? ("swarm-police" as const)
+        : ("owner" as const);
   return {
     apiKey,
     baseUrl: env.LLM_BASE_URL?.trim() || "https://api.openai.com/v1",
@@ -320,6 +329,7 @@ export function loadLlmAgUiConfigFromEnv(env: NodeJS.ProcessEnv = process.env): 
     temperature: env.LLM_TEMPERATURE ? Number(env.LLM_TEMPERATURE) : undefined,
     safetyPrefix: env.ATOM_SAFETY_PREFIX?.trim() || undefined,
     modelAllowlist: modelAllowlist?.length ? modelAllowlist : undefined,
+    agentKind,
   };
 }
 
@@ -338,6 +348,24 @@ export async function* runLlmAgUiEvents(
       return;
     }
   }
+  const inboundAsk = lastUserContent(input);
+  if (config.agentKind === "swarm-police") {
+    yield* textAgUiEvents(
+      uuid(),
+      "Police-Agent does not chat with humans. Findings go to the founder via Class C alerts only.",
+    );
+    return;
+  }
+  if (config.agentKind === "swarm-npc" && inboundAsk) {
+    const { evaluateInboundForNpc, SWARM_ABUSE_REFUSE_TEXT } = await import(
+      "../swarmAbuseGate.js"
+    );
+    const verdict = evaluateInboundForNpc(inboundAsk);
+    if (verdict.action === "refuse") {
+      yield* textAgUiEvents(uuid(), SWARM_ABUSE_REFUSE_TEXT);
+      return;
+    }
+  }
   const catalog = new Catalog();
   registerCorePrimitives(catalog);
   registerEcosystemModules(catalog);
@@ -346,19 +374,29 @@ export async function* runLlmAgUiEvents(
     history.push({ role: "user", content: lastUserContent(input) });
   }
   const profile = profileFromRunAgentInput(input, config.profile);
+  const agentKind = config.agentKind ?? config.profile?.agentKind ?? "owner";
+  const swarmRole = agentKind === "swarm-npc" || agentKind === "swarm-police";
   const mergedProfile: PromptProfile | undefined = profile
     ? {
         ...profile,
+        agentKind,
         businessContext: [profile.businessContext, config.businessContext]
           .filter((s) => s?.trim())
           .join("\n\n") || undefined,
       }
-    : config.businessContext?.trim()
-      ? { open: [], guardedCategories: [], businessContext: config.businessContext.trim() }
-      : undefined;
+    : config.businessContext?.trim() || swarmRole
+      ? {
+          open: [],
+          guardedCategories: [],
+          businessContext: config.businessContext?.trim() || undefined,
+          agentKind,
+        }
+      : agentKind !== "owner"
+        ? { open: [], guardedCategories: [], agentKind }
+        : undefined;
   const toolProfile = buildAgentToolProfile(undefined, {
-    atomConnectorsAvailable: connectorsEnabled(config),
-    connectedConnectorIds: config.connectedConnectorIds,
+    atomConnectorsAvailable: !swarmRole && connectorsEnabled(config),
+    connectedConnectorIds: swarmRole ? [] : config.connectedConnectorIds,
     model: config.model,
   });
   const baseSystem = buildSystemPrompt(catalog, mergedProfile, toolProfile);

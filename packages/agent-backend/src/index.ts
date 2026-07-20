@@ -26,6 +26,43 @@ export {
 } from "./standingIntents.js";
 export { BrainScheduler } from "./brainScheduler.js";
 export { coerceStandingIntents } from "./brainAdmin.js";
+export { SwarmMemoryStore } from "./swarmMemoryStore.js";
+export type {
+  SwarmCoreSheet,
+  SwarmMutableSheet,
+  SwarmMemoryKind,
+  SwarmMemoryRecord,
+} from "./swarmMemoryStore.js";
+export { GreeterGovernor, sharedGreeterGovernor, DEFAULT_GREETER_CAP } from "./greeterGovernor.js";
+export { registerSwarmAdminRoutes } from "./swarmAdmin.js";
+export {
+  evaluateInboundForNpc,
+  SWARM_ABUSE_REFUSE_TEXT,
+  type SwarmAbuseVerdict,
+} from "./swarmAbuseGate.js";
+export {
+  PoliceMonitor,
+  sharedPoliceMonitor,
+  evaluateNpcSample,
+  isHumanTargetedSample,
+  type PoliceFinding,
+  type PoliceNpcSample,
+} from "./policeMonitor.js";
+export {
+  loadFounderAlertConfig,
+  sendFounderAlert,
+  type FounderAlertPayload,
+  type FounderAlertConfig,
+} from "./founderAlert.js";
+export {
+  BanLadderStore,
+  nextRung,
+  BAN_RUNG_DAYS,
+  type BanRecord,
+  type BanRung,
+} from "./banLadder.js";
+export { runSwarmReflectPass, runSwarmPlanPass } from "./swarmReflect.js";
+export { runSwarmEvalSuite, swarmEvalAllPassed, type SwarmEvalResult } from "./swarmEval.js";
 export {
   runBrainTurn,
   planBrainWorkers,
