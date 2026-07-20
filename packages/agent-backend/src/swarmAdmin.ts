@@ -5,6 +5,17 @@ import { sharedPoliceMonitor } from "./policeMonitor.js";
 import { loadFounderAlertConfig } from "./founderAlert.js";
 import type { BanLadderStore } from "./banLadder.js";
 import { runSwarmPlanPass, runSwarmReflectPass } from "./swarmReflect.js";
+import {
+  openSwarmSocialDialogue,
+  pickRandomCommunityFriend,
+  type SwarmSocialAutonomyDeps,
+} from "./swarmSocialAutonomy.js";
+import {
+  SOCIAL_MAX_MESSAGES,
+  SOCIAL_MIN_MESSAGES,
+  SOCIAL_PAIR_COOLDOWN_HOURS,
+  type SwarmSocialDialogueStore,
+} from "./swarmSocialDialogue.js";
 
 export function registerSwarmAdminRoutes(
   app: Express,
@@ -12,6 +23,8 @@ export function registerSwarmAdminRoutes(
     memory: SwarmMemoryStore | null;
     agentKind: string;
     bans: BanLadderStore | null;
+    socialStore?: SwarmSocialDialogueStore | null;
+    socialAutonomy?: SwarmSocialAutonomyDeps | null;
   },
 ): void {
   app.get("/swarm/status", (_req: Request, res: Response) => {
@@ -38,7 +51,62 @@ export function registerSwarmAdminRoutes(
       recentFindings: sharedPoliceMonitor.listFindings(25),
       activeBans: deps.bans?.listActive(50) ?? [],
       founderAlertConfigured: Boolean(loadFounderAlertConfig()),
+      social: deps.socialStore?.snapshot() ?? null,
+      socialCaps: {
+        minMessages: SOCIAL_MIN_MESSAGES,
+        maxMessages: SOCIAL_MAX_MESSAGES,
+        pairCooldownHours: SOCIAL_PAIR_COOLDOWN_HOURS,
+        openersPerDay: 1,
+      },
     });
+  });
+
+  app.get("/swarm/social/status", (_req: Request, res: Response) => {
+    if (deps.agentKind !== "swarm-npc" || !deps.socialStore) {
+      res.status(404).json({ error: "social autonomy only on swarm-npc" });
+      return;
+    }
+    res.json({
+      ...deps.socialStore.snapshot(),
+      caps: {
+        minMessages: SOCIAL_MIN_MESSAGES,
+        maxMessages: SOCIAL_MAX_MESSAGES,
+        pairCooldownHours: SOCIAL_PAIR_COOLDOWN_HOURS,
+        openersPerDay: 1,
+      },
+    });
+  });
+
+  /**
+   * Start one autonomous NPC↔NPC DM (D091). Host `social_tick.sh` calls this
+   * on at most one initiator per hour swarm-wide.
+   */
+  app.post("/swarm/social/open", async (req: Request, res: Response) => {
+    if (deps.agentKind !== "swarm-npc" || !deps.socialAutonomy) {
+      res.status(404).json({ error: "social open only on swarm-npc" });
+      return;
+    }
+    const friendRaw = String(req.body?.friend ?? "").trim();
+    const friend =
+      friendRaw ||
+      pickRandomCommunityFriend(deps.socialAutonomy.swarmSeedId)?.id ||
+      "";
+    if (!friend) {
+      res.status(400).json({ error: "friend required (or empty roster)" });
+      return;
+    }
+    try {
+      const result = await openSwarmSocialDialogue(deps.socialAutonomy, friend);
+      if (!result.ok) {
+        res.status(409).json(result);
+        return;
+      }
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   });
 
   app.post("/swarm/greeter/enter", (req: Request, res: Response) => {
