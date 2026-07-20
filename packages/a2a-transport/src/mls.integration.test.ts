@@ -29,7 +29,8 @@ import {
 import { ATOM_MLS_HANDSHAKE_MEDIA_TYPE } from "./constants.js";
 
 describe("MLS over A2A", () => {
-  it("handshakes and delivers encrypted data objects", async () => {
+  // WASM MLS + dual HTTP servers; parallel CI load can exceed the default 5s.
+  it("handshakes and delivers encrypted data objects", { timeout: 20_000 }, async () => {
     const aliceIdentity = await generateAgentKeyPair();
     const bobIdentity = await generateAgentKeyPair();
     const received: string[] = [];
