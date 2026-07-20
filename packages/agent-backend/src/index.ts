@@ -64,6 +64,19 @@ export {
   SWARM_INVITE_FRIEND_TOOL,
   SWARM_CHALLENGE_GAME_TOOL,
 } from "./swarmToolBudget.js";
+export {
+  SwarmSocialDialogueStore,
+  SOCIAL_MIN_MESSAGES,
+  SOCIAL_MAX_MESSAGES,
+  SOCIAL_PAIR_COOLDOWN_HOURS,
+  formatSocialTurnBudget,
+  looksLikeGoodbye,
+} from "./swarmSocialDialogue.js";
+export {
+  openSwarmSocialDialogue,
+  pickRandomCommunityFriend,
+  peerLooksLikeCommunityNpc,
+} from "./swarmSocialAutonomy.js";
 export { GreeterGovernor, sharedGreeterGovernor, DEFAULT_GREETER_CAP } from "./greeterGovernor.js";
 export { registerSwarmAdminRoutes } from "./swarmAdmin.js";
 export {
