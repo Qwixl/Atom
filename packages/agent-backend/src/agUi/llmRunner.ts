@@ -35,8 +35,22 @@ import {
   MEMORY_REMEMBER_CHAT_TOOL,
   parseSwarmMemoryRememberArgs,
 } from "../swarmTurnContext.js";
+import {
+  CHALLENGE_GAME_CHAT_TOOL,
+  executeChallengeFriendToGame,
+  executeInviteFriendToRoom,
+  INVITE_FRIEND_CHAT_TOOL,
+  SWARM_CHALLENGE_GAME_TOOL,
+  SWARM_INVITE_FRIEND_TOOL,
+  type SwarmSocialDeps,
+} from "../swarmSocialTools.js";
 import { agentOutputToAgUiEvents, textAgUiEvents } from "./outputEvents.js";
 import { profileFromRunAgentInput } from "./profileFromInput.js";
+
+export interface LlmChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
 
 export interface LlmAgUiConfig {
   baseUrl: string;
@@ -73,6 +87,8 @@ export interface LlmAgUiConfig {
   swarmSeedId?: string;
   /** Fair-use budget for news_search / page_read. */
   swarmToolBudget?: SwarmToolBudget;
+  /** D090 — room invite / game challenge deps. */
+  swarmSocial?: SwarmSocialDeps | null;
 }
 
 const REQUEST_TIMEOUT_MS = 120_000;
@@ -178,6 +194,9 @@ function swarmToolsForConfig(config: LlmAgUiConfig, baseTools: unknown[]): unkno
   if (config.swarmMemory) {
     filtered.push(MEMORY_REMEMBER_CHAT_TOOL);
   }
+  if (config.swarmSocial) {
+    filtered.push(INVITE_FRIEND_CHAT_TOOL, CHALLENGE_GAME_CHAT_TOOL);
+  }
   return filtered;
 }
 
@@ -190,6 +209,20 @@ async function executeNamedTool(config: LlmAgUiConfig, name: string, argsJson: s
     if ("error" in parsed) return JSON.stringify(parsed);
     const saved = applySwarmMemoryRemember(config.swarmMemory, parsed, config.swarmPeerDid);
     return JSON.stringify(saved);
+  }
+
+  if (name === SWARM_INVITE_FRIEND_TOOL) {
+    if (!config.swarmSocial) {
+      return JSON.stringify({ error: "swarm social actions not configured" });
+    }
+    return executeInviteFriendToRoom(config.swarmSocial, argsJson);
+  }
+
+  if (name === SWARM_CHALLENGE_GAME_TOOL) {
+    if (!config.swarmSocial) {
+      return JSON.stringify({ error: "swarm social actions not configured" });
+    }
+    return executeChallengeFriendToGame(config.swarmSocial, argsJson, config.swarmPeerDid);
   }
 
   if (isSwarmNpc(config) && !(SWARM_ALLOWED_TOOL_NAMES as readonly string[]).includes(name)) {
@@ -366,7 +399,7 @@ export async function runLlmTextCompletion(
   config: LlmAgUiConfig,
   systemPrompt: string,
   userMessage: string,
-  options?: { maxToolRounds?: number },
+  options?: { maxToolRounds?: number; history?: LlmChatTurn[] },
 ): Promise<string> {
   recordHostedModelSighting(config.model);
   if (config.modelAllowlist && config.modelAllowlist.length > 0) {
@@ -382,15 +415,19 @@ export async function runLlmTextCompletion(
     model: config.model,
   });
   const toolHint = isSwarmNpc(config)
-    ? "\n\nYou may call memory_remember, news_search, and page_read when needed (fair-use limits apply)."
+    ? "\n\nYou may call memory_remember, invite_friend_to_room, challenge_friend_to_game, news_search, and page_read when needed (fair-use limits apply to search)."
     : connectorsEnabled(config)
       ? "\n\nYou may call intent-named connector tools (calendar_list_events, news_search, rss_list_items, …) for read-only operations when needed."
       : "";
   const systemContent = [config.safetyPrefix?.trim(), systemPrompt.trim() + toolHint]
     .filter(Boolean)
     .join("\n\n");
+  const history = (options?.history ?? []).filter(
+    (turn) => turn.content.trim() && (turn.role === "user" || turn.role === "assistant"),
+  );
   const messages: ChatMessage[] = [
     { role: "system", content: systemContent },
+    ...history.map((turn) => ({ role: turn.role, content: turn.content }) as ChatMessage),
     { role: "user", content: userMessage },
   ];
   const defaultRounds = isSwarmNpc(config)
