@@ -5,6 +5,7 @@ import type { FleetProvisioner, HostedAgentRecord } from "./fleet/types.js";
 import { parseSignupHandle, publicHandle } from "./handles.js";
 import { isSupabaseConfigured, supabaseAdmin } from "./supabaseAdmin.js";
 import { verifySupabaseAccessToken } from "./supabaseAuth.js";
+import { mintHostedOwnerSession } from "./hostedSessionMint.js";
 
 type WorkspaceKind = "personal" | "business" | "developer";
 
@@ -359,21 +360,19 @@ export function registerWorkspaceRoutes(app: Express, deps: WorkspaceRouteDeps):
         res.status(409).json({ error: "Hosted agent not ready for this workspace" });
         return;
       }
-      const { data: secret, error: secretError } = await supabaseAdmin()
-        .from("hosted_agent_secrets")
-        .select("admin_token")
-        .eq("hosted_agent_id", agent.id)
-        .maybeSingle();
-      if (secretError) throw new Error(secretError.message);
-      const adminToken = secret?.admin_token?.trim();
-      if (!adminToken) {
-        res.status(500).json({ error: "Agent credentials missing" });
-        return;
-      }
+      const minted = await mintHostedOwnerSession({
+        userId: user.id,
+        hostedAgentId: agent.id,
+        agentUrl: agent.agent_url,
+        handle: agent.handle,
+        workspaceId,
+      });
       res.json({
-        agentUrl: agent.agent_url.replace(/\/$/, ""),
-        adminToken,
-        handle: publicHandle(agent.handle),
+        agentUrl: minted.agentUrl,
+        sessionToken: minted.sessionToken,
+        scopes: minted.scopes,
+        expiresInSeconds: minted.expiresInSeconds,
+        handle: minted.handle,
         workspaceId,
       });
     } catch (error) {

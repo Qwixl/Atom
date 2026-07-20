@@ -5,14 +5,8 @@ import {
   getSupabaseClient,
   type AtomAccountType,
 } from "./hostedAccount.js";
-import { saveValidatedAgentConnection } from "../comms/agentConnection.js";
-import {
-  saveCommsAgentConfigSecure,
-  saveOwnerAgentKind,
-} from "../comms/storage.js";
+import { completeAgentSetup } from "./completeSetup.js";
 import { bareOwnerHandle, normalizeOwnerHandle, validateOwnerHandle } from "../ownerHandle.js";
-import { saveOwnerHandle } from "../ownerHandle.js";
-import { markFirstRunDone } from "../firstRunStorage.js";
 import {
   defaultHostedLlmConnectionFields,
   HostedLlmConnectionFields,
@@ -46,17 +40,14 @@ export function HostedAuthScreen({
 
   async function wireAgentAfterAuth() {
     const connection = await fetchHostedAgentConnection();
-    saveCommsAgentConfigSecure({
+    await completeAgentSetup({
       adminUrl: connection.adminUrl,
       adminToken: connection.adminToken,
+      sessionToken: connection.sessionToken,
+      handle: connection.handle,
+      kind: "hosted",
+      skipConnectionProbe: true,
     });
-    saveValidatedAgentConnection({
-      adminUrl: connection.adminUrl,
-      adminToken: connection.adminToken,
-    });
-    saveOwnerAgentKind("hosted");
-    if (connection.handle) saveOwnerHandle(connection.handle);
-    markFirstRunDone();
     onDone();
   }
 
