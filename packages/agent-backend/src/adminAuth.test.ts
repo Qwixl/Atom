@@ -114,7 +114,7 @@ describe("adminAuth", () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it("accepts connector:read for GET /connectors list", async () => {
+  it("rejects connector:read session token for POST /agent", async () => {
     const { mintSessionToken } = await import("./sessionToken.js");
     const middleware = requireAdminAuth("secret");
     const next = vi.fn();
@@ -126,13 +126,14 @@ describe("adminAuth", () => {
     middleware(
       {
         headers: { authorization: `Bearer ${token}` },
-        method: "GET",
-        path: "/connectors",
+        method: "POST",
+        path: "/agent",
       } as never,
       res as never,
       next,
     );
-    expect(next).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
   });
 
   it("accepts connector:read session token for GET /connectors list", async () => {

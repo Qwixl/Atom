@@ -64,10 +64,12 @@ export function requireAdminAuth(expectedToken: string) {
   return createAdminAuthMiddleware(expectedToken);
 }
 
-function allowsSessionAuth(req: Request, scopes: SessionScope[]): boolean {
-  // List + per-connector reads (GET /connectors and GET /connectors/:id…).
-  if (req.method === "GET" && (req.path === "/connectors" || req.path.startsWith("/connectors/"))) {
-    return scopes.includes("connector:read");
+/** Routes that require the root admin bearer even when a session scope is otherwise broad. */
+function isSessionAdminDenied(req: Request): boolean {
+  // Root-only: minting sessions and vault export/import.
+  if (req.method === "POST" && req.path === "/admin/session-token") return true;
+  if (req.method === "POST" && (req.path === "/admin/export" || req.path === "/admin/import")) {
+    return true;
   }
   return false;
 }
