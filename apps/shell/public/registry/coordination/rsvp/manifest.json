@@ -1,0 +1,31 @@
+{
+  "id": "coordination/rsvp",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/coordination-rsvp/index.html",
+  "components": [
+    {
+      "name": "coordination/rsvp",
+      "semanticRole": "input/rsvp",
+      "events": [
+        {
+          "name": "rsvpCreated"
+        },
+        {
+          "name": "rsvpResponse"
+        }
+      ],
+      "agentHint": "Compose or answer an RSVP for an event; emits rsvpCreated or rsvpResponse."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "coordination",
+    "scheduling"
+  ],
+  "signatureUrl": "signature.sigstore.json",
+  "bundleIntegrity": "sha256:2355f7dcd57e7af01a604bbfa07857708f54b7243301382bc5a3ce95ee815de1"
+}

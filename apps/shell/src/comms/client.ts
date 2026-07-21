@@ -316,6 +316,53 @@ export class CommsAgentClient {
     );
   }
 
+  async sendDatingIntro(opts: {
+    peerUrl: string;
+    peerDid: string;
+    displayName: string;
+    oneLiner: string;
+    interests?: string[];
+    encrypt?: boolean;
+  }): Promise<{ objectId: string }> {
+    const result = await postJson<{ sent?: { objectId?: string } }>(
+      this.base(),
+      "/dating/intro",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        displayName: opts.displayName,
+        oneLiner: opts.oneLiner,
+        interests: opts.interests,
+        encrypt: opts.encrypt ?? true,
+      },
+      this.auth,
+      true,
+    );
+    return { objectId: result.sent?.objectId ?? crypto.randomUUID() };
+  }
+
+  async sendDatingIntroResponse(opts: {
+    peerUrl: string;
+    peerDid: string;
+    introId: string;
+    response: "accept" | "pass";
+    encrypt?: boolean;
+  }): Promise<void> {
+    await postJson(
+      this.base(),
+      "/dating/intro-response",
+      {
+        peerUrl: opts.peerUrl,
+        peerDid: opts.peerDid,
+        introId: opts.introId,
+        response: opts.response,
+        encrypt: opts.encrypt ?? true,
+      },
+      this.auth,
+      true,
+    );
+  }
+
   async sendPoll(opts: {
     peerUrl: string;
     peerDid: string;

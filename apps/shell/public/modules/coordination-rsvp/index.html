@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RSVP</title>
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body { margin: 0; padding: 10px 12px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
+    label { display: block; font-size: 12px; margin-bottom: 4px; color: var(--atom-color-text-dim, #666); }
+    input, textarea { width: 100%; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--atom-color-border, #ccc); border-radius: 6px; font: inherit; }
+    textarea { min-height: 56px; resize: vertical; }
+    button { padding: 8px 14px; border: none; border-radius: 6px; background: var(--atom-color-accent, #111); color: var(--atom-color-bg, #fff); cursor: pointer; font: inherit; margin-right: 6px; margin-top: 4px; }
+    button:disabled { opacity: 0.45; }
+    .secondary { background: transparent; color: inherit; border: 1px solid var(--atom-color-border, #ccc); }
+    .meta { font-size: 13px; color: var(--atom-color-text-dim, #666); margin: 0 0 10px; }
+    h3 { margin: 0 0 6px; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <div id="compose">
+    <label for="title">Event</label>
+    <input id="title" type="text" placeholder="Dinner / kickoff / meetup" />
+    <label for="when">When</label>
+    <input id="when" type="datetime-local" />
+    <label for="location">Location (optional)</label>
+    <input id="location" type="text" placeholder="Place or link" />
+    <label for="note">Note (optional)</label>
+    <textarea id="note" placeholder="Anything guests should know"></textarea>
+    <button type="button" id="send">Send RSVP</button>
+  </div>
+  <div id="respond" hidden>
+    <h3 id="respTitle">Event</h3>
+    <p class="meta" id="respMeta"></p>
+    <button type="button" data-answer="yes">Yes</button>
+    <button type="button" class="secondary" data-answer="maybe">Maybe</button>
+    <button type="button" class="secondary" data-answer="no">No</button>
+  </div>
+  <script>
+    let shellOrigin = null;
+    let rsvpId = "";
+    function emit(name, payload) {
+      if (shellOrigin) window.parent.postMessage({ type: "event", name, payload }, shellOrigin);
+    }
+    function toIso(localValue) {
+      if (!localValue) return "";
+      const d = new Date(localValue);
+      return Number.isNaN(d.getTime()) ? "" : d.toISOString();
+    }
+    document.getElementById("send").addEventListener("click", () => {
+      const eventTitle = document.getElementById("title").value.trim();
+      const eventAt = toIso(document.getElementById("when").value);
+      const location = document.getElementById("location").value.trim();
+      const note = document.getElementById("note").value.trim();
+      if (!eventTitle || !eventAt) return;
+      emit("rsvpCreated", {
+        eventTitle,
+        eventAt,
+        location: location || undefined,
+        note: note || undefined,
+      });
+    });
+    for (const btn of document.querySelectorAll("#respond [data-answer]")) {
+      btn.addEventListener("click", () => {
+        const response = btn.getAttribute("data-answer");
+        if (!rsvpId || !response) return;
+        emit("rsvpResponse", { rsvpId, response });
+      });
+    }
+    function showRespond(props) {
+      document.getElementById("compose").hidden = true;
+      document.getElementById("respond").hidden = false;
+      rsvpId = typeof props.rsvpId === "string" ? props.rsvpId : "";
+      document.getElementById("respTitle").textContent = props.eventTitle || "Event";
+      const when = props.eventAt ? new Date(props.eventAt).toLocaleString() : "";
+      const loc = props.location ? " · " + props.location : "";
+      document.getElementById("respMeta").textContent = when + loc;
+    }
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "init") return;
+      shellOrigin = event.origin;
+      const props = data.props || {};
+      if (props.mode === "respond") showRespond(props);
+      else if (props.defaultTitle) document.getElementById("title").value = props.defaultTitle;
+    });
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Intro</title>
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body { margin: 0; padding: 10px 12px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
+    label { display: block; font-size: 12px; margin-bottom: 4px; color: var(--atom-color-text-dim, #666); }
+    input, textarea { width: 100%; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--atom-color-border, #ccc); border-radius: 6px; font: inherit; }
+    textarea { min-height: 64px; resize: vertical; }
+    button { padding: 8px 14px; border: none; border-radius: 6px; background: var(--atom-color-accent, #111); color: var(--atom-color-bg, #fff); cursor: pointer; font: inherit; margin-right: 6px; }
+    button.secondary { background: transparent; color: inherit; border: 1px solid var(--atom-color-border, #ccc); }
+    .card { border: 1px solid var(--atom-color-border, #ccc); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+    .name { font-weight: 600; font-size: 16px; margin: 0 0 4px; }
+    .line { margin: 0 0 8px; font-size: 14px; }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+    .tags li { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--atom-color-bg-inset, #f5f5f5); border: 1px solid var(--atom-color-border, #ddd); }
+    .hint { font-size: 11px; color: var(--atom-color-text-dim, #666); margin: 8px 0 0; }
+  </style>
+</head>
+<body>
+  <div id="compose">
+    <label for="displayName">Display name</label>
+    <input id="displayName" type="text" placeholder="How you want to be introduced" maxlength="80" />
+    <label for="oneLiner">One-liner</label>
+    <textarea id="oneLiner" placeholder="A short intro — no phone, email, or handles" maxlength="280"></textarea>
+    <label for="interests">Interests (comma-separated)</label>
+    <input id="interests" type="text" placeholder="hiking, jazz, cooking" maxlength="200" />
+    <button type="button" id="send">Send intro</button>
+    <p class="hint">Do not include contact details. Accepting an intro does not share phone or email.</p>
+  </div>
+  <div id="respond" hidden>
+    <div class="card">
+      <p class="name" id="viewName"></p>
+      <p class="line" id="viewLine"></p>
+      <ul class="tags" id="viewTags"></ul>
+    </div>
+    <button type="button" id="accept">Accept</button>
+    <button type="button" class="secondary" id="pass">Pass</button>
+    <p class="hint">Accept only confirms interest. Adding a contact stays in Atom chrome.</p>
+  </div>
+  <script>
+    let shellOrigin = null;
+    let introId = "";
+    function emit(name, payload) {
+      if (shellOrigin) window.parent.postMessage({ type: "event", name, payload }, shellOrigin);
+    }
+    function parseTags(raw) {
+      return String(raw || "")
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .slice(0, 8);
+    }
+    document.getElementById("send").addEventListener("click", () => {
+      const displayName = document.getElementById("displayName").value.trim();
+      const oneLiner = document.getElementById("oneLiner").value.trim();
+      const interests = parseTags(document.getElementById("interests").value);
+      if (!displayName || !oneLiner) return;
+      emit("introCreated", { displayName, oneLiner, interests });
+    });
+    document.getElementById("accept").addEventListener("click", () => {
+      if (!introId) return;
+      emit("introResponse", { introId, response: "accept" });
+    });
+    document.getElementById("pass").addEventListener("click", () => {
+      if (!introId) return;
+      emit("introResponse", { introId, response: "pass" });
+    });
+    function showRespond(props) {
+      document.getElementById("compose").hidden = true;
+      document.getElementById("respond").hidden = false;
+      introId = typeof props.introId === "string" ? props.introId : "";
+      document.getElementById("viewName").textContent = props.displayName || "Intro";
+      document.getElementById("viewLine").textContent = props.oneLiner || "";
+      const ul = document.getElementById("viewTags");
+      ul.innerHTML = "";
+      for (const tag of props.interests || []) {
+        const li = document.createElement("li");
+        li.textContent = tag;
+        ul.appendChild(li);
+      }
+    }
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "init") return;
+      shellOrigin = event.origin;
+      const props = data.props || {};
+      if (props.mode === "respond") showRespond(props);
+      else {
+        if (props.defaultName) document.getElementById("displayName").value = props.defaultName;
+        if (props.defaultOneLiner) document.getElementById("oneLiner").value = props.defaultOneLiner;
+      }
+    });
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>

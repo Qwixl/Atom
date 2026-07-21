@@ -45,6 +45,28 @@ describe("bridgeChatModuleEvent", () => {
     expect(takeCommsModuleBridge()?.action).toBe("pollCreated");
   });
 
+  it("bridges rsvpCreated", () => {
+    expect(
+      bridgeChatModuleEvent("rsvpCreated", {
+        eventTitle: "Dinner",
+        eventAt: "2026-08-01T18:00:00.000Z",
+        location: "Town",
+      }),
+    ).toBe(true);
+    expect(takeCommsModuleBridge()?.action).toBe("rsvpCreated");
+  });
+
+  it("bridges introCreated", () => {
+    expect(
+      bridgeChatModuleEvent("introCreated", {
+        displayName: "Alex",
+        oneLiner: "Likes hiking",
+        interests: ["hiking"],
+      }),
+    ).toBe(true);
+    expect(takeCommsModuleBridge()?.action).toBe("introCreated");
+  });
+
   it("bridges listCreated", () => {
     expect(
       bridgeChatModuleEvent("listCreated", {

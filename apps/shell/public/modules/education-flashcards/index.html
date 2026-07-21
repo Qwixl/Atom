@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flashcards</title>
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body { margin: 0; padding: 10px 12px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
+    h3 { margin: 0 0 8px; font-size: 15px; }
+    .card {
+      min-height: 120px; border: 1px solid var(--atom-color-border, #ccc); border-radius: 8px;
+      padding: 16px; display: flex; align-items: center; justify-content: center;
+      text-align: center; cursor: pointer; background: var(--atom-color-bg-inset, #fafafa);
+      margin-bottom: 10px; user-select: none;
+    }
+    .card .side { font-size: 16px; line-height: 1.4; }
+    .hint { font-size: 12px; color: var(--atom-color-text-dim, #666); margin: 0 0 8px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    button { padding: 8px 14px; border: none; border-radius: 6px; background: var(--atom-color-accent, #111); color: var(--atom-color-bg, #fff); cursor: pointer; font: inherit; }
+    button.secondary { background: transparent; color: inherit; border: 1px solid var(--atom-color-border, #ccc); }
+    .count { font-size: 12px; color: var(--atom-color-text-dim, #666); margin-left: auto; align-self: center; }
+  </style>
+</head>
+<body>
+  <h3 id="title">Flashcards</h3>
+  <p class="hint" id="hint">Tap card to flip</p>
+  <div class="card" id="card" role="button" tabindex="0"><div class="side" id="face">—</div></div>
+  <div class="row">
+    <button type="button" class="secondary" id="prev">Prev</button>
+    <button type="button" id="next">Next</button>
+    <button type="button" class="secondary" id="shuffle">Shuffle</button>
+    <span class="count" id="count"></span>
+  </div>
+  <script>
+    let shellOrigin = null;
+    let cards = [];
+    let index = 0;
+    let showBack = false;
+    function emit(name, payload) {
+      if (shellOrigin) window.parent.postMessage({ type: "event", name, payload }, shellOrigin);
+    }
+    function render() {
+      const title = document.getElementById("title");
+      const face = document.getElementById("face");
+      const count = document.getElementById("count");
+      if (!cards.length) {
+        face.textContent = "No cards";
+        count.textContent = "";
+        return;
+      }
+      const card = cards[index];
+      face.textContent = showBack ? (card.back || "") : (card.front || "");
+      document.getElementById("hint").textContent = showBack ? "Back" : "Front — tap to flip";
+      count.textContent = (index + 1) + " / " + cards.length;
+    }
+    function flip() {
+      if (!cards.length) return;
+      showBack = !showBack;
+      render();
+    }
+    document.getElementById("card").addEventListener("click", flip);
+    document.getElementById("card").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); }
+    });
+    document.getElementById("next").addEventListener("click", () => {
+      if (!cards.length) return;
+      index = (index + 1) % cards.length;
+      showBack = false;
+      render();
+    });
+    document.getElementById("prev").addEventListener("click", () => {
+      if (!cards.length) return;
+      index = (index - 1 + cards.length) % cards.length;
+      showBack = false;
+      render();
+    });
+    document.getElementById("shuffle").addEventListener("click", () => {
+      for (let i = cards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = cards[i];
+        cards[i] = cards[j];
+        cards[j] = tmp;
+      }
+      index = 0;
+      showBack = false;
+      render();
+    });
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "init") return;
+      shellOrigin = event.origin;
+      const props = data.props || {};
+      document.getElementById("title").textContent = props.title || "Flashcards";
+      cards = Array.isArray(props.cards)
+        ? props.cards.filter((c) => c && typeof c.front === "string" && typeof c.back === "string")
+        : [];
+      index = 0;
+      showBack = false;
+      render();
+      emit("flashcardsReady", { title: props.title || "Flashcards", count: cards.length });
+    });
+    window.parent.postMessage({ type: "ready" }, "*");
+  </script>
+</body>
+</html>
