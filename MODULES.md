@@ -29,6 +29,10 @@ PRs to the reference registry must pass `pnpm registry:verify` in CI (`--require
 
 **Publisher identity (M-TS-03):** every curated listing must declare a `publisher` DID; CI allowlists reference DIDs (`did:key:z6Mkatomexamples01`, plus curated demos such as `did:key:z6Mkdemotravel0001`). Listings must include `signatureUrl` (Sigstore-shaped DSSE beside the manifest). Sign with `pnpm registry:sign-all` (or `atom-registry sign --module-dir …`) after publish — digests stay stable because `signatureUrl` mirrors on the **index**, not the manifest. CI `pnpm registry:verify` **requires** signatures (shape + in-toto subject digest). Fulcio/Rekor crypto is optional: `pnpm registry:verify:strict` (`--fulcio`).
 
+## Dating modules (BK-38 / M-ECO-12)
+
+Dating is a **registry category only** — not shell core. First-party `dating/intro` is a one-shot intro card (display name, one-liner, optional tags) with peer **Accept / Pass**. Modules must not collect phone, email, or other contact details in the iframe; adding a contact stays in shell chrome. Matching, photos, geo, and KYC are out of scope for this module.
+
 ## Commerce modules (M-TS-05)
 
 The reference registry rejects commerce modules whose primary purpose is:
