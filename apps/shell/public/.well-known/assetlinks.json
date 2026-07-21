@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls", "delegate_permission/common.get_login_creds"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.qwixl.atom",
+      "sha256_cert_fingerprints": [
+        "F3:9E:E5:59:6E:0B:7A:F9:65:46:78:1F:EF:BF:51:52:D1:FF:F7:A3:E4:EF:06:36:8D:E6:3E:C5:03:2E:05:76"
+      ]
+    }
+  }
+]
