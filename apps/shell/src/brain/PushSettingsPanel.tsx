@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import { ensureFreshChatSessionToken, getChatSessionToken } from "../comms/chatSessionToken.js";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
+import { usesSupabaseHostedAuth } from "../hostConfig.js";
 import { SettingsToggle } from "../ui/SettingsToggle.js";
 import {
   ensureCapacitorPush,
@@ -25,11 +27,16 @@ export function PushSettingsPanel({
   const [configured, setConfigured] = useState<{ web: boolean; fcm: boolean } | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!vaultUnlocked || !config.adminToken?.trim()) {
+    if (!vaultUnlocked) {
+      setConfigured(null);
+      return;
+    }
+    if (!config.adminToken?.trim() && !usesSupabaseHostedAuth() && !getChatSessionToken()) {
       setConfigured(null);
       return;
     }
     try {
+      await ensureFreshChatSessionToken(config);
       const status = await fetchPushStatus(config);
       setConfigured({ web: status.webPushConfigured, fcm: status.fcmConfigured });
     } catch {
@@ -53,6 +60,7 @@ export function PushSettingsPanel({
         setNote("Push notifications disabled.");
         return;
       }
+      await ensureFreshChatSessionToken(config);
       const native = await ensureCapacitorPush(config);
       if (native === "subscribed") {
         setNote("Android push registered.");
