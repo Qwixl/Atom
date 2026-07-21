@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import type { ConnectorVault } from "../connectorVault.js";
-import { loadPushSenderConfig } from "./sendPush.js";
+import { isFcmConfigured, loadPushSenderConfig } from "./sendPush.js";
 import {
   createPushSubscriptionId,
   isStoredPushSubscription,
@@ -57,7 +57,7 @@ export function registerPushAdminRoutes(app: Express, deps: PushAdminDeps): void
       subscriptions: normalizePushSubscriptions(deps.vault.getPushSubscriptions()),
       vapidPublicKey: config.vapidPublicKey,
       webPushConfigured: Boolean(config.vapidPublicKey && config.vapidPrivateKey),
-      fcmConfigured: Boolean(config.fcmServerKey),
+      fcmConfigured: isFcmConfigured(config),
     });
   });
 
