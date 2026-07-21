@@ -3831,9 +3831,17 @@ function SettingsDialog({
         llmBaseUrl: resolved.baseUrl,
         llmModel: resolved.model,
       });
+      // Clear the password field only — key lives on the agent, not in the browser.
       setHostedLlm((prev) => ({ ...prev, apiKey: "" }));
+      if (MANAGED_HOSTING) {
+        onSwitchChatProvider("ag-ui");
+      }
+      const adminUrl = loadCommsAgentConfig().adminUrl?.trim();
+      if (adminUrl) {
+        onSaveAgUi(saveAgUiConfigForAgent(adminUrl));
+      }
       setHostedLlmNote(
-        "LLM connection updated. Your agent will restart briefly — try chat again in a moment.",
+        "Saved on your agent (the key field clears on purpose). Chat uses that server key — wait a few seconds for the restart, then try again.",
       );
     } catch (error) {
       setHostedLlmError(
