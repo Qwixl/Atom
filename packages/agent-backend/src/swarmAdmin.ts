@@ -16,6 +16,10 @@ import {
   SOCIAL_PAIR_COOLDOWN_HOURS,
   type SwarmSocialDialogueStore,
 } from "./swarmSocialDialogue.js";
+import {
+  runVenuePresenceTick,
+  type SwarmVenuePresenceDeps,
+} from "./swarmVenuePresence.js";
 
 export function registerSwarmAdminRoutes(
   app: Express,
@@ -25,6 +29,7 @@ export function registerSwarmAdminRoutes(
     bans: BanLadderStore | null;
     socialStore?: SwarmSocialDialogueStore | null;
     socialAutonomy?: SwarmSocialAutonomyDeps | null;
+    venuePresence?: SwarmVenuePresenceDeps | null;
   },
 ): void {
   app.get("/swarm/status", (_req: Request, res: Response) => {
@@ -66,6 +71,7 @@ export function registerSwarmAdminRoutes(
       res.status(404).json({ error: "social autonomy only on swarm-npc" });
       return;
     }
+    deps.socialStore.sweepStaleDialogues();
     res.json({
       ...deps.socialStore.snapshot(),
       caps: {
@@ -115,6 +121,29 @@ export function registerSwarmAdminRoutes(
       res.json(result);
     } catch (error) {
       res.status(500).json({
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  /**
+   * Home-venue shift presence (D093 / AS-19). Host cron calls every ~15m.
+   * On shift → join home room; off shift → leave.
+   */
+  app.post("/swarm/venue/presence-tick", async (_req: Request, res: Response) => {
+    if (deps.agentKind !== "swarm-npc" || !deps.venuePresence) {
+      res.status(404).json({ error: "venue presence only on swarm-npc with homeShift" });
+      return;
+    }
+    try {
+      const result = await runVenuePresenceTick(deps.venuePresence);
+      if (!result.ok) {
+        res.status(409).json(result);
+        return;
+      }
+      res.json(result);
+    } catch (error) {
+      res.status(502).json({
         error: error instanceof Error ? error.message : String(error),
       });
     }

@@ -45,4 +45,17 @@ describe("swarmSocialDialogue", () => {
     expect(looksLikeGoodbye("Talk soon, Jonah!")).toBe(true);
     expect(looksLikeGoodbye("How is the espresso today?")).toBe(false);
   });
+
+  it("sweeps stale active dialogues so openers can resume", () => {
+    const store = tempStore();
+    // invitee does not consume daily opener cap
+    store.startDialogue("did:stuck", "invitee", { sentByUs: 3, sentByThem: 2 });
+    const row = store.getActive("did:stuck")!;
+    const old = new Date(Date.now() - 3 * 3_600_000).toISOString();
+    row.startedAt = old;
+    row.updatedAt = old;
+    expect(store.sweepStaleDialogues()).toBe(1);
+    expect(store.listActive()).toHaveLength(0);
+    expect(store.canStartOpener("did:other").ok).toBe(true);
+  });
 });
