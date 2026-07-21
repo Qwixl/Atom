@@ -18,7 +18,7 @@
   "space": {
     "sm": { "$value": "8px", "$type": "dimension" },
     "md": { "$value": "12px", "$type": "dimension" },
-    "lg": { "$value": "16px", "$type": "dimension" }
+    "lg": { "$value": "20px", "$type": "dimension" }
   },
   "font": {
     "sans": {
