@@ -7,6 +7,7 @@ import {
   type AgentCapabilities,
 } from "./serviceDiscovery.js";
 import type { AgentBackendConfig } from "./config.js";
+import { testReachabilityDefaults } from "./config.js";
 import { RoomStore } from "./roomStore.js";
 
 describe("serviceDiscovery", () => {
@@ -53,6 +54,7 @@ describe("serviceDiscovery", () => {
     brainIntervalMs: 60000,
     agentKind: "owner",
     killSwitch: false,
+    ...testReachabilityDefaults({ communityHostMode: true, publicBaseUrl: "http://127.0.0.1:5204" }),
     };
     const localCapabilities = buildAgentCapabilities({
       config,

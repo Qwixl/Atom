@@ -5,13 +5,15 @@
 ## Architecture
 
 - One container per owner running **unmodified** `@qwixl/agent-backend`
-- Control plane verbs: provision, suspend, resume, delete, report-abuse
-- Subdomain addressing: `<handle>.agents.qwixl.dev` (production fleet)
+- **Local:** `apps/control-plane` stub (`pnpm dev:hosting`)
+- **Production:** private **Atom-MC** (`Qwixl/Atom-MC`) — Docker fleet, multi-host burst, NPC ops
+- Addressing: `https://{handle}.agents.atom.qwixl.com` (D098); `{port}.agents…` transitional
+- Reachability SKUs (GBP, D094): sleep £5 / hourly £10 / always-on £20 / business £50 — beta charges waived
 
 ## Local development
 
 ```bash
-pnpm dev:hosting   # control plane :5300 + stub agent :5301
+pnpm dev:hosting   # stub control plane :5300 + stub agent :5301
 pnpm dev           # shell :5200 — first-run wizard → Create hosted agent
 ```
 
@@ -19,19 +21,9 @@ Stub mode (`HOSTED_STUB_AGENT_URL` / `HOSTED_STUB_AGENT_TOKEN`) returns a real a
 
 ## Production fleet
 
-Set on the control plane service:
+Configured in **Atom-MC** (not this public repo). See Atom-MC `.env.example` and `docker compose up control-plane`.
 
-| Variable | Purpose |
-|---|---|
-| `ATOM_FLEET_MODE=docker` | Enable Docker provisioning |
-| `ATOM_AGENT_IMAGE=atom-agent:latest` | Image per owner container |
-| `ATOM_CONTROL_PLANE_DATA_DIR=/data` | Persistent agent registry |
-| `ATOM_SHELL_ORIGINS` | CORS for shell signup requests |
-
-Build the agent image from repo root: `docker compose build atom-agent`.
-
-Signup (`POST /signup`) provisions a container, returns `{ agentUrl, adminToken, handle }`. Returns **503** when fleet is unconfigured (fail-closed — no fake URLs).
-
+Build the agent image from **this** repo: `docker compose build atom-agent`.
 ## API
 
 - `POST /signup` — `{ email, handle?, acceptAup }` → agent URL + admin token

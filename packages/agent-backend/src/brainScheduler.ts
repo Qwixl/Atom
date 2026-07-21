@@ -19,8 +19,11 @@ export interface BrainSchedulerOptions {
   /**
    * When false, scheduler still runs but only evaluates intents if at least one
    * is enabled — used for free-tier duty-cycle later (BK-45). Default true.
+   * May be a function for D096 hourly wake windows.
    */
-  alwaysOn?: boolean;
+  alwaysOn?: boolean | (() => boolean);
+  /** D096 — expire asleep inbox + log pending count each tick. */
+  onReachabilityWake?: () => void;
   /** D087 — ATOM_KILL_SWITCH pauses all ticks (swarm + owner). */
   killSwitch?: boolean;
   /** Injected clock for tests. */
@@ -40,6 +43,8 @@ export class BrainScheduler {
   private readonly vault: ConnectorVault;
   private readonly intervalMs: number;
   private readonly alwaysOn: boolean;
+  private readonly resolveAlwaysOn?: () => boolean;
+  private readonly onReachabilityWake?: () => void;
   private readonly killSwitch: boolean;
   private readonly now: () => Date;
   private readonly onFire?: (intent: StandingIntent, notification: BrainPendingNotification) => void;
@@ -55,7 +60,9 @@ export class BrainScheduler {
   constructor(options: BrainSchedulerOptions) {
     this.vault = options.vault;
     this.intervalMs = Math.max(5_000, options.intervalMs ?? 60_000);
-    this.alwaysOn = options.alwaysOn !== false;
+    this.alwaysOn = typeof options.alwaysOn === "function" ? true : options.alwaysOn !== false;
+    this.resolveAlwaysOn = typeof options.alwaysOn === "function" ? options.alwaysOn : undefined;
+    this.onReachabilityWake = options.onReachabilityWake;
     this.killSwitch = options.killSwitch === true;
     this.now = options.now ?? (() => new Date());
     this.onFire = options.onFire;
@@ -90,7 +97,7 @@ export class BrainScheduler {
   } {
     return {
       running: this.timer !== null,
-      alwaysOn: this.alwaysOn,
+      alwaysOn: this.isBrainActive(),
       killSwitch: this.killSwitch,
       intervalMs: this.intervalMs,
       lastTickAt: this.lastTickAt,
@@ -107,7 +114,8 @@ export class BrainScheduler {
     try {
       const now = this.now();
       this.lastTickAt = now.toISOString();
-      if (this.killSwitch || !this.alwaysOn) {
+      this.onReachabilityWake?.();
+      if (this.killSwitch || !this.isBrainActive()) {
         this.lastFireCount = 0;
         return { fired: [], notifications: [] };
       }
@@ -183,6 +191,11 @@ export class BrainScheduler {
     } finally {
       this.ticking = false;
     }
+  }
+
+  private isBrainActive(): boolean {
+    if (this.resolveAlwaysOn) return this.resolveAlwaysOn();
+    return this.alwaysOn;
   }
 }
 

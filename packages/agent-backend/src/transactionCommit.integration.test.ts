@@ -8,6 +8,7 @@ import { ACTION_CAPTURE_PURPOSE, ACTION_RECEIPT_PURPOSE } from "@qwixl/a2a-trans
 import { createMockPaymentRail } from "./payment/mockRail.js";
 import { startAgentServer } from "./server.js";
 import type { AgentBackendConfig } from "./config.js";
+import { testReachabilityDefaults } from "./config.js";
 import { adminGetJson, adminPostJson, installTestAdminToken } from "./testHelpers.js";
 
 async function writeIdentityFile(filePath: string): Promise<string> {
@@ -45,6 +46,7 @@ function testConfig(port: number, publicBaseUrl: string): AgentBackendConfig {
     brainIntervalMs: 60000,
   agentKind: "owner",
   killSwitch: false,
+  ...testReachabilityDefaults({ publicBaseUrl }),
   };
 }
 
