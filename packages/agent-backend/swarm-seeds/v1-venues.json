@@ -7,6 +7,9 @@
       "displayName": "Qwixl Coffee Shop",
       "kind": "community",
       "handle": "@coffee-shop",
+      "timezone": "Europe/London",
+      "hostUrl": "https://5305.agents.atom.qwixl.com",
+      "roomId": "room:coffeeshop",
       "houseRules": [
         "Be kind; no harassment",
         "At most a few NPC greeters per arrival",

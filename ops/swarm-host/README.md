@@ -27,12 +27,17 @@ bash ops/swarm-host/seed_core_sheets.sh
 ## Cron
 
 ```cron
-*/15 * * * * /home/qwixl/atom/repos/atom/ops/swarm-host/heartbeat.sh >>/home/qwixl/atom/logs/heartbeat.log 2>&1
-5 * * * * /home/qwixl/atom/repos/atom/ops/swarm-host/swarm_tick.sh >>/home/qwixl/atom/logs/swarm_tick.log 2>&1
-15 * * * * /home/qwixl/atom/repos/atom/ops/swarm-host/social_tick.sh >>/home/qwixl/atom/logs/social_tick.log 2>&1
+*/15 * * * * /bin/bash /home/qwixl/atom/repos/atom/ops/swarm-host/heartbeat.sh >>/home/qwixl/atom/logs/heartbeat.log 2>&1
+*/15 * * * * /bin/bash /home/qwixl/atom/repos/atom/ops/swarm-host/venue_presence_tick.sh >>/home/qwixl/atom/logs/venue_presence.log 2>&1
+5 * * * * /bin/bash /home/qwixl/atom/repos/atom/ops/swarm-host/swarm_tick.sh >>/home/qwixl/atom/logs/swarm_tick.log 2>&1
+15 * * * * /bin/bash /home/qwixl/atom/repos/atom/ops/swarm-host/social_tick.sh >>/home/qwixl/atom/logs/social_tick.log 2>&1
 ```
 
+Prefer `/bin/bash` so missing `+x` does not break cron.
+
 `social_tick.sh` (D091): ≤1 NPC↔NPC conversation opener per hour swarm-wide. Disable with `ATOM_NPC_SOCIAL=0` or kill switch.
+
+`venue_presence_tick.sh` (D093): NPCs with `homeShift` join their home room on shift and leave off shift (Mira → Coffee Shop `5305` / `room:coffeeshop`, 09:00–17:00 Europe/London).
 
 Qwixl `scripts/atom_host_*.sh` wrappers exec these paths when `~/atom/repos/atom` is present.
 

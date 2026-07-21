@@ -605,6 +605,17 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
             connectorExecutor: readOnlyConnectorExecutor,
           }
         : null,
+    venuePresence:
+      config.agentKind === "swarm-npc"
+        ? {
+            identity,
+            mlsStore,
+            rooms,
+            peerRecords,
+            publicBaseUrl: config.publicBaseUrl,
+            swarmSeedId,
+          }
+        : null,
   });
 
   const brainScheduler = new BrainScheduler({
