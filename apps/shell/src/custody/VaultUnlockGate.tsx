@@ -105,7 +105,9 @@ export function VaultUnlockGate({
             and API keys stored on this device.
           </p>
           {error ? <p className="comms-status-error">{error}</p> : null}
-          <div className="chrome-actions settings-section-actions">
+        </div>
+        <div className="settings-dialog-footer">
+          <div className="settings-dialog-footer-end">
             <button type="button" className="chrome-approve" disabled={busy} onClick={() => void unlock()}>
               {busy ? "Unlocking…" : "Unlock with passkey"}
             </button>

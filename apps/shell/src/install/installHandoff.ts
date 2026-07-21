@@ -80,13 +80,16 @@ export function parseInstallHandoff(input: string | URL): InstallHandoffParseRes
   };
 }
 
-/** Paid cert present but store public key not pinned yet (Milestone C). Fail closed. */
-export function assertInstallEntitlementReady(handoff: InstallHandoff): void {
-  if (handoff.cert) {
-    throw new Error(
-      "This module requires a paid entitlement certificate. Offline cert verification is not enabled in this shell build yet. Try again after a shell update, or install a free module.",
-    );
-  }
+/**
+ * Free modules: no cert. Paid modules: offline-verify compact cert against pinned store key (D072).
+ */
+export async function assertInstallEntitlementReady(handoff: InstallHandoff): Promise<void> {
+  if (!handoff.cert) return;
+  const { verifyInstallEntitlementCert } = await import("./entitlementCert.js");
+  await verifyInstallEntitlementCert(handoff.cert, {
+    moduleId: handoff.moduleId,
+    version: handoff.version,
+  });
 }
 
 export function savePendingInstallHandoff(handoff: InstallHandoff): void {

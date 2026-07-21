@@ -1622,7 +1622,14 @@ export function App() {
             void (async () => {
               try {
                 const config = await loadCommsAgentConfigSecure();
-                if (!config.adminToken?.trim()) return;
+                if (
+                  !config.adminToken?.trim() &&
+                  !usesSupabaseHostedAuth() &&
+                  !getChatSessionToken()
+                ) {
+                  return;
+                }
+                await ensureFreshChatSessionToken(config);
                 await saveChatFeed(config, workspaceId, chatFeedEnvelopeRef.current);
               } catch {
                 /* offline / auth — local cache remains */
@@ -1835,7 +1842,8 @@ export function App() {
     void (async () => {
       try {
         const config = await loadCommsAgentConfigSecure();
-        if (!config.adminToken?.trim()) return;
+        if (!config.adminToken?.trim() && !usesSupabaseHostedAuth()) return;
+        await ensureFreshChatSessionToken(config);
         const workspaceId = activeWorkspaceIdRef.current;
         const remoteChatRaw = await loadChatFeed(config, workspaceId);
         const chatPersistence = workspaceChatFeedPersistence(workspaceId);
@@ -1896,7 +1904,13 @@ export function App() {
     void (async () => {
       try {
         const config = await loadCommsAgentConfigSecure();
-        if (cancelled || !config.adminToken?.trim()) return;
+        if (
+          cancelled ||
+          (!config.adminToken?.trim() && !usesSupabaseHostedAuth() && !getChatSessionToken())
+        ) {
+          return;
+        }
+        await ensureFreshChatSessionToken(config);
         const native = await ensureCapacitorPush(config);
         if (cancelled || native === "subscribed") return;
         await ensureWebPushSubscription(config);
@@ -2677,7 +2691,7 @@ export function App() {
       setInstallBanner(`Installing ${handoff.moduleId}@${handoff.version}…`);
       openSettings("modules");
       try {
-        assertInstallEntitlementReady(handoff);
+        await assertInstallEntitlementReady(handoff);
         const outcome = await registry.installRequested(
           catalog,
           handoff.moduleId,
