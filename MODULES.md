@@ -95,9 +95,9 @@ Optional `pricing` on `manifest.json` and mirrored on the index entry:
 }
 ```
 
-Omit `pricing` or set `"model": "free"` for free modules. During beta, paid modules still install in the reference shell (see `05-economics/02-revenue-model.md`). Target rev share when billing ships: ~15% (Q13).
+Omit `pricing` or set `"model": "free"` for free modules. Paid distribution for Atom owners is via the commercial **Atom App Store** (`https://atom.apps.qwixl.com`): developer is merchant of record (Stripe Connect); store take is **15% application fee** on paid Checkout (D103 / Atom-Apps A010). Package and publish from the store console — see [Atom Apps publish docs](https://atom.apps.qwixl.com/docs/publish).
 
-Governance of the default curated store: `06-decisions-log.md#d029`.
+Governance of the open registry protocol: `06-decisions-log.md#d029`. Default commercial host: `#d071` / `#d099`.
 
 ## iframe bridge
 
