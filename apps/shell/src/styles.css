@@ -91,7 +91,8 @@ body {
     max-width: none;
     height: 100%;
     max-height: none;
-    min-height: 100dvh;
+    /* Prefer stretch height over 100dvh so top safe-area padding does not overflow. */
+    min-height: 0;
     margin: 0;
     border-radius: 0;
     border-left: none;
@@ -2008,7 +2009,10 @@ body {
   align-items: center;
   justify-content: center;
   z-index: 100;
-  padding: 20px;
+  padding: max(16px, env(safe-area-inset-top, 0px))
+    max(16px, env(safe-area-inset-right, 0px))
+    max(16px, env(safe-area-inset-bottom, 0px))
+    max(16px, env(safe-area-inset-left, 0px));
 }
 
 .chrome-dialog {
@@ -2016,6 +2020,12 @@ body {
   border: 1px solid var(--shell-border-strong);
   border-radius: var(--shell-radius);
   width: min(480px, 100%);
+  max-height: min(
+    720px,
+    calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px)
+  );
+  display: flex;
+  flex-direction: column;
   box-shadow: var(--shell-shadow-sm);
   overflow: hidden;
 }
@@ -2073,6 +2083,9 @@ body {
 
 .chrome-dialog-body {
   padding: 16px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
 }
 
 .chrome-terms {
@@ -2105,7 +2118,9 @@ body {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+  flex-shrink: 0;
   padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--shell-border);
 }
 
