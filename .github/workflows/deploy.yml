@@ -72,35 +72,4 @@ jobs:
           vercel-version: 54.20.1
           vercel-args: "--prod"
 
-  deploy-control-plane:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Load SSH key
-        uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387 # v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.CONTROL_PLANE_SSH_PRIVATE_KEY }}
-
-      - name: Trust control plane host
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.CONTROL_PLANE_SSH_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Pull and restart control plane
-        env:
-          SSH_HOST: ${{ secrets.CONTROL_PLANE_SSH_HOST }}
-          SSH_USER: ${{ secrets.CONTROL_PLANE_SSH_USER }}
-        run: |
-          ssh "${SSH_USER}@${SSH_HOST}" <<'EOF'
-          set -euo pipefail
-          cd /opt/atom
-          git fetch origin --prune
-          git checkout main
-          git reset --hard origin/main
-          docker compose build control-plane
-          docker compose up -d control-plane
-          sleep 5
-          curl -sf http://127.0.0.1:5300/health
-          EOF
+  # Production control-plane deploy lives in private Qwixl/Atom-MC (D097).

@@ -119,10 +119,12 @@ Each hosted agent receives a bearer token at signup. It is equivalent to **root 
 
 ## Hosted control plane (production)
 
-| Env | Purpose |
+Qwixl’s production control plane and Docker fleet run in the private **Atom-MC** repo (`Qwixl/Atom-MC`), not from this Apache-2.0 tree. This repo’s `apps/control-plane` is a **local stub** for `pnpm dev:hosting` only (no Docker provisioner).
+
+| Env (Atom-MC / production) | Purpose |
 |---|---|
-| `ATOM_FLEET_MODE=docker` | Per-owner agent containers |
-| `ATOM_FLEET_PUBLIC_URL_TEMPLATE` | **Required** in production — HTTPS template, e.g. `https://{port}.agents.example.com` |
+| `ATOM_FLEET_MODE=docker` | Per-owner agent containers (Atom-MC only) |
+| `ATOM_FLEET_PUBLIC_URL_TEMPLATE` | **Required** in production — prefer `https://{handle}.agents.example.com` (D098); `{port}` transitional |
 | `ATOM_PROVISION_SECRET` | When set, `/provision` requires `Authorization: Bearer` (disabled in production when unset) |
 | `ATOM_SHELL_ORIGINS` | CORS allowlist for shell origins |
 | `NODE_ENV=production` | Enables fleet HTTPS invariants and provision lockdown |

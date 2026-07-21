@@ -6,6 +6,7 @@ import type { Server } from "node:http";
 import { bytesToBase64, generateAgentKeyPair } from "@qwixl/protocol";
 import { startAgentServer } from "./server.js";
 import type { AgentBackendConfig } from "./config.js";
+import { testReachabilityDefaults } from "./config.js";
 import { adminGetJson, installTestAdminToken } from "./testHelpers.js";
 
 async function writeIdentityFile(filePath: string): Promise<void> {
@@ -42,6 +43,7 @@ function testConfig(port: number, publicBaseUrl: string): AgentBackendConfig {
     brainIntervalMs: 60000,
   agentKind: "owner",
   killSwitch: false,
+  ...testReachabilityDefaults({ publicBaseUrl }),
   };
 }
 
