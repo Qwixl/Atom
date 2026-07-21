@@ -70,6 +70,17 @@ describe("installHandoff", () => {
     });
   });
 
+  it("parses registryUrl for store installs", () => {
+    const result = parseInstallHandoff(
+      "https://atom.qwixl.com/install?moduleId=games%2Ftictactoe&version=1.0.0&source=store&registryUrl=https%3A%2F%2Fatom.apps.qwixl.com%2Fregistry%2Findex.json",
+    );
+    expect(result?.kind).toBe("ok");
+    if (result?.kind !== "ok") return;
+    expect(result.handoff.registryUrl).toBe(
+      "https://atom.apps.qwixl.com/registry/index.json",
+    );
+  });
+
   it("parses HTTPS /install twin", () => {
     const result = parseInstallHandoff(
       "https://atom.qwixl.com/install?moduleId=demo%2Fhello-store&version=1.0.0&source=store",
