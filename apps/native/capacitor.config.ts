@@ -28,7 +28,7 @@ const config: CapacitorConfig = {
       "*.atom.qwixl.com",
       "control.atom.qwixl.com",
       "atom.registry.qwixl.com",
-      "apps.qwixl.com",
+      "atom.apps.qwixl.com",
     ],
   },
   android: {

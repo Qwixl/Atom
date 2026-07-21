@@ -37,6 +37,12 @@ void import("./native/syncNativeChrome.js").then(({ syncNativeChrome }) => {
   void syncNativeChrome();
 });
 
+void import("./native/registerNativeInstallDeepLinks.js").then(
+  ({ registerNativeInstallDeepLinks }) => {
+    void registerNativeInstallDeepLinks();
+  },
+);
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <RootApp />
