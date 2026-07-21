@@ -11,6 +11,8 @@ export const SOCIAL_MIN_MESSAGES = 4;
 export const SOCIAL_MAX_MESSAGES = 12;
 /** Hours before the same pair may open again. */
 export const SOCIAL_PAIR_COOLDOWN_HOURS = 48;
+/** Close active dialogues with no update for this long (stuck after failed reply/deliver). */
+export const SOCIAL_STALE_DIALOGUE_HOURS = 2;
 
 export interface SocialDialogueRecord {
   peerDid: string;
@@ -131,7 +133,25 @@ export class SwarmSocialDialogueStore {
     return Number.isFinite(elapsed) && elapsed < SOCIAL_PAIR_COOLDOWN_HOURS * 3_600_000;
   }
 
+  /** Close dialogues idle longer than SOCIAL_STALE_DIALOGUE_HOURS. */
+  sweepStaleDialogues(now = Date.now()): number {
+    const cutoff = now - SOCIAL_STALE_DIALOGUE_HOURS * 3_600_000;
+    let closed = 0;
+    for (const d of this.data.dialogues) {
+      if (d.status !== "active") continue;
+      const updated = Date.parse(d.updatedAt);
+      if (!Number.isFinite(updated) || updated > cutoff) continue;
+      d.status = "closed";
+      d.updatedAt = new Date(now).toISOString();
+      this.data.cooldowns[d.peerDid] = d.updatedAt;
+      closed += 1;
+    }
+    if (closed > 0) this.persist();
+    return closed;
+  }
+
   canStartOpener(peerDid: string, now = Date.now()): { ok: true } | { ok: false; reason: string } {
+    this.sweepStaleDialogues(now);
     if (this.listActive().length > 0) {
       return { ok: false, reason: "already_in_dialogue" };
     }

@@ -111,3 +111,34 @@ export async function joinRemoteRoom(
     alreadyMember: Boolean(joined.alreadyMember),
   };
 }
+
+/** Leave a remote room this agent previously joined (notify host + drop local MLS). */
+export async function leaveRemoteRoom(
+  deps: Pick<JoinRemoteRoomDeps, "identity" | "mlsStore" | "rooms">,
+  roomIdRaw: string,
+): Promise<{ left: string; alreadyLeft: boolean }> {
+  const roomId = roomIdRaw.trim();
+  if (!roomId) throw new Error("roomId required");
+  const { identity, mlsStore, rooms } = deps;
+  const joined = rooms.getJoinedRoom(roomId);
+  if (!joined) {
+    if (mlsStore.hasRoomSession(roomId)) {
+      mlsStore.dropRoomSession(roomId);
+    }
+    return { left: roomId, alreadyLeft: true };
+  }
+  try {
+    await fetch(`${joined.hostUrl.replace(/\/$/, "")}/rooms/${encodeURIComponent(roomId)}/leave`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberDid: identity.did }),
+    });
+  } catch (error) {
+    console.warn(
+      `[rooms] host leave notify failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  rooms.forgetJoinedRoom(roomId);
+  mlsStore.dropRoomSession(roomId);
+  return { left: roomId, alreadyLeft: false };
+}

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Occasional NPC↔NPC conversation openers (D091 / AS-17).
 # Caps: ≤1 new opener per run (swarm-wide); per-NPC daily opener + pair cooldown enforced in agent.
-# Cron (hourly, after swarm_tick is fine):
-#   15 * * * * /home/qwixl/atom/repos/atom/ops/swarm-host/social_tick.sh >>/home/qwixl/atom/logs/social_tick.log 2>&1
+# Cron (hourly, after swarm_tick is fine) — use bash so +x is not required:
+#   15 * * * * /bin/bash /home/qwixl/atom/repos/atom/ops/swarm-host/social_tick.sh >>/home/qwixl/atom/logs/social_tick.log 2>&1
 
 set -euo pipefail
 
