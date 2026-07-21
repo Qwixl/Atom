@@ -2677,8 +2677,8 @@ export function App() {
       setInstallBanner(`Installing ${handoff.moduleId}@${handoff.version}…`);
       openSettings("modules");
       try {
-        assertInstallEntitlementReady(handoff);
-        const outcome = await registry.installRequested(
+        await assertInstallEntitlementReady(handoff);
+        const outcome = await registry.installRequested
           catalog,
           handoff.moduleId,
           handoff.version,
