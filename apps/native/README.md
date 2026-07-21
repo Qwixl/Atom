@@ -61,6 +61,17 @@ Notification taps open `/app/` (or the `url` field in the FCM data payload).
 
 iOS (`BK-40`) is not added yet — run `pnpm add:ios` on macOS after Android learnings.
 
+## Passkeys / vault unlock (Android)
+
+Capacitor’s WebView does not expose WebAuthn until:
+
+1. `MainActivity` enables `WebSettingsCompat.setWebAuthenticationSupport(...FOR_APP)`
+2. `https://atom.qwixl.com/.well-known/assetlinks.json` lists package `com.qwixl.atom` + signing cert SHA-256
+3. Hosted agents accept optional `ATOM_WEBAUTHN_EXTRA_ORIGINS` (e.g. `android:apk-key-hash:…`) if the assertion origin is app-bound
+
+Debug APK fingerprint (current Optimus debug keystore):
+`F3:9E:E5:59:6E:0B:7A:F9:65:46:78:1F:EF:BF:51:52:D1:FF:F7:A3:E4:EF:06:36:8D:E6:3E:C5:03:2E:05:76`
+
 ## Non-goals (v1)
 
 - Bundled web assets as the primary load path
