@@ -68,25 +68,6 @@ services:
       MCP_BRAIN_TOOL: "${MCP_BRAIN_TOOL:-chat}"
     restart: unless-stopped
 
-  control-plane:
-    build:
-      context: .
-      dockerfile: apps/control-plane/Dockerfile
-    ports:
-      - "${CONTROL_PLANE_PORT:-5300}:5300"
-    env_file:
-      - .env
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      PORT: "5300"
-      ATOM_CONTROL_PLANE_DATA_DIR: /data
-    volumes:
-      - control-plane-data:/data
-      - /var/run/docker.sock:/var/run/docker.sock
-    restart: unless-stopped
-
 volumes:
   atom-agent-data:
   demo-peer-data:
-  control-plane-data:

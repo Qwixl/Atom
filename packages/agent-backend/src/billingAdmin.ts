@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { resolveDataPath } from "./dataDir.js";
 import { ALWAYS_ON_BRAIN_PRICE, alwaysOnBrainPricePayload } from "./alwaysOnPricing.js";
+import { hostingSkusPayload } from "./hostingSkusPayload.js";
 import { stripeRequest } from "./payment/stripeClient.js";
 
 const POLICIES_FILE = "spend-policies.json";
@@ -81,6 +82,7 @@ export function registerBillingAdminRoutes(app: Express, deps: BillingAdminDeps)
           ? "subscribed"
           : "duty-cycled",
       ...alwaysOnBrainPricePayload(),
+      hosting: hostingSkusPayload(),
     });
   });
 
@@ -200,7 +202,7 @@ export function registerBillingAdminRoutes(app: Express, deps: BillingAdminDeps)
             quantity: 1,
             price_data: {
               currency: ALWAYS_ON_BRAIN_PRICE.currency,
-              unit_amount: ALWAYS_ON_BRAIN_PRICE.unitAmountCents,
+              unit_amount: ALWAYS_ON_BRAIN_PRICE.unitAmountPence,
               recurring: { interval: ALWAYS_ON_BRAIN_PRICE.interval },
               product_data: { name: ALWAYS_ON_BRAIN_PRICE.productName },
             },

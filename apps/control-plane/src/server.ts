@@ -1,7 +1,7 @@
 /**
- * M15 control plane — signup, Docker fleet provisioning, abuse reporting.
- * Production: ATOM_FLEET_MODE=docker + atom-agent:latest image.
- * Local dev: HOSTED_STUB_AGENT_URL + HOSTED_STUB_AGENT_TOKEN (via pnpm dev:hosting).
+ * Public control-plane STUB (D097) — local hosting UX only.
+ * Production Docker fleet: private Qwixl/Atom-MC.
+ * Local: HOSTED_STUB_AGENT_URL + HOSTED_STUB_AGENT_TOKEN (`pnpm dev:hosting`).
  */
 import express, { type Request, type Response } from "express";
 import { readFileSync } from "node:fs";
@@ -14,7 +14,6 @@ import {
   handleFromEmail,
   newAgentId,
 } from "./fleet/index.js";
-import { requireProductionFleetTemplate } from "./fleet/publicUrl.js";
 import { isHandleTaken, parseSignupHandle, publicHandle } from "./handles.js";
 import { loadAgentStore, resolveDataDir, saveAgentStore } from "./fleet/store.js";
 import type { FleetProvisioner, HostedAgentRecord } from "./fleet/types.js";
@@ -81,10 +80,7 @@ function requireProvisionAuth(req: Request, res: Response): boolean {
 async function init(): Promise<void> {
   agents = await loadAgentStore(dataDir);
   fleet = await createFleetProvisioner(agents);
-  if (fleet.mode === "docker") {
-    requireProductionFleetTemplate();
-    await ensureCommunityHost(dataDir);
-  }
+  void ensureCommunityHost(dataDir);
 }
 
 async function persistAgents(): Promise<void> {
@@ -420,12 +416,12 @@ init()
       console.log(`Atom control plane http://127.0.0.1:${port}`);
       console.log(`  fleet mode: ${fleet?.mode ?? "unknown"}`);
       console.log(`  data dir:   ${dataDir}`);
-      if (fleet?.mode === "docker") {
-        console.log(`  agent image: ${process.env.ATOM_AGENT_IMAGE?.trim() || "atom-agent:latest"}`);
-      } else if (stub) {
+      if (stub) {
         console.log(`  dev stub agent: ${stub.agentUrl}`);
       } else {
-        console.log("  hosted signup disabled — set ATOM_FLEET_MODE=docker or HOSTED_STUB_* for dev");
+        console.log(
+          "  hosted stub disabled — set HOSTED_STUB_* for local (pnpm dev:hosting); production fleet is Atom-MC",
+        );
       }
     });
   })
