@@ -44,7 +44,9 @@ Physical device: use your LAN IP instead of `10.0.2.2`, and ensure cleartext is 
 1. Create a Firebase project → add Android app with package `com.qwixl.atom`.
 2. Download `google-services.json` into `apps/native/android/app/` (gitignored — never commit).
 3. Run `pnpm native:sync` so `@capacitor/push-notifications` is linked into the Android project.
-4. On the agent / fleet host, set `ATOM_FCM_SERVER_KEY` (legacy server key) so `sendPush` can deliver.
+4. On the agent / fleet host, set a Firebase **service account** for FCM HTTP v1
+   (`ATOM_FCM_SERVICE_ACCOUNT_PATH`, `_JSON`, or `_B64`) so `sendPush` can deliver.
+   The legacy `ATOM_FCM_SERVER_KEY` is no longer supported by Google.
 5. In the shell: Settings → Standing intents / Push — opt in after vault unlock.
 
 Notification taps open `/app/` (or the `url` field in the FCM data payload).
