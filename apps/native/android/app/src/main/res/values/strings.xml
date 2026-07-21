@@ -4,4 +4,6 @@
     <string name="title_activity_main">Atom</string>
     <string name="package_name">com.qwixl.atom</string>
     <string name="custom_url_scheme">com.qwixl.atom</string>
+    <!-- Digital Asset Links statement for WebAuthn / passkeys in WebView -->
+    <string name="asset_statements" translatable="false">[{ \"include\": \"https://atom.qwixl.com/.well-known/assetlinks.json\" }]</string>
 </resources>

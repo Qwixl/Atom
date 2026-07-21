@@ -45,6 +45,19 @@ function rpConfig(origin: string): { rpID: string; rpName: string; origin: strin
   };
 }
 
+/**
+ * Origins accepted during WebAuthn verify.
+ * Include `android:apk-key-hash:…` via ATOM_WEBAUTHN_EXTRA_ORIGINS for Capacitor Android.
+ */
+function expectedOrigins(primary: string): string | string[] {
+  const extras = (process.env.ATOM_WEBAUTHN_EXTRA_ORIGINS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value) => value !== primary);
+  return extras.length > 0 ? [primary, ...extras] : primary;
+}
+
 export function registerCustodyAdminRoutes(app: Express, vault: ConnectorVault): void {
   app.get("/custody/status", (_req, res) => {
     res.json({
@@ -90,7 +103,7 @@ export function registerCustodyAdminRoutes(app: Express, vault: ConnectorVault):
       const verification = await verifyRegistrationResponse({
         response: body.response,
         expectedChallenge: body.challenge,
-        expectedOrigin,
+        expectedOrigin: expectedOrigins(expectedOrigin),
         expectedRPID: rpID,
         requireUserVerification: true,
       });
@@ -199,7 +212,7 @@ export function registerCustodyAdminRoutes(app: Express, vault: ConnectorVault):
       const verification = await verifyAuthenticationResponse({
         response: body.response,
         expectedChallenge: body.challenge,
-        expectedOrigin,
+        expectedOrigin: expectedOrigins(expectedOrigin),
         expectedRPID: rpID,
         requireUserVerification: true,
         credential: {
@@ -250,7 +263,7 @@ export function registerCustodyAdminRoutes(app: Express, vault: ConnectorVault):
       const verification = await verifyAuthenticationResponse({
         response: body.response,
         expectedChallenge: body.challenge,
-        expectedOrigin,
+        expectedOrigin: expectedOrigins(expectedOrigin),
         expectedRPID: rpID,
         requireUserVerification: true,
         credential: {
