@@ -12,6 +12,7 @@ export function CoordinationCard({
   onAcceptSlot,
   onDeclineProposal,
   onRsvp,
+  onDatingIntro,
   onConfirmTransaction,
   onDeclineTransaction,
   onAcceptOffer,
@@ -29,6 +30,7 @@ export function CoordinationCard({
   onAcceptSlot: (proposalId: string, slot: SchedulingSlot) => void;
   onDeclineProposal: (proposalId: string) => void;
   onRsvp: (rsvpId: string, response: RsvpAnswer) => void;
+  onDatingIntro?: (introId: string, response: "accept" | "pass") => void;
   onConfirmTransaction: (transactionId: string, label?: string) => void;
   onDeclineTransaction: (transactionId: string, label?: string) => void;
   onAcceptOffer: (
@@ -152,6 +154,48 @@ export function CoordinationCard({
       <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
         <div className="shell-comms-coord-head">
           <strong>{formatRsvpResponse(item.response)}</strong>
+        </div>
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
+  if (item.kind === "dating-intro") {
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
+        <div className="shell-comms-coord-head">
+          <strong>Intro</strong>
+          <span>{item.displayName}</span>
+        </div>
+        <p className="shell-comms-coord-meta">{item.oneLiner}</p>
+        {item.interests?.length ? (
+          <p className="shell-comms-coord-meta">{item.interests.join(" · ")}</p>
+        ) : null}
+        {showActions && onDatingIntro ? (
+          <div className="shell-comms-coord-rsvp">
+            <button
+              type="button"
+              className="chrome-approve"
+              disabled={busy}
+              onClick={() => onDatingIntro(item.id, "accept")}
+            >
+              Accept
+            </button>
+            <button type="button" disabled={busy} onClick={() => onDatingIntro(item.id, "pass")}>
+              Pass
+            </button>
+          </div>
+        ) : null}
+        <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
+  if (item.kind === "dating-intro-response") {
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass}`}>
+        <div className="shell-comms-coord-head">
+          <strong>{item.response === "accept" ? "Intro accepted" : "Intro passed"}</strong>
         </div>
         <time>{new Date(item.at).toLocaleTimeString()}</time>
       </div>
@@ -548,6 +592,7 @@ export function ThreadItemView({
   onAcceptSlot,
   onDeclineProposal,
   onRsvp,
+  onDatingIntro,
   onConfirmTransaction,
   onDeclineTransaction,
   onAcceptOffer,
@@ -565,6 +610,7 @@ export function ThreadItemView({
   onAcceptSlot: (proposalId: string, slot: SchedulingSlot) => void;
   onDeclineProposal: (proposalId: string) => void;
   onRsvp: (rsvpId: string, response: RsvpAnswer) => void;
+  onDatingIntro?: (introId: string, response: "accept" | "pass") => void;
   onConfirmTransaction: (transactionId: string, label?: string) => void;
   onDeclineTransaction: (transactionId: string, label?: string) => void;
   onAcceptOffer: (
@@ -609,6 +655,7 @@ export function ThreadItemView({
       onAcceptSlot={onAcceptSlot}
       onDeclineProposal={onDeclineProposal}
       onRsvp={onRsvp}
+      onDatingIntro={onDatingIntro}
       onConfirmTransaction={onConfirmTransaction}
       onDeclineTransaction={onDeclineTransaction}
       onAcceptOffer={onAcceptOffer}
@@ -648,6 +695,9 @@ export function useRespondedProposalIds(thread: CommsThreadItem[]): Set<string> 
       if (item.kind === "rsvp-response" && item.direction === "out") {
         ids.add(item.rsvpId);
       }
+      if (item.kind === "dating-intro-response" && item.direction === "out") {
+        ids.add(item.introId);
+      }
       if (item.kind === "poll-vote" && item.direction === "out") {
         ids.add(item.pollId);
       }
@@ -673,6 +723,7 @@ export function threadItemNeedsActions(
   if (item.direction !== "in") return false;
   if (item.kind === "scheduling-proposal") return !respondedIds.has(item.id);
   if (item.kind === "rsvp-request") return !respondedIds.has(item.id);
+  if (item.kind === "dating-intro") return !respondedIds.has(item.id);
   if (item.kind === "poll-request") return !respondedIds.has(item.id);
   if (item.kind === "shared-list") return true;
   if (item.kind === "split-proposal") return !respondedTxnIds.has(`txn-split-${item.splitId}`);
