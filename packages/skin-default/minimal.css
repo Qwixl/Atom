@@ -20,7 +20,7 @@
   --atom-radius-sm: 6px;
   --atom-space-sm: 8px;
   --atom-space-md: 12px;
-  --atom-space-lg: 16px;
+  --atom-space-lg: 20px;
   --atom-font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
   --bg: var(--atom-color-bg);

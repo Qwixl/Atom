@@ -17,6 +17,9 @@
   --atom-color-bad: #dc2626;
   --atom-radius-md: 10px;
   --atom-radius-sm: 8px;
+  --atom-space-sm: 8px;
+  --atom-space-md: 12px;
+  --atom-space-lg: 20px;
   --atom-font-sans: "Open Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
 
   --bg: var(--atom-color-bg);

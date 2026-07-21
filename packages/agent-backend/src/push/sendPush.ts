@@ -1,4 +1,5 @@
 import type { BrainPendingNotification } from "../standingIntents.js";
+import { loadFcmServiceAccount, sendFcmHttpV1, type FcmServiceAccount } from "./fcmHttpV1.js";
 import type { StoredPushSubscription } from "./types.js";
 
 export interface PushSenderConfig {
@@ -8,7 +9,12 @@ export interface PushSenderConfig {
   vapidPrivateKey: string | null;
   /** Contact mailto: or https: for VAPID subject. */
   vapidSubject: string;
-  /** Optional FCM server key (legacy HTTP) for Android Capacitor tokens. */
+  /**
+   * Firebase service account for FCM HTTP v1 (Android Capacitor tokens).
+   * Prefer this over the discontinued legacy server key.
+   */
+  fcmServiceAccount: FcmServiceAccount | null;
+  /** @deprecated Legacy FCM server key — retired by Google; kept only for migration detection. */
   fcmServerKey: string | null;
 }
 
@@ -17,8 +23,13 @@ export function loadPushSenderConfig(env: NodeJS.ProcessEnv = process.env): Push
     vapidPublicKey: env.ATOM_VAPID_PUBLIC_KEY?.trim() || null,
     vapidPrivateKey: env.ATOM_VAPID_PRIVATE_KEY?.trim() || null,
     vapidSubject: env.ATOM_VAPID_SUBJECT?.trim() || "mailto:ops@qwixl.com",
+    fcmServiceAccount: loadFcmServiceAccount(env),
     fcmServerKey: env.ATOM_FCM_SERVER_KEY?.trim() || null,
   };
+}
+
+export function isFcmConfigured(config: PushSenderConfig = loadPushSenderConfig()): boolean {
+  return Boolean(config.fcmServiceAccount);
 }
 
 export interface PushSendResult {
@@ -106,28 +117,15 @@ async function sendFcm(
   payload: { title: string; body: string; data: Record<string, string> },
   config: PushSenderConfig,
 ): Promise<void> {
-  if (!config.fcmServerKey) {
-    throw new Error("FCM not configured (ATOM_FCM_SERVER_KEY)");
+  if (!config.fcmServiceAccount) {
+    if (config.fcmServerKey) {
+      throw new Error(
+        "FCM legacy server key is no longer supported — set ATOM_FCM_SERVICE_ACCOUNT_JSON/PATH/B64 (HTTP v1)",
+      );
+    }
+    throw new Error(
+      "FCM not configured (ATOM_FCM_SERVICE_ACCOUNT_JSON / ATOM_FCM_SERVICE_ACCOUNT_PATH / ATOM_FCM_SERVICE_ACCOUNT_B64)",
+    );
   }
-  const resp = await fetch("https://fcm.googleapis.com/fcm/send", {
-    method: "POST",
-    headers: {
-      Authorization: `key=${config.fcmServerKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      to: sub.endpoint,
-      notification: {
-        title: payload.title,
-        body: payload.body,
-        click_action: "FCM_PLUGIN_ACTIVITY",
-      },
-      data: payload.data,
-      priority: "high",
-    }),
-  });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`FCM HTTP ${resp.status}: ${text.slice(0, 200)}`);
-  }
+  await sendFcmHttpV1(config.fcmServiceAccount, sub.endpoint, payload);
 }

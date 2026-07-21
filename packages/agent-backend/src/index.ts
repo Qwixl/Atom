@@ -120,7 +120,11 @@ export { StubVoiceBackend, loadVoiceBackend } from "./voice/stubVoiceBackend.js"
 export { OpenAiRealtimeVoiceBackend } from "./voice/openaiRealtimeVoiceBackend.js";
 export type { StoredPushSubscription, PushSubscriptionKind } from "./push/types.js";
 export { normalizePushSubscriptions } from "./push/types.js";
-export { loadPushSenderConfig, sendBrainPushNotifications } from "./push/sendPush.js";
+export {
+  isFcmConfigured,
+  loadPushSenderConfig,
+  sendBrainPushNotifications,
+} from "./push/sendPush.js";
 export {
   HOSTING_SKUS,
   ALWAYS_ON_BRAIN_PRICE,

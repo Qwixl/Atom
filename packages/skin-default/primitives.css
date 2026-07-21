@@ -556,14 +556,61 @@
     line-height: 1.6;
   }
 
-  .atom-table th,
-  .atom-table td {
-    padding: 6px 8px;
-    font-size: 13px;
+  .atom-stack {
+    gap: var(--atom-space-sm, 8px);
   }
 
   .atom-stack-horizontal {
     flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  /* Timeline rows: keep time column readable, allow title stack to wrap */
+  .atom-card-body > .atom-stack-vertical > .atom-stack-horizontal {
+    gap: var(--atom-space-sm, 8px);
+  }
+
+  .atom-card-body > .atom-stack-vertical > .atom-stack-horizontal > .atom-text:first-child,
+  .atom-card-body > .atom-stack-vertical > .atom-stack-horizontal > .atom-heading:first-child {
+    min-width: 3.25rem;
+    flex: 0 0 auto;
+  }
+
+  .atom-table-wrap {
+    margin: 0 calc(-1 * var(--atom-space-md, 12px));
+    padding: 0 var(--atom-space-md, 12px);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .atom-table {
+    min-width: 280px;
+  }
+
+  .atom-table th,
+  .atom-table td {
+    padding: 6px 8px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .atom-table th:last-child,
+  .atom-table td:last-child {
+    white-space: normal;
+    min-width: 8rem;
+  }
+
+  .atom-chart {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .atom-chart svg {
+    max-height: 180px;
+  }
+
+  .atom-chart-legend {
+    gap: 10px;
+    font-size: 11px;
   }
 
   .atom-module-frame {
