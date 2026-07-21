@@ -6,6 +6,7 @@ import type { Server } from "node:http";
 import { bytesToBase64, generateAgentKeyPair } from "@qwixl/protocol";
 import { startAgentServer } from "./server.js";
 import type { AgentBackendConfig } from "./config.js";
+import { testReachabilityDefaults } from "./config.js";
 import { COFFEE_SHOP_ROOM_ID } from "./communityCoffeeShop.js";
 import { adminGetJson, adminPostJson, installTestAdminToken } from "./testHelpers.js";
 
@@ -45,6 +46,7 @@ function testConfig(port: number, publicBaseUrl: string, communityHostMode = fal
     brainIntervalMs: 60000,
   agentKind: "owner",
   killSwitch: false,
+  ...testReachabilityDefaults({ publicBaseUrl, communityHostMode }),
   };
 }
 

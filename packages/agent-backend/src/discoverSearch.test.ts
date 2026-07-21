@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { generateAgentKeyPair } from "@qwixl/protocol";
 import type { AgentBackendConfig } from "./config.js";
+import { testReachabilityDefaults } from "./config.js";
 import { HandleCacheStore } from "./handleCache.js";
 import { RoomStore } from "./roomStore.js";
 import { runDiscoverSearch } from "./discoverSearch.js";
@@ -72,6 +73,7 @@ const baseConfig: AgentBackendConfig = {
   brainIntervalMs: 60000,
   agentKind: "owner",
   killSwitch: false,
+  ...testReachabilityDefaults({ publicBaseUrl: "http://127.0.0.1:5204" }),
 };
 
 describe("runDiscoverSearch", () => {
