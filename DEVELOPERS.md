@@ -25,15 +25,9 @@ MCP Apps and vendor app SDKs put your widget inside an AI vendor's chat product 
 
 ## Production hosting security (M21)
 
-Control plane env for production (`control.atom.qwixl.com`):
+Qwixl production control plane and fleet live in private **`Qwixl/Atom-MC`** (Mission Control). This repo’s `apps/control-plane` is a **local stub** only (`HOSTED_STUB_*`).
 
-| Variable | Required | Notes |
-|---|---|---|
-| `ATOM_FLEET_MODE=docker` | yes | Fleet provisioning |
-| `ATOM_FLEET_PUBLIC_URL_TEMPLATE` | yes (prod) | HTTPS only, e.g. `https://{port}.agents.atom.qwixl.com` |
-| `ATOM_SHELL_ORIGINS` | yes | Include `https://atom.qwixl.com` |
-| `ATOM_PROVISION_SECRET` | optional | Locks `/provision` to bearer auth; unset = 404 in production |
-| `NODE_ENV=production` | yes | Fleet URL invariants + signup hardening |
+Production env is documented in Atom-MC `.env.example`. Long-term public URLs use `{handle}.agents.atom.qwixl.com` (D098).
 
 Before registry deploy: `pnpm registry:verify --require-integrity --signatures`. Publisher/Sigstore keys are CI secrets only — see [SECURITY.md](./SECURITY.md) § Registry publisher hygiene.
 
@@ -83,6 +77,6 @@ Ten modules in `apps/shell/public/registry/` — run `pnpm registry:verify` afte
 
 ## Managed hosting (M15)
 
-Local stack: `pnpm dev:hosting` (control plane :5300 + stub agent :5301). Production: `ATOM_FLEET_MODE=docker` on control plane — see `apps/docs-site/guides/managed-hosting.md`. Marketing site at `/` handles signup; `/app` is the shell.
+Local stack: `pnpm dev:hosting` (stub control plane :5300 + stub agent :5301). Production fleet: **Atom-MC** (private). See `apps/docs-site/guides/managed-hosting.md`. Marketing site at `/` handles signup; `/app` is the shell.
 
 Business index: `/business-index/index.json` on the shell host; query helpers in `@qwixl/business-index`.

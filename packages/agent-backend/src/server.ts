@@ -87,6 +87,14 @@ import {
   peerDidFromContext,
   roomIdFromContext,
 } from "./mlsSessions.js";
+import { AsleepQueueStore } from "./asleepQueue.js";
+import {
+  createInboundReachabilityMiddleware,
+  effectiveReachabilityMode,
+  isBrainReachable,
+  runAsleepInboxWakeNotification,
+  type ReachabilityConfig,
+} from "./reachability.js";
 
 export interface StartAgentServerOptions {
   config?: AgentBackendConfig;
@@ -109,6 +117,11 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     };
   }
   const identity = await loadOrCreateIdentity();
+  const reachabilityConfig: ReachabilityConfig = {
+    ...config.reachabilityConfig,
+    wakeSeed: identity.did || config.reachabilityConfig.wakeSeed,
+  };
+  const asleepQueue = new AsleepQueueStore();
   const adminAuth = await loadOrCreateAdminToken();
   const connectorVault = new ConnectorVault();
   await connectorVault.load();
@@ -448,6 +461,22 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   const a2aApp = createAtomA2aExpressApp({ agentCard, executor });
   const app = express();
 
+  app.use(
+    "/a2a/jsonrpc",
+    createInboundReachabilityMiddleware({
+      config: reachabilityConfig,
+      enqueue: (input) => {
+        try {
+          asleepQueue.enqueue(input);
+        } catch (error) {
+          console.warn(
+            `[asleep-inbox] enqueue failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      },
+    }),
+  );
+
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (typeof origin === "string" && config.allowedOrigins.has(origin)) {
@@ -620,7 +649,13 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
 
   const brainScheduler = new BrainScheduler({
     vault: connectorVault,
-    alwaysOn: config.brainAlwaysOn,
+    alwaysOn: () => isBrainReachable(reachabilityConfig),
+    onReachabilityWake: () => {
+      runAsleepInboxWakeNotification(
+        () => asleepQueue.list(),
+        () => asleepQueue.purgeExpired(),
+      );
+    },
     killSwitch: config.killSwitch,
     intervalMs: config.brainIntervalMs,
     resolveNotification: async (intent, firedAt) => {
@@ -939,8 +974,9 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
           );
         });
       brainScheduler.start();
+      const reachabilityMode = effectiveReachabilityMode(reachabilityConfig);
       console.log(
-        `  brain:         heartbeat ${config.brainAlwaysOn ? "always-on" : "duty-cycled"} every ${config.brainIntervalMs}ms (GET /brain/status)`,
+        `  brain:         ${reachabilityMode} reachability; heartbeat ${isBrainReachable(reachabilityConfig) ? "active" : "duty-cycled"} every ${config.brainIntervalMs}ms (GET /brain/status)`,
       );
       console.log(
         `  voice:         ${voiceBackend.id} (GET /voice/status)`,

@@ -1,9 +1,20 @@
-import { randomBytes } from "node:crypto";
+/**
+ * Public Atom control-plane stub (D097).
+ * Production Docker fleet lives in private Qwixl/Atom-MC.
+ * Local: HOSTED_STUB_AGENT_URL + HOSTED_STUB_AGENT_TOKEN via `pnpm dev:hosting`.
+ */
 import type { FleetProvisioner, HostedAgentRecord, ProvisionOutcome } from "./types.js";
-import { DockerFleetProvisioner, isDockerAvailable } from "./dockerProvisioner.js";
-import { ensureCommunityHost, resolveCommunityHostPublicUrl } from "./communityHost.js";
 
-function devStubCredentials(): { agentUrl: string; adminToken: string } | null {
+export function handleFromEmail(email: string): string {
+  const local = email.split("@")[0] || "agent";
+  return local.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32) || "agent";
+}
+
+export function newAgentId(): string {
+  return `agent_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function devStubCredentials(): { agentUrl: string; adminToken: string } | null {
   const agentUrl = process.env.HOSTED_STUB_AGENT_URL?.trim();
   const adminToken = process.env.HOSTED_STUB_AGENT_TOKEN?.trim();
   if (agentUrl && adminToken) return { agentUrl, adminToken };
@@ -45,28 +56,17 @@ class DevStubProvisioner implements FleetProvisioner {
       agent,
       status: "provisioned-dev",
       message:
-        "Local dev stack: agent runs on the configured HOSTED_STUB_AGENT_URL. Production uses isolated Docker containers per owner.",
+        "Local stub: agent at HOSTED_STUB_AGENT_URL. Production fleet is Atom-MC (private), not this package.",
     };
   }
 
-  async suspend(_agent: HostedAgentRecord, _reason: string): Promise<void> {
-    /* dev stub — no container lifecycle */
-  }
-
-  async resume(_agent: HostedAgentRecord): Promise<void> {
-    /* dev stub */
-  }
-
-  async destroy(_agent: HostedAgentRecord): Promise<void> {
-    /* dev stub */
-  }
-
+  async suspend(_agent: HostedAgentRecord, _reason: string): Promise<void> {}
+  async resume(_agent: HostedAgentRecord): Promise<void> {}
+  async destroy(_agent: HostedAgentRecord): Promise<void> {}
   async updateLlmConnection(
     _agent: HostedAgentRecord,
     _connection: { llmApiKey: string; llmBaseUrl?: string; llmModel?: string },
-  ): Promise<void> {
-    /* dev stub — LLM connection lives on the shared stub agent process */
-  }
+  ): Promise<void> {}
 }
 
 class UnconfiguredProvisioner implements FleetProvisioner {
@@ -83,51 +83,36 @@ class UnconfiguredProvisioner implements FleetProvisioner {
     brainAlwaysOn?: boolean;
   }): Promise<ProvisionOutcome> {
     throw new Error(
-      "Hosted signup is unavailable: fleet not configured. Set ATOM_FLEET_MODE=docker and build atom-agent:latest, or self-host with npx @qwixl/agent-backend.",
+      "Hosted signup stub only: set HOSTED_STUB_AGENT_URL + HOSTED_STUB_AGENT_TOKEN (pnpm dev:hosting), or use Qwixl Atom-MC for production fleet.",
     );
   }
 
   async suspend(): Promise<void> {
     throw new Error("Fleet not configured");
   }
-
   async resume(): Promise<void> {
     throw new Error("Fleet not configured");
   }
-
   async destroy(): Promise<void> {
     throw new Error("Fleet not configured");
   }
-
   async updateLlmConnection(): Promise<void> {
     throw new Error("Fleet not configured");
   }
 }
 
+/** Stub never runs Docker — production provisioner is Atom-MC. */
 export async function createFleetProvisioner(
-  agents: Map<string, HostedAgentRecord>,
+  _agents: Map<string, HostedAgentRecord>,
 ): Promise<FleetProvisioner> {
-  const mode = process.env.ATOM_FLEET_MODE?.trim().toLowerCase();
-  if (mode === "docker") {
-    if (!(await isDockerAvailable())) {
-      throw new Error("ATOM_FLEET_MODE=docker but Docker is not available on this host");
-    }
-    return new DockerFleetProvisioner(agents);
-  }
-  if (devStubCredentials()) {
-    return new DevStubProvisioner();
-  }
+  if (devStubCredentials()) return new DevStubProvisioner();
   return new UnconfiguredProvisioner();
 }
 
-export { ensureCommunityHost, resolveCommunityHostPublicUrl };
-
-export function newAgentId(): string {
-  return randomBytes(8).toString("hex");
+export async function ensureCommunityHost(_dataDir: string): Promise<void> {
+  /* production community host: Atom-MC */
 }
 
-export function handleFromEmail(email: string): string {
-  return email.split("@")[0]!.replace(/[^a-z0-9-]/gi, "-").slice(0, 24).toLowerCase();
+export function resolveCommunityHostPublicUrl(): string | undefined {
+  return process.env.ATOM_COMMUNITY_HOST_URL?.trim() || undefined;
 }
-
-export { devStubCredentials };

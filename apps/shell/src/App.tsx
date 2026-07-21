@@ -276,6 +276,15 @@ import { loadBrowserAgentConfig } from "./browserAgentConfig.js";
 import { isVaultInitialized, isVaultUnlocked, lockVault } from "./custody/dataVault.js";
 import { VaultUnlockGate } from "./custody/VaultUnlockGate.js";
 import { RegistryCatalogList } from "./RegistryCatalogList.js";
+import {
+  assertInstallEntitlementReady,
+  clearPendingInstallHandoff,
+  consumeInstallHandoffFromLocation,
+  INSTALL_HANDOFF_EVENT,
+  loadPendingInstallHandoff,
+  type InstallHandoff,
+  type InstallHandoffEventDetail,
+} from "./install/installHandoff.js";
 import { loadContacts } from "./comms/storage.js";
 import type { AgentContact } from "./comms/types.js";
 import {
@@ -324,8 +333,8 @@ const SKIN_STORAGE_KEY = "atom-shell-skin";
 const PROVIDER_KEY = "atom-provider";
 const DEFAULT_REGISTRY_URL = "/registry/index.json";
 const APP_STORE_URL_KEY = "atom-app-store-url";
-/** Atom App Store front-end (D073). Owner-editable; any compatible store works. */
-const DEFAULT_APP_STORE_URL = "https://apps.qwixl.com";
+/** Atom App Store front-end (D073/D099). Owner-editable; any compatible store works. */
+const DEFAULT_APP_STORE_URL = "https://atom.apps.qwixl.com";
 const AGENT_SHOPPER_KEY = "atom-agent-shopper-enabled";
 const REVOCATION_REFRESH_MS = 5 * 60 * 1000;
 
@@ -1010,6 +1019,8 @@ export function App() {
   const [registryUrl, setRegistryUrl] = useState(() => loadRegistryUrl());
   const [registryTrust, setRegistryTrust] = useState(() => loadRegistryTrust());
   const [registryError, setRegistryError] = useState<string | null>(null);
+  const [installBanner, setInstallBanner] = useState<string | null>(null);
+  const installInFlightRef = useRef(false);
 
   useEffect(() => {
     catalog.setInactiveModuleIds(registryTrust.blockedIds ?? []);
@@ -2619,6 +2630,85 @@ export function App() {
     setSettingsOpen(true);
   }
 
+  const [installKick, setInstallKick] = useState(0);
+
+  useEffect(() => {
+    const parsed = consumeInstallHandoffFromLocation();
+    if (!parsed) return;
+    if (parsed.kind === "error") {
+      setInstallBanner(parsed.message);
+      setRegistryError(parsed.message);
+      openSettings("modules");
+      return;
+    }
+    setInstallBanner(`Installing ${parsed.handoff.moduleId}@${parsed.handoff.version}…`);
+    openSettings("modules");
+  }, []);
+
+  useEffect(() => {
+    const onHandoff = (event: Event) => {
+      const detail = (event as CustomEvent<InstallHandoffEventDetail>).detail;
+      if (!detail?.result) return;
+      if (detail.result.kind === "error") {
+        setInstallBanner(detail.result.message);
+        setRegistryError(detail.result.message);
+        openSettings("modules");
+        return;
+      }
+      setInstallBanner(
+        `Installing ${detail.result.handoff.moduleId}@${detail.result.handoff.version}…`,
+      );
+      openSettings("modules");
+      setInstallKick((n) => n + 1);
+    };
+    window.addEventListener(INSTALL_HANDOFF_EVENT, onHandoff);
+    return () => window.removeEventListener(INSTALL_HANDOFF_EVENT, onHandoff);
+  }, []);
+
+  useEffect(() => {
+    if (!modulesActive) return;
+    const pending = loadPendingInstallHandoff();
+    if (!pending || installInFlightRef.current) return;
+
+    installInFlightRef.current = true;
+    let cancelled = false;
+
+    const run = async (handoff: InstallHandoff) => {
+      setInstallBanner(`Installing ${handoff.moduleId}@${handoff.version}…`);
+      openSettings("modules");
+      try {
+        assertInstallEntitlementReady(handoff);
+        const outcome = await registry.installRequested(
+          catalog,
+          handoff.moduleId,
+          handoff.version,
+        );
+        if (cancelled) return;
+        clearPendingInstallHandoff();
+        const label = `${handoff.moduleId}@${handoff.version}`;
+        const message =
+          outcome === "already-present"
+            ? `${label} is already installed.`
+            : `Installed ${label}.`;
+        setInstallBanner(message);
+        setRegistryError(null);
+      } catch (error) {
+        if (cancelled) return;
+        clearPendingInstallHandoff();
+        const message = error instanceof Error ? error.message : String(error);
+        setInstallBanner(message);
+        setRegistryError(message);
+      } finally {
+        installInFlightRef.current = false;
+      }
+    };
+
+    void run(pending);
+    return () => {
+      cancelled = true;
+    };
+  }, [modulesActive, registry, catalog, registryUrl, installKick]);
+
   function closeAccount() {
     setAccountOpen(false);
   }
@@ -3041,6 +3131,7 @@ export function App() {
       {settingsOpen ? (
         <SettingsDialog
           initialSection={settingsSection}
+          installBanner={installBanner}
           llmConnectionInitial={llmConnection}
           savedLlmKeyHint={savedLlmKeyHint}
           stripePaymentInitial={stripePayment}
@@ -3475,6 +3566,7 @@ function AccountDialog({
 
 function SettingsDialog({
   initialSection = "default",
+  installBanner = null,
   llmConnectionInitial,
   savedLlmKeyHint,
   stripePaymentInitial,
@@ -3511,6 +3603,7 @@ function SettingsDialog({
   logBadgeCount = 0,
 }: {
   initialSection?: SettingsOpenTarget;
+  installBanner?: string | null;
   llmConnectionInitial: LlmConnectionConfig | null;
   savedLlmKeyHint: string | null;
   stripePaymentInitial: PaymentConnectionConfig | null;
@@ -3667,13 +3760,20 @@ function SettingsDialog({
     | "payments"
     | "donations"
   >(() => {
-    if (initialSection === "profile" || initialSection === "log") {
+    if (
+      initialSection === "profile" ||
+      initialSection === "log" ||
+      initialSection === "modules"
+    ) {
       return initialSection;
     }
     return "agent";
   });
   const [mobileDetailOpen, setMobileDetailOpen] = useState(
-    () => initialSection === "profile" || initialSection === "log",
+    () =>
+      initialSection === "profile" ||
+      initialSection === "log" ||
+      initialSection === "modules",
   );
 
   const navItems = useMemo(() => {
@@ -4288,6 +4388,7 @@ function SettingsDialog({
             Open App Store ↗
           </button>
         </div>
+        {installBanner ? <p className="settings-note">{installBanner}</p> : null}
         {moduleCatalogNote ? <p className="settings-note">{moduleCatalogNote}</p> : null}
         <RegistryCatalogList
           indexUrl={indexUrl}

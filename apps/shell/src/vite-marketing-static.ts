@@ -48,6 +48,12 @@ export function marketingStaticPlugin(): Plugin {
           return next();
         }
 
+        // Install hand-off (D100): same SPA as /app, keep query on the request.
+        if (urlPath === "/install" || urlPath.startsWith("/install/")) {
+          req.url = `/app.html${qs}`;
+          return next();
+        }
+
         if (urlPath === "/app" || urlPath.startsWith("/app/")) {
           req.url = `/app.html${qs}`;
           return next();

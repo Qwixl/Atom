@@ -267,6 +267,46 @@ export class ModuleRegistry {
     }
   }
 
+  /**
+   * Owner-mediated install from App Store hand-off (D100).
+   * Unlike ensureModule, missing index entries throw a clear error.
+   */
+  async installRequested(
+    catalog: Catalog,
+    moduleId: string,
+    version: string,
+  ): Promise<"installed" | "already-present"> {
+    const id = moduleId.trim();
+    const requested = version.trim();
+    if (!id || !requested) {
+      throw new Error("Install requires moduleId and version.");
+    }
+
+    const index = await this.loadIndex();
+    const entry = index.modules.find(
+      (candidate) => candidate.id === id && versionMatches(requested, candidate.version),
+    );
+    if (!entry) {
+      throw new Error(
+        `Module ${id}@${requested} is not listed in the configured registry. Check Catalog URL under Settings → Modules, or try again later.`,
+      );
+    }
+
+    const reference = `${id}@${entry.version}`;
+    if (catalog.lookup(reference) || this.installed.has(id)) {
+      return "already-present";
+    }
+
+    await this.ensureModule(catalog, reference);
+
+    if (!this.installed.has(id) && !catalog.lookup(reference)) {
+      throw new Error(
+        this.lastError ?? `Install did not complete for ${reference}.`,
+      );
+    }
+    return "installed";
+  }
+
   /** Install all `tier: system` entries from the registry index (core platform modules). */
   async ensureSystemModules(catalog: Catalog): Promise<void> {
     const index = await this.loadIndex();

@@ -9,6 +9,7 @@ import { bytesToBase64, generateAgentKeyPair } from "@qwixl/protocol";
 import { createMockPaymentRail } from "./payment/mockRail.js";
 import { startAgentServer } from "./server.js";
 import type { AgentBackendConfig } from "./config.js";
+import { testReachabilityDefaults } from "./config.js";
 import { adminGetJson, adminPostJson, installTestAdminToken } from "./testHelpers.js";
 import type { TransactionCommitRecord } from "./transactionCommitStore.js";
 
@@ -65,6 +66,7 @@ function testConfig(port: number, publicBaseUrl: string): AgentBackendConfig {
     brainIntervalMs: 60000,
     agentKind: "owner",
     killSwitch: false,
+    ...testReachabilityDefaults({ publicBaseUrl }),
   };
 }
 

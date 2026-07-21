@@ -1,4 +1,11 @@
 import { PRODUCTION_SHELL_ORIGIN } from "@qwixl/shell-core";
+import {
+  resolveReachabilityConfig,
+  type ReachabilityConfig,
+  type ReachabilityMode,
+  type ReachabilityEnvInput,
+  type ResolveReachabilityOptions,
+} from "./reachability.js";
 
 export type AgentKindConfig = "owner" | "swarm-npc" | "swarm-police";
 
@@ -32,6 +39,10 @@ export interface AgentBackendConfig {
   agentKind: AgentKindConfig;
   /** When true, swarm ticks must not run. */
   killSwitch: boolean;
+  /** D096 inbound reachability mode (ATOM_REACHABILITY). */
+  reachability: ReachabilityMode;
+  /** Resolved reachability policy (community host override, wake seed). */
+  reachabilityConfig: ReachabilityConfig;
 }
 
 function parseAgentKind(raw: string | undefined): AgentKindConfig {
@@ -64,6 +75,18 @@ export function loadAgentBackendConfig(env: NodeJS.ProcessEnv = process.env): Ag
   const publicBaseUrlExplicit = Boolean(env.PUBLIC_BASE_URL?.trim());
   const publicBaseUrl = env.PUBLIC_BASE_URL?.trim() || `http://${host}:${port}`;
   const agentName = env.AGENT_NAME?.trim() || "Atom agent";
+  const communityHostMode =
+    env.ATOM_COMMUNITY_HOST === "1" ||
+    env.ATOM_COMMUNITY_HOST === "true" ||
+    env.ATOM_COFFEE_SHOP === "1" ||
+    env.ATOM_COFFEE_SHOP === "true";
+  const agentKind = parseAgentKind(env.ATOM_AGENT_KIND);
+  const reachabilityConfig = resolveReachabilityConfig({
+    env,
+    agentKind,
+    communityHostMode,
+    publicBaseUrl: env.PUBLIC_BASE_URL?.trim() || `http://${host}:${port}`,
+  });
   const extra =
     env.ATOM_SHELL_ORIGINS?.split(",")
       .map((origin) => origin.trim())
@@ -83,11 +106,7 @@ export function loadAgentBackendConfig(env: NodeJS.ProcessEnv = process.env): Ag
       env.ATOM_WORKSPACE_KIND?.trim().toLowerCase() === "business",
     businessDomain: env.ATOM_BUSINESS_DOMAIN?.trim() || null,
     demoPeerMode: env.ATOM_DEMO_PEER === "1" || env.ATOM_DEMO_PEER === "true",
-    communityHostMode:
-      env.ATOM_COMMUNITY_HOST === "1" ||
-      env.ATOM_COMMUNITY_HOST === "true" ||
-      env.ATOM_COFFEE_SHOP === "1" ||
-      env.ATOM_COFFEE_SHOP === "true",
+    communityHostMode,
     businessKnowledgeBackend: parseBusinessKnowledgeBackend(env.ATOM_BUSINESS_KNOWLEDGE_BACKEND),
     businessKnowledgeRemoteUrl: env.ATOM_BUSINESS_KNOWLEDGE_REMOTE_URL?.trim() || null,
     interactivePortResolve:
@@ -100,7 +119,20 @@ export function loadAgentBackendConfig(env: NodeJS.ProcessEnv = process.env): Ag
       5_000,
       Number(env.ATOM_BRAIN_INTERVAL_MS?.trim() || 60_000) || 60_000,
     ),
-    agentKind: parseAgentKind(env.ATOM_AGENT_KIND),
+    agentKind,
     killSwitch: env.ATOM_KILL_SWITCH === "1" || env.ATOM_KILL_SWITCH === "true",
+    reachability: reachabilityConfig.mode,
+    reachabilityConfig,
+  };
+}
+
+/** Default reachability fields for test fixtures (D096). */
+export function testReachabilityDefaults(
+  options: Omit<ResolveReachabilityOptions, "env"> & { env?: ReachabilityEnvInput } = {},
+): Pick<AgentBackendConfig, "reachability" | "reachabilityConfig"> {
+  const reachabilityConfig = resolveReachabilityConfig(options);
+  return {
+    reachability: reachabilityConfig.mode,
+    reachabilityConfig,
   };
 }

@@ -64,7 +64,7 @@ Developer docs (tutorial, playground, modules): run `pnpm dev:docs` or read [DEV
 | `@qwixl/agent-llm` | yes | LLM-backed `AgentSession` for the reference shell. |
 | `@qwixl/secret-store` | monorepo only | Pluggable secret storage for connection credentials. |
 
-Reference apps (not published): `apps/shell`, `apps/embed-demo`, `apps/docs-site`, `apps/control-plane`, `apps/ag-ui-server`, `apps/registry-host`.
+Reference apps (not published): `apps/shell`, `apps/embed-demo`, `apps/docs-site`, `apps/control-plane` (local **stub** only — production fleet is private `Qwixl/Atom-MC`), `apps/ag-ui-server`, `apps/registry-host`.
 
 ## Install (consumers)
 
@@ -115,7 +115,8 @@ pnpm dev:demo         # personal demo: shell + your agent (see PERSONAL-DEMO.md)
 pnpm dev:embed        # embed demo on http://localhost:5203 (?playground=1 for JSON editor)
 pnpm dev:docs         # docs site on http://localhost:5206
 pnpm dev:hosting      # control plane :5300 + stub hosted agent :5301
-pnpm dev:control-plane # control plane only :5300
+pnpm dev:control-plane # local hosting stub only :5300 (not production fleet)
+pnpm dev:hosting       # stub CP + stub agent :5301
 pnpm dev:agent-only   # agent backend only (terminal / advanced)
 pnpm dev:a2a          # alias for dev:agent-only
 pnpm start:agent      # run built atom-agent CLI (after build:packages)

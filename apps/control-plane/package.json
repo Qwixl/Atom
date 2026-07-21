@@ -2,7 +2,7 @@
   "name": "@qwixl/control-plane",
   "version": "0.1.0",
   "private": true,
-  "description": "Managed hosting control plane (M15) — Docker fleet provisioning, suspend/resume, abuse reporting.",
+  "description": "Local hosting control-plane STUB (D097). Production fleet is private Qwixl/Atom-MC.",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
