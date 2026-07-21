@@ -121,3 +121,35 @@ export { OpenAiRealtimeVoiceBackend } from "./voice/openaiRealtimeVoiceBackend.j
 export type { StoredPushSubscription, PushSubscriptionKind } from "./push/types.js";
 export { normalizePushSubscriptions } from "./push/types.js";
 export { loadPushSenderConfig, sendBrainPushNotifications } from "./push/sendPush.js";
+export {
+  HOSTING_SKUS,
+  ALWAYS_ON_BRAIN_PRICE,
+  alwaysOnBrainPricePayload,
+} from "./alwaysOnPricing.js";
+export { hostingSkusPayload } from "./hostingSkusPayload.js";
+export {
+  type ReachabilityMode,
+  type ReachabilityConfig,
+  resolveReachabilityConfig,
+  effectiveReachabilityMode,
+  isInHourlyWakeWindow,
+  hourlyWakeMinute,
+  hashWakeSeed,
+  isBrainReachable,
+  evaluateInboundReachability,
+  createInboundReachabilityMiddleware,
+  runAsleepInboxWakeNotification,
+} from "./reachability.js";
+export {
+  AsleepQueueStore,
+  type AsleepQueueMessage,
+  ASLEEP_QUEUE_DEFAULT_TTL_MS,
+  ASLEEP_QUEUE_MAX_MESSAGES,
+  ASLEEP_QUEUE_MAX_TOTAL_BYTES,
+  ASLEEP_QUEUE_MAX_PENDING_PER_PEER,
+} from "./asleepQueue.js";
+export {
+  normalizeAgentHandle,
+  resolvePublicBaseUrl,
+  isTransitionalPortHostname,
+} from "./publicIdentity.js";
