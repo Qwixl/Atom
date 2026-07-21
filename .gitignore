@@ -10,6 +10,7 @@
 /notes/
 /scratch/
 /supabase/
+/secrets/
 *.local.*
 *.private.*
 *.sightings.json
