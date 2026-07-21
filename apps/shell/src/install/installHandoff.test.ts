@@ -101,14 +101,35 @@ describe("installHandoff", () => {
     expect(parseInstallHandoff("https://atom.qwixl.com/app/?auth=login")).toBeNull();
   });
 
-  it("refuses paid cert until Milestone C", () => {
-    expect(() =>
+  it("allows free install without cert", async () => {
+    await expect(
+      assertInstallEntitlementReady({
+        moduleId: "demo/hello-store",
+        version: "1.0.0",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("rejects garbage paid cert", async () => {
+    await expect(
       assertInstallEntitlementReady({
         moduleId: "paid/mod",
         version: "1.0.0",
         cert: "abc",
       }),
-    ).toThrow(/entitlement certificate/i);
+    ).rejects.toThrow(/certificate/i);
+  });
+
+  it("accepts valid store-signed paid cert", async () => {
+    const compact =
+      "eyJvd25lckRpZCI6ImRpZDprZXk6ejZNa3Rlc3Rvd25lciIsIm1vZHVsZUlkIjoicGFpZC9tb2QiLCJ2ZXJzaW9uUmFuZ2UiOiIxLjAuMCIsImlzc3VlZEF0IjoiMjAyNi0wNy0yMVQxMjowMDowMFoiLCJyZW5ld0J5IjoiMjAyNi0wOS0xOVQxMjowMDowMFoiLCJhbGciOiJFZDI1NTE5Iiwic2lnIjoiZWt1SzQ5OFQ1RFlkZENkZDlidW5CeWVyQTJFRWp0TXkyZFhGUFVNV3djLWU5b09xSUtjOWdGVlJaSmRwREU5QUFOTE51SUIzM3RKOExMYy13Ykp4RFEifQ";
+    await expect(
+      assertInstallEntitlementReady({
+        moduleId: "paid/mod",
+        version: "1.0.0",
+        cert: compact,
+      }),
+    ).resolves.toBeUndefined();
   });
 
   it("round-trips pending handoff in sessionStorage", () => {
