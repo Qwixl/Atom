@@ -1,9 +1,12 @@
 import type { Express, Response } from "express";
 import {
+  createDatingIntro,
+  createDatingIntroResponse,
   createPollRequest,
   createPollVote,
   createRsvpRequest,
   createRsvpResponse,
+  type DatingIntroAnswer,
   createSchedulingProposal,
   createSchedulingResponse,
   createSharedList,
@@ -181,6 +184,56 @@ export function registerCoordinationAdminRoutes(adminApp: Express, deps: Coordin
         identity: deps.identity,
         payload: {
           rsvpId: body.rsvpId.trim(),
+          response: body.response,
+          threadId: body.threadId?.trim() || undefined,
+        },
+      });
+      await sendCoordinationObject(deps, res, body, object);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/dating/intro", async (req, res) => {
+    const body = req.body as PeerSendBody & {
+      displayName?: string;
+      oneLiner?: string;
+      interests?: string[];
+    };
+    if (!body.displayName?.trim() || !body.oneLiner?.trim()) {
+      res.status(400).json({ error: "displayName and oneLiner required" });
+      return;
+    }
+    try {
+      const object = await createDatingIntro({
+        identity: deps.identity,
+        payload: {
+          displayName: body.displayName.trim(),
+          oneLiner: body.oneLiner.trim(),
+          interests: Array.isArray(body.interests) ? body.interests : undefined,
+          threadId: body.threadId?.trim() || undefined,
+        },
+      });
+      await sendCoordinationObject(deps, res, body, object);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/dating/intro-response", async (req, res) => {
+    const body = req.body as PeerSendBody & {
+      introId?: string;
+      response?: DatingIntroAnswer;
+    };
+    if (!body.introId?.trim() || !body.response) {
+      res.status(400).json({ error: "introId and response required" });
+      return;
+    }
+    try {
+      const object = await createDatingIntroResponse({
+        identity: deps.identity,
+        payload: {
+          introId: body.introId.trim(),
           response: body.response,
           threadId: body.threadId?.trim() || undefined,
         },

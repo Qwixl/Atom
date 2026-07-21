@@ -90,6 +90,16 @@ export const SHARED_LIST_UPDATE_SCHEMA = "https://atom.qwixl.dev/schema/SharedLi
 export const COORDINATION_LOCATION_PIN_PURPOSE = "coordination:location-pin";
 export const LOCATION_PIN_SCHEMA = "https://atom.qwixl.dev/schema/LocationPin";
 
+/** M-ECO-12 — dating intro card (sender → peer). */
+export const DATING_INTRO_PURPOSE = "dating:intro";
+export const DATING_INTRO_SCHEMA = "https://atom.qwixl.dev/schema/DatingIntro";
+
+/** M-ECO-12 — dating intro response (peer → sender). */
+export const DATING_INTRO_RESPONSE_PURPOSE = "dating:intro-response";
+export const DATING_INTRO_RESPONSE_SCHEMA = "https://atom.qwixl.dev/schema/DatingIntroResponse";
+
+export const DATING_PURPOSES = [DATING_INTRO_PURPOSE, DATING_INTRO_RESPONSE_PURPOSE] as const;
+
 export const GAME_PURPOSES = [
   GAME_TTT_STATE_PURPOSE,
   GAME_TTT_MOVE_PURPOSE,
