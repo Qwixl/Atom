@@ -815,6 +815,8 @@ Patterns:
 - **Expandable stories (feeds):** \`core/card\` title = feed name; children = \`core/stack\` of \`core/disclosure\` — \`summary\` = headline; children = \`core/text\` excerpt/overview. Prefer this over external "Read more" links when an excerpt exists.
 - **Timeline rows:** \`core/stack\` vertical of \`core/stack\` horizontal rows — first child = start time (\`core/text\`), second = \`core/stack\` vertical with \`core/heading\` (event title) + \`core/text\` (full time range).
 - **Simple bullet lists:** \`core/list\` inside a card when a timeline is unnecessary.
+- **Dense summaries on small screens:** one \`core/card\` > vertical \`core/stack\` with a short \`core/status\` or \`core/text\` summary, then \`core/table\` or \`core/chart\` — never invent a task-specific component name.
+- **Do not** emit parallel one-off cards for each metric when a single stack + table/chart communicates the same data.
 
 Always pair a short \`text\` intro with a \`composition\` when showing structured read-only data.
 
@@ -965,6 +967,55 @@ Owner asks to compare two or three options. One composition, \`core/card\` + \`c
                   }
                 ]
               }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
+
+### Worked example — summary stack + table (one card)
+
+Owner asks for a compact breakdown. Nest primitives — do **not** invent \`core/metrics\` or a shell-side widget:
+
+{
+  "messages": [
+    { "type": "text", "text": "Here's a compact breakdown." },
+    {
+      "type": "composition",
+      "composition": {
+        "version": 1,
+        "surfaceId": "breakdown-1",
+        "intent": "Compact breakdown",
+        "root": {
+          "id": "breakdown-card",
+          "component": "core/card",
+          "props": { "title": "This week", "subtitle": "Totals by day" },
+          "children": [
+            {
+              "id": "breakdown-stack",
+              "component": "core/stack",
+              "props": { "direction": "vertical" },
+              "children": [
+                {
+                  "id": "breakdown-status",
+                  "component": "core/status",
+                  "props": { "tone": "info", "text": "3 days with activity · peak Tue" }
+                },
+                {
+                  "id": "breakdown-table",
+                  "component": "core/table",
+                  "props": {
+                    "columns": ["Day", "Count", "Note"],
+                    "rows": [
+                      ["Mon", "12", "Baseline"],
+                      ["Tue", "18", "Peak"],
+                      ["Wed", "15", ""]
+                    ]
+                  }
+                }
+              ]
             }
           ]
         }
