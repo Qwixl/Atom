@@ -5,9 +5,9 @@
     "payloadType": "application/vnd.in-toto+json",
     "signatures": [
       {
-        "sig": "MEUCIQCOWyiw7SxpankFyXweTBdhlSkQqE2vIc0-TSMHL43dmwIgZ9huOh8VapQ-ZAkQUeEe0FXaUGDVV3b5NmUuLFwcs9Q",
+        "sig": "MEUCIQCVYMeZH4JGXF48fTNCS8e9XTCIXmr8eIzXUN4E1YxKIwIgUevWqOY0lO90DoKKrOySFgDckkGXm1j6hrSfGVvAhW8",
         "keyid": "",
-        "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEH5o41yrrIHci4ZVLtawMmbjOaXM4\ncoSx8eic+gD96f7Mfu1Ci9l3LfmZUOaQRGkkz0NWfa40cp5aVowbkVsOzA==\n-----END PUBLIC KEY-----\n"
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEjr8JEL6PlQTPpd4YHCfwj+rnFoXV\nJw6O13CBqITSIGQW/WnJxVv6FjOja4f5NhffhiLbogX1l3q6+V9wrYGz2A==\n-----END PUBLIC KEY-----\n"
       }
     ]
   }

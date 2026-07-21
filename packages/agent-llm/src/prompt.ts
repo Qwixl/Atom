@@ -1066,7 +1066,10 @@ Use **registry modules** only when the owner needs interactivity, shared state, 
 | Schedule / meet / call **with someone else** | \`scheduling/meeting-picker\` |
 | Personal reminder / solo calendar block | \`consequential-action\` confirmation |
 | Group decision / poll | \`coordination/poll\` |
+| Event RSVP (yes / maybe / no) | \`coordination/rsvp\` |
 | Shared checklist / todos | \`coordination/shared-list\` |
+| Dating intro card (name + one-liner; Accept/Pass) | \`dating/intro\` |
+| Study flashcards (flip / next) | \`education/flashcards\` |
 | Meet here / pickup spot | \`family/location-pin\` |
 | Split a bill / share expense | \`commerce/split-bill\` |
 | Play tic-tac-toe | \`games/tictactoe\` |
@@ -1077,9 +1080,61 @@ Rules:
 - Pair a short \`text\` message with the module **composition** in the same turn.
 - For podcast playback, call \`rss_list_podcast_items\` first, then embed \`media/audio-player\` with \`src\` (or \`enclosureUrl\`) from the item — never invent episode URLs.
 - For games, emit the module composition to START a game. **Never** draw ASCII grids in text. Mid-game turns use \`game-move\`, not compositions.
-- On module events (\`meetingProposed\`, \`pollCreated\`, etc.), emit an updated composition on the **same surfaceId**.
+- On module events (\`meetingProposed\`, \`pollCreated\`, \`rsvpCreated\`, \`introCreated\`, etc.), emit an updated composition on the **same surfaceId**.
 - Wrap modules in \`core/card\` when helpful; set \`events\` on the module node.
 - Do **not** use \`scheduling/meeting-picker\` to **read** the owner's calendar feed.
+- \`dating/intro\` only when the owner explicitly wants to send or answer a dating intro — never from calendar/RSS. No contact details in props.
+- \`education/flashcards\` needs \`props.title\` and \`props.cards\` as \`[{ front, back }, …]\` with real study content.
+
+### Worked example — RSVP compose
+
+{
+  "messages": [
+    { "type": "text", "text": "Here's an RSVP for your contact." },
+    {
+      "type": "composition",
+      "composition": {
+        "version": 1,
+        "surfaceId": "rsvp-1",
+        "intent": "RSVP request",
+        "root": {
+          "id": "rsvp",
+          "component": "coordination/rsvp",
+          "props": { "mode": "compose", "defaultTitle": "Dinner" },
+          "events": ["rsvpCreated", "rsvpResponse"]
+        }
+      }
+    }
+  ]
+}
+
+### Worked example — flashcards
+
+{
+  "messages": [
+    { "type": "text", "text": "Study these cards — tap to flip." },
+    {
+      "type": "composition",
+      "composition": {
+        "version": 1,
+        "surfaceId": "cards-1",
+        "intent": "Flashcards",
+        "root": {
+          "id": "deck",
+          "component": "education/flashcards",
+          "props": {
+            "title": "Spanish basics",
+            "cards": [
+              { "front": "hola", "back": "hello" },
+              { "front": "gracias", "back": "thank you" }
+            ]
+          },
+          "events": ["flashcardsReady"]
+        }
+      }
+    }
+  ]
+}
 
 ### Worked example — starting tic-tac-toe
 

@@ -6,6 +6,18 @@ export type CommsModuleBridge =
   | { action: "meetingProposed"; title: string; slots: SchedulingSlot[] }
   | { action: "pollCreated"; question: string; options: Array<{ id: string; label: string }> }
   | {
+      action: "rsvpCreated";
+      eventTitle: string;
+      eventAt: string;
+      location?: string;
+    }
+  | {
+      action: "introCreated";
+      displayName: string;
+      oneLiner: string;
+      interests?: string[];
+    }
+  | {
       action: "listCreated";
       title: string;
       items: Array<{ id: string; text: string; done: boolean }>;
@@ -69,6 +81,24 @@ export function bridgeChatModuleEvent(
       : [];
     if (!question || options.length < 2) return false;
     queueCommsModuleBridge({ action: "pollCreated", question, options });
+    return true;
+  }
+  if (name === "rsvpCreated") {
+    const eventTitle = typeof payload?.eventTitle === "string" ? payload.eventTitle : "";
+    const eventAt = typeof payload?.eventAt === "string" ? payload.eventAt : "";
+    const location = typeof payload?.location === "string" ? payload.location : undefined;
+    if (!eventTitle || !eventAt) return false;
+    queueCommsModuleBridge({ action: "rsvpCreated", eventTitle, eventAt, location });
+    return true;
+  }
+  if (name === "introCreated") {
+    const displayName = typeof payload?.displayName === "string" ? payload.displayName : "";
+    const oneLiner = typeof payload?.oneLiner === "string" ? payload.oneLiner : "";
+    const interests = Array.isArray(payload?.interests)
+      ? payload.interests.filter((t): t is string => typeof t === "string")
+      : undefined;
+    if (!displayName || !oneLiner) return false;
+    queueCommsModuleBridge({ action: "introCreated", displayName, oneLiner, interests });
     return true;
   }
   if (name === "listCreated") {
