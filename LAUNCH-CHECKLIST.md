@@ -7,7 +7,7 @@ Execute after M14 + M15 ship. Do not run the public push before the zero-termina
 - [x] `pnpm registry:verify --require-integrity` passes on default registry (10 modules including WebCal connector)
 - [ ] Docs site live with tutorial + playground links (`pnpm dev:docs` locally; deploy `apps/docs-site`)
 - [ ] Demo peer agent reachable from production shell (`VITE_DEMO_PEER_URL` on shell build)
-- [ ] Managed hosting wizard returns agent URL + token (`pnpm dev:hosting` locally; production needs `ATOM_FLEET_MODE=docker`)
+- [ ] Managed hosting wizard returns agent URL + token (`pnpm dev:hosting` locally with the control-plane stub; production fleet is Atom-MC with `ATOM_FLEET_MODE=docker`)
 - [ ] Business index default host populated (`apps/shell/public/business-index/index.json`)
 - [x] README lead command: `npx @qwixl/agent-backend`
 - [x] M13.5 WebCal connector documented in AGENT-BACKEND.md
