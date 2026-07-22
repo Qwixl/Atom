@@ -45,6 +45,16 @@ export function DevelopersPage() {
               </a>
             </div>
             <div className="atom-marketing-card">
+              <h3>Publish on Atom Apps</h3>
+              <p>
+                List free or paid modules for Atom owners. You are merchant of record; Atom Apps takes
+                15% on paid Checkout.
+              </p>
+              <a href="https://atom.apps.qwixl.com/developers" target="_blank" rel="noreferrer">
+                Atom Apps for developers →
+              </a>
+            </div>
+            <div className="atom-marketing-card">
               <h3>Embed Atom</h3>
               <p>Drop shell-core + renderer-web into your product in under an hour.</p>
               <a href="https://github.com/Qwixl/Atom/blob/main/EMBED.md" target="_blank" rel="noreferrer">
@@ -73,8 +83,16 @@ export function DevelopersPage() {
 
         <div className="atom-marketing-hero-actions" style={{ marginTop: 32 }}>
           <a
-            href="https://github.com/Qwixl/Atom"
+            href="https://atom.apps.qwixl.com/developer/"
             className="atom-btn atom-btn-primary"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open Atom Apps console
+          </a>
+          <a
+            href="https://github.com/Qwixl/Atom"
+            className="atom-btn atom-btn-secondary"
             target="_blank"
             rel="noreferrer"
           >

@@ -282,6 +282,7 @@ import {
   consumeInstallHandoffFromLocation,
   INSTALL_HANDOFF_EVENT,
   loadPendingInstallHandoff,
+  registryUrlForInstall,
   type InstallHandoff,
   type InstallHandoffEventDetail,
 } from "./install/installHandoff.js";
@@ -2692,7 +2693,13 @@ export function App() {
       openSettings("modules");
       try {
         await assertInstallEntitlementReady(handoff);
-        const outcome = await registry.installRequested(
+        // Store installs resolve against the App Store registry (D102), not Settings → Catalog URL.
+        const installRegistryUrl = registryUrlForInstall(handoff);
+        const installRegistry =
+          installRegistryUrl && installRegistryUrl !== registryUrl
+            ? new ModuleRegistry({ indexUrl: installRegistryUrl, trust: registryTrust })
+            : registry;
+        const outcome = await installRegistry.installRequested(
           catalog,
           handoff.moduleId,
           handoff.version,

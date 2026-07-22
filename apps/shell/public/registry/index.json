@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-08T23:16:28.864Z",
+  "updatedAt": "2026-07-21T20:42:52.834Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
@@ -231,6 +231,43 @@
       "categories": [
         "media",
         "video"
+      ],
+      "signatureUrl": "signature.sigstore.json"
+    },
+    {
+      "id": "coordination/rsvp",
+      "version": "1.0.0",
+      "manifestUrl": "coordination/rsvp/manifest.json",
+      "integrity": "sha256:7c18c0670f2c57864b1dcd861ae839753304aad29b28e4eb7f79e4db62facdb9",
+      "bundleIntegrity": "sha256:2355f7dcd57e7af01a604bbfa07857708f54b7243301382bc5a3ce95ee815de1",
+      "publisher": "did:key:z6Mkatomexamples01",
+      "categories": [
+        "coordination",
+        "scheduling"
+      ],
+      "signatureUrl": "signature.sigstore.json"
+    },
+    {
+      "id": "education/flashcards",
+      "version": "1.0.0",
+      "manifestUrl": "education/flashcards/manifest.json",
+      "integrity": "sha256:3a425b5117be7b28a309d033d0cf885e5d5bcb302989518e3c26429bb59e4e59",
+      "bundleIntegrity": "sha256:b80d2f1a75cec8decfbcdb49e1e31bcbdede6899c1e8bd9da96841780b319591",
+      "publisher": "did:key:z6Mkatomexamples01",
+      "categories": [
+        "education"
+      ],
+      "signatureUrl": "signature.sigstore.json"
+    },
+    {
+      "id": "dating/intro",
+      "version": "1.0.0",
+      "manifestUrl": "dating/intro/manifest.json",
+      "integrity": "sha256:8e2645c398dea60599667b8788fe9ed74475adad2718278308fecaab4a01b9e0",
+      "bundleIntegrity": "sha256:ab37ff4e4c4203ec321367c3f7bc922a8fb602f03e10da41f0300fbcc0fa20e8",
+      "publisher": "did:key:z6Mkatomexamples01",
+      "categories": [
+        "dating"
       ],
       "signatureUrl": "signature.sigstore.json"
     }

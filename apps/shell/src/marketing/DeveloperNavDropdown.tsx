@@ -2,6 +2,7 @@ import { navigate } from "../navigation.js";
 
 const LINKS = {
   developers: "/developers",
+  atomApps: "https://atom.apps.qwixl.com/developers",
   github: "https://github.com/Qwixl/Atom",
   developerGuide: "https://github.com/Qwixl/Atom/blob/main/DEVELOPERS.md",
   modules: "https://github.com/Qwixl/Atom/blob/main/MODULES.md",
@@ -18,6 +19,9 @@ export function DeveloperNavDropdown() {
         <button type="button" role="menuitem" onClick={() => navigate("/developers")}>
           Platform overview
         </button>
+        <a href={LINKS.atomApps} target="_blank" rel="noreferrer" role="menuitem">
+          Atom Apps (publish)
+        </a>
         <a href={LINKS.developerGuide} target="_blank" rel="noreferrer" role="menuitem">
           Developer guide
         </a>

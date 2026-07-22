@@ -108,6 +108,25 @@ export type CommsThreadItem =
       response: RsvpAnswer;
     }
   | {
+      kind: "dating-intro";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      displayName: string;
+      oneLiner: string;
+      interests?: string[];
+    }
+  | {
+      kind: "dating-intro-response";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      introId: string;
+      response: "accept" | "pass";
+    }
+  | {
       kind: "action-reserve";
       id: string;
       direction: "in" | "out";

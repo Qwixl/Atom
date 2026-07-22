@@ -274,6 +274,11 @@ subPage(
             <p><a href="https://github.com/Qwixl/Atom/blob/main/MODULES.md">Module author guide →</a></p>
           </article>
           <article class="card">
+            <h3>Publish on Atom Apps</h3>
+            <p>List free or paid modules for Atom owners. You are merchant of record; Atom Apps takes 15% on paid Checkout.</p>
+            <p><a href="https://atom.apps.qwixl.com/developers">Atom Apps for developers →</a></p>
+          </article>
+          <article class="card">
             <h3>Embed Atom</h3>
             <p>Drop shell-core + renderer-web into your product.</p>
             <p><a href="https://github.com/Qwixl/Atom/blob/main/EMBED.md">Embed guide →</a></p>
@@ -329,7 +334,10 @@ subPage(
           </table>
           <p class="hiw-note">Building modules today is close to building MCP Apps views — sandboxed iframe, postMessage bridge, integrity-hashed bundles — but they ship into user-owned infrastructure instead of a vendor's chat. Deep dives: <a href="https://github.com/Qwixl/Atom/blob/main/API-v1.md">API v1</a>, <a href="https://github.com/Qwixl/Atom/blob/main/SECURITY.md">security model</a>.</p>
         </section>
-        <a class="btn btn-primary" href="https://github.com/Qwixl/Atom" rel="noopener noreferrer">View on GitHub</a>`,
+        <div class="hero-actions" style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap">
+          <a class="btn btn-primary" href="https://atom.apps.qwixl.com/developer/">Open Atom Apps console</a>
+          <a class="btn btn-secondary" href="https://github.com/Qwixl/Atom" rel="noopener noreferrer">View on GitHub</a>
+        </div>`,
   path.join(marketingRoot, "developers"),
 );
 

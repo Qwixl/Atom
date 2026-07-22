@@ -3,13 +3,32 @@
  * One parser for `atom://install?...` and `https://…/install?...`.
  */
 
+/** Default App Store registry when Install comes from Atom Apps (`source=store`). */
+export const DEFAULT_STORE_REGISTRY_URL =
+  "https://atom.apps.qwixl.com/registry/index.json";
+
 export type InstallHandoff = {
   moduleId: string;
   version: string;
   /** Compact entitlement certificate; present only for paid modules. */
   cert?: string;
   source?: string;
+  /**
+   * Registry index URL to resolve this install against (D102).
+   * Store sends the App Store index so install does not depend on Settings → Catalog URL.
+   */
+  registryUrl?: string;
 };
+
+/** Registry index to use for a store (or explicit) install hand-off. */
+export function registryUrlForInstall(handoff: InstallHandoff): string | undefined {
+  const explicit = handoff.registryUrl?.trim();
+  if (explicit) return explicit;
+  if ((handoff.source ?? "").trim().toLowerCase() === "store") {
+    return DEFAULT_STORE_REGISTRY_URL;
+  }
+  return undefined;
+}
 
 export type InstallHandoffParseError = {
   kind: "error";
@@ -65,6 +84,7 @@ export function parseInstallHandoff(input: string | URL): InstallHandoffParseRes
   const version = url.searchParams.get("version")?.trim() ?? "";
   const cert = url.searchParams.get("cert")?.trim() || undefined;
   const source = url.searchParams.get("source")?.trim() || undefined;
+  const registryUrl = url.searchParams.get("registryUrl")?.trim() || undefined;
 
   if (!moduleId || !version) {
     return {
@@ -76,7 +96,7 @@ export function parseInstallHandoff(input: string | URL): InstallHandoffParseRes
 
   return {
     kind: "ok",
-    handoff: { moduleId, version, cert, source },
+    handoff: { moduleId, version, cert, source, registryUrl },
   };
 }
 
@@ -120,6 +140,10 @@ export function loadPendingInstallHandoff(): InstallHandoff | null {
       source:
         typeof parsed.source === "string" && parsed.source.trim()
           ? parsed.source.trim()
+          : undefined,
+      registryUrl:
+        typeof parsed.registryUrl === "string" && parsed.registryUrl.trim()
+          ? parsed.registryUrl.trim()
           : undefined,
     };
   } catch {

@@ -21,6 +21,11 @@ export {
   COORDINATION_SHARED_LIST_UPDATE_PURPOSE,
   COORDINATION_LOCATION_PIN_PURPOSE,
   LOCATION_PIN_SCHEMA,
+  DATING_INTRO_PURPOSE,
+  DATING_INTRO_SCHEMA,
+  DATING_INTRO_RESPONSE_PURPOSE,
+  DATING_INTRO_RESPONSE_SCHEMA,
+  DATING_PURPOSES,
   POLL_REQUEST_SCHEMA,
   POLL_VOTE_SCHEMA,
   SHARED_LIST_SCHEMA,
@@ -113,6 +118,15 @@ export {
   type SchedulingResponsePayload,
   type SchedulingSlot,
 } from "./coordination.js";
+export {
+  createDatingIntro,
+  createDatingIntroResponse,
+  verifyDatingIntro,
+  verifyDatingIntroResponse,
+  type DatingIntroAnswer,
+  type DatingIntroPayload,
+  type DatingIntroResponsePayload,
+} from "./dating.js";
 export {
   createPollRequest,
   createPollVote,
