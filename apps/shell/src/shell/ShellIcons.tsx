@@ -23,6 +23,77 @@ function IconBase({ className, label, children }: IconProps & { children: ReactN
   );
 }
 
+export function IconHome(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z" />
+    </IconBase>
+  );
+}
+
+export function IconInbox(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 6h16v12H4z" />
+      <path d="M4 10h4l2 3h4l2-3h4" />
+    </IconBase>
+  );
+}
+
+export function IconTasks(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M9 11l2 2 5-5" />
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+    </IconBase>
+  );
+}
+
+export function IconCalendar(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <rect x="4" y="5" width="16" height="16" rx="2" />
+      <path d="M8 3v4M16 3v4M4 11h16" />
+    </IconBase>
+  );
+}
+
+export function IconMemory(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <ellipse cx="12" cy="12" rx="8" ry="5" />
+      <path d="M6 12v3c0 2.2 2.7 4 6 4s6-1.8 6-4v-3" />
+    </IconBase>
+  );
+}
+
+export function IconTools(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4z" />
+    </IconBase>
+  );
+}
+
+export function IconAgents(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <circle cx="9" cy="8" r="3" />
+      <circle cx="17" cy="9" r="2.5" />
+      <path d="M3 20c.8-3 3.5-5 6-5s5.2 2 6 5M14 20c.5-2 2-3.5 4-3.5" />
+    </IconBase>
+  );
+}
+
+export function IconMarketplace(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 8h16l-1.5 11H5.5z" />
+      <path d="M9 8V6a3 3 0 0 1 6 0v2" />
+    </IconBase>
+  );
+}
+
 export function IconChat(props: IconProps) {
   return (
     <IconBase {...props}>
