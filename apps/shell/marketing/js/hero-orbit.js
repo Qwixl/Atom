@@ -39,8 +39,8 @@
       var rect = root.getBoundingClientRect();
       var cx = rect.left + rect.width / 2;
       var cy = rect.top + rect.height / 2;
-      tx = ((e.clientX - cx) / Math.max(rect.width, 1)) * 28;
-      ty = ((e.clientY - cy) / Math.max(rect.height, 1)) * 18;
+      tx = ((e.clientX - cx) / Math.max(rect.width, 1)) * 48;
+      ty = ((e.clientY - cy) / Math.max(rect.height, 1)) * 32;
       schedule();
     },
     { passive: true },

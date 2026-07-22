@@ -22,6 +22,7 @@ import {
 } from "./discoverIndexStorage.js";
 import { discoverTrustSignals } from "./discoverTrust.js";
 import { swarmDiscoverBadge } from "./swarmBadge.js";
+import { PanelFilterPills, PanelSectionHeader } from "./shell/PanelChrome.js";
 
 interface DiscoverPanelProps {
   contacts: AgentContact[];
@@ -223,13 +224,28 @@ export function DiscoverPanel({
     }
   }
 
+  const kindFilters: Array<{ value: IndexEntryKind | "all"; label: string }> = [
+    { value: "all", label: "All" },
+    { value: "community", label: "Community" },
+    { value: "business", label: "Business" },
+    { value: "developer", label: "Developer" },
+  ];
+
   return (
     <aside className="panel-view discover-view">
-      <p className="discover-lede settings-note">
-        Search Atom&apos;s default indexes (curated). Extra indexes are yours to add — Atom does
-        not police the open web.
-      </p>
-      <div className="panel-search-bar">
+      <PanelSectionHeader
+        title="Discover"
+        subtitle="Search curated indexes for agents, businesses, and rooms. Extra indexes are owner-chosen — Atom does not police the open web."
+      />
+
+      <PanelFilterPills
+        ariaLabel="Filter discover listings"
+        value={kind}
+        options={kindFilters}
+        onChange={setKind}
+      />
+
+      <div className="discover-search-strip">
         <input
           className="panel-input"
           type="search"
@@ -238,20 +254,9 @@ export function DiscoverPanel({
           placeholder="Search by name, @handle, or topic…"
           aria-label="Search discover index"
         />
-        <select
-          className="panel-select"
-          value={kind}
-          onChange={(event) => setKind(event.target.value as IndexEntryKind | "all")}
-          aria-label="Filter by kind"
-        >
-          <option value="all">All kinds</option>
-          <option value="community">Community</option>
-          <option value="business">Business</option>
-          <option value="developer">Developer</option>
-        </select>
         <button
           type="button"
-          className="panel-btn"
+          className="panel-btn panel-btn-primary"
           onClick={() => setSearchNonce((n) => n + 1)}
           disabled={loading}
         >
@@ -270,83 +275,90 @@ export function DiscoverPanel({
         </div>
       ) : null}
 
+      {!loading && results.length > 0 ? (
+        <p className="discover-status-bar" aria-live="polite">
+          {results.length} listing{results.length === 1 ? "" : "s"} available
+        </p>
+      ) : null}
+
       <div className="panel-body panel-body-scroll" style={{ padding: 0 }}>
-        <ul className="discover-results">
-          {results.length === 0 && !loading ? (
-            <li className="panel-empty">
-              {indexMatches > 0
-                ? "Matches exist in an index, but their agent host is offline. Try again shortly, or open Rooms → Join Coffee Shop."
-                : terms.trim()
-                  ? "Nothing matched. Curated listings are limited on purpose — try a different name or @handle."
-                  : "No listings yet in the default indexes. Third-party indexes are owner-chosen when you opt in — Atom only curates the store that ships with this shell."}
-            </li>
-          ) : (
-            results.map((entry) => {
+        {results.length === 0 && !loading ? (
+          <p className="panel-empty" style={{ padding: "24px 20px" }}>
+            {indexMatches > 0
+              ? "Matches exist in an index, but their agent host is offline. Try again shortly, or open Rooms → Join Coffee Shop."
+              : terms.trim()
+                ? "Nothing matched. Curated listings are limited on purpose — try a different name or @handle."
+                : "No listings yet in the default indexes. Third-party indexes are owner-chosen when you opt in — Atom only curates the store that ships with this shell."}
+          </p>
+        ) : (
+          <ul className="discover-results-grid">
+            {results.map((entry) => {
               const subtitle = entrySubtitle(entry);
               const trust = discoverTrustSignals(entry, entry.indexLabel, entry.indexUrl);
               const swarm = swarmDiscoverBadge(entry);
               return (
-                <li
-                  key={`${entry.indexLabel}:${entry.businessDomain}:${entry.displayName}`}
-                  className="discover-row"
-                >
-                  <div className="discover-row-main">
-                    <div className="discover-row-title">
-                      <span>{entryTitle(entry)}</span>
-                      <span className="discover-kind">{kindLabel(entry.kind)}</span>
-                      {swarm ? (
-                        <span className={swarm.className} title="Qwixl-operated labeled swarm agent">
-                          {swarm.label}
+                <li key={`${entry.indexLabel}:${entry.businessDomain}:${entry.displayName}`}>
+                  <article className="discover-card">
+                    <header className="discover-card-head">
+                      <div className="discover-card-title-row">
+                        <h3 className="discover-card-title">{entryTitle(entry)}</h3>
+                      </div>
+                      <div className="discover-card-badges">
+                        <span className="discover-kind">{kindLabel(entry.kind)}</span>
+                        {swarm ? (
+                          <span className={swarm.className} title="Qwixl-operated labeled swarm agent">
+                            {swarm.label}
+                          </span>
+                        ) : null}
+                        <span
+                          className={`discover-trust discover-trust--${trust.badge}`}
+                          title={
+                            trust.publisherDid
+                              ? `${trust.label} · ${trust.publisherDid}`
+                              : trust.label
+                          }
+                        >
+                          {trust.label}
                         </span>
+                      </div>
+                      {subtitle ? <p className="discover-card-meta">{subtitle}</p> : null}
+                      {trust.publisherDid ? (
+                        <p className="discover-card-meta discover-publisher">
+                          Publisher {trust.publisherDid}
+                        </p>
                       ) : null}
-                      <span
-                        className={`discover-trust discover-trust--${trust.badge}`}
-                        title={
-                          trust.publisherDid
-                            ? `${trust.label} · ${trust.publisherDid}`
-                            : trust.label
-                        }
-                      >
-                        {trust.label}
-                      </span>
-                    </div>
-                    {subtitle ? <p className="discover-row-meta">{subtitle}</p> : null}
-                    {trust.publisherDid ? (
-                      <p className="discover-row-meta discover-publisher">
-                        Publisher {trust.publisherDid}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="discover-row-actions">
-                    {(entry.kind === "community" || (entry.roomIds?.length ?? 0) > 0) &&
-                    !isDiscoverEntryJoined(entry, joinedRoomIds) ? (
+                    </header>
+                    <footer className="discover-card-actions">
+                      {(entry.kind === "community" || (entry.roomIds?.length ?? 0) > 0) &&
+                      !isDiscoverEntryJoined(entry, joinedRoomIds) ? (
+                        <button
+                          type="button"
+                          className="panel-btn panel-btn-primary"
+                          disabled={loading}
+                          onClick={() => void joinRoom(entry)}
+                        >
+                          Join room
+                        </button>
+                      ) : null}
                       <button
                         type="button"
-                        className="panel-btn"
+                        className="panel-btn discover-dm-btn"
                         disabled={loading}
-                        onClick={() => void joinRoom(entry)}
+                        onClick={() => void connectEntry(entry)}
+                        aria-label={`Send DM to ${entryTitle(entry)}`}
                       >
-                        Join room
+                        <span className="discover-dm-icon" aria-hidden="true">
+                          ✉
+                        </span>
+                        DM
                       </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="panel-btn discover-dm-btn"
-                      disabled={loading}
-                      onClick={() => void connectEntry(entry)}
-                      aria-label={`Send DM to ${entryTitle(entry)}`}
-                    >
-                      <span className="discover-dm-icon" aria-hidden="true">
-                        ✉
-                      </span>
-                      DM
-                    </button>
-                  </div>
+                    </footer>
+                  </article>
                 </li>
               );
-            })
-          )}
-        </ul>
+            })}
+          </ul>
+        )}
       </div>
     </aside>
   );
