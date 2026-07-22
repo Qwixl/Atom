@@ -1,1 +1,8 @@
-/* Geist webfont removed — bundled WOFF2 failed OTS parse in production. System stack via shell-tokens. */
+/* Geist Sans — vendored under public/fonts (marketing + SPA share the same file). */
+@font-face {
+  font-family: "Geist Sans";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/Geist-Variable.woff2") format("woff2");
+}
