@@ -1,0 +1,42 @@
+{
+  "id": "atom/presentation-board",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/atom-presentation-board/index.html",
+  "pricing": {
+    "model": "paid",
+    "priceCents": 999,
+    "currency": "USD",
+    "purchaseUrl": "https://atom.apps.qwixl.com/apps/atom%2Fpresentation-board"
+  },
+  "components": [
+    {
+      "name": "atom/presentation-board",
+      "semanticRole": "display/presentation-board",
+      "events": [
+        {
+          "name": "boardReady"
+        },
+        {
+          "name": "boardPinToggled"
+        },
+        {
+          "name": "boardRegionFocused"
+        },
+        {
+          "name": "boardRegionDismissed"
+        }
+      ],
+      "agentHint": "Persistent agent-controlled presentation board: regions with title/body, pin/focus/dismiss. Emit compositions with module atom/presentation-board and props.regions[]. Paid first-party SKU; voice-mode defaults on when this module is entitled and open."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "presentation",
+    "productivity"
+  ],
+  "bundleIntegrity": "sha256:520a45c0d016c734418bec2923ab69e2424683ff7ac805fbadf11b9b3393bfac"
+}

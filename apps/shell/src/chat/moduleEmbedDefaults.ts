@@ -75,6 +75,13 @@ export function withModulePropDefaults(
       ...props,
     };
   }
+  if (moduleId === "atom/presentation-board") {
+    return {
+      title: "Presentation board",
+      regions: Array.isArray(props.regions) ? props.regions : [],
+      ...props,
+    };
+  }
   if (moduleId === "coordination/poll" && props.mode === undefined) {
     return { mode: "compose", ...props };
   }

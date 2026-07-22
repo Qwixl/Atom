@@ -1,4 +1,13 @@
 export { OwnerStore, GUARD_BY_DEFAULT_CATEGORIES, defaultGuardForCategory } from "./OwnerStore.js";
+export {
+  PRESENTATION_BOARD_CATEGORY,
+  PRESENTATION_BOARD_STATE_LABEL,
+  PRESENTATION_BOARD_MUTE_LABEL,
+  emptyPresentationBoardState,
+  parsePresentationBoardState,
+  type BoardRegion,
+  type PresentationBoardState,
+} from "./presentationBoard.js";
 export type {
   OwnerRecord,
   ProfileContext,
