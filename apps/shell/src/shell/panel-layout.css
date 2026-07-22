@@ -263,9 +263,9 @@
 /* Buttons & inputs in panels */
 
 .panel-btn {
-  padding: 6px 12px;
+  padding: 6px 16px;
   border: 1px solid var(--shell-border);
-  border-radius: var(--shell-radius-sm);
+  border-radius: var(--shell-radius-pill);
   background: var(--shell-raised-bg);
   color: var(--shell-text);
   font-size: 12px;

@@ -1,43 +1,60 @@
 import { useEffect, useRef } from "react";
 import { AtomIdent } from "../brand/AtomIdent.js";
 import {
+  IconAgents,
   IconBoard,
+  IconCalendar,
   IconChat,
   IconDiscover,
-  IconLog,
-  IconMessages,
+  IconHome,
+  IconInbox,
+  IconMarketplace,
+  IconMemory,
   IconProfile,
   IconRooms,
   IconSettings,
+  IconTasks,
+  IconTools,
 } from "./ShellIcons.js";
 
 export type ShellNavPanel =
+  | "home"
   | "none"
-  | "log"
-  | "profile"
   | "comms"
+  | "tasks"
+  | "calendar"
+  | "memory"
+  | "tools"
+  | "agents"
+  | "marketplace"
   | "discover"
   | "rooms"
-  | "board";
+  | "board"
+  | "log"
+  | "profile";
 
 type NavItem = {
   id: ShellNavPanel;
   label: string;
-  icon: typeof IconChat;
+  icon: typeof IconHome;
   badge?: number;
   badgeTone?: "default" | "warn";
+  locked?: boolean;
 };
 
 type ShellSidebarProps = {
   panel: ShellNavPanel;
   onNavigate: (panel: ShellNavPanel) => void;
   onOpenSettings: () => void;
+  onOpenAccount: () => void;
+  ownerName?: string;
+  ownerHandle?: string;
   commsCount: number;
-  profileBadge: { count: number; tone: "default" | "warn" } | null;
-  logCount: number;
+  profileBadge: { count: number; tone?: "default" | "warn" } | null;
   mobileOpen: boolean;
   onMobileClose: () => void;
   boardAvailable?: boolean;
+  lockedSections?: ShellNavPanel[];
 };
 
 function NavList({
@@ -45,14 +62,23 @@ function NavList({
   primaryNav,
   onSelect,
   onOpenSettings,
+  onOpenAccount,
   onMobileClose,
+  ownerName,
+  ownerHandle,
 }: {
   panel: ShellNavPanel;
   primaryNav: NavItem[];
   onSelect: (id: ShellNavPanel) => void;
   onOpenSettings: () => void;
+  onOpenAccount: () => void;
   onMobileClose: () => void;
+  ownerName?: string;
+  ownerHandle?: string;
 }) {
+  const displayName = ownerName?.trim() || "Owner";
+  const displayHandle = ownerHandle?.trim() || "@owner";
+
   return (
     <>
       <div className="shell-sidebar-brand">
@@ -71,8 +97,10 @@ function NavList({
               <li key={item.id}>
                 <button
                   type="button"
-                  className={`shell-sidebar-nav-item${active ? " is-active" : ""}`}
+                  className={`shell-sidebar-nav-item${active ? " is-active" : ""}${item.locked ? " is-locked" : ""}`}
                   aria-current={active ? "page" : undefined}
+                  disabled={item.locked}
+                  title={item.locked ? "Not available in demo" : undefined}
                   onClick={() => onSelect(item.id)}
                 >
                   <Icon className="shell-sidebar-nav-icon" />
@@ -105,6 +133,23 @@ function NavList({
           <IconSettings className="shell-sidebar-nav-icon" />
           <span>Settings</span>
         </button>
+
+        <button
+          type="button"
+          className="shell-sidebar-owner"
+          onClick={() => {
+            onOpenAccount();
+            onMobileClose();
+          }}
+        >
+          <span className="shell-sidebar-owner-avatar" aria-hidden="true">
+            <IconProfile className="shell-sidebar-nav-icon" />
+          </span>
+          <span className="shell-sidebar-owner-text">
+            <span className="shell-sidebar-owner-name">{displayName}</span>
+            <span className="shell-sidebar-owner-handle">{displayHandle}</span>
+          </span>
+        </button>
       </div>
     </>
   );
@@ -114,42 +159,55 @@ export function ShellSidebar({
   panel,
   onNavigate,
   onOpenSettings,
+  onOpenAccount,
+  ownerName,
+  ownerHandle,
   commsCount,
   profileBadge,
-  logCount,
   mobileOpen,
   onMobileClose,
   boardAvailable = false,
+  lockedSections = [],
 }: ShellSidebarProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const locked = new Set(lockedSections);
 
   const primaryNav: NavItem[] = [
+    { id: "home", label: "Home", icon: IconHome },
     { id: "none", label: "Chat", icon: IconChat },
     {
       id: "comms",
-      label: "Messages",
-      icon: IconMessages,
+      label: "Inbox",
+      icon: IconInbox,
       badge: commsCount > 0 ? commsCount : undefined,
     },
-    { id: "discover", label: "Discover", icon: IconDiscover },
-    { id: "rooms", label: "Rooms", icon: IconRooms },
-    ...(boardAvailable ? [{ id: "board" as const, label: "Board", icon: IconBoard }] : []),
+    { id: "tasks", label: "Tasks", icon: IconTasks, locked: locked.has("tasks") },
+    { id: "calendar", label: "Calendar", icon: IconCalendar, locked: locked.has("calendar") },
     {
-      id: "profile",
-      label: "Profile",
-      icon: IconProfile,
+      id: "memory",
+      label: "Memory",
+      icon: IconMemory,
       badge: profileBadge?.count,
       badgeTone: profileBadge?.tone,
+      locked: locked.has("memory"),
     },
+    { id: "tools", label: "Tools", icon: IconTools, locked: locked.has("tools") },
+    { id: "agents", label: "Agents", icon: IconAgents, locked: locked.has("agents") },
+    { id: "discover", label: "Discover", icon: IconDiscover, locked: locked.has("discover") },
+    { id: "rooms", label: "Rooms", icon: IconRooms, locked: locked.has("rooms") },
     {
-      id: "log",
-      label: "Attestation log",
-      icon: IconLog,
-      badge: logCount > 0 ? logCount : undefined,
+      id: "marketplace",
+      label: "Marketplace",
+      icon: IconMarketplace,
+      locked: locked.has("marketplace"),
     },
+    ...(boardAvailable
+      ? [{ id: "board" as const, label: "Board", icon: IconBoard, locked: locked.has("board") }]
+      : []),
   ];
 
   function selectPanel(next: ShellNavPanel) {
+    if (locked.has(next)) return;
     onNavigate(next);
     onMobileClose();
   }
@@ -170,7 +228,10 @@ export function ShellSidebar({
       primaryNav={primaryNav}
       onSelect={selectPanel}
       onOpenSettings={onOpenSettings}
+      onOpenAccount={onOpenAccount}
       onMobileClose={onMobileClose}
+      ownerName={ownerName}
+      ownerHandle={ownerHandle}
     />
   );
 

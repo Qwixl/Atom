@@ -7,13 +7,16 @@
   gap: 8px;
   min-height: 40px;
   padding: 0 18px;
-  border-radius: var(--shell-radius-sm);
+  border-radius: var(--shell-radius-pill);
   font-family: inherit;
   font-size: 14px;
   font-weight: 500;
   line-height: 1;
   cursor: pointer;
-  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+  transition:
+    background var(--shell-motion-duration-fast) var(--shell-motion-ease),
+    border-color var(--shell-motion-duration-fast) var(--shell-motion-ease),
+    color var(--shell-motion-duration-fast) var(--shell-motion-ease);
 }
 
 .atom-btn:disabled {
@@ -64,7 +67,7 @@
   padding: 0;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: var(--shell-radius-sm);
+  border-radius: var(--shell-radius-pill);
   color: var(--shell-text-muted);
   cursor: pointer;
 }
@@ -128,7 +131,7 @@
   margin: 0;
   padding: 14px 16px;
   border: 1px solid var(--shell-border);
-  border-radius: var(--shell-radius-sm);
+  border-radius: var(--shell-radius-lg);
   background: var(--shell-raised-bg);
   box-shadow: var(--shell-shadow-sm);
   font-size: 13px;
@@ -180,10 +183,12 @@
   gap: 12px;
   padding: 14px 16px;
   border: 1px solid var(--shell-border);
-  border-radius: var(--shell-radius-sm);
+  border-radius: var(--shell-radius-lg);
   background: var(--shell-raised-bg);
   cursor: pointer;
-  transition: border-color 150ms ease, background 150ms ease;
+  transition:
+    border-color var(--shell-motion-duration-fast) var(--shell-motion-ease),
+    background var(--shell-motion-duration-fast) var(--shell-motion-ease);
 }
 
 .atom-radio-card:hover {
@@ -267,12 +272,14 @@
   justify-content: center;
   min-height: 40px;
   padding: 0 18px;
-  border-radius: var(--shell-radius-sm);
+  border-radius: var(--shell-radius-pill);
   font-family: inherit;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 150ms ease, border-color 150ms ease;
+  transition:
+    background var(--shell-motion-duration-fast) var(--shell-motion-ease),
+    border-color var(--shell-motion-duration-fast) var(--shell-motion-ease);
 }
 
 .chrome-approve {
