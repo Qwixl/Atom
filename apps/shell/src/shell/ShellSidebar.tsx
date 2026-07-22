@@ -3,7 +3,6 @@ import { AtomIdent } from "../brand/AtomIdent.js";
 import {
   IconBoard,
   IconChat,
-  IconDiscover,
   IconLog,
   IconMessages,
   IconProfile,
@@ -131,7 +130,6 @@ export function ShellSidebar({
       icon: IconMessages,
       badge: commsCount > 0 ? commsCount : undefined,
     },
-    { id: "discover", label: "Discover", icon: IconDiscover },
     { id: "rooms", label: "Rooms", icon: IconRooms },
     ...(boardAvailable ? [{ id: "board" as const, label: "Board", icon: IconBoard }] : []),
     {

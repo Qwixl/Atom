@@ -7,7 +7,6 @@ import {
   IconChat,
   IconChevronDown,
   IconChevronRight,
-  IconDiscover,
   IconExit,
   IconGames,
   IconMenu,
@@ -56,7 +55,6 @@ type AtomShellProps = {
 const PRIMARY_NAV: Omit<NavItem, "badge" | "locked">[] = [
   { id: "none", label: "Chat", icon: IconChat },
   { id: "comms", label: "Messages", icon: IconMessages },
-  { id: "discover", label: "Discover", icon: IconDiscover },
   { id: "rooms", label: "Rooms", icon: IconRooms },
 ];
 
