@@ -1,4 +1,4 @@
-import { PRODUCTION_SHELL_ORIGIN } from "@qwixl/shell-core";
+import { DEPLOYED_SHELL_ORIGINS, LOCAL_SHELL_ORIGINS } from "@qwixl/shell-core";
 import {
   resolveReachabilityConfig,
   type ReachabilityConfig,
@@ -52,13 +52,7 @@ function parseAgentKind(raw: string | undefined): AgentKindConfig {
   return "owner";
 }
 
-const DEFAULT_SHELL_ORIGINS = [
-  "http://localhost:5200",
-  "http://127.0.0.1:5200",
-  "http://localhost:5203",
-  "http://127.0.0.1:5203",
-  PRODUCTION_SHELL_ORIGIN,
-];
+const DEFAULT_SHELL_ORIGINS = [...LOCAL_SHELL_ORIGINS, ...DEPLOYED_SHELL_ORIGINS];
 
 function parseBusinessKnowledgeBackend(
   raw: string | undefined,
