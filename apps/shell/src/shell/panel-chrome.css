@@ -1,4 +1,129 @@
-/* Shared section chrome — headers, pill filters, carousels, data grids */
+/* Content-surface patterns only — not shell nav/header chrome.
+   Shared: heroes, pathways, pill filters, carousels, data grids */
+
+.panel-surface-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.8fr);
+  gap: 24px 32px;
+  align-items: start;
+  padding: 28px 28px 20px;
+  border-bottom: 1px solid var(--shell-border);
+  background:
+    linear-gradient(180deg, var(--shell-raised-bg) 0%, var(--shell-main-bg) 100%);
+  flex: none;
+}
+
+.panel-surface-hero-copy {
+  min-width: 0;
+}
+
+.panel-surface-eyebrow {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--shell-text-subtle);
+}
+
+.panel-surface-title {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.2vw, 1.875rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--shell-text);
+}
+
+.panel-surface-lede {
+  margin: 10px 0 0;
+  max-width: 52ch;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--shell-text-muted);
+}
+
+.panel-surface-steps {
+  list-style: none;
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--shell-border);
+  border-radius: var(--shell-radius-lg);
+  background: var(--shell-raised-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel-surface-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--shell-text);
+}
+
+.panel-surface-step-num {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--shell-radius-pill);
+  background: var(--shell-accent-soft);
+  border: 1px solid var(--shell-accent-border);
+  color: var(--shell-accent);
+  font-size: 11px;
+  font-weight: 700;
+  flex: none;
+}
+
+.panel-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 32px 28px;
+  max-width: 420px;
+}
+
+.panel-empty-state--compact {
+  padding: 20px 14px;
+  max-width: none;
+}
+
+.panel-empty-state strong {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--shell-text);
+  letter-spacing: -0.02em;
+}
+
+.panel-empty-state p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--shell-text-muted);
+}
+
+.panel-empty-state .rooms-empty-actions {
+  margin-top: 8px;
+}
+
+.discover-card-blurb {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--shell-text-muted);
+}
+
+@media (max-width: 959px) {
+  .panel-surface-hero {
+    grid-template-columns: 1fr;
+    padding: 20px 16px 16px;
+  }
+}
+
 
 .panel-chrome-header {
   display: flex;
@@ -358,42 +483,6 @@
   margin-top: 16px;
 }
 
-/* Home dashboard extensions */
-
-.home-dashboard-quick {
-  margin-bottom: 24px;
-}
-
-.home-stat-card--action {
-  cursor: pointer;
-  text-align: left;
-  font: inherit;
-  width: 100%;
-}
-
-.home-stat-card--action:focus-visible {
-  outline: 2px solid var(--shell-accent);
-  outline-offset: 2px;
-}
-
-.home-dashboard-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-
-/* Placeholder panels */
-
-.shell-placeholder-panel-inner {
-  max-width: 640px;
-  text-align: left;
-}
-
-.shell-placeholder-actions {
-  margin-top: 24px;
-}
-
 .panel-list .panel-filter-bar {
   padding: 8px 10px;
   border-bottom: 1px solid var(--shell-border);
@@ -463,10 +552,6 @@
   }
 
   .discover-results-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .home-dashboard-layout {
     grid-template-columns: 1fr;
   }
 }

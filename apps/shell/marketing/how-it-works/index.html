@@ -24,43 +24,35 @@
     <span class="site-brand-name">Atom</span>
     <span class="beta-badge">Beta</span>
   </a>
-
-  <button
-    type="button"
-    class="site-nav-toggle"
-    aria-expanded="false"
-    aria-controls="site-nav-drawer"
-    aria-label="Open menu"
-  >
-    <svg class="site-nav-toggle-icon site-nav-toggle-icon--open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
-      <path d="M4 7h16M4 12h16M4 17h16"/>
-    </svg>
-    <svg class="site-nav-toggle-icon site-nav-toggle-icon--close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
-      <path d="M6 6l12 12M18 6L6 18"/>
-    </svg>
-  </button>
-
-  <nav class="site-nav" id="site-nav-drawer" aria-label="Site">
-    <div class="site-nav-links">
-      <a class="site-nav-link" href="/how-it-works/">How it works</a>
-      <a class="site-nav-link" href="/connectors/">Connectors</a>
-      <a class="site-nav-link" href="https://atom.apps.qwixl.com" rel="noopener noreferrer">App Store</a>
-      <a class="site-nav-link" href="/developers/">Developers</a>
-      <a class="site-nav-link" href="/demo/">Demo</a>
-    </div>
-    <div class="site-nav-actions">
-      <button type="button" class="btn btn-icon btn-ghost" data-theme-toggle aria-label="Toggle light or dark theme">
-        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
-          <circle cx="12" cy="12" r="4"></circle>
-          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
-        </svg>
-        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
-          <path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a6.5 6.5 0 0 0 11.5 11.5z"></path>
-        </svg>
-      </button>
-      <a class="btn btn-ghost" href="/app/?auth=login">Log in</a>
-      <a class="btn btn-primary" href="/app/?auth=register">Launch Atom</a>
-    </div>
+  <nav class="site-nav" aria-label="Site">
+    <a class="btn btn-ghost" href="/demo/">Demo</a>
+    <a class="btn btn-ghost" href="/how-it-works/">How it works</a>
+    <a class="btn btn-ghost hide-mobile" href="/connectors/">Connectors</a>
+    <a class="btn btn-ghost" href="https://atom.apps.qwixl.com" rel="noopener noreferrer">App Store</a>
+    <details class="nav-dropdown">
+      <summary class="btn btn-ghost">Developer</summary>
+      <div class="nav-dropdown-menu">
+        <a href="/developers/">Platform overview</a>
+        <a href="https://atom.apps.qwixl.com" rel="noopener noreferrer">Browse App Store</a>
+        <a href="https://atom.apps.qwixl.com/developers" rel="noopener noreferrer">Atom Apps (publish)</a>
+        <a href="https://github.com/Qwixl/Atom/blob/main/DEVELOPERS.md" rel="noopener noreferrer">Developer guide</a>
+        <a href="https://github.com/Qwixl/Atom/blob/main/MODULES.md" rel="noopener noreferrer">Build modules</a>
+        <a href="https://github.com/Qwixl/Atom/blob/main/EMBED.md" rel="noopener noreferrer">Embed the shell</a>
+        <a href="https://www.npmjs.com/package/@qwixl/atom-cli" rel="noopener noreferrer">CLI on npm</a>
+        <a href="https://github.com/Qwixl/Atom" rel="noopener noreferrer">GitHub repository</a>
+      </div>
+    </details>
+    <button type="button" class="btn btn-icon btn-ghost" data-theme-toggle aria-label="Toggle light or dark theme">
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+        <circle cx="12" cy="12" r="4"></circle>
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+      </svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+        <path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a6.5 6.5 0 0 0 11.5 11.5z"></path>
+      </svg>
+    </button>
+    <a class="btn btn-ghost hide-mobile" href="/app/?auth=login">Log in</a>
+    <a class="btn btn-primary" href="/app/?auth=register">Register</a>
   </nav>
 </header>
 
@@ -204,11 +196,7 @@
 </footer>
 <script src="/js/auth-callback-redirect.js"></script>
 <script src="/js/site.js" defer></script>
-<script src="/js/header-scroll.js" defer></script>
-<script src="/js/nav-menu.js" defer></script>
-<script src="/js/hero-bg.js" defer></script>
-<script src="/js/ecosystem-lines.js" defer></script>
-<script src="/js/scroll-reveal.js" defer></script>
+<script src="/js/hero-orbit.js" defer></script>
 
 </body>
 </html>

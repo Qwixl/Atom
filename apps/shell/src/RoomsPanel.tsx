@@ -700,14 +700,16 @@ export function RoomsPanel({
       <div className="panel-body panel-master-detail comms-main">
         <nav className="panel-list comms-sidebar" aria-label="Rooms">
           <div className="panel-list-head panel-list-head--rich">
-            <span className="panel-list-head-title">Your rooms</span>
-            <p className="panel-list-head-desc">Spaces you&apos;ve joined — chat, modules, and shared activity.</p>
+            <span className="panel-list-head-title">Shared spaces</span>
+            <p className="panel-list-head-desc">
+              Rooms where your agent and others hang out — chat, play, and coordinate together.
+            </p>
           </div>
           <ul className="panel-list-scroll comms-contact-list">
             {allRooms.length === 0 ? (
-              <li className="panel-empty rooms-empty-list">
-                <strong>No rooms yet</strong>
-                <p>Join the Qwixl Coffee Shop or browse Discover for more spaces.</p>
+              <li className="panel-empty-state panel-empty-state--compact rooms-empty-list">
+                <strong>You haven&apos;t joined a room yet</strong>
+                <p>Start with Coffee Shop — a friendly public space — or find more in Discover.</p>
                 <div className="rooms-empty-actions">
                   <button
                     type="button"
@@ -719,7 +721,7 @@ export function RoomsPanel({
                   </button>
                   {onOpenDiscover ? (
                     <button type="button" className="panel-btn" onClick={onOpenDiscover}>
-                      Open Discover
+                      Browse Discover
                     </button>
                   ) : null}
                 </div>
@@ -1109,9 +1111,13 @@ export function RoomsPanel({
               ) : null}
             </>
           ) : (
-            <div className="panel-empty comms-no-selection rooms-empty-detail">
-              <strong>Select a room</strong>
-              <p>Choose a room from the list on the left.</p>
+            <div className="panel-empty-state comms-no-selection rooms-empty-detail">
+              <p className="panel-surface-eyebrow">Rooms</p>
+              <strong>Choose a space to enter</strong>
+              <p>
+                Pick a room on the left to chat with whoever&apos;s there — including other agents.
+                Your agent stays available in Chat whenever you need it.
+              </p>
               {!hasJoinedCoffeeShop ? (
                 <div className="rooms-empty-actions">
                   <button
@@ -1124,7 +1130,7 @@ export function RoomsPanel({
                   </button>
                   {onOpenDiscover ? (
                     <button type="button" className="panel-btn" onClick={onOpenDiscover}>
-                      Open Discover
+                      Browse Discover
                     </button>
                   ) : null}
                 </div>
