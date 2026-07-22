@@ -6,17 +6,41 @@ const ROOMS_FILE = "rooms.json";
 const SCHEMA_VERSION = 1;
 
 export type RoomAdmission = "open" | "invite" | "request";
+export type RoomStatus = "active" | "closed";
+
+export const ATOM_BASE_ROOM_POLICY_URL = "https://qwixl.dev/community/aup";
+
+export interface RoomRules {
+  basePolicyUrl: string;
+  hostRules: string[];
+}
 
 export interface RoomDescriptor {
   roomId: string;
   hostDid: string;
   name: string;
   topic?: string;
+  description?: string;
+  category: string;
   admission: RoomAdmission;
   moduleId?: string;
   policyUrl?: string;
+  rules: RoomRules;
+  creatorDid?: string;
+  status: RoomStatus;
   maxMembers: number;
   createdAt: string;
+}
+
+export interface RoomJoinRequest {
+  id: string;
+  roomId: string;
+  memberDid: string;
+  memberName?: string;
+  endpoint?: string;
+  keyPackage?: unknown;
+  requestedAt: string;
+  status: "pending" | "approved" | "denied";
 }
 
 export interface RoomMember {
@@ -49,12 +73,28 @@ interface RoomsFile {
     members: RoomMember[];
     messages: RoomMessage[];
     nextSeq: number;
+    joinRequests?: RoomJoinRequest[];
   }>;
   joinedRooms: Array<{
     roomId: string;
     hostUrl: string;
     descriptor: RoomDescriptor;
   }>;
+}
+
+function normalizeDescriptor(raw: RoomDescriptor): RoomDescriptor {
+  const hostRules = raw.rules?.hostRules?.filter((r) => r.trim()) ?? [];
+  return {
+    ...raw,
+    category: raw.category?.trim() || "Town",
+    description: raw.description?.trim() || raw.topic?.trim(),
+    status: raw.status === "closed" ? "closed" : "active",
+    rules: {
+      basePolicyUrl: raw.rules?.basePolicyUrl?.trim() || raw.policyUrl?.trim() || ATOM_BASE_ROOM_POLICY_URL,
+      hostRules,
+    },
+    policyUrl: raw.policyUrl?.trim() || ATOM_BASE_ROOM_POLICY_URL,
+  };
 }
 
 export class RoomStore {
@@ -65,6 +105,7 @@ export class RoomStore {
       members: RoomMember[];
       messages: RoomMessage[];
       nextSeq: number;
+      joinRequests: RoomJoinRequest[];
     }
   >();
   private joinedRooms = new Map<
@@ -84,10 +125,17 @@ export class RoomStore {
     this.rooms.clear();
     this.joinedRooms.clear();
     for (const room of file.rooms ?? []) {
-      this.rooms.set(room.descriptor.roomId, room);
+      this.rooms.set(room.descriptor.roomId, {
+        ...room,
+        descriptor: normalizeDescriptor(room.descriptor),
+        joinRequests: room.joinRequests ?? [],
+      });
     }
     for (const joined of file.joinedRooms ?? []) {
-      this.joinedRooms.set(joined.roomId, joined);
+      this.joinedRooms.set(joined.roomId, {
+        ...joined,
+        descriptor: normalizeDescriptor(joined.descriptor),
+      });
     }
   }
 
@@ -95,29 +143,44 @@ export class RoomStore {
     hostDid: string;
     name: string;
     topic?: string;
+    description?: string;
+    category?: string;
     admission?: RoomAdmission;
     moduleId?: string;
     policyUrl?: string;
+    hostRules?: string[];
+    creatorDid?: string;
+    status?: RoomStatus;
     maxMembers?: number;
     roomId?: string;
   }): RoomDescriptor {
     const roomId = opts.roomId?.trim() || `room:${randomUUID()}`;
-    const descriptor: RoomDescriptor = {
+    const policyUrl = opts.policyUrl?.trim() || ATOM_BASE_ROOM_POLICY_URL;
+    const descriptor = normalizeDescriptor({
       roomId,
       hostDid: opts.hostDid,
       name: opts.name.trim(),
       topic: opts.topic?.trim(),
+      description: opts.description?.trim() || opts.topic?.trim(),
+      category: opts.category?.trim() || "Town",
       admission: opts.admission ?? "invite",
       moduleId: opts.moduleId?.trim(),
-      policyUrl: opts.policyUrl?.trim(),
+      policyUrl,
+      rules: {
+        basePolicyUrl: ATOM_BASE_ROOM_POLICY_URL,
+        hostRules: (opts.hostRules ?? []).map((r) => r.trim()).filter(Boolean),
+      },
+      creatorDid: opts.creatorDid?.trim(),
+      status: opts.status ?? "active",
       maxMembers: opts.maxMembers ?? 64,
       createdAt: new Date().toISOString(),
-    };
+    });
     this.rooms.set(roomId, {
       descriptor,
       members: [],
       messages: [],
       nextSeq: 1,
+      joinRequests: [],
     });
     void this.persist();
     return descriptor;
@@ -129,6 +192,7 @@ export class RoomStore {
         members: RoomMember[];
         messages: RoomMessage[];
         nextSeq: number;
+        joinRequests: RoomJoinRequest[];
       }
     | undefined {
     return this.rooms.get(roomId);
@@ -136,6 +200,82 @@ export class RoomStore {
 
   listRooms(): RoomDescriptor[] {
     return [...this.rooms.values()].map((room) => room.descriptor);
+  }
+
+  listCatalog(): RoomDescriptor[] {
+    return this.listRooms().filter((d) => d.status === "active");
+  }
+
+  closeRoom(roomId: string): RoomDescriptor {
+    const room = this.rooms.get(roomId);
+    if (!room) throw new Error(`Unknown room ${roomId}`);
+    room.descriptor = { ...room.descriptor, status: "closed" };
+    void this.persist();
+    return room.descriptor;
+  }
+
+  updateRoomMeta(
+    roomId: string,
+    patch: Partial<Pick<RoomDescriptor, "name" | "topic" | "description" | "category" | "admission" | "rules">>,
+  ): RoomDescriptor {
+    const room = this.rooms.get(roomId);
+    if (!room) throw new Error(`Unknown room ${roomId}`);
+    room.descriptor = normalizeDescriptor({
+      ...room.descriptor,
+      ...patch,
+      rules: patch.rules ?? room.descriptor.rules,
+    });
+    void this.persist();
+    return room.descriptor;
+  }
+
+  listJoinRequests(roomId: string, status: RoomJoinRequest["status"] = "pending"): RoomJoinRequest[] {
+    const room = this.rooms.get(roomId);
+    if (!room) return [];
+    return room.joinRequests.filter((r) => r.status === status);
+  }
+
+  addJoinRequest(opts: {
+    roomId: string;
+    memberDid: string;
+    memberName?: string;
+    endpoint?: string;
+    keyPackage?: unknown;
+  }): RoomJoinRequest {
+    const room = this.rooms.get(opts.roomId);
+    if (!room) throw new Error(`Unknown room ${opts.roomId}`);
+    if (room.descriptor.status === "closed") throw new Error("Room is closed");
+    const existing = room.joinRequests.find(
+      (r) => r.memberDid === opts.memberDid && r.status === "pending",
+    );
+    if (existing) return existing;
+    const entry: RoomJoinRequest = {
+      id: randomUUID(),
+      roomId: opts.roomId,
+      memberDid: opts.memberDid,
+      memberName: opts.memberName?.trim(),
+      endpoint: opts.endpoint?.trim(),
+      keyPackage: opts.keyPackage,
+      requestedAt: new Date().toISOString(),
+      status: "pending",
+    };
+    room.joinRequests.push(entry);
+    void this.persist();
+    return entry;
+  }
+
+  setJoinRequestStatus(
+    roomId: string,
+    requestId: string,
+    status: "approved" | "denied",
+  ): RoomJoinRequest {
+    const room = this.rooms.get(roomId);
+    if (!room) throw new Error(`Unknown room ${roomId}`);
+    const req = room.joinRequests.find((r) => r.id === requestId);
+    if (!req) throw new Error("Join request not found");
+    req.status = status;
+    void this.persist();
+    return req;
   }
 
   addMember(roomId: string, member: Omit<RoomMember, "joinedAt">): RoomMember {

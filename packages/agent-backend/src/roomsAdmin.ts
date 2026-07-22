@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { ClientFactory } from "@a2a-js/sdk/client";
-import { sendMlsWire } from "@qwixl/a2a-transport";
-import { base64ToBytes } from "@qwixl/protocol";
+import { sendMlsWire, verifyRoomInvite } from "@qwixl/a2a-transport";
+import { base64ToBytes, type DataObject } from "@qwixl/protocol";
 import type { AgentKeyPair } from "@qwixl/protocol";
 import {
   adminBaseFromPeerUrl,
@@ -13,7 +13,11 @@ import {
 import { normalizePeerBaseUrl } from "./deliverObject.js";
 import type { MlsPeerRecordStore } from "./mlsPeerRecords.js";
 import { joinRemoteRoom } from "./roomJoinRemote.js";
-import type { RoomDescriptor, RoomStore } from "./roomStore.js";
+import {
+  ATOM_BASE_ROOM_POLICY_URL,
+  type RoomDescriptor,
+  type RoomStore,
+} from "./roomStore.js";
 
 export interface RoomsAdminDeps {
   identity: AgentKeyPair;
@@ -26,10 +30,53 @@ export interface RoomsAdminDeps {
 export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): void {
   const { identity, mlsStore, rooms, publicBaseUrl } = deps;
 
+  async function admitMember(opts: {
+    roomId: string;
+    memberDid: string;
+    memberEndpoint?: string;
+    memberName?: string;
+    keyPackageWire: string;
+  }) {
+    const handshake = await mlsStore.addRoomMember({
+      roomId: opts.roomId,
+      memberDid: opts.memberDid,
+      keyPackageWire: base64ToBytes(opts.keyPackageWire),
+    });
+    rooms.addMember(opts.roomId, {
+      did: opts.memberDid,
+      endpoint: opts.memberEndpoint,
+      name: opts.memberName,
+    });
+    return {
+      handshake,
+      hostEndpoint: `${publicBaseUrl.replace(/\/$/, "")}/a2a/jsonrpc`,
+    };
+  }
+
   app.get("/rooms", (_req, res) => {
     res.json({
       hosted: rooms.listRooms(),
       joined: rooms.listJoinedRooms(),
+    });
+  });
+
+  /** Public browse list of active hosted rooms (category grouping in shell). */
+  app.get("/rooms/catalog", (_req, res) => {
+    res.json({
+      rooms: rooms.listCatalog().map((d) => ({
+        roomId: d.roomId,
+        name: d.name,
+        topic: d.topic,
+        description: d.description,
+        category: d.category,
+        admission: d.admission,
+        moduleId: d.moduleId,
+        hostDid: d.hostDid,
+        status: d.status,
+        rules: d.rules,
+        creatorDid: d.creatorDid,
+      })),
+      hostUrl: publicBaseUrl.replace(/\/$/, ""),
     });
   });
 
@@ -38,23 +85,36 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
       const body = req.body as {
         name?: string;
         topic?: string;
+        description?: string;
+        category?: string;
         admission?: "open" | "invite" | "request";
         moduleId?: string;
         policyUrl?: string;
+        hostRules?: string[];
+        creatorDid?: string;
         maxMembers?: number;
         roomId?: string;
+        acceptedBaseRules?: boolean;
       };
       if (!body.name?.trim()) {
         res.status(400).json({ error: "name required" });
         return;
       }
+      if (body.acceptedBaseRules !== true) {
+        res.status(400).json({ error: "Atom base room rules must be accepted" });
+        return;
+      }
       const descriptor = rooms.createRoom({
         hostDid: identity.did,
         name: body.name.trim(),
-        topic: body.topic,
-        admission: body.admission,
-        moduleId: body.moduleId,
-        policyUrl: body.policyUrl,
+        topic: body.topic ?? body.description,
+        description: body.description ?? body.topic,
+        category: body.category,
+        admission: body.admission ?? "open",
+        moduleId: body.moduleId ?? "community/coffee-shop",
+        policyUrl: body.policyUrl ?? ATOM_BASE_ROOM_POLICY_URL,
+        hostRules: body.hostRules,
+        creatorDid: body.creatorDid,
         maxMembers: body.maxMembers,
         roomId: body.roomId,
       });
@@ -62,6 +122,15 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
       res.json({ room: descriptor });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.post("/rooms/:roomId/close", (req, res) => {
+    try {
+      const descriptor = rooms.closeRoom(req.params.roomId);
+      res.json({ room: descriptor });
+    } catch (error) {
+      res.status(404).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -146,7 +215,7 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
     res.json({ stats: rooms.stats(req.params.roomId) });
   });
 
-  /** Host accepts a member join (open rooms). */
+  /** Host accepts a member join (open / invite / request). */
   app.post("/rooms/:roomId/join", async (req, res) => {
     try {
       const roomId = req.params.roomId;
@@ -155,18 +224,20 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
         res.status(404).json({ error: "Room not found" });
         return;
       }
+      if (room.descriptor.status === "closed") {
+        res.status(403).json({ error: "Room is closed" });
+        return;
+      }
       const body = req.body as {
         memberDid?: string;
         memberEndpoint?: string;
         memberName?: string;
         keyPackageWire?: string;
+        inviteObject?: DataObject;
+        requestOnly?: boolean;
       };
-      if (!body.memberDid?.trim() || !body.keyPackageWire?.trim()) {
-        res.status(400).json({ error: "memberDid and keyPackageWire required" });
-        return;
-      }
-      if (room.descriptor.admission !== "open") {
-        res.status(403).json({ error: "Room is not open for direct join" });
+      if (!body.memberDid?.trim()) {
+        res.status(400).json({ error: "memberDid required" });
         return;
       }
       const memberDid = body.memberDid.trim();
@@ -178,17 +249,98 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
         });
         return;
       }
-      const handshake = await mlsStore.addRoomMember({
+
+      const admission = room.descriptor.admission;
+      if (admission === "invite") {
+        if (!body.inviteObject) {
+          res.status(403).json({ error: "Room requires a verified invite" });
+          return;
+        }
+        const { payload } = await verifyRoomInvite(body.inviteObject);
+        if (payload.roomId !== roomId) {
+          res.status(403).json({ error: "Invite is for a different room" });
+          return;
+        }
+      } else if (admission === "request") {
+        if (!body.keyPackageWire?.trim()) {
+          res.status(400).json({ error: "keyPackageWire required to request join" });
+          return;
+        }
+        const request = rooms.addJoinRequest({
+          roomId,
+          memberDid,
+          memberName: body.memberName?.trim(),
+          endpoint: body.memberEndpoint?.trim(),
+          keyPackage: body.keyPackageWire.trim(),
+        });
+        res.json({ pending: true, request });
+        return;
+      } else if (admission !== "open") {
+        res.status(403).json({ error: "Room is not open for direct join" });
+        return;
+      }
+
+      if (!body.keyPackageWire?.trim()) {
+        res.status(400).json({ error: "keyPackageWire required" });
+        return;
+      }
+      const admitted = await admitMember({
         roomId,
-        memberDid: body.memberDid.trim(),
-        keyPackageWire: base64ToBytes(body.keyPackageWire.trim()),
+        memberDid,
+        memberEndpoint: body.memberEndpoint?.trim(),
+        memberName: body.memberName?.trim(),
+        keyPackageWire: body.keyPackageWire.trim(),
       });
-      rooms.addMember(roomId, {
-        did: body.memberDid.trim(),
-        endpoint: body.memberEndpoint?.trim(),
-        name: body.memberName?.trim(),
+      res.json(admitted);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.get("/rooms/:roomId/join-requests", (req, res) => {
+    const room = rooms.getRoom(req.params.roomId);
+    if (!room) {
+      res.status(404).json({ error: "Room not found" });
+      return;
+    }
+    res.json({ requests: rooms.listJoinRequests(req.params.roomId, "pending") });
+  });
+
+  app.post("/rooms/:roomId/join-requests/:requestId/decide", async (req, res) => {
+    try {
+      const roomId = req.params.roomId;
+      const room = rooms.getRoom(roomId);
+      if (!room) {
+        res.status(404).json({ error: "Room not found" });
+        return;
+      }
+      const body = req.body as { decision?: "approved" | "denied" };
+      if (body.decision !== "approved" && body.decision !== "denied") {
+        res.status(400).json({ error: "decision must be approved or denied" });
+        return;
+      }
+      const request = rooms.setJoinRequestStatus(roomId, req.params.requestId, body.decision);
+      if (body.decision === "denied") {
+        res.json({ request });
+        return;
+      }
+      const keyPackageWire =
+        typeof request.keyPackage === "string" ? request.keyPackage : undefined;
+      if (!keyPackageWire) {
+        res.status(400).json({
+          error: "Join request has no key package — ask the member to request again",
+          request,
+        });
+        return;
+      }
+      const admitted = await admitMember({
+        roomId,
+        memberDid: request.memberDid,
+        memberEndpoint: request.endpoint,
+        memberName: request.memberName,
+        keyPackageWire,
       });
-      res.json({ handshake, hostEndpoint: `${publicBaseUrl.replace(/\/$/, "")}/a2a/jsonrpc` });
+      res.json({ request, ...admitted });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
     }
@@ -201,6 +353,8 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
         hostUrl?: string;
         roomId?: string;
         memberName?: string;
+        inviteObject?: DataObject;
+        requestOnly?: boolean;
       };
       const hostUrl = body.hostUrl?.trim();
       const roomId = body.roomId?.trim();
@@ -216,7 +370,13 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
           peerRecords: deps.peerRecords,
           publicBaseUrl,
         },
-        { hostUrl, roomId, memberName: body.memberName },
+        {
+          hostUrl,
+          roomId,
+          memberName: body.memberName,
+          inviteObject: body.inviteObject,
+          requestOnly: body.requestOnly,
+        },
       );
       res.json(result);
     } catch (error) {

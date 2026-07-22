@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import {
   attachHandlesToEntries,
@@ -23,6 +24,10 @@ import {
 import { discoverTrustSignals } from "./discoverTrust.js";
 import { swarmDiscoverBadge } from "./swarmBadge.js";
 import { PanelFilterPills } from "./shell/PanelChrome.js";
+import { ContactAbuseReportForm } from "./ContactAbuseReportForm.js";
+
+/** DOM id for Messages subnav tools slot (desktop one-line Address book chrome). */
+export const MESSAGES_ADDRESS_TOOLS_ID = "messages-address-tools";
 
 interface DiscoverPanelProps {
   contacts: AgentContact[];
@@ -36,6 +41,11 @@ interface DiscoverPanelProps {
   onRequestReconnect?: () => void;
   /** Compact embed for Messages → Address book (no large hero). */
   density?: "default" | "compact";
+  /**
+   * When set (Messages Address book), filters+search portal into that element on desktop.
+   * Mobile keeps the stacked toolbar inside the panel.
+   */
+  toolbarPortalId?: string;
 }
 
 interface DiscoverResult extends BusinessIndexEntry {
@@ -81,6 +91,7 @@ export function DiscoverPanel({
   onAgentAuthFailure,
   onRequestReconnect,
   density = "default",
+  toolbarPortalId,
 }: DiscoverPanelProps) {
   const compact = density === "compact";
   const { client, sessionReady } = useAgentConfig(vaultUnlocked);
@@ -96,6 +107,16 @@ export function DiscoverPanel({
   const [indexMatches, setIndexMatches] = useState(0);
   const [joinedRoomIds, setJoinedRoomIds] = useState<Set<string>>(() => new Set());
   const [searchNonce, setSearchNonce] = useState(0);
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
+  const [reportKey, setReportKey] = useState<string | null>(null);
+
+  useLayoutEffect(() => {
+    if (!toolbarPortalId) {
+      setPortalHost(null);
+      return;
+    }
+    setPortalHost(document.getElementById(toolbarPortalId));
+  }, [toolbarPortalId]);
 
   const refreshJoinedRooms = useCallback(async () => {
     if (!connectionActive) {
@@ -245,25 +266,9 @@ export function DiscoverPanel({
     { value: "developer", label: "Developers" },
   ];
 
-  return (
-    <aside className={`panel-view discover-view${compact ? " discover-view--compact" : ""}`}>
-      {compact ? (
-        <p className="discover-compact-lede">
-          Find someone, then Message or Join room — they land in Inbox or Rooms.
-        </p>
-      ) : (
-        <header className="panel-surface-hero panel-surface-hero--compact">
-          <div className="panel-surface-hero-copy">
-            <p className="panel-surface-eyebrow">Address book</p>
-            <h1 className="panel-surface-title">Meet agents worth knowing</h1>
-            <p className="panel-surface-lede">
-              Search communities, businesses, and developers. Message privately or join a room.
-            </p>
-          </div>
-        </header>
-      )}
-
-      <div className="discover-toolbar">
+  function renderToolbar(extraClass?: string): ReactNode {
+    return (
+      <div className={extraClass ? `discover-toolbar ${extraClass}` : "discover-toolbar"}>
         <PanelFilterPills
           ariaLabel="Filter discover listings"
           value={kind}
@@ -289,6 +294,33 @@ export function DiscoverPanel({
           </button>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <aside
+      className={`panel-view discover-view${compact ? " discover-view--compact" : ""}${
+        toolbarPortalId ? " discover-view--messages-chrome" : ""
+      }`}
+    >
+      {!compact ? (
+        <header className="panel-surface-hero panel-surface-hero--compact">
+          <div className="panel-surface-hero-copy">
+            <p className="panel-surface-eyebrow">Address book</p>
+            <h1 className="panel-surface-title">Meet agents worth knowing</h1>
+            <p className="panel-surface-lede">
+              Search communities, businesses, and developers. Message privately or join a room.
+            </p>
+          </div>
+        </header>
+      ) : null}
+
+      {portalHost
+        ? createPortal(renderToolbar("discover-toolbar--inline"), portalHost)
+        : null}
+      {toolbarPortalId
+        ? renderToolbar("discover-toolbar--stacked")
+        : renderToolbar()}
 
       {status ? (
         <div className="comms-status-error">
@@ -334,8 +366,9 @@ export function DiscoverPanel({
               const canJoin =
                 (entry.kind === "community" || (entry.roomIds?.length ?? 0) > 0) &&
                 !isDiscoverEntryJoined(entry, joinedRoomIds);
+              const cardKey = `${entry.indexLabel}:${entry.businessDomain}:${entry.displayName}`;
               return (
-                <li key={`${entry.indexLabel}:${entry.businessDomain}:${entry.displayName}`}>
+                <li key={cardKey}>
                   <article className="discover-card">
                     <header className="discover-card-head">
                       <h3 className="discover-card-title">{entryTitle(entry)}</h3>
@@ -380,7 +413,35 @@ export function DiscoverPanel({
                       >
                         Message
                       </button>
+                      <button
+                        type="button"
+                        className="panel-btn"
+                        onClick={() =>
+                          setReportKey((current) => (current === cardKey ? null : cardKey))
+                        }
+                      >
+                        {reportKey === cardKey ? "Cancel report" : "Report"}
+                      </button>
                     </footer>
+                    {reportKey === cardKey ? (
+                      <ContactAbuseReportForm
+                        target={{
+                          did: entry.did || entry.publisherDid || entry.businessDomain || cardKey,
+                          endpoint: entry.hostUrl || entry.agentCardUrl,
+                          handle: entry.handle,
+                          name: entryTitle(entry),
+                          roomId: entry.roomIds?.[0],
+                        }}
+                        surface={entry.roomIds?.length ? "rooms" : "messages"}
+                        hideAlsoBlock={!entry.did}
+                        onReported={(note) => {
+                          setStatus(note);
+                          setReportKey(null);
+                          onActivity?.(note);
+                        }}
+                        onCancel={() => setReportKey(null)}
+                      />
+                    ) : null}
                   </article>
                 </li>
               );

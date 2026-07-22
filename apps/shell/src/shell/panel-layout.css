@@ -1917,6 +1917,91 @@ a.settings-donate-link {
   width: 100%;
 }
 
+.rooms-list-head-actions {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.rooms-create-form {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--atom-border, #ddd);
+}
+
+.rooms-create-field {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.rooms-create-check {
+  display: flex;
+  gap: 0.45rem;
+  align-items: flex-start;
+  font-size: 0.85rem;
+}
+
+.rooms-create-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.rooms-category-group {
+  list-style: none;
+}
+
+.rooms-category-summary {
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--atom-muted, #666);
+  padding: 0.45rem 0.75rem 0.2rem;
+}
+
+.rooms-category-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rooms-category-list > li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+  gap: 0.25rem;
+  padding-right: 0.4rem;
+}
+
+.rooms-join-inline {
+  align-self: center;
+}
+
+.rooms-room-report,
+.rooms-pending-requests {
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--atom-border, #ddd);
+}
+
+.rooms-pending-requests ul {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.rooms-pending-requests li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
 .rooms-venue {
   display: none;
 }

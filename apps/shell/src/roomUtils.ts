@@ -1,6 +1,29 @@
 /** Map registry module id (e.g. `community/coffee-shop`) to shell bundle path. */
 export const COFFEE_SHOP_ROOM_ID = "room:coffeeshop";
 
+export const TOWN_VENUE_ROOM_IDS = [
+  "room:coffeeshop",
+  "room:church",
+  "room:gym",
+  "room:movie-theatre",
+  "room:university",
+  "room:atom-hq",
+] as const;
+
+export type CatalogRoom = {
+  roomId: string;
+  name: string;
+  topic?: string;
+  description?: string;
+  category: string;
+  admission: "open" | "invite" | "request" | string;
+  moduleId?: string;
+  hostDid: string;
+  status: "active" | "closed" | string;
+  rules?: { basePolicyUrl: string; hostRules: string[] };
+  creatorDid?: string;
+};
+
 export function moduleBundleUrl(moduleId: string): string {
   const slug = moduleId.trim().replace(/\//g, "-");
   if (!slug) return "";
