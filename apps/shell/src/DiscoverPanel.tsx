@@ -9,7 +9,7 @@ import {
   type IndexEntryKind,
 } from "@qwixl/business-index";
 
-import { CommsAgentClient, type ResolvedDiscoverTarget } from "./comms/client.js";
+import type { ResolvedDiscoverTarget } from "./comms/client.js";
 import { connectDiscoverEntry, joinDiscoverRoom, entryTitle, filterAvailableDiscoverEntriesForClient, isDiscoverEntryJoined } from "./discoverActions.js";
 import { ownerHandleForRooms } from "./ownerHandle.js";
 import { isAgentAuthError } from "./comms/agentErrors.js";
@@ -22,7 +22,7 @@ import {
 } from "./discoverIndexStorage.js";
 import { discoverTrustSignals } from "./discoverTrust.js";
 import { swarmDiscoverBadge } from "./swarmBadge.js";
-import { PanelFilterPills, PanelSectionHeader } from "./shell/PanelChrome.js";
+import { PanelFilterPills } from "./shell/PanelChrome.js";
 
 interface DiscoverPanelProps {
   contacts: AgentContact[];
@@ -56,6 +56,16 @@ function entrySubtitle(entry: BusinessIndexEntry): string | null {
     return entry.categories.join(" · ");
   }
   return null;
+}
+
+function entryBlurb(entry: BusinessIndexEntry): string {
+  if (entry.kind === "community") {
+    return "Join their room — meet the host agent and people already there.";
+  }
+  if (entry.kind === "developer") {
+    return "Message this developer agent about tools, modules, or support.";
+  }
+  return "Start a private DM with this business agent.";
 }
 
 export function DiscoverPanel({
@@ -225,18 +235,38 @@ export function DiscoverPanel({
   }
 
   const kindFilters: Array<{ value: IndexEntryKind | "all"; label: string }> = [
-    { value: "all", label: "All" },
-    { value: "community", label: "Community" },
-    { value: "business", label: "Business" },
-    { value: "developer", label: "Developer" },
+    { value: "all", label: "Everyone" },
+    { value: "community", label: "Communities" },
+    { value: "business", label: "Businesses" },
+    { value: "developer", label: "Developers" },
   ];
 
   return (
     <aside className="panel-view discover-view">
-      <PanelSectionHeader
-        title="Discover"
-        subtitle="Search curated indexes for agents, businesses, and rooms. Extra indexes are owner-chosen — Atom does not police the open web."
-      />
+      <header className="panel-surface-hero">
+        <div className="panel-surface-hero-copy">
+          <p className="panel-surface-eyebrow">Discover</p>
+          <h1 className="panel-surface-title">Meet agents worth knowing</h1>
+          <p className="panel-surface-lede">
+            Browse curated indexes for communities, businesses, and developers. Start a DM, or join
+            a room — your agent stays with you the whole way.
+          </p>
+        </div>
+        <ul className="panel-surface-steps" aria-label="How Discover works">
+          <li>
+            <span className="panel-surface-step-num">1</span>
+            <span>Find someone</span>
+          </li>
+          <li>
+            <span className="panel-surface-step-num">2</span>
+            <span>DM or join their room</span>
+          </li>
+          <li>
+            <span className="panel-surface-step-num">3</span>
+            <span>Keep talking in Messages or Rooms</span>
+          </li>
+        </ul>
+      </header>
 
       <PanelFilterPills
         ariaLabel="Filter discover listings"
@@ -277,32 +307,42 @@ export function DiscoverPanel({
 
       {!loading && results.length > 0 ? (
         <p className="discover-status-bar" aria-live="polite">
-          {results.length} listing{results.length === 1 ? "" : "s"} available
+          {results.length} agent{results.length === 1 ? "" : "s"} ready to meet
         </p>
       ) : null}
 
       <div className="panel-body panel-body-scroll" style={{ padding: 0 }}>
         {results.length === 0 && !loading ? (
-          <p className="panel-empty" style={{ padding: "24px 20px" }}>
-            {indexMatches > 0
-              ? "Matches exist in an index, but their agent host is offline. Try again shortly, or open Rooms → Join Coffee Shop."
-              : terms.trim()
-                ? "Nothing matched. Curated listings are limited on purpose — try a different name or @handle."
-                : "No listings yet in the default indexes. Third-party indexes are owner-chosen when you opt in — Atom only curates the store that ships with this shell."}
-          </p>
+          <div className="panel-empty-state">
+            <strong>
+              {indexMatches > 0
+                ? "Hosts are offline right now"
+                : terms.trim()
+                  ? "Nothing matched"
+                  : "No listings yet"}
+            </strong>
+            <p>
+              {indexMatches > 0
+                ? "Matches exist in an index, but their agent host is offline. Try again shortly, or open Rooms → Join Coffee Shop."
+                : terms.trim()
+                  ? "Curated listings are limited on purpose — try a different name or @handle."
+                  : "Third-party indexes are owner-chosen when you opt in. Atom only curates the store that ships with this shell."}
+            </p>
+          </div>
         ) : (
           <ul className="discover-results-grid">
             {results.map((entry) => {
               const subtitle = entrySubtitle(entry);
               const trust = discoverTrustSignals(entry, entry.indexLabel, entry.indexUrl);
               const swarm = swarmDiscoverBadge(entry);
+              const canJoin =
+                (entry.kind === "community" || (entry.roomIds?.length ?? 0) > 0) &&
+                !isDiscoverEntryJoined(entry, joinedRoomIds);
               return (
                 <li key={`${entry.indexLabel}:${entry.businessDomain}:${entry.displayName}`}>
                   <article className="discover-card">
                     <header className="discover-card-head">
-                      <div className="discover-card-title-row">
-                        <h3 className="discover-card-title">{entryTitle(entry)}</h3>
-                      </div>
+                      <h3 className="discover-card-title">{entryTitle(entry)}</h3>
                       <div className="discover-card-badges">
                         <span className="discover-kind">{kindLabel(entry.kind)}</span>
                         {swarm ? (
@@ -322,15 +362,10 @@ export function DiscoverPanel({
                         </span>
                       </div>
                       {subtitle ? <p className="discover-card-meta">{subtitle}</p> : null}
-                      {trust.publisherDid ? (
-                        <p className="discover-card-meta discover-publisher">
-                          Publisher {trust.publisherDid}
-                        </p>
-                      ) : null}
+                      <p className="discover-card-blurb">{entryBlurb(entry)}</p>
                     </header>
                     <footer className="discover-card-actions">
-                      {(entry.kind === "community" || (entry.roomIds?.length ?? 0) > 0) &&
-                      !isDiscoverEntryJoined(entry, joinedRoomIds) ? (
+                      {canJoin ? (
                         <button
                           type="button"
                           className="panel-btn panel-btn-primary"
@@ -347,10 +382,7 @@ export function DiscoverPanel({
                         onClick={() => void connectEntry(entry)}
                         aria-label={`Send DM to ${entryTitle(entry)}`}
                       >
-                        <span className="discover-dm-icon" aria-hidden="true">
-                          ✉
-                        </span>
-                        DM
+                        Message
                       </button>
                     </footer>
                   </article>
