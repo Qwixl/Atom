@@ -34,6 +34,8 @@ interface DiscoverPanelProps {
   agentConnectionReady?: boolean;
   onAgentAuthFailure?: () => void | Promise<void>;
   onRequestReconnect?: () => void;
+  /** Compact embed for Messages → Address book (no large hero). */
+  density?: "default" | "compact";
 }
 
 interface DiscoverResult extends BusinessIndexEntry {
@@ -78,7 +80,9 @@ export function DiscoverPanel({
   agentConnectionReady = true,
   onAgentAuthFailure,
   onRequestReconnect,
+  density = "default",
 }: DiscoverPanelProps) {
+  const compact = density === "compact";
   const { client, sessionReady } = useAgentConfig(vaultUnlocked);
   const connectionActive = agentConnectionReady && vaultUnlocked && sessionReady;
   const indexConfigs = useMemo(() => loadDiscoverIndexes(), []);
@@ -242,56 +246,48 @@ export function DiscoverPanel({
   ];
 
   return (
-    <aside className="panel-view discover-view">
-      <header className="panel-surface-hero">
-        <div className="panel-surface-hero-copy">
-          <p className="panel-surface-eyebrow">Discover</p>
-          <h1 className="panel-surface-title">Meet agents worth knowing</h1>
-          <p className="panel-surface-lede">
-            Browse curated indexes for communities, businesses, and developers. Start a DM, or join
-            a room — your agent stays with you the whole way.
-          </p>
-        </div>
-        <ul className="panel-surface-steps" aria-label="How Discover works">
-          <li>
-            <span className="panel-surface-step-num">1</span>
-            <span>Find someone</span>
-          </li>
-          <li>
-            <span className="panel-surface-step-num">2</span>
-            <span>DM or join their room</span>
-          </li>
-          <li>
-            <span className="panel-surface-step-num">3</span>
-            <span>Keep talking in Messages or Rooms</span>
-          </li>
-        </ul>
-      </header>
+    <aside className={`panel-view discover-view${compact ? " discover-view--compact" : ""}`}>
+      {compact ? (
+        <p className="discover-compact-lede">
+          Find someone, then Message or Join room — they land in Inbox or Rooms.
+        </p>
+      ) : (
+        <header className="panel-surface-hero panel-surface-hero--compact">
+          <div className="panel-surface-hero-copy">
+            <p className="panel-surface-eyebrow">Address book</p>
+            <h1 className="panel-surface-title">Meet agents worth knowing</h1>
+            <p className="panel-surface-lede">
+              Search communities, businesses, and developers. Message privately or join a room.
+            </p>
+          </div>
+        </header>
+      )}
 
-      <PanelFilterPills
-        ariaLabel="Filter discover listings"
-        value={kind}
-        options={kindFilters}
-        onChange={setKind}
-      />
-
-      <div className="discover-search-strip">
-        <input
-          className="panel-input"
-          type="search"
-          value={terms}
-          onChange={(event) => setTerms(event.target.value)}
-          placeholder="Search by name, @handle, or topic…"
-          aria-label="Search discover index"
+      <div className="discover-toolbar">
+        <PanelFilterPills
+          ariaLabel="Filter discover listings"
+          value={kind}
+          options={kindFilters}
+          onChange={setKind}
         />
-        <button
-          type="button"
-          className="panel-btn panel-btn-primary"
-          onClick={() => setSearchNonce((n) => n + 1)}
-          disabled={loading}
-        >
-          {loading ? "Checking…" : "Search"}
-        </button>
+        <div className="discover-search-strip">
+          <input
+            className="panel-input"
+            type="search"
+            value={terms}
+            onChange={(event) => setTerms(event.target.value)}
+            placeholder="Search by name, @handle, or topic…"
+            aria-label="Search address book"
+          />
+          <button
+            type="button"
+            className="panel-btn panel-btn-primary"
+            onClick={() => setSearchNonce((n) => n + 1)}
+            disabled={loading}
+          >
+            {loading ? "Checking…" : "Search"}
+          </button>
+        </div>
       </div>
 
       {status ? (
@@ -362,7 +358,7 @@ export function DiscoverPanel({
                         </span>
                       </div>
                       {subtitle ? <p className="discover-card-meta">{subtitle}</p> : null}
-                      <p className="discover-card-blurb">{entryBlurb(entry)}</p>
+                      {!compact ? <p className="discover-card-blurb">{entryBlurb(entry)}</p> : null}
                     </header>
                     <footer className="discover-card-actions">
                       {canJoin ? (
