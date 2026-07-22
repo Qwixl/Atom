@@ -37,6 +37,11 @@ export interface AgentBackendConfig {
   brainIntervalMs: number;
   /** D087 swarm role (ATOM_AGENT_KIND). */
   agentKind: AgentKindConfig;
+  /**
+   * Owner mesh bootstrap: auto MLS-connect to ATOM_MESH_PEER_URLS and/or
+   * community index NPCs (ex-police). See meshBootstrap.ts.
+   */
+  meshBootstrap: boolean;
   /** When true, swarm ticks must not run. */
   killSwitch: boolean;
   /** D096 inbound reachability mode (ATOM_REACHABILITY). */
@@ -114,6 +119,14 @@ export function loadAgentBackendConfig(env: NodeJS.ProcessEnv = process.env): Ag
       Number(env.ATOM_BRAIN_INTERVAL_MS?.trim() || 60_000) || 60_000,
     ),
     agentKind,
+    meshBootstrap: (() => {
+      const flag = env.ATOM_MESH_BOOTSTRAP?.trim().toLowerCase();
+      if (flag === "0" || flag === "false" || flag === "off") return false;
+      if (flag === "1" || flag === "true" || flag === "on") return true;
+      return Boolean(
+        env.ATOM_MESH_PEER_URLS?.trim() || env.ATOM_MESH_BOOTSTRAP_INDEX_URL?.trim(),
+      );
+    })(),
     killSwitch: env.ATOM_KILL_SWITCH === "1" || env.ATOM_KILL_SWITCH === "true",
     reachability: reachabilityConfig.mode,
     reachabilityConfig,

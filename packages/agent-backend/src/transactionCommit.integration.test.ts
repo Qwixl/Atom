@@ -45,6 +45,7 @@ function testConfig(port: number, publicBaseUrl: string): AgentBackendConfig {
     brainAlwaysOn: true,
     brainIntervalMs: 60000,
   agentKind: "owner",
+  meshBootstrap: false,
   killSwitch: false,
   ...testReachabilityDefaults({ publicBaseUrl }),
   };
