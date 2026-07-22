@@ -1,6 +1,6 @@
 import { useCallback, useId, useRef, useState } from "react";
 import { AtomIdent } from "../brand/AtomIdent.js";
-import { ShellSidebar, type ShellNavPanel } from "./ShellSidebar.js";
+import type { ShellNavPanel } from "./ShellSidebar.js";
 import { GamesMenu, type GamesMenuItem } from "./GamesMenu.js";
 import {
   IconBoard,
@@ -36,8 +36,6 @@ type AtomShellProps = {
   onOpenAccount: () => void;
   onLogout?: () => void;
   settingsLabel?: string;
-  ownerName?: string;
-  ownerHandle?: string;
   badges?: Partial<Record<ShellNavPanel, { count: number; tone?: "default" | "warn" }>>;
   status?: React.ReactNode;
   banner?: React.ReactNode;
@@ -54,9 +52,10 @@ type AtomShellProps = {
   children: React.ReactNode;
 };
 
-/** Legacy mobile popover sections (chat, discover, rooms) plus overflow. */
-const MOBILE_OVERFLOW_NAV: Omit<NavItem, "badge" | "locked">[] = [
+/** Primary sections shown in desktop tabs and the mobile hamburger. */
+const PRIMARY_NAV: Omit<NavItem, "badge" | "locked">[] = [
   { id: "none", label: "Chat", icon: IconChat },
+  { id: "comms", label: "Messages", icon: IconMessages },
   { id: "discover", label: "Discover", icon: IconDiscover },
   { id: "rooms", label: "Rooms", icon: IconRooms },
 ];
@@ -72,6 +71,36 @@ type PopoverElement = HTMLElement & {
   hidePopover?: () => void;
   togglePopover?: () => void;
 };
+
+function NavButton({
+  item,
+  active,
+  onSelect,
+}: {
+  item: NavItem;
+  active: boolean;
+  onSelect: (id: ShellNavPanel) => void;
+}) {
+  const Icon = item.icon;
+  return (
+    <button
+      type="button"
+      className={`atom-nav-item${active ? " is-active" : ""}${item.locked ? " is-locked" : ""}`}
+      aria-current={active ? "page" : undefined}
+      disabled={item.locked}
+      title={item.locked ? "Not available in demo" : undefined}
+      onClick={() => onSelect(item.id)}
+    >
+      <Icon className="atom-nav-icon" />
+      <span className="atom-nav-label">{item.label}</span>
+      {item.badge ? (
+        <span className={`atom-nav-badge${item.badgeTone === "warn" ? " atom-nav-badge--warn" : ""}`}>
+          {item.badge}
+        </span>
+      ) : null}
+    </button>
+  );
+}
 
 function withBadges(
   entries: Omit<NavItem, "badge" | "locked">[],
@@ -93,8 +122,6 @@ export function AtomShell({
   onOpenAccount,
   onLogout,
   settingsLabel = "Settings",
-  ownerName,
-  ownerHandle,
   badges = {},
   status,
   banner,
@@ -109,17 +136,15 @@ export function AtomShell({
   children,
 }: AtomShellProps) {
   const locked = new Set(lockedSections);
-  const overflowNav = boardAvailable
-    ? [...MOBILE_OVERFLOW_NAV, BOARD_NAV]
-    : MOBILE_OVERFLOW_NAV;
+  const primaryNav = boardAvailable ? [...PRIMARY_NAV, BOARD_NAV] : PRIMARY_NAV;
   const stageRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<PopoverElement | null>(null);
   const popoverId = useId().replace(/:/g, "");
   const navPopoverId = `atom-nav-menu-${popoverId}`;
   const [gamesOpen, setGamesOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const mobileOverflowItems = withBadges(overflowNav, badges, locked);
+  const primaryItems = withBadges(primaryNav, badges, locked);
+  const mobileMenuItems = primaryItems;
 
   const setPopoverNode = useCallback((node: HTMLDivElement | null) => {
     popoverRef.current = node;
@@ -129,12 +154,16 @@ export function AtomShell({
   }, []);
 
   function toggleNavMenu() {
-    if (window.matchMedia("(min-width: 960px)").matches) return;
-    setSidebarOpen((open) => !open);
+    const el = popoverRef.current;
+    if (!el?.togglePopover) return;
+    try {
+      el.togglePopover();
+    } catch {
+      /* unsupported */
+    }
   }
 
   function hideNavMenu() {
-    setSidebarOpen(false);
     const el = popoverRef.current;
     if (!el?.hidePopover) return;
     try {
@@ -156,36 +185,36 @@ export function AtomShell({
     onOpenSettings(target);
   }
 
-  const menuBadgeTotal = mobileOverflowItems.reduce((sum, item) => sum + (item.badge ?? 0), 0);
+  const menuBadgeTotal = mobileMenuItems.reduce((sum, item) => sum + (item.badge ?? 0), 0);
 
   return (
     <div className={`atom-app${variant === "demo" ? " atom-app--demo" : ""}`}>
-      <ShellSidebar
-        panel={section}
-        onNavigate={selectSection}
-        onOpenSettings={() => openSettings("default")}
-        onOpenAccount={() => {
-          hideNavMenu();
-          onOpenAccount();
-        }}
-        ownerName={ownerName}
-        ownerHandle={ownerHandle}
-        commsCount={badges.comms?.count ?? 0}
-        profileBadge={badges.profile ?? null}
-        mobileOpen={sidebarOpen}
-        onMobileClose={() => setSidebarOpen(false)}
-        boardAvailable={boardAvailable}
-        lockedSections={lockedSections}
-      />
+      <header className="atom-app-header site-header">
+        <div className="atom-app-header-inner">
+          <a className="site-brand atom-brand-link" href="/" aria-label="Atom home">
+            <AtomIdent className="atom-brand-ident" />
+            <span className="atom-brand-name">Atom</span>
+            {showDemoTag ? <span className="demo-tag">Demo</span> : null}
+          </a>
 
-      <div className="atom-app-shell-main">
-        <header className="atom-app-header site-header atom-app-header--mobile">
-          <div className="atom-app-header-inner">
+          <nav className="atom-app-tabs" aria-label="Sections">
+            {primaryItems.map((item) => (
+              <NavButton key={item.id} item={item} active={section === item.id} onSelect={selectSection} />
+            ))}
+            {onStartGame ? (
+              <GamesMenu games={games} onSelect={onStartGame} className="atom-games-menu--tab" />
+            ) : null}
+          </nav>
+
+          <div className="atom-app-header-end">
+            {headerActions}
+            {status}
             <button
               type="button"
               className="atom-app-menu-trigger"
               aria-label="Open menu"
               title="Menu"
+              aria-controls={navPopoverId}
               onClick={toggleNavMenu}
             >
               <IconMenu className="atom-menu-lines" />
@@ -195,38 +224,18 @@ export function AtomShell({
                 </span>
               ) : null}
             </button>
-
-            <a className="site-brand atom-brand-link" href="/" aria-label="Atom home">
-              <AtomIdent className="atom-brand-ident" />
-              <span className="atom-brand-name">Atom</span>
-              {showDemoTag ? <span className="demo-tag">Demo</span> : null}
-            </a>
-
-            <div className="atom-app-header-end">
-              {headerActions}
-              <button
-                type="button"
-                className="atom-app-account panel-btn-icon"
-                aria-label="Account"
-                title="Account"
-                onClick={() => {
-                  hideNavMenu();
-                  onOpenAccount();
-                }}
-              >
-                <IconProfile className="atom-nav-icon" />
-              </button>
-            </div>
-          </div>
-        </header>
-
-        <div className="atom-app-toolbar atom-app-toolbar--desktop">
-          <div className="atom-app-toolbar-start">{status}</div>
-          <div className="atom-app-toolbar-end">
-            {headerActions}
-            {onStartGame ? (
-              <GamesMenu games={games} onSelect={onStartGame} className="atom-games-menu--toolbar" />
-            ) : null}
+            <button
+              type="button"
+              className="atom-app-account panel-btn-icon"
+              aria-label="Account"
+              title="Account"
+              onClick={() => {
+                hideNavMenu();
+                onOpenAccount();
+              }}
+            >
+              <IconProfile className="atom-nav-icon" />
+            </button>
             <button
               type="button"
               className="atom-app-settings panel-btn-icon"
@@ -252,120 +261,139 @@ export function AtomShell({
             ) : null}
           </div>
         </div>
+      </header>
 
-        <div id={navPopoverId} ref={setPopoverNode} className="atom-nav-popover">
-          <nav className="atom-nav-popover-nav" aria-label="More sections">
-            {mobileOverflowItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`atom-nav-popover-item${section === item.id ? " is-active" : ""}${item.locked ? " is-locked" : ""}`}
-                  aria-current={section === item.id ? "page" : undefined}
-                  disabled={item.locked}
-                  onClick={() => selectSection(item.id)}
-                >
-                  <Icon className="atom-nav-icon" />
-                  <span>{item.label}</span>
-                  {item.badge ? (
-                    <span
-                      className={`atom-nav-badge${item.badgeTone === "warn" ? " atom-nav-badge--warn" : ""}`}
-                    >
-                      {item.badge}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              className="atom-nav-popover-item"
-              onClick={() => openSettings("profile")}
-            >
-              <IconProfile className="atom-nav-icon" />
-              <span>Profile</span>
-              {badges.profile?.count ? (
-                <span
-                  className={`atom-nav-badge${badges.profile.tone === "warn" ? " atom-nav-badge--warn" : ""}`}
-                >
-                  {badges.profile.count}
-                </span>
-              ) : null}
-            </button>
-            <button
-              type="button"
-              className="atom-nav-popover-item"
-              onClick={() => openSettings("log")}
-            >
-              <IconLog className="atom-nav-icon" />
-              <span>Log</span>
-              {badges.log?.count ? (
-                <span className="atom-nav-badge">{badges.log.count}</span>
-              ) : null}
-            </button>
-            {onStartGame && games.length > 0 ? (
-              <div className="atom-nav-popover-games">
-                <button
-                  type="button"
-                  className={`atom-nav-popover-item atom-nav-popover-games-toggle${gamesOpen ? " is-open" : ""}`}
-                  aria-expanded={gamesOpen}
-                  onClick={() => setGamesOpen((open) => !open)}
-                >
-                  <IconGames className="atom-nav-icon atom-games-icon" />
-                  <span>Games</span>
-                  {gamesOpen ? (
-                    <IconChevronDown className="atom-nav-popover-chevron" />
-                  ) : (
-                    <IconChevronRight className="atom-nav-popover-chevron" />
-                  )}
-                </button>
-                {gamesOpen ? (
-                  <div className="atom-nav-popover-submenu" role="group" aria-label="Games">
-                    {games.map((game) => (
-                      <button
-                        key={game.moduleId}
-                        type="button"
-                        className="atom-nav-popover-item atom-nav-popover-subitem"
-                        onClick={() => {
-                          hideNavMenu();
-                          setGamesOpen(false);
-                          onStartGame(game.moduleId);
-                        }}
-                      >
-                        <span>{game.label}</span>
-                      </button>
-                    ))}
-                  </div>
+      <div id={navPopoverId} ref={setPopoverNode} className="atom-nav-popover">
+        <nav className="atom-nav-popover-nav" aria-label="Sections">
+          {mobileMenuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`atom-nav-popover-item${section === item.id ? " is-active" : ""}${item.locked ? " is-locked" : ""}`}
+                aria-current={section === item.id ? "page" : undefined}
+                disabled={item.locked}
+                onClick={() => selectSection(item.id)}
+              >
+                <Icon className="atom-nav-icon" />
+                <span>{item.label}</span>
+                {item.badge ? (
+                  <span
+                    className={`atom-nav-badge${item.badgeTone === "warn" ? " atom-nav-badge--warn" : ""}`}
+                  >
+                    {item.badge}
+                  </span>
                 ) : null}
-              </div>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            className="atom-nav-popover-item"
+            onClick={() => openSettings("profile")}
+          >
+            <IconProfile className="atom-nav-icon" />
+            <span>Profile</span>
+            {badges.profile?.count ? (
+              <span
+                className={`atom-nav-badge${badges.profile.tone === "warn" ? " atom-nav-badge--warn" : ""}`}
+              >
+                {badges.profile.count}
+              </span>
             ) : null}
-            {onLogout ? (
+          </button>
+          <button
+            type="button"
+            className="atom-nav-popover-item"
+            onClick={() => openSettings("log")}
+          >
+            <IconLog className="atom-nav-icon" />
+            <span>Log</span>
+            {badges.log?.count ? (
+              <span className="atom-nav-badge">{badges.log.count}</span>
+            ) : null}
+          </button>
+          {onStartGame && games.length > 0 ? (
+            <div className="atom-nav-popover-games">
               <button
                 type="button"
-                className="atom-nav-popover-item atom-nav-popover-exit"
-                onClick={() => {
-                  hideNavMenu();
-                  onLogout();
-                }}
+                className={`atom-nav-popover-item atom-nav-popover-games-toggle${gamesOpen ? " is-open" : ""}`}
+                aria-expanded={gamesOpen}
+                onClick={() => setGamesOpen((open) => !open)}
               >
-                <IconExit className="atom-nav-icon" />
-                <span>← Exit</span>
+                <IconGames className="atom-nav-icon atom-games-icon" />
+                <span>Games</span>
+                {gamesOpen ? (
+                  <IconChevronDown className="atom-nav-popover-chevron" />
+                ) : (
+                  <IconChevronRight className="atom-nav-popover-chevron" />
+                )}
               </button>
-            ) : null}
-          </nav>
-        </div>
-
-        {banner}
-
-        <div className="atom-app-body">
-          <main className="atom-app-stage">
-            <div className="atom-app-content" ref={stageRef}>
-              {children}
+              {gamesOpen ? (
+                <div className="atom-nav-popover-submenu" role="group" aria-label="Games">
+                  {games.map((game) => (
+                    <button
+                      key={game.moduleId}
+                      type="button"
+                      className="atom-nav-popover-item atom-nav-popover-subitem"
+                      onClick={() => {
+                        hideNavMenu();
+                        setGamesOpen(false);
+                        onStartGame(game.moduleId);
+                      }}
+                    >
+                      <span>{game.label}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
-          </main>
-          {composer ? <footer className="atom-app-composer">{composer}</footer> : null}
-        </div>
+          ) : null}
+          <button
+            type="button"
+            className="atom-nav-popover-item"
+            onClick={() => {
+              hideNavMenu();
+              onOpenAccount();
+            }}
+          >
+            <IconProfile className="atom-nav-icon" />
+            <span>Account</span>
+          </button>
+          <button
+            type="button"
+            className="atom-nav-popover-item"
+            onClick={() => openSettings("default")}
+          >
+            <IconSettings className="atom-nav-icon" />
+            <span>{settingsLabel}</span>
+          </button>
+          {onLogout ? (
+            <button
+              type="button"
+              className="atom-nav-popover-item atom-nav-popover-exit"
+              onClick={() => {
+                hideNavMenu();
+                onLogout();
+              }}
+            >
+              <IconExit className="atom-nav-icon" />
+              <span>← Exit</span>
+            </button>
+          ) : null}
+        </nav>
+      </div>
+
+      {banner}
+
+      <div className="atom-app-body">
+        <main className="atom-app-stage">
+          <div className="atom-app-content" ref={stageRef}>
+            {children}
+          </div>
+        </main>
+        {composer ? <footer className="atom-app-composer">{composer}</footer> : null}
       </div>
     </div>
   );

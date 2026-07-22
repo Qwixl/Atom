@@ -272,18 +272,16 @@
   display: flex;
   align-items: center;
   width: 100%;
-  padding: 8px 12px;
+  padding: 7px 10px;
   border: none;
-  border-radius: var(--shell-radius-pill);
+  border-radius: var(--shell-radius-sm);
   background: transparent;
   color: var(--shell-text-muted);
   font-size: 13px;
   font-weight: 500;
   text-align: left;
   cursor: pointer;
-  transition:
-    background-color var(--shell-motion-duration-fast) var(--shell-motion-ease),
-    color var(--shell-motion-duration-fast) var(--shell-motion-ease);
+  transition: background-color 100ms ease, color 100ms ease;
 }
 
 .shell-sidebar-nav-item:hover,
@@ -292,27 +290,20 @@
   color: var(--shell-text);
 }
 
-.shell-sidebar-nav-item.is-locked,
-.shell-sidebar-nav-item:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
 .shell-sidebar-nav-item.is-active {
-  background: var(--shell-inset-bg);
+  background: var(--shell-hover-bg-strong);
   color: var(--shell-text);
 }
 
 .shell-sidebar-nav-item.is-active::before {
   content: "";
   position: absolute;
-  left: 4px;
-  top: 50%;
-  width: 4px;
-  height: 4px;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
   border-radius: var(--shell-radius-full);
-  background: var(--shell-text);
-  transform: translateY(-50%);
+  background: var(--shell-accent);
 }
 
 .shell-sidebar-nav-item:focus-visible,
@@ -357,70 +348,6 @@
   margin-top: auto;
   padding-top: 10px;
   border-top: 1px solid var(--shell-border);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.shell-sidebar-owner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--shell-border);
-  border-radius: var(--shell-radius-lg);
-  background: var(--shell-inset-bg);
-  color: var(--shell-text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    border-color var(--shell-motion-duration-fast) var(--shell-motion-ease),
-    background var(--shell-motion-duration-fast) var(--shell-motion-ease);
-}
-
-.shell-sidebar-owner:hover,
-.shell-sidebar-owner:focus-visible {
-  border-color: var(--shell-border-strong);
-  background: var(--shell-hover-bg);
-  outline: none;
-}
-
-.shell-sidebar-owner-avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--shell-radius-full);
-  background: var(--shell-raised-bg);
-  border: 1px solid var(--shell-border);
-  flex-shrink: 0;
-}
-
-.shell-sidebar-owner-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.shell-sidebar-owner-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--shell-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.shell-sidebar-owner-handle {
-  font-size: 12px;
-  color: var(--shell-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Shared buttons */
@@ -431,16 +358,13 @@
   justify-content: center;
   box-sizing: border-box;
   border: 1px solid transparent;
-  border-radius: var(--shell-radius-pill);
+  border-radius: var(--shell-radius-sm);
   font-family: var(--shell-font);
   font-size: 13px;
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
-  transition:
-    background-color var(--shell-motion-duration-fast) var(--shell-motion-ease),
-    border-color var(--shell-motion-duration-fast) var(--shell-motion-ease),
-    color var(--shell-motion-duration-fast) var(--shell-motion-ease);
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 .shell-btn-primary {
