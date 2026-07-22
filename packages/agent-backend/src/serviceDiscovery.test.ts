@@ -53,6 +53,7 @@ describe("serviceDiscovery", () => {
     brainAlwaysOn: true,
     brainIntervalMs: 60000,
     agentKind: "owner",
+    meshBootstrap: false,
     killSwitch: false,
     ...testReachabilityDefaults({ communityHostMode: true, publicBaseUrl: "http://127.0.0.1:5204" }),
     };

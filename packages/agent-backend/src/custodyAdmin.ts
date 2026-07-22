@@ -47,15 +47,32 @@ function rpConfig(origin: string): { rpID: string; rpName: string; origin: strin
 
 /**
  * Origins accepted during WebAuthn verify.
- * Include `android:apk-key-hash:…` via ATOM_WEBAUTHN_EXTRA_ORIGINS for Capacitor Android.
+ * Capacitor Android may return either `android:apk-key-hash:…` or `android-apk-key-hash:…`.
+ * Set `ATOM_WEBAUTHN_EXTRA_ORIGINS` (comma-separated) and/or `ATOM_WEBAUTHN_ANDROID_APK_KEY_HASH`
+ * (raw hash only, without prefix).
  */
 function expectedOrigins(primary: string): string | string[] {
-  const extras = (process.env.ATOM_WEBAUTHN_EXTRA_ORIGINS ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .filter((value) => value !== primary);
-  return extras.length > 0 ? [primary, ...extras] : primary;
+  const extras = new Set<string>();
+  for (const value of (process.env.ATOM_WEBAUTHN_EXTRA_ORIGINS ?? "").split(",")) {
+    const trimmed = value.trim();
+    if (trimmed) extras.add(trimmed);
+  }
+  const hash = process.env.ATOM_WEBAUTHN_ANDROID_APK_KEY_HASH?.trim();
+  if (hash) {
+    const bare = hash.replace(/^(android:apk-key-hash:|android-apk-key-hash:)/, "");
+    extras.add(`android:apk-key-hash:${bare}`);
+    extras.add(`android-apk-key-hash:${bare}`);
+  }
+  // If EXTRA_ORIGINS already has one prefix form, accept the other spelling too.
+  for (const value of [...extras]) {
+    if (value.startsWith("android:apk-key-hash:")) {
+      extras.add(`android-apk-key-hash:${value.slice("android:apk-key-hash:".length)}`);
+    } else if (value.startsWith("android-apk-key-hash:")) {
+      extras.add(`android:apk-key-hash:${value.slice("android-apk-key-hash:".length)}`);
+    }
+  }
+  extras.delete(primary);
+  return extras.size > 0 ? [primary, ...extras] : primary;
 }
 
 export function registerCustodyAdminRoutes(app: Express, vault: ConnectorVault): void {

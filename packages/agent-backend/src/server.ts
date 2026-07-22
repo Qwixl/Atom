@@ -48,6 +48,7 @@ import { HandleCacheStore } from "./handleCache.js";
 import { BudgetLedgerStore } from "./budgetLedger.js";
 import { evaluateSpend, registerBillingAdminRoutes } from "./billingAdmin.js";
 import { connectMlsPeer, reconnectStoredMlsPeers } from "./mlsReconnect.js";
+import { bootstrapMeshPeers, meshBootstrapEnabled } from "./meshBootstrap.js";
 import { registerActionAdminRoutes } from "./actionAdmin.js";
 import { registerConnectorAdminRoutes } from "./connectorAdmin.js";
 import { McpServersStore } from "./mcp/mcpServersStore.js";
@@ -785,6 +786,24 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     }
   });
 
+  adminApp.post("/mls/mesh-bootstrap", async (_req, res) => {
+    try {
+      if (config.agentKind !== "owner") {
+        res.status(400).json({ error: "mesh bootstrap is for owner agents only" });
+        return;
+      }
+      const result = await bootstrapMeshPeers({
+        mlsStore,
+        peerRecords,
+        localDid: identity.did,
+        publicBaseUrl: config.publicBaseUrl,
+      });
+      res.json(result);
+    } catch (error) {
+      res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   if (config.demoPeerMode) {
     adminApp.post("/demo/resend-proposal", async (req, res) => {
       try {
@@ -965,16 +984,29 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
         `  transactions:  POST ${config.publicBaseUrl}/transactions/{offer,confirm,decline}`,
       );
       void reconnectStoredMlsPeers({ mlsStore, peerRecords, localDid: identity.did })
-        .then((result) => {
+        .then(async (result) => {
           if (result.attempted > 0) {
             console.log(
               `[mls] reconnect peers attempted=${result.attempted} connected=${result.connected.length} failed=${result.failed.length}`,
             );
           }
+          if (config.agentKind === "owner" && (config.meshBootstrap || meshBootstrapEnabled())) {
+            const mesh = await bootstrapMeshPeers({
+              mlsStore,
+              peerRecords,
+              localDid: identity.did,
+              publicBaseUrl: config.publicBaseUrl,
+            });
+            if (mesh.attempted > 0) {
+              console.log(
+                `[mls] mesh bootstrap attempted=${mesh.attempted} connected=${mesh.connected.length} failed=${mesh.failed.length}`,
+              );
+            }
+          }
         })
         .catch((error) => {
           console.warn(
-            `[mls] reconnect on startup failed: ${error instanceof Error ? error.message : String(error)}`,
+            `[mls] reconnect/mesh on startup failed: ${error instanceof Error ? error.message : String(error)}`,
           );
         });
       brainScheduler.start();
