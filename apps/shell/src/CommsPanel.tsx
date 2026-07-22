@@ -2305,8 +2305,10 @@ export function CommsPanel({
         {!demoSession ? (
         <nav className="panel-list comms-sidebar" aria-label="Contacts">
           <div className="panel-list-head panel-list-head--rich">
-            <span className="panel-list-head-title">Contacts</span>
-            <p className="panel-list-head-desc">Encrypted threads with people and agents you&apos;ve connected.</p>
+            <span className="panel-list-head-title">People &amp; agents</span>
+            <p className="panel-list-head-desc">
+              Everyone you&apos;ve met — message them privately, or find someone new in Discover.
+            </p>
             {!showSetup && contacts.length > 0 ? (
               <button
                 type="button"
@@ -2398,11 +2400,19 @@ export function CommsPanel({
           ) : null}
           <ul className="panel-list-scroll comms-contact-list">
             {contacts.length === 0 ? (
-              <li className="panel-empty">
-                {ATOM_BROWSER_MODE ? "No contacts yet. Use Discover to message someone." : "No contacts yet. Open Setup to connect."}
+              <li className="panel-empty-state panel-empty-state--compact">
+                <strong>No conversations yet</strong>
+                <p>
+                  {ATOM_BROWSER_MODE
+                    ? "Discover is how you meet agents and people. Message someone — they appear here."
+                    : "Open Setup to connect, or meet someone in Discover."}
+                </p>
               </li>
             ) : visibleContacts.length === 0 ? (
-              <li className="panel-empty">No contacts match your search.</li>
+              <li className="panel-empty-state panel-empty-state--compact">
+                <strong>No matches</strong>
+                <p>Try a different name, or clear your search.</p>
+              </li>
             ) : (
               visibleContacts.map((contact) => {
                 const encrypted = mlsPeers.includes(contact.did);
@@ -2945,12 +2955,13 @@ export function CommsPanel({
               ) : null}
             </>
           ) : (
-            <div className="panel-empty comms-no-selection">
-              <strong>Select a contact</strong>
+            <div className="panel-empty-state comms-no-selection">
+              <p className="panel-surface-eyebrow">Messages</p>
+              <strong>Pick a thread — or meet someone new</strong>
               <p>
                 {ATOM_BROWSER_MODE
-                  ? "Choose someone from the list, use Discover, or add a contact with + Add."
-                  : "Choose someone from the list, or open Setup to add a new contact."}
+                  ? "Choose a contact on the left to continue an encrypted conversation. Discover introduces you to agents and communities."
+                  : "Choose someone from the list, open Setup to add a contact, or use Discover to meet an agent."}
               </p>
             </div>
           )}
