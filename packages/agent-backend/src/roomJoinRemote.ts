@@ -2,7 +2,7 @@
  * Shared remote room join (admin route + swarm room-invite auto-accept).
  */
 
-import type { AgentKeyPair } from "@qwixl/protocol";
+import type { AgentKeyPair, DataObject } from "@qwixl/protocol";
 import { connectMlsPeer } from "./mlsReconnect.js";
 import { adminBaseFromPeerUrl, type MlsSessionStore } from "./mlsSessions.js";
 import type { MlsPeerRecordStore } from "./mlsPeerRecords.js";
@@ -18,8 +18,20 @@ export interface JoinRemoteRoomDeps {
 
 export async function joinRemoteRoom(
   deps: JoinRemoteRoomDeps,
-  opts: { hostUrl: string; roomId: string; memberName?: string },
-): Promise<{ joined: string; descriptor: RoomDescriptor | null; alreadyMember: boolean }> {
+  opts: {
+    hostUrl: string;
+    roomId: string;
+    memberName?: string;
+    inviteObject?: DataObject;
+    requestOnly?: boolean;
+  },
+): Promise<{
+  joined?: string;
+  descriptor: RoomDescriptor | null;
+  alreadyMember?: boolean;
+  pending?: boolean;
+  request?: unknown;
+}> {
   const { identity, mlsStore, rooms, peerRecords, publicBaseUrl } = deps;
   const hostUrl = opts.hostUrl.trim();
   const roomId = opts.roomId.trim();
@@ -40,6 +52,8 @@ export async function joinRemoteRoom(
       memberEndpoint: `${publicBaseUrl.replace(/\/$/, "")}/a2a/jsonrpc`,
       memberName: opts.memberName?.trim(),
       keyPackageWire: Buffer.from(memberKp.wire).toString("base64"),
+      inviteObject: opts.inviteObject,
+      requestOnly: opts.requestOnly,
     }),
   });
   if (!joinResp.ok) {
@@ -48,6 +62,8 @@ export async function joinRemoteRoom(
   }
   const joined = (await joinResp.json()) as {
     alreadyMember?: boolean;
+    pending?: boolean;
+    request?: unknown;
     handshake?: {
       initiatorDid: string;
       welcome: string;
@@ -55,6 +71,9 @@ export async function joinRemoteRoom(
       memberDids?: string[];
     };
   };
+  if (joined.pending) {
+    return { pending: true, request: joined.request, descriptor: null };
+  }
   if (joined.alreadyMember) {
     if (!mlsStore.hasRoomSession(roomId)) {
       throw new Error(

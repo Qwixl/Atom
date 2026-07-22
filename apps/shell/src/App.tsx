@@ -167,7 +167,7 @@ import type { DeviceLocationSnapshot } from "./location/deviceLocation.js";
 import { ProfilePanel } from "./ProfilePanel.js";
 import { SettingsToggle } from "./ui/SettingsToggle.js";
 import { useDirtyForm } from "./ui/useDirtyForm.js";
-import { DiscoverPanel } from "./DiscoverPanel.js";
+import { DiscoverPanel, MESSAGES_ADDRESS_TOOLS_ID } from "./DiscoverPanel.js";
 import { RoomsPanel } from "./RoomsPanel.js";
 import { tryReconnectHostedAgent, completeAgentSetup } from "./auth/completeSetup.js";
 import { loadAccountType, saveAccountType, clearAccountType } from "./accountType.js";
@@ -322,6 +322,7 @@ import { ConfirmationChrome } from "./shell/ConfirmationChrome.js";
 import { AtomShell, type SettingsOpenTarget } from "./shell/AtomShell.js";
 import { IconChevronRight } from "./shell/ShellIcons.js";
 import type { ShellNavPanel } from "./shell/ShellSidebar.js";
+import { ContactAbuseReportForm } from "./ContactAbuseReportForm.js";
 
 type Provider = "mock" | "llm" | "ag-ui";
 type SidePanel = ShellNavPanel;
@@ -850,6 +851,7 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsOpenTarget>("default");
   const [accountOpen, setAccountOpen] = useState(false);
+  const [chatAbuseReportOpen, setChatAbuseReportOpen] = useState(false);
 
   useEffect(() => {
     if (!agentConnectionReady || IS_DEMO_MODE) return;
@@ -2864,6 +2866,7 @@ export function App() {
         onOpenSettings={openSettings}
         onOpenAccount={openAccount}
         onLogout={() => void handleLogout()}
+        onReportChatAgent={() => setChatAbuseReportOpen(true)}
         boardAvailable={boardAvailable}
         banner={
           showMainFeed && activeDiscoveryPath && activeDiscoveryPath.steps.length > 0 ? (
@@ -3112,25 +3115,32 @@ export function App() {
 
         {!IS_DEMO_MODE && panel === "comms" ? (
           <div className="shell-panel-view messages-centre">
-            <div className="messages-subnav" role="tablist" aria-label="Messages">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={messagesView === "inbox"}
-                className={`messages-subnav-tab${messagesView === "inbox" ? " is-active" : ""}`}
-                onClick={() => setMessagesView("inbox")}
-              >
-                Inbox
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={messagesView === "address-book"}
-                className={`messages-subnav-tab${messagesView === "address-book" ? " is-active" : ""}`}
-                onClick={() => setMessagesView("address-book")}
-              >
-                Address book
-              </button>
+            <div
+              className={`messages-subnav${messagesView === "address-book" ? " messages-subnav--address-book" : ""}`}
+            >
+              <div className="messages-subnav-tabs" role="tablist" aria-label="Messages">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={messagesView === "inbox"}
+                  className={`messages-subnav-tab${messagesView === "inbox" ? " is-active" : ""}`}
+                  onClick={() => setMessagesView("inbox")}
+                >
+                  Inbox
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={messagesView === "address-book"}
+                  className={`messages-subnav-tab${messagesView === "address-book" ? " is-active" : ""}`}
+                  onClick={() => setMessagesView("address-book")}
+                >
+                  Address book
+                </button>
+              </div>
+              {messagesView === "address-book" ? (
+                <div id={MESSAGES_ADDRESS_TOOLS_ID} className="messages-subnav-tools" />
+              ) : null}
             </div>
             {messagesView === "inbox" ? (
               <CommsPanel
@@ -3164,6 +3174,7 @@ export function App() {
             ) : (
               <DiscoverPanel
                 density="compact"
+                toolbarPortalId={MESSAGES_ADDRESS_TOOLS_ID}
                 contacts={commsContacts}
                 vaultUnlocked={vaultUnlocked}
                 agentConnectionReady={agentConnectionReady}
@@ -3213,6 +3224,33 @@ export function App() {
           </div>
         ) : null}
       </AtomShell>
+
+      {chatAbuseReportOpen ? (
+        <div className="settings-overlay" role="presentation">
+          <div className="settings-dialog" role="dialog" aria-label="Report chat agent">
+            <div className="settings-dialog-header">
+              <h2>Report chat agent</h2>
+            </div>
+            <div className="settings-dialog-body">
+              <p className="settings-note">
+                Report harmful behavior from your personal Chat agent. Do not paste private message
+                contents.
+              </p>
+              <ContactAbuseReportForm
+                target={{
+                  did: loadCommsAgentConfig().adminUrl || agUiConfig.url || "chat-agent",
+                  endpoint: agUiConfig.url || loadCommsAgentConfig().adminUrl,
+                  name: "Chat agent",
+                }}
+                surface="chat"
+                hideAlsoBlock
+                onReported={() => setChatAbuseReportOpen(false)}
+                onCancel={() => setChatAbuseReportOpen(false)}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {chromePending ? (
         <ConfirmationChrome

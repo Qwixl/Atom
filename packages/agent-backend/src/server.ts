@@ -39,7 +39,8 @@ import { MlsPeerRecordStore } from "./mlsPeerRecords.js";
 import { MlsSessionRecordStore } from "./mlsSessionRecords.js";
 import { RoomStore } from "./roomStore.js";
 import { registerRoomsAdminRoutes, handleInboundRoomWire } from "./roomsAdmin.js";
-import { seedCoffeeShopBrand, seedCoffeeShopKnowledge, seedCoffeeShopRoom } from "./communityCoffeeShop.js";
+import { seedCoffeeShopBrand, seedCoffeeShopKnowledge } from "./communityCoffeeShop.js";
+import { seedTownVenues } from "./communityTownVenues.js";
 import { registerDiscoverAdminRoutes, registerDiscoverPublicRoutes } from "./discoverAdmin.js";
 import { registerContactsAdminRoutes } from "./contactsAdmin.js";
 import { TrustedAgentsStore } from "./trustedAgentsStore.js";
@@ -1012,15 +1013,15 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
               `[rooms] Coffee Shop knowledge seed failed: ${error instanceof Error ? error.message : String(error)}`,
             );
           });
-        void seedCoffeeShopRoom({ identity, mlsStore, rooms })
+        void seedTownVenues({ identity, mlsStore, rooms })
           .then((seed) => {
             console.log(
-              `[rooms] Coffee Shop ${seed.created ? "created" : "ready"} at ${config.publicBaseUrl}/rooms/${encodeURIComponent(seed.roomId)}`,
+              `[rooms] Town venues ready created=${seed.created.join(",") || "(none)"} existing=${seed.existing.length}`,
             );
           })
           .catch((error) => {
             console.warn(
-              `[rooms] Coffee Shop seed failed: ${error instanceof Error ? error.message : String(error)}`,
+              `[rooms] Town venue seed failed: ${error instanceof Error ? error.message : String(error)}`,
             );
           });
       }
