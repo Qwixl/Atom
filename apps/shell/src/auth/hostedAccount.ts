@@ -419,12 +419,17 @@ export async function createHostedWorkspace(input: {
   return { workspace: data.workspace, agent: data.agent };
 }
 
+export type HostedLlmUpdateResult = {
+  status: "updated" | "updated_but_unreachable";
+  llmProbe?: { ok: boolean; model?: string; error?: string };
+};
+
 export async function updateHostedLlmConnection(input: {
   llmApiKey: string;
   llmProvider?: string;
   llmBaseUrl?: string;
   llmModel?: string;
-}): Promise<void> {
+}): Promise<HostedLlmUpdateResult> {
   const token = await supabaseAccessToken();
   if (!token) throw new Error("Sign in required");
 
@@ -445,11 +450,23 @@ export async function updateHostedLlmConnection(input: {
       llmModel: input.llmModel?.trim() || undefined,
     }),
   });
-  const data = (await resp.json()) as { error?: string };
+  const data = (await resp.json()) as {
+    status?: string;
+    error?: string;
+    llmProbe?: { ok: boolean; model?: string; error?: string };
+  };
+  // 502 = key landed on the agent but the provider probe failed — surface as soft failure.
+  if (resp.status === 502 && data.status === "updated_but_unreachable") {
+    return { status: "updated_but_unreachable", llmProbe: data.llmProbe };
+  }
   if (!resp.ok) throw new Error(data.error ?? `Update failed (${resp.status})`);
+  return {
+    status: "updated",
+    llmProbe: data.llmProbe,
+  };
 }
 
 /** @deprecated Use updateHostedLlmConnection — key-only updates leave OpenRouter base URL unset. */
 export async function updateHostedLlmApiKey(llmApiKey: string): Promise<void> {
-  return updateHostedLlmConnection({ llmApiKey });
+  await updateHostedLlmConnection({ llmApiKey });
 }

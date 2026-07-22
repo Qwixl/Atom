@@ -130,6 +130,7 @@ export function CommsPanel({
   catalog,
   registry,
   modulesEnabled = true,
+  onOpenAddressBook,
 }: {
   contacts: AgentContact[];
   ownerRecords: OwnerRecord[];
@@ -148,6 +149,8 @@ export function CommsPanel({
   agentConnectionReady?: boolean;
   onAgentAuthFailure?: () => void | Promise<void>;
   onRequestReconnect?: () => void;
+  /** Open Messages → Address book (Discover embed). */
+  onOpenAddressBook?: () => void;
   /** Ephemeral demo session — do not read/write live agent config. */
   agentConfigOverride?: CommsAgentConfig;
   onPersistContacts?: (contacts: AgentContact[]) => void;
@@ -2304,28 +2307,31 @@ export function CommsPanel({
       <div className={`panel-body panel-master-detail comms-main${demoMode ? " comms-main--demo" : ""}`}>
         {!demoSession ? (
         <nav className="panel-list comms-sidebar" aria-label="Contacts">
-          <div className="panel-list-head panel-list-head--rich">
-            <span className="panel-list-head-title">People &amp; agents</span>
-            <p className="panel-list-head-desc">
-              Everyone you&apos;ve met — message them privately, or find someone new in Discover.
-            </p>
-            {!showSetup && contacts.length > 0 ? (
-              <button
-                type="button"
-                className="panel-btn panel-btn-primary"
-                style={{ alignSelf: "flex-start" }}
-                onClick={() => {
-                  if (ATOM_BROWSER_MODE) {
+          <div className="panel-list-head panel-list-head--compact">
+            <span className="panel-list-head-title">Inbox</span>
+            <div className="panel-list-head-actions">
+              {onOpenAddressBook ? (
+                <button type="button" className="panel-btn panel-btn-primary" onClick={onOpenAddressBook}>
+                  Meet someone
+                </button>
+              ) : null}
+              {!showSetup && contacts.length > 0 ? (
+                <button
+                  type="button"
+                  className="panel-btn"
+                  onClick={() => {
+                    if (ATOM_BROWSER_MODE) {
+                      setShowAddContact(true);
+                      return;
+                    }
+                    setShowSetup(true);
                     setShowAddContact(true);
-                    return;
-                  }
-                  setShowSetup(true);
-                  setShowAddContact(true);
-                }}
-              >
-                + Add contact
-              </button>
-            ) : null}
+                  }}
+                >
+                  + Add
+                </button>
+              ) : null}
+            </div>
           </div>
           {contacts.length > 0 ? (
             <>
@@ -2402,11 +2408,12 @@ export function CommsPanel({
             {contacts.length === 0 ? (
               <li className="panel-empty-state panel-empty-state--compact">
                 <strong>No conversations yet</strong>
-                <p>
-                  {ATOM_BROWSER_MODE
-                    ? "Discover is how you meet agents and people. Message someone — they appear here."
-                    : "Open Setup to connect, or meet someone in Discover."}
-                </p>
+                <p>Meet someone in Address book — they appear here when you Message them.</p>
+                {onOpenAddressBook ? (
+                  <button type="button" className="panel-btn panel-btn-primary" onClick={onOpenAddressBook}>
+                    Open Address book
+                  </button>
+                ) : null}
               </li>
             ) : visibleContacts.length === 0 ? (
               <li className="panel-empty-state panel-empty-state--compact">
@@ -2956,13 +2963,14 @@ export function CommsPanel({
             </>
           ) : (
             <div className="panel-empty-state comms-no-selection">
-              <p className="panel-surface-eyebrow">Messages</p>
+              <p className="panel-surface-eyebrow">Inbox</p>
               <strong>Pick a thread — or meet someone new</strong>
-              <p>
-                {ATOM_BROWSER_MODE
-                  ? "Choose a contact on the left to continue an encrypted conversation. Discover introduces you to agents and communities."
-                  : "Choose someone from the list, open Setup to add a contact, or use Discover to meet an agent."}
-              </p>
+              <p>Choose a contact on the left, or open Address book to find someone.</p>
+              {onOpenAddressBook ? (
+                <button type="button" className="panel-btn panel-btn-primary" onClick={onOpenAddressBook}>
+                  Open Address book
+                </button>
+              ) : null}
             </div>
           )}
         </section>

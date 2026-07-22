@@ -955,6 +955,8 @@ export function App() {
   }, []);
   const [roomsFocusId, setRoomsFocusId] = useState<string | null>(null);
   const [commsFocusId, setCommsFocusId] = useState<string | null>(null);
+  /** Messages centre: Inbox threads vs Address book (Discover embed). */
+  const [messagesView, setMessagesView] = useState<"inbox" | "address-book">("inbox");
   const [commsContacts, setCommsContacts] = useState<AgentContact[]>(() =>
     loadContacts(ownerRecordsPersistence.load()),
   );
@@ -2777,6 +2779,15 @@ export function App() {
       openSettings(next);
       return;
     }
+    // Deep links / old bookmarks: Discover lives under Messages → Address book.
+    if (next === "discover") {
+      setMessagesView("address-book");
+      setPanel("comms");
+      return;
+    }
+    if (next === "comms") {
+      setMessagesView("inbox");
+    }
     setPanel(next);
   }
 
@@ -2984,65 +2995,42 @@ export function App() {
             <div className="shell-empty shell-empty--chat">
               <header className="shell-empty-hero">
                 <p className="shell-empty-eyebrow">Your agent</p>
-                <h1>What do you want to do?</h1>
-                <p>
-                  Speak in plain language. Your agent composes from Atom&apos;s trusted catalog —
-                  and can introduce you to people, businesses, and rooms when you need them.
-                </p>
+                <h1>What do you need?</h1>
+                <p>Ask in plain language — your agent replies here and can compose trusted UI.</p>
               </header>
 
-              <nav className="shell-pathway-grid" aria-label="Where to start">
+              <nav className="shell-pathway-row" aria-label="Where to start">
                 <button
                   type="button"
-                  className="shell-pathway-card shell-pathway-card--primary"
+                  className="shell-pathway-chip shell-pathway-chip--primary"
                   onClick={() => {
                     const el = document.querySelector<HTMLTextAreaElement>(".shell-composer textarea, .shell-composer input");
                     el?.focus();
                   }}
                 >
-                  <span className="shell-pathway-kicker">Chat</span>
-                  <span className="shell-pathway-title">Ask your agent</span>
-                  <span className="shell-pathway-desc">
-                    Schedule, draft, look things up — start typing below or pick an intent.
-                  </span>
+                  Ask agent
                 </button>
                 <button
                   type="button"
-                  className="shell-pathway-card"
-                  onClick={() => setPanel("discover")}
+                  className="shell-pathway-chip"
+                  onClick={() => {
+                    setMessagesView("address-book");
+                    setPanel("comms");
+                  }}
                 >
-                  <span className="shell-pathway-kicker">Discover</span>
-                  <span className="shell-pathway-title">Meet other agents</span>
-                  <span className="shell-pathway-desc">
-                    Find communities, businesses, and people — then DM or join a room.
-                  </span>
+                  Address book
                 </button>
                 <button
                   type="button"
-                  className="shell-pathway-card"
+                  className="shell-pathway-chip"
                   onClick={() => setPanel("rooms")}
                 >
-                  <span className="shell-pathway-kicker">Rooms</span>
-                  <span className="shell-pathway-title">Join a shared space</span>
-                  <span className="shell-pathway-desc">
-                    Coffee Shop and other rooms where agents and owners hang out together.
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="shell-pathway-card"
-                  onClick={() => setPanel("comms")}
-                >
-                  <span className="shell-pathway-kicker">Messages</span>
-                  <span className="shell-pathway-title">Continue a thread</span>
-                  <span className="shell-pathway-desc">
-                    Encrypted conversations with contacts and agents you&apos;ve already met.
-                  </span>
+                  Rooms
                 </button>
               </nav>
 
               <section className="panel-carousel shell-intent-carousel" aria-label="Suggested intents">
-                <h2 className="panel-carousel-label">Or try an intent</h2>
+                <h2 className="panel-carousel-label">Try an intent</h2>
                 <div className="panel-carousel-track">
                   {CHAT_INTENTS.map((intent) => (
                     <button
@@ -3123,59 +3111,80 @@ export function App() {
         ) : null}
 
         {!IS_DEMO_MODE && panel === "comms" ? (
-          <div className="shell-panel-view">
-          <CommsPanel
-            contacts={commsContacts}
-            ownerRecords={profileRecords}
-            ownerStore={ownerStore}
-            focusContactId={commsFocusId}
-            vaultUnlocked={vaultUnlocked}
-            agentConnectionReady={agentConnectionReady}
-            onAgentAuthFailure={handleAgentAuthFailure}
-            onRequestReconnect={() => {
-              resetFirstRunDone();
-              clearCommsAgentConfig();
-              navigate("/app/?auth=login", true);
-            }}
-            onContactsChanged={() => {
-              setCommsFocusId(null);
-              setCommsContacts(loadContacts(ownerStore.list()));
-            }}
-            onProfileChanged={() => {
-              setProfileRecords(ownerStore.list());
-              setCommsContacts(loadContacts(ownerStore.list()));
-            }}
-            onRequestConfirmation={requestCommsConfirmation}
-            attestationEntries={attestations}
-            catalog={catalog}
-            registry={registry}
-            modulesEnabled={modulesActive}
-          />
-          </div>
-        ) : null}
-
-        {!IS_DEMO_MODE && panel === "discover" ? (
-          <div className="shell-panel-view">
-          <DiscoverPanel
-            contacts={commsContacts}
-            vaultUnlocked={vaultUnlocked}
-            agentConnectionReady={agentConnectionReady}
-            onAgentAuthFailure={handleAgentAuthFailure}
-            onRequestReconnect={() => {
-              resetFirstRunDone();
-              clearCommsAgentConfig();
-              navigate("/app/?auth=login", true);
-            }}
-            onContactsChange={setCommsContacts}
-            onJoinedRoom={(roomId) => {
-              setRoomsFocusId(roomId);
-              setPanel("rooms");
-            }}
-            onDmStarted={(contactId) => {
-              setCommsFocusId(contactId);
-              setPanel("comms");
-            }}
-          />
+          <div className="shell-panel-view messages-centre">
+            <div className="messages-subnav" role="tablist" aria-label="Messages">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={messagesView === "inbox"}
+                className={`messages-subnav-tab${messagesView === "inbox" ? " is-active" : ""}`}
+                onClick={() => setMessagesView("inbox")}
+              >
+                Inbox
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={messagesView === "address-book"}
+                className={`messages-subnav-tab${messagesView === "address-book" ? " is-active" : ""}`}
+                onClick={() => setMessagesView("address-book")}
+              >
+                Address book
+              </button>
+            </div>
+            {messagesView === "inbox" ? (
+              <CommsPanel
+                contacts={commsContacts}
+                ownerRecords={profileRecords}
+                ownerStore={ownerStore}
+                focusContactId={commsFocusId}
+                vaultUnlocked={vaultUnlocked}
+                agentConnectionReady={agentConnectionReady}
+                onAgentAuthFailure={handleAgentAuthFailure}
+                onRequestReconnect={() => {
+                  resetFirstRunDone();
+                  clearCommsAgentConfig();
+                  navigate("/app/?auth=login", true);
+                }}
+                onContactsChanged={() => {
+                  setCommsFocusId(null);
+                  setCommsContacts(loadContacts(ownerStore.list()));
+                }}
+                onProfileChanged={() => {
+                  setProfileRecords(ownerStore.list());
+                  setCommsContacts(loadContacts(ownerStore.list()));
+                }}
+                onRequestConfirmation={requestCommsConfirmation}
+                attestationEntries={attestations}
+                catalog={catalog}
+                registry={registry}
+                modulesEnabled={modulesActive}
+                onOpenAddressBook={() => setMessagesView("address-book")}
+              />
+            ) : (
+              <DiscoverPanel
+                density="compact"
+                contacts={commsContacts}
+                vaultUnlocked={vaultUnlocked}
+                agentConnectionReady={agentConnectionReady}
+                onAgentAuthFailure={handleAgentAuthFailure}
+                onRequestReconnect={() => {
+                  resetFirstRunDone();
+                  clearCommsAgentConfig();
+                  navigate("/app/?auth=login", true);
+                }}
+                onContactsChange={setCommsContacts}
+                onJoinedRoom={(roomId) => {
+                  setRoomsFocusId(roomId);
+                  setPanel("rooms");
+                }}
+                onDmStarted={(contactId) => {
+                  setCommsFocusId(contactId);
+                  setMessagesView("inbox");
+                  setPanel("comms");
+                }}
+              />
+            )}
           </div>
         ) : null}
 
@@ -3193,7 +3202,10 @@ export function App() {
               navigate("/app/?auth=login", true);
             }}
             onContactsChange={setCommsContacts}
-            onOpenDiscover={() => setPanel("discover")}
+            onOpenDiscover={() => {
+              setMessagesView("address-book");
+              setPanel("comms");
+            }}
             onActivity={() => {
               if (roomsFocusId) setRoomsFocusId(null);
             }}
@@ -3963,7 +3975,7 @@ function SettingsDialog({
     setHostedLlmError(null);
     setHostedLlmNote(null);
     try {
-      await updateHostedLlmConnection({
+      const updateResult = await updateHostedLlmConnection({
         llmApiKey: key,
         llmProvider: resolved.provider,
         llmBaseUrl: resolved.baseUrl,
@@ -3978,9 +3990,22 @@ function SettingsDialog({
       if (adminUrl) {
         onSaveAgUi(saveAgUiConfigForAgent(adminUrl));
       }
-      setHostedLlmNote(
-        "Saved on your agent (the key field clears on purpose). Chat uses that server key — wait a few seconds for the restart, then try again.",
-      );
+      if (updateResult.status === "updated_but_unreachable") {
+        setHostedLlmError(
+          updateResult.llmProbe?.error
+            ? `Saved on your agent, but Chat cannot reach the model yet: ${updateResult.llmProbe.error}`
+            : "Saved on your agent, but Chat cannot reach the model yet. Check provider, base URL, and model.",
+        );
+        setHostedLlmNote(null);
+      } else if (updateResult.llmProbe?.ok) {
+        setHostedLlmNote(
+          `Saved and verified with ${updateResult.llmProbe.model ?? resolved.model}. Chat is ready — try a message.`,
+        );
+      } else {
+        setHostedLlmNote(
+          "Saved on your agent (the key field clears on purpose). Chat uses that server key — wait a few seconds for the restart, then try again.",
+        );
+      }
     } catch (error) {
       setHostedLlmError(
         presentUserError(error, {

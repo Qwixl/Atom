@@ -699,17 +699,14 @@ export function RoomsPanel({
       ) : null}
       <div className="panel-body panel-master-detail comms-main">
         <nav className="panel-list comms-sidebar" aria-label="Rooms">
-          <div className="panel-list-head panel-list-head--rich">
-            <span className="panel-list-head-title">Shared spaces</span>
-            <p className="panel-list-head-desc">
-              Rooms where your agent and others hang out — chat, play, and coordinate together.
-            </p>
+          <div className="panel-list-head panel-list-head--compact">
+            <span className="panel-list-head-title">Rooms</span>
           </div>
           <ul className="panel-list-scroll comms-contact-list">
             {allRooms.length === 0 ? (
               <li className="panel-empty-state panel-empty-state--compact rooms-empty-list">
-                <strong>You haven&apos;t joined a room yet</strong>
-                <p>Start with Coffee Shop — a friendly public space — or find more in Discover.</p>
+                <strong>No rooms yet</strong>
+                <p>Join Coffee Shop, or meet a community in Address book.</p>
                 <div className="rooms-empty-actions">
                   <button
                     type="button"
@@ -721,7 +718,7 @@ export function RoomsPanel({
                   </button>
                   {onOpenDiscover ? (
                     <button type="button" className="panel-btn" onClick={onOpenDiscover}>
-                      Browse Discover
+                      Address book
                     </button>
                   ) : null}
                 </div>
@@ -731,19 +728,21 @@ export function RoomsPanel({
                 <li key={room.roomId}>
                   <button
                     type="button"
-                    className={`panel-row panel-row--elevated comms-contact${selectedId === room.roomId ? " is-selected" : ""}`}
+                    className={`panel-row panel-row--elevated rooms-room-row${selectedId === room.roomId ? " is-selected" : ""}`}
                     onClick={() => {
                       setSelectedId(room.roomId);
                       setMobileListOpen(false);
                       setMobilePane("chat");
                     }}
                   >
-                    <span className="panel-avatar comms-contact-avatar" aria-hidden="true">
+                    <span className="panel-avatar rooms-room-avatar" aria-hidden="true">
                       {room.name.slice(0, 1).toUpperCase()}
                     </span>
-                    <span className="panel-row-body comms-contact-body">
-                      <span className="panel-row-title comms-contact-name">{room.name}</span>
-                      <span className="panel-row-meta comms-contact-meta">{room.topic ?? room.roomId}</span>
+                    <span className="panel-row-body">
+                      <span className="panel-row-title">{room.name}</span>
+                      <span className="panel-row-meta">
+                        {room.topic?.trim() || (room.roomId === COFFEE_SHOP_ROOM_ID ? "Public" : "Room")}
+                      </span>
                     </span>
                   </button>
                 </li>
@@ -828,8 +827,25 @@ export function RoomsPanel({
               </header>
 
               <div className={`rooms-thread-grid rooms-pane-${mobilePane}`}>
+                {mobilePane === "members" ? (
+                  <button
+                    type="button"
+                    className="rooms-members-backdrop"
+                    aria-label="Close members"
+                    onClick={() => setMobilePane("chat")}
+                  />
+                ) : null}
                 <aside className="rooms-members" aria-label="Room members">
-                  <div className="rooms-members-head">Members</div>
+                  <div className="rooms-members-head">
+                    <span>Members</span>
+                    <button
+                      type="button"
+                      className="panel-btn panel-btn-ghost"
+                      onClick={() => setMobilePane("chat")}
+                    >
+                      Close
+                    </button>
+                  </div>
                   <ul className="rooms-members-list">
                     {members.length === 0 ? (
                       <li className="panel-empty">No members loaded</li>
@@ -998,7 +1014,7 @@ export function RoomsPanel({
                                   </>
                                 )}
                                 {isOwn && msg.kind === "message" && !msg.deleted ? (
-                                  <div className="rooms-msg-actions">
+                                  <div className="rooms-msg-actions" aria-label="Message actions">
                                     <button type="button" onClick={() => beginEdit(msg)}>
                                       Edit
                                     </button>
@@ -1113,13 +1129,10 @@ export function RoomsPanel({
           ) : (
             <div className="panel-empty-state comms-no-selection rooms-empty-detail">
               <p className="panel-surface-eyebrow">Rooms</p>
-              <strong>Choose a space to enter</strong>
-              <p>
-                Pick a room on the left to chat with whoever&apos;s there — including other agents.
-                Your agent stays available in Chat whenever you need it.
-              </p>
-              {!hasJoinedCoffeeShop ? (
-                <div className="rooms-empty-actions">
+              <strong>Pick a room to chat</strong>
+              <p>Group spaces where people and agents hang out. Your personal agent stays in Chat.</p>
+              <div className="rooms-empty-actions">
+                {!hasJoinedCoffeeShop ? (
                   <button
                     type="button"
                     className="panel-btn panel-btn-primary"
@@ -1128,13 +1141,13 @@ export function RoomsPanel({
                   >
                     Join Coffee Shop
                   </button>
-                  {onOpenDiscover ? (
-                    <button type="button" className="panel-btn" onClick={onOpenDiscover}>
-                      Browse Discover
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
+                ) : null}
+                {onOpenDiscover ? (
+                  <button type="button" className="panel-btn" onClick={onOpenDiscover}>
+                    Address book
+                  </button>
+                ) : null}
+              </div>
             </div>
           )}
         </section>
