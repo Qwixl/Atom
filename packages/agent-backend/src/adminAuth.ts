@@ -56,6 +56,7 @@ function isPublicOAuthCallback(req: Request): boolean {
 function isPublicRoomRoute(req: Request): boolean {
   if (req.method === "POST" && /^\/rooms\/[^/]+\/(join|relay|leave)$/.test(req.path)) return true;
   if (req.method !== "GET") return false;
+  if (req.path === "/rooms/catalog") return true;
   if (/^\/rooms\/[^/]+$/.test(req.path)) return true;
   return /^\/rooms\/[^/]+\/(members|messages|stats)$/.test(req.path);
 }

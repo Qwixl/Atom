@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "AS-11 town venues — room/place metadata for Discover + NPC homePlace. Coffee Shop remains the M18 production module; others are seed places until room modules ship.",
+  "note": "AS-11 town venues — live on community host (multi-venue wave). Coffee Shop remains the reference module; others reuse community/coffee-shop renderer with venue house rules.",
   "venues": [
     {
       "id": "coffee-shop",
@@ -8,21 +8,25 @@
       "kind": "community",
       "handle": "@coffee-shop",
       "timezone": "Europe/London",
-      "hostUrl": "https://5305.agents.atom.qwixl.com",
+      "hostUrl": "https://coffeeshop.agents.atom.qwixl.com",
       "roomId": "room:coffeeshop",
+      "category": "Town",
       "houseRules": [
         "Be kind; no harassment",
         "At most a few NPC greeters per arrival",
         "Play-money orders only in v1"
       ],
       "moduleId": "community/coffee-shop",
-      "status": "production-m18"
+      "status": "production"
     },
     {
       "id": "church",
       "displayName": "Church of the Open Table",
       "kind": "community",
       "handle": "@open-table",
+      "hostUrl": "https://coffeeshop.agents.atom.qwixl.com",
+      "roomId": "room:church",
+      "category": "Faith",
       "religion": {
         "name": "Open Table",
         "doctrines": [
@@ -37,25 +41,33 @@
         "Disagreement welcome; cruelty is not",
         "Pastoral conversations stay confidential unless harm is imminent"
       ],
-      "status": "seed"
+      "moduleId": "community/coffee-shop",
+      "status": "production"
     },
     {
       "id": "gym",
       "displayName": "Atom Gym",
       "kind": "community",
       "handle": "@atom-gym",
+      "hostUrl": "https://coffeeshop.agents.atom.qwixl.com",
+      "roomId": "room:gym",
+      "category": "Fitness",
       "houseRules": [
         "Encourage, don't body-shame",
         "Spotters welcome; form over ego",
         "No medical claims beyond general fitness tips"
       ],
-      "status": "seed"
+      "moduleId": "community/coffee-shop",
+      "status": "production"
     },
     {
       "id": "movie-theatre",
       "displayName": "Lumen Theatre",
       "kind": "community",
       "handle": "@lumen-theatre",
+      "hostUrl": "https://coffeeshop.agents.atom.qwixl.com",
+      "roomId": "room:movie-theatre",
+      "category": "Arts",
       "sampleFilms": [
         {
           "title": "The Last Context Window",
@@ -77,13 +89,17 @@
         "No spoilers in the lobby without asking",
         "Invented films are fiction; label them as such"
       ],
-      "status": "seed"
+      "moduleId": "community/coffee-shop",
+      "status": "production"
     },
     {
       "id": "university",
       "displayName": "Atom University",
       "kind": "community",
       "handle": "@atom-u",
+      "hostUrl": "https://coffeeshop.agents.atom.qwixl.com",
+      "roomId": "room:university",
+      "category": "Learning",
       "tracks": [
         "Agentic systems",
         "Local-first memory",
@@ -95,19 +111,24 @@
         "Cite sources when claiming facts",
         "Office hours are opt-in"
       ],
-      "status": "seed"
+      "moduleId": "community/coffee-shop",
+      "status": "production"
     },
     {
       "id": "atom-hq",
       "displayName": "Atom HQ",
       "kind": "community",
       "handle": "@atom-hq",
+      "hostUrl": "https://coffeeshop.agents.atom.qwixl.com",
+      "roomId": "room:atom-hq",
+      "category": "Product",
       "houseRules": [
         "Brainstorms are non-authoritative",
         "No leaking secrets or credentials",
         "Cooler talk stays civil"
       ],
-      "status": "seed"
+      "moduleId": "community/coffee-shop",
+      "status": "production"
     }
   ]
 }

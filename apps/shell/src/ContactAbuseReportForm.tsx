@@ -19,6 +19,9 @@ interface ContactAbuseReportFormProps {
   onBusyChange?: (busy: boolean) => void;
   onReported: (note: string, alsoBlock: boolean) => void;
   onCancel: () => void;
+  /** When reporting a room (not a peer), hide the block-contact checkbox. */
+  hideAlsoBlock?: boolean;
+  surface?: "chat" | "messages" | "rooms" | "modules" | "other";
 }
 
 export function ContactAbuseReportForm({
@@ -27,10 +30,12 @@ export function ContactAbuseReportForm({
   onBusyChange,
   onReported,
   onCancel,
+  hideAlsoBlock = false,
+  surface,
 }: ContactAbuseReportFormProps) {
   const [category, setCategory] = useState<CommsAbuseCategory>("other");
   const [details, setDetails] = useState("");
-  const [alsoBlock, setAlsoBlock] = useState(true);
+  const [alsoBlock, setAlsoBlock] = useState(!hideAlsoBlock);
   const [localBusy, setLocalBusy] = useState(false);
   const busy = busyExternal || localBusy;
 
@@ -46,14 +51,15 @@ export function ContactAbuseReportForm({
         roomId: target.roomId,
         category,
         details,
-        alsoBlock,
+        alsoBlock: hideAlsoBlock ? false : alsoBlock,
+        surface: surface ?? (target.roomId ? "rooms" : "messages"),
       });
       setDetails("");
       onReported(
-        alsoBlock
+        !hideAlsoBlock && alsoBlock
           ? "Report queued. This contact will be blocked locally."
           : "Report queued for host operators. Thank you.",
-        alsoBlock,
+        hideAlsoBlock ? false : alsoBlock,
       );
     } catch (error) {
       onReported(error instanceof Error ? error.message : String(error), false);
@@ -89,15 +95,17 @@ export function ContactAbuseReportForm({
         onChange={(event) => setDetails(event.target.value)}
         disabled={busy}
       />
-      <label className="atom-field atom-field-checkbox">
-        <input
-          type="checkbox"
-          checked={alsoBlock}
-          disabled={busy}
-          onChange={(event) => setAlsoBlock(event.target.checked)}
-        />
-        <span>Also block this contact after reporting</span>
-      </label>
+      {hideAlsoBlock ? null : (
+        <label className="atom-field atom-field-checkbox">
+          <input
+            type="checkbox"
+            checked={alsoBlock}
+            disabled={busy}
+            onChange={(event) => setAlsoBlock(event.target.checked)}
+          />
+          <span>Also block this contact after reporting</span>
+        </label>
+      )}
       <div className="comms-contact-actions">
         <button type="button" className="panel-btn" disabled={busy} onClick={() => void submit()}>
           Submit report
