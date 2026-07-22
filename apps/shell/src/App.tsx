@@ -144,6 +144,14 @@ import {
   loadVoiceOptIn,
 } from "./brain/VoicePushToTalk.js";
 import {
+  PRESENTATION_BOARD_MODULE_ID,
+  PresentationBoardPanel,
+} from "./board/PresentationBoardPanel.js";
+import {
+  PRESENTATION_BOARD_CATEGORY,
+  PRESENTATION_BOARD_MUTE_LABEL,
+} from "@qwixl/owner-store";
+import {
   canRequestBriefingComposition,
   markBriefingCompositionRequestedThisSession,
   shouldFireBriefingFromPending,
@@ -918,6 +926,23 @@ export function App() {
   } | null>(null);
   const [custodyError, setCustodyError] = useState<string | null>(null);
   const [panel, setPanel] = useState<SidePanel>(() => "none");
+  const [boardVoiceMuted, setBoardVoiceMuted] = useState(() => {
+    try {
+      const rec = (ownerRecordsPersistence.load() ?? []).find(
+        (r) =>
+          r.category === PRESENTATION_BOARD_CATEGORY && r.label === PRESENTATION_BOARD_MUTE_LABEL,
+      );
+      return Boolean(
+        rec &&
+          typeof rec.value === "object" &&
+          rec.value !== null &&
+          !Array.isArray(rec.value) &&
+          (rec.value as { muted?: unknown }).muted === true,
+      );
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     if (typeof sessionStorage === "undefined") return;
@@ -2766,6 +2791,17 @@ export function App() {
     [catalog, registryTrust],
   );
 
+  const boardAvailable = useMemo(
+    () =>
+      catalog.isModuleInstalled(PRESENTATION_BOARD_MODULE_ID) &&
+      catalog.isModuleActive(PRESENTATION_BOARD_MODULE_ID),
+    [catalog, registryTrust],
+  );
+
+  useEffect(() => {
+    if (!boardAvailable && panel === "board") setPanel("none");
+  }, [boardAvailable, panel]);
+
   async function startGameFromMenu(moduleId: string) {
     if (!getGameEngine(moduleId) || !catalog.isModuleInstalled(moduleId)) return;
     // Overlay the current section (Messages/Discover/…) — do not force-switch to Chat.
@@ -2817,6 +2853,7 @@ export function App() {
         onOpenSettings={openSettings}
         onOpenAccount={openAccount}
         onLogout={() => void handleLogout()}
+        boardAvailable={boardAvailable}
         banner={
           showMainFeed && activeDiscoveryPath && activeDiscoveryPath.steps.length > 0 ? (
             <DiscoveryBreadcrumb
@@ -2883,7 +2920,11 @@ export function App() {
           showMainComposer ? (
             <>
               <VoicePushToTalk
-                enabled={loadVoiceOptIn() && Boolean(agentConnectionReady && vaultUnlocked)}
+                enabled={
+                  (loadVoiceOptIn() || (boardAvailable && panel === "board" && !boardVoiceMuted)) &&
+                  Boolean(agentConnectionReady && vaultUnlocked)
+                }
+                humanFilter
                 onTranscript={async (text) => {
                   conversationRef.current.setBusy(true);
                   sessionRef.current.sendUserMessage(text);
@@ -3003,6 +3044,19 @@ export function App() {
           )}
           {busy ? <div className="feed-busy">agent working…</div> : null}
         </main>
+        ) : null}
+
+        {!IS_DEMO_MODE && panel === "board" && boardAvailable ? (
+          <div className="shell-panel-view shell-panel-view--inset">
+            <PresentationBoardPanel
+              catalog={catalog}
+              registry={registry}
+              ownerStore={ownerStore}
+              voiceMuted={boardVoiceMuted}
+              onVoiceMutedChange={setBoardVoiceMuted}
+              onClose={() => setPanel("none")}
+            />
+          </div>
         ) : null}
 
         {!IS_DEMO_MODE && panel === "comms" ? (

@@ -1,21 +1,21 @@
-/* Atom shell — monochrome light / dark (exact inverse). Orange = active status only. */
+/* Atom shell — brand monochrome. Orange = active status only. */
 
 :root,
 [data-atom-skin="minimal"],
 [data-atom-skin="default"] {
   --shell-sidebar-bg: #ffffff;
-  --shell-main-bg: #f5f5f5;
+  --shell-main-bg: #ffffff;
   --shell-raised-bg: #ffffff;
-  --shell-inset-bg: #fafafa;
+  --shell-inset-bg: #f5f5f5;
 
-  --shell-border: #e0e0e0;
-  --shell-border-strong: #cccccc;
+  --shell-border: #e5e5e5;
+  --shell-border-strong: #9e9e9e;
 
-  --shell-text: #000000;
-  --shell-text-muted: #666666;
-  --shell-text-subtle: #999999;
+  --shell-text: #0a0a0a;
+  --shell-text-muted: #9e9e9e;
+  --shell-text-subtle: #9e9e9e;
 
-  --shell-cta-bg: #000000;
+  --shell-cta-bg: #0a0a0a;
   --shell-cta-text: #ffffff;
   --shell-cta-hover: #1a1a1a;
 
@@ -34,27 +34,30 @@
   --shell-warn-soft: rgb(217 119 6 / 0.1);
   --shell-danger: #dc2626;
 
-  --shell-hover-bg: rgb(0 0 0 / 0.04);
-  --shell-hover-bg-strong: rgb(0 0 0 / 0.06);
-  --shell-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.06);
-  --shell-overlay: rgb(0 0 0 / 0.45);
+  --shell-hover-bg: rgb(10 10 10 / 0.04);
+  --shell-hover-bg-strong: rgb(10 10 10 / 0.06);
+  --shell-shadow-sm: 0 1px 2px rgb(10 10 10 / 0.06);
+  --shell-overlay: rgb(10 10 10 / 0.45);
+
+  --shell-motion-duration: 220ms;
+  --shell-motion-ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 [data-atom-skin="dark"] {
-  --shell-sidebar-bg: #000000;
+  --shell-sidebar-bg: #0a0a0a;
   --shell-main-bg: #0a0a0a;
-  --shell-raised-bg: #141414;
-  --shell-inset-bg: #000000;
+  --shell-raised-bg: #111111;
+  --shell-inset-bg: #1a1a1a;
 
-  --shell-border: #1f1f1f;
-  --shell-border-strong: #333333;
+  --shell-border: #1a1a1a;
+  --shell-border-strong: #9e9e9e;
 
   --shell-text: #ffffff;
-  --shell-text-muted: #999999;
-  --shell-text-subtle: #666666;
+  --shell-text-muted: #9e9e9e;
+  --shell-text-subtle: #9e9e9e;
 
   --shell-cta-bg: #ffffff;
-  --shell-cta-text: #000000;
+  --shell-cta-text: #0a0a0a;
   --shell-cta-hover: #e5e5e5;
 
   --shell-status-active: #e87722;
@@ -64,7 +67,7 @@
   --shell-accent-hover: #f0923a;
   --shell-accent-soft: var(--shell-status-active-soft);
   --shell-accent-border: rgb(232 119 34 / 0.45);
-  --shell-accent-text: #000000;
+  --shell-accent-text: #0a0a0a;
 
   --shell-success: #34d399;
   --shell-success-soft: rgb(52 211 153 / 0.12);
@@ -86,8 +89,8 @@
   --shell-border: #ffffff;
   --shell-border-strong: #ffff00;
   --shell-text: #ffffff;
-  --shell-text-muted: #e0e0e0;
-  --shell-text-subtle: #cccccc;
+  --shell-text-muted: #e5e5e5;
+  --shell-text-subtle: #e5e5e5;
   --shell-cta-bg: #ffffff;
   --shell-cta-text: #000000;
   --shell-cta-hover: #e5e5e5;
@@ -114,7 +117,7 @@
   --shell-radius-lg: 12px;
   --shell-radius-full: 9999px;
   --shell-sidebar-width: 248px;
-  --shell-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --shell-font: "Geist Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --shell-font-mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
 }
 

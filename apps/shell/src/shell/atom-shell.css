@@ -48,21 +48,16 @@
   color: var(--atom-header-chrome-fg);
 }
 
-.atom-brand-wordmark {
-  display: none;
-  height: 30px;
-  width: auto;
-  color: var(--atom-header-chrome-fg);
+.atom-brand-ident {
+  display: block;
 }
 
-@media (min-width: 960px) {
-  .atom-app .atom-brand-ident {
-    display: none;
-  }
-
-  .atom-app .atom-brand-wordmark {
-    display: block;
-  }
+.atom-brand-name {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--atom-header-chrome-fg);
 }
 
 .atom-app-menu-trigger {

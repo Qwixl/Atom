@@ -3275,4 +3275,31 @@ body {
   overflow-wrap: anywhere;
 }
 
+.presentation-board-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
+}
+
+.presentation-board-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.presentation-board-panel-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.presentation-board-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 

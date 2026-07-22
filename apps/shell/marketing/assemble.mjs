@@ -115,13 +115,25 @@ ${footer}
 }
 
 const homeBody = `
-        <section class="hero">
-          <p class="eyebrow">Your portal · Beta — free to use</p>
-          <h1>A portal you own for the agent web</h1>
-          <p class="lead">Not another AI chat app. Your personal agent works for you — talking to business agents backstage, rendering real interfaces in a shell you control, and asking you before anything that matters. Your memory, your rules, export any time.</p>
-          <div class="hero-actions">
-            <a class="btn btn-primary" href="/app/?auth=register">Create free account</a>
-            <a class="btn btn-secondary" href="/demo/">Try live demo</a>
+        <section class="hero" data-hero-orbit>
+          <div class="hero-orbit-stage" aria-hidden="true">
+            <svg class="hero-orbit-mark" viewBox="0 0 240 240" fill="none">
+              <ellipse class="hero-orbit-ring hero-orbit-ring--a" cx="120" cy="120" rx="88" ry="36" stroke="currentColor" stroke-width="1.25"/>
+              <ellipse class="hero-orbit-ring hero-orbit-ring--b" cx="120" cy="120" rx="88" ry="36" stroke="currentColor" stroke-width="1.25"/>
+              <ellipse class="hero-orbit-ring hero-orbit-ring--c" cx="120" cy="120" rx="88" ry="36" stroke="currentColor" stroke-width="1.25"/>
+              <circle cx="120" cy="120" r="10" fill="currentColor"/>
+              <circle class="hero-orbit-electron" cx="208" cy="120" r="5" fill="currentColor"/>
+            </svg>
+            <p class="hero-orbit-word">ATOM</p>
+          </div>
+          <div class="hero-copy">
+            <p class="eyebrow">Your portal · Beta — free to use</p>
+            <h1>A portal you own for the agent web</h1>
+            <p class="lead">Not another AI chat app. Your personal agent works for you — talking to business agents backstage, rendering real interfaces in a shell you control, and asking you before anything that matters. Your memory, your rules, export any time.</p>
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="/app/?auth=register">Create free account</a>
+              <a class="btn btn-secondary" href="/demo/">Try live demo</a>
+            </div>
           </div>
         </section>
         <section class="section callout">

@@ -18,7 +18,8 @@
     } catch (_) {
       /* ignore */
     }
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    /* Brand default: light. Dark remains an explicit owner choice. */
+    return "light";
   }
 
   applyTheme(readTheme());

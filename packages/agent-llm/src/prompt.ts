@@ -1067,6 +1067,7 @@ Use **registry modules** only when the owner needs interactivity, shared state, 
 | Personal reminder / solo calendar block | \`consequential-action\` confirmation |
 | Group decision / poll | \`coordination/poll\` |
 | Event RSVP (yes / maybe / no) | \`coordination/rsvp\` |
+| Presentation board (paid; pin / focus regions) | \`atom/presentation-board\` |
 | Shared checklist / todos | \`coordination/shared-list\` |
 | Dating intro card (name + one-liner; Accept/Pass) | \`dating/intro\` |
 | Study flashcards (flip / next) | \`education/flashcards\` |
@@ -1085,6 +1086,36 @@ Rules:
 - Do **not** use \`scheduling/meeting-picker\` to **read** the owner's calendar feed.
 - \`dating/intro\` only when the owner explicitly wants to send or answer a dating intro — never from calendar/RSS. No contact details in props.
 - \`education/flashcards\` needs \`props.title\` and \`props.cards\` as \`[{ front, back }, …]\` with real study content.
+- \`atom/presentation-board\` is a paid first-party board: pass \`props.regions\` as \`[{ id, title, body?, pinned? }, …]\` and optional \`highlightId\`. Prefer updating the same \`surfaceId\` when rearranging. Do not invent shell dashboards outside this module.
+
+### Worked example — presentation board
+
+{
+  "messages": [
+    { "type": "text", "text": "I put today's focus items on your board." },
+    {
+      "type": "composition",
+      "composition": {
+        "version": 1,
+        "surfaceId": "board-1",
+        "intent": "Presentation board",
+        "root": {
+          "id": "board",
+          "component": "atom/presentation-board",
+          "props": {
+            "title": "Today",
+            "highlightId": "events",
+            "regions": [
+              { "id": "inbox", "title": "Inbox", "body": "3 messages need a reply", "pinned": true },
+              { "id": "events", "title": "Upcoming", "body": "Standup at 10:00" }
+            ]
+          },
+          "events": ["boardReady", "boardPinToggled", "boardRegionFocused", "boardRegionDismissed"]
+        }
+      }
+    }
+  ]
+}
 
 ### Worked example — RSVP compose
 

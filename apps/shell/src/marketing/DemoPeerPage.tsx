@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { AtomIdent } from "../brand/AtomIdent.js";
-import { AtomWordmark } from "../brand/AtomWordmark.js";
 import { ATOM_BROWSER_MODE } from "../hostConfig.js";
 import { loadBrowserAgentConfig } from "../browserAgentConfig.js";
 import {
@@ -74,8 +73,8 @@ export function DemoPeerPage({ onComplete }: { onComplete?: () => void }) {
     <div className="atom-marketing">
       <header className="atom-marketing-nav">
         <a className="atom-marketing-brand" href="/" aria-label="Atom home">
-          <AtomWordmark className="atom-marketing-wordmark" />
           <AtomIdent className="atom-marketing-ident" />
+          <span className="atom-marketing-brand-name">Atom</span>
         </a>
         <a className="atom-btn atom-btn-ghost" href="/">
           Back to site

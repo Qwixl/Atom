@@ -1,9 +1,9 @@
 import { useCallback, useId, useRef, useState } from "react";
 import { AtomIdent } from "../brand/AtomIdent.js";
-import { AtomWordmark } from "../brand/AtomWordmark.js";
 import type { ShellNavPanel } from "./ShellSidebar.js";
 import { GamesMenu, type GamesMenuItem } from "./GamesMenu.js";
 import {
+  IconBoard,
   IconChat,
   IconChevronDown,
   IconChevronRight,
@@ -45,6 +45,8 @@ type AtomShellProps = {
   onStartGame?: (moduleId: string) => void;
   composer?: React.ReactNode;
   lockedSections?: ShellNavPanel[];
+  /** When true, show Board nav (paid presentation-board module entitled). */
+  boardAvailable?: boolean;
   showDemoTag?: boolean;
   variant?: "default" | "demo";
   children: React.ReactNode;
@@ -57,6 +59,12 @@ const PRIMARY_NAV: Omit<NavItem, "badge" | "locked">[] = [
   { id: "discover", label: "Discover", icon: IconDiscover },
   { id: "rooms", label: "Rooms", icon: IconRooms },
 ];
+
+const BOARD_NAV: Omit<NavItem, "badge" | "locked"> = {
+  id: "board",
+  label: "Board",
+  icon: IconBoard,
+};
 
 type PopoverElement = HTMLElement & {
   showPopover?: () => void;
@@ -122,18 +130,20 @@ export function AtomShell({
   onStartGame,
   composer,
   lockedSections = [],
+  boardAvailable = false,
   showDemoTag = false,
   variant = "default",
   children,
 }: AtomShellProps) {
   const locked = new Set(lockedSections);
+  const primaryNav = boardAvailable ? [...PRIMARY_NAV, BOARD_NAV] : PRIMARY_NAV;
   const stageRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<PopoverElement | null>(null);
   const popoverId = useId().replace(/:/g, "");
   const navPopoverId = `atom-nav-menu-${popoverId}`;
   const [gamesOpen, setGamesOpen] = useState(false);
 
-  const primaryItems = withBadges(PRIMARY_NAV, badges, locked);
+  const primaryItems = withBadges(primaryNav, badges, locked);
   const mobileMenuItems = primaryItems;
 
   const setPopoverNode = useCallback((node: HTMLDivElement | null) => {
@@ -183,7 +193,7 @@ export function AtomShell({
         <div className="atom-app-header-inner">
           <a className="site-brand atom-brand-link" href="/" aria-label="Atom home">
             <AtomIdent className="atom-brand-ident" />
-            <AtomWordmark className="atom-brand-wordmark" />
+            <span className="atom-brand-name">Atom</span>
             {showDemoTag ? <span className="demo-tag">Demo</span> : null}
           </a>
 

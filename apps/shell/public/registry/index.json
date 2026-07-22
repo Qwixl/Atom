@@ -1,9 +1,28 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-21T20:42:52.834Z",
+  "updatedAt": "2026-07-22T07:55:59.094Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
+    {
+      "id": "atom/presentation-board",
+      "version": "1.0.0",
+      "manifestUrl": "atom/presentation-board/manifest.json",
+      "integrity": "sha256:9ee91ab225af562d40f83b129d8ca9521a111765f319e567f82b15e6b1cafe4b",
+      "bundleIntegrity": "sha256:520a45c0d016c734418bec2923ab69e2424683ff7ac805fbadf11b9b3393bfac",
+      "publisher": "did:key:z6Mkatomexamples01",
+      "pricing": {
+        "model": "paid",
+        "priceCents": 999,
+        "currency": "USD",
+        "purchaseUrl": "https://atom.apps.qwixl.com/apps/atom%2Fpresentation-board"
+      },
+      "categories": [
+        "presentation",
+        "productivity"
+      ],
+      "signatureUrl": "signature.sigstore.json"
+    },
     {
       "id": "commerce/offer-comparison",
       "version": "1.0.0",
@@ -96,6 +115,19 @@
       "signatureUrl": "signature.sigstore.json"
     },
     {
+      "id": "coordination/rsvp",
+      "version": "1.0.0",
+      "manifestUrl": "coordination/rsvp/manifest.json",
+      "integrity": "sha256:7c18c0670f2c57864b1dcd861ae839753304aad29b28e4eb7f79e4db62facdb9",
+      "bundleIntegrity": "sha256:2355f7dcd57e7af01a604bbfa07857708f54b7243301382bc5a3ce95ee815de1",
+      "publisher": "did:key:z6Mkatomexamples01",
+      "categories": [
+        "coordination",
+        "scheduling"
+      ],
+      "signatureUrl": "signature.sigstore.json"
+    },
+    {
       "id": "coordination/shared-list",
       "version": "1.0.0",
       "manifestUrl": "coordination/shared-list/manifest.json",
@@ -132,41 +164,27 @@
       "signatureUrl": "signature.sigstore.json"
     },
     {
-      "id": "media/audio-player",
+      "id": "dating/intro",
       "version": "1.0.0",
-      "manifestUrl": "media/audio-player/manifest.json",
-      "integrity": "sha256:eebc14f49e14916cce0c1f4b368017735e2a7e02e764726db0ebb2ec6e46764a",
-      "bundleIntegrity": "sha256:a7c9cf5efd77c66ab16446797ebaf31044c7541066748fea2b484d5d2ce5f1d2",
+      "manifestUrl": "dating/intro/manifest.json",
+      "integrity": "sha256:8e2645c398dea60599667b8788fe9ed74475adad2718278308fecaab4a01b9e0",
+      "bundleIntegrity": "sha256:ab37ff4e4c4203ec321367c3f7bc922a8fb602f03e10da41f0300fbcc0fa20e8",
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
-        "media"
+        "dating"
       ],
       "signatureUrl": "signature.sigstore.json"
     },
     {
-      "id": "scheduling/availability-grid",
+      "id": "education/flashcards",
       "version": "1.0.0",
-      "manifestUrl": "scheduling/availability-grid/manifest.json",
-      "integrity": "sha256:848dec25c176634e8c2c9615bb99e3f5e08b7e3f025326d48a12f5a05514e73a",
-      "bundleIntegrity": "sha256:fd7c3e7ae49ec73ca60712287aed1966cbc93d6656ea11f6f6d840d6223390b7",
+      "manifestUrl": "education/flashcards/manifest.json",
+      "integrity": "sha256:3a425b5117be7b28a309d033d0cf885e5d5bcb302989518e3c26429bb59e4e59",
+      "bundleIntegrity": "sha256:b80d2f1a75cec8decfbcdb49e1e31bcbdede6899c1e8bd9da96841780b319591",
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
-        "scheduling"
+        "education"
       ],
-      "signatureUrl": "signature.sigstore.json"
-    },
-    {
-      "id": "scheduling/meeting-picker",
-      "version": "1.0.0",
-      "manifestUrl": "scheduling/meeting-picker/manifest.json",
-      "integrity": "sha256:e4cfce12254407a7c14045ce6b17bbe15f198d1cb151bfa99ca8e4fbfdea4cf4",
-      "bundleIntegrity": "sha256:f4871a5bff83ac4a0c1167294c5da79ff6bb748d34c91c9eb495a71001d60f06",
-      "publisher": "did:key:z6Mkatomexamples01",
-      "categories": [
-        "scheduling",
-        "coordination"
-      ],
-      "tier": "system",
       "signatureUrl": "signature.sigstore.json"
     },
     {
@@ -210,14 +228,14 @@
       "signatureUrl": "signature.sigstore.json"
     },
     {
-      "id": "travel/seat-map",
+      "id": "media/audio-player",
       "version": "1.0.0",
-      "manifestUrl": "travel/seat-map/manifest.json",
-      "integrity": "sha256:2ec97da48f0a2be013c48110e5815936e40b98514754f926169f9b3e90d856ca",
-      "bundleIntegrity": "sha256:2143262eb8e3abacf7688735991f32defa348f2e1a262400684ee68be9efb968",
-      "publisher": "did:key:z6Mkdemotravel0001",
+      "manifestUrl": "media/audio-player/manifest.json",
+      "integrity": "sha256:eebc14f49e14916cce0c1f4b368017735e2a7e02e764726db0ebb2ec6e46764a",
+      "bundleIntegrity": "sha256:a7c9cf5efd77c66ab16446797ebaf31044c7541066748fea2b484d5d2ce5f1d2",
+      "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
-        "travel"
+        "media"
       ],
       "signatureUrl": "signature.sigstore.json"
     },
@@ -235,39 +253,40 @@
       "signatureUrl": "signature.sigstore.json"
     },
     {
-      "id": "coordination/rsvp",
+      "id": "scheduling/availability-grid",
       "version": "1.0.0",
-      "manifestUrl": "coordination/rsvp/manifest.json",
-      "integrity": "sha256:7c18c0670f2c57864b1dcd861ae839753304aad29b28e4eb7f79e4db62facdb9",
-      "bundleIntegrity": "sha256:2355f7dcd57e7af01a604bbfa07857708f54b7243301382bc5a3ce95ee815de1",
+      "manifestUrl": "scheduling/availability-grid/manifest.json",
+      "integrity": "sha256:848dec25c176634e8c2c9615bb99e3f5e08b7e3f025326d48a12f5a05514e73a",
+      "bundleIntegrity": "sha256:fd7c3e7ae49ec73ca60712287aed1966cbc93d6656ea11f6f6d840d6223390b7",
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
-        "coordination",
         "scheduling"
       ],
       "signatureUrl": "signature.sigstore.json"
     },
     {
-      "id": "education/flashcards",
+      "id": "scheduling/meeting-picker",
       "version": "1.0.0",
-      "manifestUrl": "education/flashcards/manifest.json",
-      "integrity": "sha256:3a425b5117be7b28a309d033d0cf885e5d5bcb302989518e3c26429bb59e4e59",
-      "bundleIntegrity": "sha256:b80d2f1a75cec8decfbcdb49e1e31bcbdede6899c1e8bd9da96841780b319591",
+      "manifestUrl": "scheduling/meeting-picker/manifest.json",
+      "integrity": "sha256:e4cfce12254407a7c14045ce6b17bbe15f198d1cb151bfa99ca8e4fbfdea4cf4",
+      "bundleIntegrity": "sha256:f4871a5bff83ac4a0c1167294c5da79ff6bb748d34c91c9eb495a71001d60f06",
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
-        "education"
+        "scheduling",
+        "coordination"
       ],
+      "tier": "system",
       "signatureUrl": "signature.sigstore.json"
     },
     {
-      "id": "dating/intro",
+      "id": "travel/seat-map",
       "version": "1.0.0",
-      "manifestUrl": "dating/intro/manifest.json",
-      "integrity": "sha256:8e2645c398dea60599667b8788fe9ed74475adad2718278308fecaab4a01b9e0",
-      "bundleIntegrity": "sha256:ab37ff4e4c4203ec321367c3f7bc922a8fb602f03e10da41f0300fbcc0fa20e8",
-      "publisher": "did:key:z6Mkatomexamples01",
+      "manifestUrl": "travel/seat-map/manifest.json",
+      "integrity": "sha256:2ec97da48f0a2be013c48110e5815936e40b98514754f926169f9b3e90d856ca",
+      "bundleIntegrity": "sha256:2143262eb8e3abacf7688735991f32defa348f2e1a262400684ee68be9efb968",
+      "publisher": "did:key:z6Mkdemotravel0001",
       "categories": [
-        "dating"
+        "travel"
       ],
       "signatureUrl": "signature.sigstore.json"
     }
