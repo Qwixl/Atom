@@ -1,0 +1,27 @@
+{
+  "id": "education/flashcards",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/education-flashcards/index.html",
+  "components": [
+    {
+      "name": "education/flashcards",
+      "semanticRole": "input/flashcards",
+      "events": [
+        {
+          "name": "flashcardsReady"
+        }
+      ],
+      "agentHint": "Interactive study deck; props.title and props.cards[{front,back}]; emits flashcardsReady."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "education"
+  ],
+  "signatureUrl": "signature.sigstore.json",
+  "bundleIntegrity": "sha256:b80d2f1a75cec8decfbcdb49e1e31bcbdede6899c1e8bd9da96841780b319591"
+}

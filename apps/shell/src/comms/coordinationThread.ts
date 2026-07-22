@@ -8,6 +8,8 @@ import {
   COORDINATION_SHARED_LIST_PURPOSE,
   COORDINATION_SHARED_LIST_UPDATE_PURPOSE,
   COORDINATION_LOCATION_PIN_PURPOSE,
+  DATING_INTRO_PURPOSE,
+  DATING_INTRO_RESPONSE_PURPOSE,
   GAME_TTT_STATE_PURPOSE,
   GAME_TTT_MOVE_PURPOSE,
   GAME_BS_STATE_PURPOSE,
@@ -132,6 +134,36 @@ export function inboxEntryToThreadItem(
       at,
       peerDid,
       rsvpId: String(payload.rsvpId ?? ""),
+      response,
+    };
+  }
+
+  if (purpose === DATING_INTRO_PURPOSE) {
+    const interests = Array.isArray(payload.interests)
+      ? payload.interests.filter((t): t is string => typeof t === "string")
+      : undefined;
+    return {
+      kind: "dating-intro",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      displayName: typeof payload.displayName === "string" ? payload.displayName : "Intro",
+      oneLiner: typeof payload.oneLiner === "string" ? payload.oneLiner : "",
+      interests,
+    };
+  }
+
+  if (purpose === DATING_INTRO_RESPONSE_PURPOSE) {
+    const response = payload.response;
+    if (response !== "accept" && response !== "pass") return null;
+    return {
+      kind: "dating-intro-response",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      introId: String(payload.introId ?? ""),
       response,
     };
   }

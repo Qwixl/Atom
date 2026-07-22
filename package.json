@@ -9,6 +9,11 @@
   "engines": {
     "node": ">=22"
   },
+  "pnpm": {
+    "overrides": {
+      "fast-uri": ">=3.1.4"
+    }
+  },
   "scripts": {
     "dev": "node scripts/dev-browser.mjs",
     "dev:shell-only": "pnpm --filter @qwixl/shell-app dev",
