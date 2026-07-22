@@ -272,6 +272,7 @@ subPage(
             <h3>Ship a module</h3>
             <p>Pure renderers in a sandbox — no arbitrary code in the trust boundary.</p>
             <p><a href="https://github.com/Qwixl/Atom/blob/main/MODULES.md">Module author guide →</a></p>
+            <p><a href="https://atom.apps.qwixl.com" rel="noopener noreferrer">Browse the App Store →</a></p>
           </article>
           <article class="card">
             <h3>Publish on Atom Apps</h3>

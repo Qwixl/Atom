@@ -52,6 +52,14 @@ export function MarketingLayout({
           >
             How it works
           </a>
+          <a
+            href="https://atom.apps.qwixl.com"
+            className="atom-btn atom-btn-ghost"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            App Store
+          </a>
           <DeveloperNavDropdown />
           <ThemeToggle />
           <button type="button" className="atom-btn atom-btn-ghost" onClick={onLogin}>
@@ -74,7 +82,10 @@ export function MarketingLayout({
         <p className="atom-marketing-footer-pricing">
           Free during beta. Paid plans will be disclosed before any charge — no surprises.
         </p>
-        <nav className="atom-marketing-footer-links" aria-label="Legal">
+        <nav className="atom-marketing-footer-links" aria-label="Site">
+          <a href="https://atom.apps.qwixl.com" target="_blank" rel="noopener noreferrer">
+            App Store
+          </a>
           <a
             href="/privacy"
             onClick={(e) => {
