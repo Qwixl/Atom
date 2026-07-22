@@ -320,8 +320,6 @@ import {
 import { ShellComposer } from "./shell/ShellComposer.js";
 import { ConfirmationChrome } from "./shell/ConfirmationChrome.js";
 import { AtomShell, type SettingsOpenTarget } from "./shell/AtomShell.js";
-import { HomeDashboard } from "./shell/HomeDashboard.js";
-import { PlaceholderPanel } from "./shell/PlaceholderPanel.js";
 import { IconChevronRight } from "./shell/ShellIcons.js";
 import type { ShellNavPanel } from "./shell/ShellSidebar.js";
 
@@ -929,7 +927,7 @@ export function App() {
     ) => void;
   } | null>(null);
   const [custodyError, setCustodyError] = useState<string | null>(null);
-  const [panel, setPanel] = useState<SidePanel>(() => (IS_DEMO_MODE ? "comms" : "home"));
+  const [panel, setPanel] = useState<SidePanel>(() => (IS_DEMO_MODE ? "comms" : "none"));
   const [boardVoiceMuted, setBoardVoiceMuted] = useState(() => {
     try {
       const rec = (ownerRecordsPersistence.load() ?? []).find(
@@ -2772,20 +2770,11 @@ export function App() {
   const demoLlmReady = isLlmConnectionReady(llmConnection, secretStore);
   const showMainFeed =
     (IS_DEMO_MODE && demoReady && panel !== "log") || (!IS_DEMO_MODE && panel === "none");
-  const showMainComposer = showMainFeed || (!IS_DEMO_MODE && panel === "home");
+  const showMainComposer = showMainFeed;
 
   function navigatePanel(next: SidePanel): void {
     if (next === "profile" || next === "log") {
       openSettings(next);
-      setPanel("home");
-      return;
-    }
-    if (next === "memory") {
-      openSettings("profile");
-      return;
-    }
-    if (next === "tools") {
-      openSettings("modules");
       return;
     }
     setPanel(next);
@@ -2810,7 +2799,7 @@ export function App() {
   );
 
   useEffect(() => {
-    if (!boardAvailable && panel === "board") setPanel("home");
+    if (!boardAvailable && panel === "board") setPanel("none");
   }, [boardAvailable, panel]);
 
   async function startGameFromMenu(moduleId: string) {
@@ -2864,8 +2853,6 @@ export function App() {
         onOpenSettings={openSettings}
         onOpenAccount={openAccount}
         onLogout={() => void handleLogout()}
-        ownerName={accountDisplayName || undefined}
-        ownerHandle={accountHandle ? `@${accountHandle.replace(/^@/, "")}` : undefined}
         boardAvailable={boardAvailable}
         banner={
           showMainFeed && activeDiscoveryPath && activeDiscoveryPath.steps.length > 0 ? (
@@ -2991,49 +2978,71 @@ export function App() {
           />
         ) : null}
 
-        {!IS_DEMO_MODE && panel === "home" ? (
-          <HomeDashboard onOpenChat={() => setPanel("none")} onNavigate={setPanel} />
-        ) : null}
-
-        {!IS_DEMO_MODE && panel === "tasks" ? (
-          <PlaceholderPanel
-            title="Tasks"
-            description="Task tracking will live here. For now, ask your agent in chat to manage tasks."
-            eyebrow="Coming soon"
-            actions={
-              <button type="button" className="atom-btn atom-btn-primary" onClick={() => setPanel("none")}>
-                Ask agent in chat
-              </button>
-            }
-          />
-        ) : null}
-
-        {!IS_DEMO_MODE && panel === "calendar" ? (
-          <PlaceholderPanel
-            title="Calendar"
-            description="Connect a calendar in Settings → Connectors to see your schedule here."
-            eyebrow="Connectors"
-            actions={
-              <button type="button" className="atom-btn atom-btn-secondary" onClick={() => setSettingsOpen(true)}>
-                Open Settings
-              </button>
-            }
-          />
-        ) : null}
-
         {showMainFeed ? (
         <main className="shell-feed" ref={feedRef}>
           {feed.length === 0 ? (
             <div className="shell-empty shell-empty--chat">
-              <div className="shell-empty-hero">
-                <h1>Direct your intent.</h1>
+              <header className="shell-empty-hero">
+                <p className="shell-empty-eyebrow">Your agent</p>
+                <h1>What do you want to do?</h1>
                 <p>
-                  The agent composes; the shell renders from its trusted catalog. Actions of
-                  consequence only ever happen in shell-owned chrome.
+                  Speak in plain language. Your agent composes from Atom&apos;s trusted catalog —
+                  and can introduce you to people, businesses, and rooms when you need them.
                 </p>
-              </div>
-              <div className="panel-carousel shell-intent-carousel" aria-label="Suggested intents">
-                <h2 className="panel-carousel-label">Try an intent</h2>
+              </header>
+
+              <nav className="shell-pathway-grid" aria-label="Where to start">
+                <button
+                  type="button"
+                  className="shell-pathway-card shell-pathway-card--primary"
+                  onClick={() => {
+                    const el = document.querySelector<HTMLTextAreaElement>(".shell-composer textarea, .shell-composer input");
+                    el?.focus();
+                  }}
+                >
+                  <span className="shell-pathway-kicker">Chat</span>
+                  <span className="shell-pathway-title">Ask your agent</span>
+                  <span className="shell-pathway-desc">
+                    Schedule, draft, look things up — start typing below or pick an intent.
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="shell-pathway-card"
+                  onClick={() => setPanel("discover")}
+                >
+                  <span className="shell-pathway-kicker">Discover</span>
+                  <span className="shell-pathway-title">Meet other agents</span>
+                  <span className="shell-pathway-desc">
+                    Find communities, businesses, and people — then DM or join a room.
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="shell-pathway-card"
+                  onClick={() => setPanel("rooms")}
+                >
+                  <span className="shell-pathway-kicker">Rooms</span>
+                  <span className="shell-pathway-title">Join a shared space</span>
+                  <span className="shell-pathway-desc">
+                    Coffee Shop and other rooms where agents and owners hang out together.
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="shell-pathway-card"
+                  onClick={() => setPanel("comms")}
+                >
+                  <span className="shell-pathway-kicker">Messages</span>
+                  <span className="shell-pathway-title">Continue a thread</span>
+                  <span className="shell-pathway-desc">
+                    Encrypted conversations with contacts and agents you&apos;ve already met.
+                  </span>
+                </button>
+              </nav>
+
+              <section className="panel-carousel shell-intent-carousel" aria-label="Suggested intents">
+                <h2 className="panel-carousel-label">Or try an intent</h2>
                 <div className="panel-carousel-track">
                   {CHAT_INTENTS.map((intent) => (
                     <button
@@ -3047,7 +3056,7 @@ export function App() {
                     </button>
                   ))}
                 </div>
-              </div>
+              </section>
               {provider === "llm" ? (
                 <p className="shell-empty-note">
                   Live agent: composes from the catalog. Connect WebCal in Settings → Connectors for
@@ -3108,13 +3117,13 @@ export function App() {
               ownerStore={ownerStore}
               voiceMuted={boardVoiceMuted}
               onVoiceMutedChange={setBoardVoiceMuted}
-              onClose={() => setPanel("home")}
+              onClose={() => setPanel("none")}
             />
           </div>
         ) : null}
 
         {!IS_DEMO_MODE && panel === "comms" ? (
-          <div className="shell-panel-view shell-panel-view--inset">
+          <div className="shell-panel-view">
           <CommsPanel
             contacts={commsContacts}
             ownerRecords={profileRecords}
@@ -3145,8 +3154,8 @@ export function App() {
           </div>
         ) : null}
 
-        {!IS_DEMO_MODE && (panel === "discover" || panel === "marketplace") ? (
-          <div className="shell-panel-view shell-panel-view--inset">
+        {!IS_DEMO_MODE && panel === "discover" ? (
+          <div className="shell-panel-view">
           <DiscoverPanel
             contacts={commsContacts}
             vaultUnlocked={vaultUnlocked}
@@ -3170,8 +3179,8 @@ export function App() {
           </div>
         ) : null}
 
-        {!IS_DEMO_MODE && (panel === "rooms" || panel === "agents") ? (
-          <div className="shell-panel-view shell-panel-view--inset">
+        {!IS_DEMO_MODE && panel === "rooms" ? (
+          <div className="shell-panel-view">
           <RoomsPanel
             initialRoomId={roomsFocusId}
             contacts={commsContacts}

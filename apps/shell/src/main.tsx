@@ -17,7 +17,6 @@ import "./shell/panel-chrome.css";
 import "./shell/atom-panels.css";
 import "./demo/demo-session.css";
 import "./shell/atom-shell.css";
-import "./shell/home-dashboard.css";
 import "./shell/shell-unified.css";
 import "./compose/compose-extras.css";
 import "./styles.css";
