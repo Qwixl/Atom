@@ -25,9 +25,8 @@ const SKIN_KEY = "atom-shell-skin";
 const savedSkin = loadStringFromStorage(SKIN_KEY);
 if (isAtomSkinId(savedSkin)) {
   applyAtomSkin(savedSkin);
-} else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-  applyAtomSkin("dark");
 } else {
+  /* Brand default: light. Dark remains an explicit owner choice. */
   applyAtomSkin("minimal");
 }
 

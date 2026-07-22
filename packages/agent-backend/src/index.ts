@@ -118,6 +118,7 @@ export { runLlmTextCompletion } from "./agUi/llmRunner.js";
 export type { VoiceBackend, VoiceBackendStatus, VoiceProviderId } from "./voice/types.js";
 export { StubVoiceBackend, loadVoiceBackend } from "./voice/stubVoiceBackend.js";
 export { OpenAiRealtimeVoiceBackend } from "./voice/openaiRealtimeVoiceBackend.js";
+export { applyHumanFilter, type HumanFilterResult } from "./voice/humanFilter.js";
 export type { StoredPushSubscription, PushSubscriptionKind } from "./push/types.js";
 export { normalizePushSubscriptions } from "./push/types.js";
 export {

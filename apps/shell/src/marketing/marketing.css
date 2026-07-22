@@ -26,28 +26,19 @@
   text-decoration: none;
 }
 
-.atom-marketing-wordmark {
-  display: block;
-  height: 34px;
-  width: auto;
-  color: #ffffff;
-}
-
 .atom-marketing-ident {
-  display: none;
+  display: block;
   width: 28px;
   height: 28px;
   color: #ffffff;
 }
 
-@media (max-width: 720px) {
-  .atom-marketing-wordmark {
-    display: none;
-  }
-
-  .atom-marketing-ident {
-    display: block;
-  }
+.atom-marketing-brand-name {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #ffffff;
 }
 
 .atom-marketing-nav-links {
