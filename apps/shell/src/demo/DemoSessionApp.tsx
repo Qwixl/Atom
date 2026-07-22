@@ -70,7 +70,21 @@ export function DemoSessionApp() {
             Instructions
           </button>
         }
-        lockedSections={["none", "discover", "rooms", "profile", "log"]}
+        lockedSections={[
+          "home",
+          "none",
+          "tasks",
+          "calendar",
+          "memory",
+          "tools",
+          "agents",
+          "marketplace",
+          "discover",
+          "rooms",
+          "profile",
+          "log",
+          "board",
+        ]}
       >
         <div className="demo-session-frame">
           <DemoPairView

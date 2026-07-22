@@ -1,5 +1,5 @@
 (function () {
-  var STORAGE_KEY = "atom-shell-skin";
+  var STORAGE_KEY = "atom-marketing-theme";
 
   function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
@@ -18,8 +18,8 @@
     } catch (_) {
       /* ignore */
     }
-    /* Brand default: light. Dark remains an explicit owner choice. */
-    return "light";
+    /* Marketing default: dark (mood board). App shell stays light via /app/. */
+    return "dark";
   }
 
   applyTheme(readTheme());

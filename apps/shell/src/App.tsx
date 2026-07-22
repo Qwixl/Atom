@@ -320,6 +320,8 @@ import {
 import { ShellComposer } from "./shell/ShellComposer.js";
 import { ConfirmationChrome } from "./shell/ConfirmationChrome.js";
 import { AtomShell, type SettingsOpenTarget } from "./shell/AtomShell.js";
+import { HomeDashboard } from "./shell/HomeDashboard.js";
+import { PlaceholderPanel } from "./shell/PlaceholderPanel.js";
 import { IconChevronRight } from "./shell/ShellIcons.js";
 import type { ShellNavPanel } from "./shell/ShellSidebar.js";
 
@@ -328,11 +330,13 @@ type SidePanel = ShellNavPanel;
 
 type ShellSession = AgentSession & { dispose?: () => void };
 
-const SUGGESTIONS = [
-  "Find a coffee shop",
-  "Schedule a team standup next week",
-  "RSVP to the design review",
-  "What time works for our standup?",
+const CHAT_INTENTS = [
+  { label: "Find a coffee shop", hint: "Discover nearby places" },
+  { label: "Schedule a team standup next week", hint: "Calendar coordination" },
+  { label: "RSVP to the design review", hint: "Respond to an invite" },
+  { label: "What time works for our standup?", hint: "Find a meeting slot" },
+  { label: "Summarize my inbox", hint: "Agent briefing" },
+  { label: "Draft a reply to Alex", hint: "Compose a message" },
 ];
 const REGISTRY_URL_KEY = "atom-registry-url";
 const REGISTRY_TRUST_KEY = "atom-registry-trust";
@@ -925,7 +929,7 @@ export function App() {
     ) => void;
   } | null>(null);
   const [custodyError, setCustodyError] = useState<string | null>(null);
-  const [panel, setPanel] = useState<SidePanel>(() => "none");
+  const [panel, setPanel] = useState<SidePanel>(() => (IS_DEMO_MODE ? "comms" : "home"));
   const [boardVoiceMuted, setBoardVoiceMuted] = useState(() => {
     try {
       const rec = (ownerRecordsPersistence.load() ?? []).find(
@@ -2768,13 +2772,20 @@ export function App() {
   const demoLlmReady = isLlmConnectionReady(llmConnection, secretStore);
   const showMainFeed =
     (IS_DEMO_MODE && demoReady && panel !== "log") || (!IS_DEMO_MODE && panel === "none");
-  const showMainComposer = showMainFeed;
+  const showMainComposer = showMainFeed || (!IS_DEMO_MODE && panel === "home");
 
   function navigatePanel(next: SidePanel): void {
-    // Profile / Log live in Settings — never as top-level sections.
     if (next === "profile" || next === "log") {
       openSettings(next);
-      setPanel("none");
+      setPanel("home");
+      return;
+    }
+    if (next === "memory") {
+      openSettings("profile");
+      return;
+    }
+    if (next === "tools") {
+      openSettings("modules");
       return;
     }
     setPanel(next);
@@ -2799,7 +2810,7 @@ export function App() {
   );
 
   useEffect(() => {
-    if (!boardAvailable && panel === "board") setPanel("none");
+    if (!boardAvailable && panel === "board") setPanel("home");
   }, [boardAvailable, panel]);
 
   async function startGameFromMenu(moduleId: string) {
@@ -2853,6 +2864,8 @@ export function App() {
         onOpenSettings={openSettings}
         onOpenAccount={openAccount}
         onLogout={() => void handleLogout()}
+        ownerName={accountDisplayName || undefined}
+        ownerHandle={accountHandle ? `@${accountHandle.replace(/^@/, "")}` : undefined}
         boardAvailable={boardAvailable}
         banner={
           showMainFeed && activeDiscoveryPath && activeDiscoveryPath.steps.length > 0 ? (
@@ -2978,21 +2991,62 @@ export function App() {
           />
         ) : null}
 
+        {!IS_DEMO_MODE && panel === "home" ? (
+          <HomeDashboard onOpenChat={() => setPanel("none")} onNavigate={setPanel} />
+        ) : null}
+
+        {!IS_DEMO_MODE && panel === "tasks" ? (
+          <PlaceholderPanel
+            title="Tasks"
+            description="Task tracking will live here. For now, ask your agent in chat to manage tasks."
+            eyebrow="Coming soon"
+            actions={
+              <button type="button" className="atom-btn atom-btn-primary" onClick={() => setPanel("none")}>
+                Ask agent in chat
+              </button>
+            }
+          />
+        ) : null}
+
+        {!IS_DEMO_MODE && panel === "calendar" ? (
+          <PlaceholderPanel
+            title="Calendar"
+            description="Connect a calendar in Settings → Connectors to see your schedule here."
+            eyebrow="Connectors"
+            actions={
+              <button type="button" className="atom-btn atom-btn-secondary" onClick={() => setSettingsOpen(true)}>
+                Open Settings
+              </button>
+            }
+          />
+        ) : null}
+
         {showMainFeed ? (
         <main className="shell-feed" ref={feedRef}>
           {feed.length === 0 ? (
-            <div className="shell-empty">
-              <h1>Direct your intent.</h1>
-              <p>
-                The agent composes; the shell renders from its trusted catalog. Actions of
-                consequence only ever happen in shell-owned chrome.
-              </p>
-              <div className="shell-suggestions">
-                {SUGGESTIONS.map((suggestion) => (
-                  <button key={suggestion} onClick={() => submitMessage(suggestion)}>
-                    {suggestion}
-                  </button>
-                ))}
+            <div className="shell-empty shell-empty--chat">
+              <div className="shell-empty-hero">
+                <h1>Direct your intent.</h1>
+                <p>
+                  The agent composes; the shell renders from its trusted catalog. Actions of
+                  consequence only ever happen in shell-owned chrome.
+                </p>
+              </div>
+              <div className="panel-carousel shell-intent-carousel" aria-label="Suggested intents">
+                <h2 className="panel-carousel-label">Try an intent</h2>
+                <div className="panel-carousel-track">
+                  {CHAT_INTENTS.map((intent) => (
+                    <button
+                      key={intent.label}
+                      type="button"
+                      className="panel-carousel-card"
+                      onClick={() => submitMessage(intent.label)}
+                    >
+                      <span className="panel-carousel-card-title">{intent.label}</span>
+                      <span className="panel-carousel-card-desc">{intent.hint}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
               {provider === "llm" ? (
                 <p className="shell-empty-note">
@@ -3054,7 +3108,7 @@ export function App() {
               ownerStore={ownerStore}
               voiceMuted={boardVoiceMuted}
               onVoiceMutedChange={setBoardVoiceMuted}
-              onClose={() => setPanel("none")}
+              onClose={() => setPanel("home")}
             />
           </div>
         ) : null}
@@ -3091,7 +3145,7 @@ export function App() {
           </div>
         ) : null}
 
-        {!IS_DEMO_MODE && panel === "discover" ? (
+        {!IS_DEMO_MODE && (panel === "discover" || panel === "marketplace") ? (
           <div className="shell-panel-view shell-panel-view--inset">
           <DiscoverPanel
             contacts={commsContacts}
@@ -3116,7 +3170,7 @@ export function App() {
           </div>
         ) : null}
 
-        {!IS_DEMO_MODE && panel === "rooms" ? (
+        {!IS_DEMO_MODE && (panel === "rooms" || panel === "agents") ? (
           <div className="shell-panel-view shell-panel-view--inset">
           <RoomsPanel
             initialRoomId={roomsFocusId}

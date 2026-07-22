@@ -5,6 +5,7 @@ import type { ActionReserveRefKind, MonetaryAmount, RsvpAnswer, SchedulingSlot }
 import type { AttestationEntry, Catalog, ModuleRegistry, BattleshipsMove } from "@qwixl/shell-core";
 import { BattleshipsA2AHost } from "@qwixl/shell-core";
 import { ThreadItemView, useRespondedProposalIds, useRespondedTransactionIds, threadItemNeedsActions } from "./comms/CoordinationCard.js";
+import { PanelFilterPills } from "./shell/PanelChrome.js";
 import { CommsAgentClient } from "./comms/client.js";
 import { CommsGameModal } from "./comms/CommsGameModal.js";
 import { CommsModuleEmbed } from "./comms/CommsModuleEmbed.js";
@@ -203,6 +204,7 @@ export function CommsPanel({
   const [tttModalOpen, setTttModalOpen] = useState(false);
   const autoOpenedTttGameIdRef = useRef<string | null>(null);
   const [contactSearch, setContactSearch] = useState("");
+  const [contactFilter, setContactFilter] = useState<"all" | "encrypted" | "connecting">("all");
   const [webcalBusyEvents, setWebcalBusyEvents] = useState<WebcalBusyEvent[]>([]);
   const [abuseReportOpen, setAbuseReportOpen] = useState(false);
 
@@ -260,14 +262,17 @@ export function CommsPanel({
   const ownerCategories = useMemo(() => uniqueOwnerCategories(ownerRecords), [ownerRecords]);
   const visibleContacts = useMemo(() => {
     const query = contactSearch.trim().toLowerCase();
-    if (!query) return contacts;
     return contacts.filter((contact) => {
+      const encrypted = mlsPeers.includes(contact.did);
+      if (contactFilter === "encrypted" && !encrypted) return false;
+      if (contactFilter === "connecting" && encrypted) return false;
+      if (!query) return true;
       const haystack = [contactDisplayName(contact), contact.name, contact.handle ?? ""]
         .join(" ")
         .toLowerCase();
       return haystack.includes(query);
     });
-  }, [contactSearch, contacts]);
+  }, [contactFilter, contactSearch, contacts, mlsPeers]);
 
   const liveClient = useCallback(() => {
     const cfg = loadCommsAgentConfig();
@@ -2299,12 +2304,14 @@ export function CommsPanel({
       <div className={`panel-body panel-master-detail comms-main${demoMode ? " comms-main--demo" : ""}`}>
         {!demoSession ? (
         <nav className="panel-list comms-sidebar" aria-label="Contacts">
-          <div className="panel-list-head">
-            <span>Contacts</span>
+          <div className="panel-list-head panel-list-head--rich">
+            <span className="panel-list-head-title">Contacts</span>
+            <p className="panel-list-head-desc">Encrypted threads with people and agents you&apos;ve connected.</p>
             {!showSetup && contacts.length > 0 ? (
               <button
                 type="button"
-                className="panel-btn-ghost"
+                className="panel-btn panel-btn-primary"
+                style={{ alignSelf: "flex-start" }}
                 onClick={() => {
                   if (ATOM_BROWSER_MODE) {
                     setShowAddContact(true);
@@ -2314,21 +2321,41 @@ export function CommsPanel({
                   setShowAddContact(true);
                 }}
               >
-                + Add
+                + Add contact
               </button>
             ) : null}
           </div>
           {contacts.length > 0 ? (
-            <label className="comms-contact-search">
-              <span className="visually-hidden">Search contacts</span>
-              <input
-                className="panel-input"
-                type="search"
-                value={contactSearch}
-                onChange={(event) => setContactSearch(event.target.value)}
-                placeholder="Search contacts…"
+            <>
+              <PanelFilterPills
+                ariaLabel="Filter contacts"
+                value={contactFilter}
+                options={[
+                  { value: "all", label: "All", count: contacts.length },
+                  {
+                    value: "encrypted",
+                    label: "Encrypted",
+                    count: contacts.filter((c) => mlsPeers.includes(c.did)).length,
+                  },
+                  {
+                    value: "connecting",
+                    label: "Connecting",
+                    count: contacts.filter((c) => !mlsPeers.includes(c.did)).length,
+                  },
+                ]}
+                onChange={setContactFilter}
               />
-            </label>
+              <label className="comms-contact-search">
+                <span className="visually-hidden">Search contacts</span>
+                <input
+                  className="panel-input"
+                  type="search"
+                  value={contactSearch}
+                  onChange={(event) => setContactSearch(event.target.value)}
+                  placeholder="Search contacts…"
+                />
+              </label>
+            </>
           ) : null}
           {ATOM_BROWSER_MODE && showAddContact ? (
             <div className="comms-setup-card comms-browser-add">
@@ -2384,7 +2411,7 @@ export function CommsPanel({
                   <li key={contact.id}>
                     <button
                       type="button"
-                      className={`panel-row comms-contact${isSelected ? " is-selected" : ""}`}
+                      className={`panel-row panel-row--elevated comms-contact${isSelected ? " is-selected" : ""}`}
                       onClick={() => setSelectedId(contact.id)}
                     >
                       <span className="panel-avatar comms-contact-avatar" aria-hidden="true">

@@ -699,7 +699,10 @@ export function RoomsPanel({
       ) : null}
       <div className="panel-body panel-master-detail comms-main">
         <nav className="panel-list comms-sidebar" aria-label="Rooms">
-          <div className="panel-list-head">Your rooms</div>
+          <div className="panel-list-head panel-list-head--rich">
+            <span className="panel-list-head-title">Your rooms</span>
+            <p className="panel-list-head-desc">Spaces you&apos;ve joined — chat, modules, and shared activity.</p>
+          </div>
           <ul className="panel-list-scroll comms-contact-list">
             {allRooms.length === 0 ? (
               <li className="panel-empty rooms-empty-list">
@@ -726,7 +729,7 @@ export function RoomsPanel({
                 <li key={room.roomId}>
                   <button
                     type="button"
-                    className={`panel-row comms-contact${selectedId === room.roomId ? " is-selected" : ""}`}
+                    className={`panel-row panel-row--elevated comms-contact${selectedId === room.roomId ? " is-selected" : ""}`}
                     onClick={() => {
                       setSelectedId(room.roomId);
                       setMobileListOpen(false);

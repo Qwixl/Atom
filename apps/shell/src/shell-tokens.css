@@ -39,7 +39,9 @@
   --shell-shadow-sm: 0 1px 2px rgb(10 10 10 / 0.06);
   --shell-overlay: rgb(10 10 10 / 0.45);
 
+  --shell-motion-duration-fast: 150ms;
   --shell-motion-duration: 220ms;
+  --shell-motion-duration-slow: 400ms;
   --shell-motion-ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -115,8 +117,10 @@
   --shell-radius: 8px;
   --shell-radius-sm: 6px;
   --shell-radius-lg: 12px;
+  --shell-radius-pill: 9999px;
   --shell-radius-full: 9999px;
   --shell-sidebar-width: 248px;
+  --shell-content-padding: 20px;
   --shell-font: "Geist Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --shell-font-mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
 }

@@ -1,22 +1,31 @@
 /**
- * Atom app shell — single-stage layout (no persistent sidebar / master-detail chrome).
- * Uses native HTML5 dialog for mobile section menu.
+ * Atom app shell — sidebar layout with main content stage.
  */
 
 .atom-app {
-  --atom-header-h: 44px;
+  --atom-header-h: 48px;
   --atom-chat-max: 720px;
   --atom-shell-max: 1120px;
   --atom-ident-size: 28px;
-  --atom-header-chrome: #000000;
-  --atom-header-chrome-fg: #ffffff;
+  --atom-header-chrome: var(--shell-raised-bg);
+  --atom-header-chrome-fg: var(--shell-text);
   height: 100dvh;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   overflow: hidden;
   background: var(--shell-main-bg);
   color: var(--shell-text);
   position: relative;
+}
+
+.atom-app-shell-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--shell-inset-bg);
 }
 
 .atom-app-header {
@@ -25,10 +34,38 @@
   z-index: 20;
   min-height: calc(var(--atom-header-h) + env(safe-area-inset-top, 0px));
   flex-shrink: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--atom-header-chrome-fg) 18%, transparent);
+  border-bottom: 1px solid var(--shell-border);
   background: var(--atom-header-chrome);
   color: var(--atom-header-chrome-fg);
   padding-top: env(safe-area-inset-top, 0px);
+}
+
+.atom-app-header--mobile {
+  display: flex;
+}
+
+.atom-app-toolbar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--shell-border);
+  background: var(--shell-raised-bg);
+}
+
+.atom-app-toolbar-start,
+.atom-app-toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.atom-app-toolbar-end {
+  margin-left: auto;
 }
 
 .atom-brand-link {
@@ -192,12 +229,7 @@
 }
 
 .atom-app-tabs {
-  display: none;
-  align-items: center;
-  gap: 4px;
-  flex: 1;
-  justify-content: center;
-  min-width: 0;
+  display: none !important;
 }
 
 .atom-app-header-end {
@@ -418,6 +450,47 @@
   gap: 2px;
 }
 
+.shell-placeholder-panel {
+  overflow-y: auto;
+}
+
+.shell-placeholder-panel-inner {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.shell-placeholder-panel-title {
+  margin: 0 0 10px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--shell-text);
+}
+
+.shell-placeholder-panel-desc {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--shell-text-muted);
+}
+
+.atom-games-menu--toolbar {
+  display: inline-flex;
+}
+
+.atom-games-menu--toolbar > summary.atom-nav-item {
+  padding: 8px 14px;
+  border-radius: var(--shell-radius-pill);
+  color: var(--shell-text-muted);
+  background: transparent;
+}
+
+.atom-games-menu--toolbar[open] > summary {
+  background: var(--shell-inset-bg);
+  color: var(--shell-text);
+}
+
 .atom-games-menu-item {
   display: block;
   width: 100%;
@@ -427,8 +500,8 @@
   color: var(--shell-text, #000);
   font: inherit;
   font-size: 13px;
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: 8px 12px;
+  border-radius: var(--shell-radius-pill);
   cursor: pointer;
 }
 
@@ -468,7 +541,7 @@
 
 .atom-app-content {
   width: 100%;
-  max-width: var(--atom-shell-max);
+  max-width: none;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -491,8 +564,9 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   width: 100%;
+  background: var(--shell-inset-bg);
 }
 
 /* Every top-level section inside the stage fills remaining viewport height */
@@ -614,10 +688,14 @@
   flex-shrink: 0;
 }
 
-/* Kill legacy shell chrome inside atom-app */
+/* Sidebar layout — visible inside atom-app */
 
-.atom-app .shell-frame,
-.atom-app .shell-sidebar,
+.atom-app .shell-sidebar {
+  flex: none;
+  height: 100dvh;
+  z-index: 30;
+}
+
 .atom-app .shell-main-header {
   display: none;
 }
@@ -635,7 +713,11 @@
 }
 
 @media (min-width: 960px) {
-  .atom-app-tabs {
+  .atom-app-header--mobile {
+    display: none;
+  }
+
+  .atom-app-toolbar--desktop {
     display: flex;
   }
 
@@ -650,14 +732,18 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     padding: 0;
-    border: none;
-    border-radius: var(--shell-radius-sm);
+    border: 1px solid transparent;
+    border-radius: var(--shell-radius-pill);
     background: transparent;
-    color: var(--atom-header-chrome-fg);
+    color: var(--shell-text-muted);
     cursor: pointer;
+    transition:
+      background var(--shell-motion-duration-fast) var(--shell-motion-ease),
+      color var(--shell-motion-duration-fast) var(--shell-motion-ease),
+      border-color var(--shell-motion-duration-fast) var(--shell-motion-ease);
   }
 
   .atom-app-account:hover,
@@ -666,13 +752,19 @@
   .atom-app-settings:focus-visible,
   .atom-app-logout:hover,
   .atom-app-logout:focus-visible {
-    background: color-mix(in srgb, var(--atom-header-chrome-fg) 12%, transparent);
-    color: var(--atom-header-chrome-fg);
+    background: var(--shell-hover-bg);
+    color: var(--shell-text);
+    border-color: var(--shell-border);
     outline: none;
   }
 
   .atom-games-menu {
     display: inline-flex;
+  }
+
+  .atom-games-menu--toolbar > summary.atom-nav-item {
+    border-radius: var(--shell-radius-pill);
+    color: var(--shell-text-muted);
   }
 
   .atom-app-settings-label {
