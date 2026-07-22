@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { AtomIdent } from "../brand/AtomIdent.js";
-import { AtomWordmark } from "../brand/AtomWordmark.js";
 import { ThemeToggle } from "../theme/ThemeToggle.js";
 import { navigate } from "../navigation.js";
 import { DeveloperNavDropdown } from "./DeveloperNavDropdown.js";
@@ -27,8 +26,8 @@ export function MarketingLayout({
             navigate("/");
           }}
         >
-          <AtomWordmark className="atom-marketing-wordmark" />
           <AtomIdent className="atom-marketing-ident" />
+          <span className="atom-marketing-brand-name">Atom</span>
           <span className="atom-beta-badge">Beta</span>
         </a>
         <nav className="atom-marketing-nav-links" aria-label="Site">
@@ -74,7 +73,10 @@ export function MarketingLayout({
         <p className="atom-marketing-footer-pricing">
           Free during beta. Paid plans will be disclosed before any charge — no surprises.
         </p>
-        <nav className="atom-marketing-footer-links" aria-label="Legal">
+        <nav className="atom-marketing-footer-links" aria-label="Site">
+          <a href="https://atom.apps.qwixl.com" target="_blank" rel="noopener noreferrer">
+            App Store
+          </a>
           <a
             href="/privacy"
             onClick={(e) => {

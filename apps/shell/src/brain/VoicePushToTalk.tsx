@@ -31,11 +31,14 @@ export function VoicePushToTalk({
   enabled,
   onTranscript,
   onSpokenReply,
+  humanFilter = true,
 }: {
   enabled: boolean;
   /** Send transcribed text as a user chat turn; return agent reply text when ready. */
   onTranscript: (text: string) => Promise<string | null>;
   onSpokenReply?: (text: string) => void;
+  /** Apply agent-backend spoken-path human filter before TTS (default on). */
+  humanFilter?: boolean;
 }) {
   const { config } = useAgentConfig(true);
   const [recording, setRecording] = useState(false);
@@ -103,7 +106,7 @@ export function VoicePushToTalk({
             ? { Authorization: `Bearer ${admin.adminToken.trim()}` }
             : {}),
         },
-        body: JSON.stringify({ text: reply.slice(0, 2000) }),
+        body: JSON.stringify({ text: reply.slice(0, 2000), humanFilter }),
       });
       const synBody = (await syn.json().catch(() => ({}))) as {
         audioBase64?: string | null;
@@ -123,7 +126,7 @@ export function VoicePushToTalk({
     } finally {
       setBusy(false);
     }
-  }, [config, onTranscript, onSpokenReply]);
+  }, [config, onTranscript, onSpokenReply, humanFilter]);
 
   const startRecording = useCallback(async () => {
     setError(null);

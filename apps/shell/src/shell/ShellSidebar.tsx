@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { AtomIdent } from "../brand/AtomIdent.js";
-import { AtomWordmark } from "../brand/AtomWordmark.js";
 import {
+  IconBoard,
   IconChat,
   IconDiscover,
   IconLog,
@@ -11,7 +11,14 @@ import {
   IconSettings,
 } from "./ShellIcons.js";
 
-export type ShellNavPanel = "none" | "log" | "profile" | "comms" | "discover" | "rooms";
+export type ShellNavPanel =
+  | "none"
+  | "log"
+  | "profile"
+  | "comms"
+  | "discover"
+  | "rooms"
+  | "board";
 
 type NavItem = {
   id: ShellNavPanel;
@@ -30,6 +37,7 @@ type ShellSidebarProps = {
   logCount: number;
   mobileOpen: boolean;
   onMobileClose: () => void;
+  boardAvailable?: boolean;
 };
 
 function NavList({
@@ -50,7 +58,7 @@ function NavList({
       <div className="shell-sidebar-brand">
         <a className="shell-sidebar-brand-link" href="/" aria-label="Atom home">
           <AtomIdent className="shell-sidebar-brand-ident" />
-          <AtomWordmark className="shell-sidebar-brand-wordmark" />
+          <span className="shell-sidebar-brand-name">Atom</span>
         </a>
       </div>
 
@@ -111,6 +119,7 @@ export function ShellSidebar({
   logCount,
   mobileOpen,
   onMobileClose,
+  boardAvailable = false,
 }: ShellSidebarProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -124,6 +133,7 @@ export function ShellSidebar({
     },
     { id: "discover", label: "Discover", icon: IconDiscover },
     { id: "rooms", label: "Rooms", icon: IconRooms },
+    ...(boardAvailable ? [{ id: "board" as const, label: "Board", icon: IconBoard }] : []),
     {
       id: "profile",
       label: "Profile",

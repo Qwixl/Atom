@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { applyHumanFilter } from "./humanFilter.js";
 import type { VoiceBackend } from "./types.js";
 
 export function registerVoiceAdminRoutes(app: Express, voice: VoiceBackend): void {
@@ -7,15 +8,26 @@ export function registerVoiceAdminRoutes(app: Express, voice: VoiceBackend): voi
   });
 
   app.post("/voice/synthesize", async (req, res) => {
-    const body = req.body as { text?: string; voiceId?: string };
+    const body = req.body as { text?: string; voiceId?: string; humanFilter?: boolean };
     const text = body.text?.trim();
     if (!text) {
       res.status(400).json({ error: "text required" });
       return;
     }
     try {
-      const result = await voice.synthesize({ text, voiceId: body.voiceId?.trim() });
-      res.json({ ok: true, ...result, provider: voice.id });
+      const filtered =
+        body.humanFilter === false ? { text, emotion: "neutral" as const } : applyHumanFilter(text);
+      const result = await voice.synthesize({
+        text: filtered.text,
+        voiceId: body.voiceId?.trim(),
+      });
+      res.json({
+        ok: true,
+        ...result,
+        provider: voice.id,
+        spokenText: filtered.text,
+        emotion: filtered.emotion,
+      });
     } catch (error) {
       res.status(502).json({
         error: error instanceof Error ? error.message : String(error),
