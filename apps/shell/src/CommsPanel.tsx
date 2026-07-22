@@ -490,6 +490,10 @@ export function CommsPanel({
       void sendSchedulingProposal(bridge.title, bridge.slots);
     } else if (bridge.action === "pollCreated") {
       void sendPoll(bridge.question, bridge.options);
+    } else if (bridge.action === "rsvpCreated") {
+      void sendRsvp(bridge.eventTitle, bridge.eventAt, bridge.location);
+    } else if (bridge.action === "introCreated") {
+      void sendDatingIntro(bridge.displayName, bridge.oneLiner, bridge.interests);
     } else if (bridge.action === "listCreated") {
       void sendSharedList(bridge.title, bridge.items);
     } else if (bridge.action === "locationPinCreated") {
@@ -737,6 +741,113 @@ export function CommsPanel({
       setInlineModuleId(null);
       setConversationPane("chat");
       setActionNote("Poll sent.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendRsvp(eventTitle: string, eventAt: string, location?: string) {
+    if (!selected || !eventTitle.trim() || !eventAt.trim()) return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      const { objectId } = await client.sendRsvpRequest({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        eventTitle: eventTitle.trim(),
+        eventAt: eventAt.trim(),
+        location,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "rsvp-request",
+          id: objectId,
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          eventTitle: eventTitle.trim(),
+          eventAt: eventAt.trim(),
+          location,
+        },
+      ]);
+      setInlineModuleId(null);
+      setConversationPane("chat");
+      setActionNote("RSVP sent.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendDatingIntro(displayName: string, oneLiner: string, interests?: string[]) {
+    if (!selected || !displayName.trim() || !oneLiner.trim()) return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      const { objectId } = await client.sendDatingIntro({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        displayName: displayName.trim(),
+        oneLiner: oneLiner.trim(),
+        interests,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "dating-intro",
+          id: objectId,
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          displayName: displayName.trim(),
+          oneLiner: oneLiner.trim(),
+          interests,
+        },
+      ]);
+      setInlineModuleId(null);
+      setConversationPane("chat");
+      setActionNote("Intro sent.");
+      await refreshInbox();
+    } catch (error) {
+      setActionNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function respondDatingIntro(introId: string, response: "accept" | "pass") {
+    if (!selected) return;
+    setBusy(true);
+    setActionNote(null);
+    try {
+      await client.sendDatingIntroResponse({
+        peerUrl: selected.endpoint,
+        peerDid: selected.did,
+        introId,
+        response,
+        encrypt: sessionReady,
+      });
+      setOutbound((current) => [
+        ...current,
+        {
+          kind: "dating-intro-response",
+          id: crypto.randomUUID(),
+          direction: "out",
+          at: new Date().toISOString(),
+          peerDid: selected.did,
+          introId,
+          response,
+        },
+      ]);
+      setActionNote(response === "accept" ? "Intro accepted." : "Intro passed.");
       await refreshInbox();
     } catch (error) {
       setActionNote(error instanceof Error ? error.message : String(error));
@@ -1436,6 +1547,41 @@ export function CommsPanel({
           )
         : [];
       void sendPoll(question, options);
+      return;
+    }
+    if (name === "rsvpCreated") {
+      const eventTitle = typeof payload.eventTitle === "string" ? payload.eventTitle : "";
+      const eventAt = typeof payload.eventAt === "string" ? payload.eventAt : "";
+      const location = typeof payload.location === "string" ? payload.location : undefined;
+      void sendRsvp(eventTitle, eventAt, location);
+      return;
+    }
+    if (name === "rsvpResponse") {
+      const rsvpId = typeof payload.rsvpId === "string" ? payload.rsvpId : "";
+      const response = payload.response;
+      if (
+        rsvpId &&
+        (response === "yes" || response === "maybe" || response === "no")
+      ) {
+        void respondRsvp(rsvpId, response);
+      }
+      return;
+    }
+    if (name === "introCreated") {
+      const displayName = typeof payload.displayName === "string" ? payload.displayName : "";
+      const oneLiner = typeof payload.oneLiner === "string" ? payload.oneLiner : "";
+      const interests = Array.isArray(payload.interests)
+        ? payload.interests.filter((t): t is string => typeof t === "string")
+        : undefined;
+      void sendDatingIntro(displayName, oneLiner, interests);
+      return;
+    }
+    if (name === "introResponse") {
+      const introId = typeof payload.introId === "string" ? payload.introId : "";
+      const response = payload.response;
+      if (introId && (response === "accept" || response === "pass")) {
+        void respondDatingIntro(introId, response);
+      }
       return;
     }
     if (name === "splitProposed") {
@@ -2472,6 +2618,9 @@ export function CommsPanel({
                           }}
                           onDeclineProposal={(proposalId) => void respondScheduling(proposalId, "decline")}
                           onRsvp={(rsvpId, response) => void respondRsvp(rsvpId, response)}
+                          onDatingIntro={(introId, response) =>
+                            void respondDatingIntro(introId, response)
+                          }
                           onConfirmTransaction={(transactionId, label) =>
                             void respondTransactionConfirm(transactionId, label)
                           }
@@ -2581,6 +2730,9 @@ export function CommsPanel({
                       }}
                       onDeclineProposal={(proposalId) => void respondScheduling(proposalId, "decline")}
                       onRsvp={(rsvpId, response) => void respondRsvp(rsvpId, response)}
+                      onDatingIntro={(introId, response) =>
+                        void respondDatingIntro(introId, response)
+                      }
                       onConfirmTransaction={(transactionId, label) =>
                         void respondTransactionConfirm(transactionId, label)
                       }
@@ -2666,7 +2818,9 @@ export function CommsPanel({
                         defaultTitle: "Meeting",
                         mode:
                           inlineModuleId === "coordination/poll" ||
+                          inlineModuleId === "coordination/rsvp" ||
                           inlineModuleId === "coordination/shared-list" ||
+                          inlineModuleId === "dating/intro" ||
                           inlineModuleId === "family/location-pin" ||
                           inlineModuleId === "commerce/split-bill"
                             ? "compose"

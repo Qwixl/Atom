@@ -1,0 +1,30 @@
+{
+  "id": "dating/intro",
+  "version": "1.0.0",
+  "publisher": "did:key:z6Mkatomexamples01",
+  "targets": [
+    "web"
+  ],
+  "bundleUrl": "/modules/dating-intro/index.html",
+  "components": [
+    {
+      "name": "dating/intro",
+      "semanticRole": "input/dating-intro",
+      "events": [
+        {
+          "name": "introCreated"
+        },
+        {
+          "name": "introResponse"
+        }
+      ],
+      "agentHint": "One-shot dating intro card (display name + one-liner + tags). Emits introCreated or introResponse (accept|pass). No contact details in the card."
+    }
+  ],
+  "capabilities": [],
+  "categories": [
+    "dating"
+  ],
+  "signatureUrl": "signature.sigstore.json",
+  "bundleIntegrity": "sha256:ab37ff4e4c4203ec321367c3f7bc922a8fb602f03e10da41f0300fbcc0fa20e8"
+}
