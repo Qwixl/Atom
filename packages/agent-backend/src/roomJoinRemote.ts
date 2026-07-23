@@ -41,7 +41,31 @@ export async function joinRemoteRoom(
   const adminBase = adminBaseFromPeerUrl(hostUrl);
   const joinedLocal = rooms.getJoinedRoom(roomId);
   if (joinedLocal && mlsStore.hasRoomSession(roomId)) {
-    return { joined: roomId, descriptor: joinedLocal.descriptor, alreadyMember: true };
+    // After a host recreate, local MLS/joined state can outlive the host roster.
+    // Confirm membership; if missing, drop local state and fall through to re-join.
+    try {
+      const membersResp = await fetch(
+        `${adminBase}/rooms/${encodeURIComponent(roomId)}/members`,
+      );
+      if (membersResp.ok) {
+        const body = (await membersResp.json()) as { members?: Array<{ did?: string }> };
+        const onHost = (body.members ?? []).some((m) => m.did === identity.did);
+        if (onHost) {
+          void fetch(`${adminBase}/rooms/${encodeURIComponent(roomId)}/presence`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ memberDid: identity.did, attendance: "present" }),
+          }).catch(() => undefined);
+          return { joined: roomId, descriptor: joinedLocal.descriptor, alreadyMember: true };
+        }
+        rooms.forgetJoinedRoom(roomId);
+        mlsStore.dropRoomSession(roomId);
+      } else {
+        return { joined: roomId, descriptor: joinedLocal.descriptor, alreadyMember: true };
+      }
+    } catch {
+      return { joined: roomId, descriptor: joinedLocal.descriptor, alreadyMember: true };
+    }
   }
   const memberKp = await mlsStore.memberKeyPackage(identity.did);
   const joinResp = await fetch(`${adminBase}/rooms/${encodeURIComponent(roomId)}/join`, {
