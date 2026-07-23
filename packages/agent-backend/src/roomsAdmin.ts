@@ -224,9 +224,41 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
         const err = (await resp.json().catch(() => ({}))) as { error?: string };
         throw new Error(err.error ?? `Host messages failed (${resp.status})`);
       }
+      // Polling messages is a live signal — refresh host presence for liveCount.
+      void fetch(`${joined.hostUrl.replace(/\/$/, "")}/rooms/${encodeURIComponent(roomId)}/presence`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberDid: identity.did, attendance: "present" }),
+      }).catch(() => undefined);
       res.json(await resp.json());
     } catch (error) {
       res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  /** Member heartbeat for catalog liveCount (open rooms; host-authoritative roster). */
+  app.post("/rooms/:roomId/presence", (req, res) => {
+    try {
+      const roomId = req.params.roomId;
+      const room = rooms.getRoom(roomId);
+      if (!room) {
+        res.status(404).json({ error: "Room not found" });
+        return;
+      }
+      const body = req.body as { memberDid?: string; attendance?: "present" | "away" };
+      const memberDid = body.memberDid?.trim();
+      if (!memberDid) {
+        res.status(400).json({ error: "memberDid required" });
+        return;
+      }
+      if (!rooms.isMember(roomId, memberDid)) {
+        res.status(403).json({ error: "Not a member of this room" });
+        return;
+      }
+      rooms.touchMemberPresence(roomId, memberDid, body.attendance === "away" ? "away" : "present");
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -267,6 +299,16 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
       const memberDid = body.memberDid.trim();
       const hostSession = mlsStore.getRoomSession(roomId);
       if (rooms.isMember(roomId, memberDid) || hostSession?.memberDids.includes(memberDid)) {
+        // Heal roster drift: MLS may still list a DID after rooms.json lost the row.
+        if (!rooms.isMember(roomId, memberDid)) {
+          rooms.addMember(roomId, {
+            did: memberDid,
+            endpoint: body.memberEndpoint?.trim(),
+            name: body.memberName?.trim(),
+          });
+        } else {
+          rooms.touchMemberPresence(roomId, memberDid, "present");
+        }
         res.json({
           alreadyMember: true,
           hostEndpoint: `${publicBaseUrl.replace(/\/$/, "")}/a2a/jsonrpc`,

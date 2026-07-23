@@ -43,8 +43,8 @@ export const VENUE_ACTIVITY_PRESETS: Record<string, RoomActivityDef[]> = {
     { id: "hq-brainstorm", label: "Brain Storming", emoji: "🧠" },
     { id: "hq-lunch", label: "Eating Lunch", emoji: "🥗" },
     { id: "hq-coffee", label: "Making a Coffee", emoji: "☕", animationKey: "steam" },
-    { id: "hq-wink", label: "Winking at the Boss", emoji: "😉" },
-    { id: "hq-laugh", label: "Laughing with my Bestie", emoji: "😂", animationKey: "hearts" },
+    { id: "hq-overtime", label: "Working Overtime", emoji: "🌙" },
+    { id: "hq-brilliant", label: "Being Brilliant!", emoji: "✨", animationKey: "confetti" },
   ],
 };
 
