@@ -1,5 +1,6 @@
 import { COMMUNITY_HOST_PUBLIC_URL, CONTROL_PLANE_URL } from "./hostConfig.js";
 import { supabaseAccessToken } from "./auth/hostedAccount.js";
+import type { RoomActivityDef } from "./roomActivities.js";
 import type { CatalogRoom } from "./roomUtils.js";
 
 export async function fetchCommunityRoomCatalog(): Promise<{
@@ -26,6 +27,7 @@ export async function createCommunityRoom(input: {
   hostRules: string[];
   acceptedBaseRules: true;
   creatorDid?: string;
+  activities?: RoomActivityDef[];
 }): Promise<{ room: CatalogRoom; hostUrl: string }> {
   const token = await supabaseAccessToken();
   if (!token) throw new Error("Sign in required to create a room");
@@ -106,4 +108,27 @@ export async function decideRoomJoinRequest(
   );
   const body = (await resp.json().catch(() => ({}))) as { error?: string };
   if (!resp.ok) throw new Error(body.error ?? `Join decision failed (${resp.status})`);
+}
+
+export async function updateCommunityRoomActivities(
+  roomId: string,
+  activities: RoomActivityDef[],
+): Promise<CatalogRoom> {
+  const token = await supabaseAccessToken();
+  if (!token) throw new Error("Sign in required");
+  const resp = await fetch(
+    `${CONTROL_PLANE_URL.replace(/\/$/, "")}/account/rooms/${encodeURIComponent(roomId)}/activities`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ activities }),
+    },
+  );
+  const body = (await resp.json().catch(() => ({}))) as { room?: CatalogRoom; error?: string };
+  if (!resp.ok) throw new Error(body.error ?? `Update activities failed (${resp.status})`);
+  if (!body.room) throw new Error("Update activities returned no room");
+  return body.room;
 }

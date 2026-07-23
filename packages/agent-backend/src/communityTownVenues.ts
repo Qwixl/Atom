@@ -1,5 +1,6 @@
 import type { AgentKeyPair } from "@qwixl/protocol";
 import type { MlsSessionStore } from "./mlsSessions.js";
+import { VENUE_ACTIVITY_PRESETS } from "./roomActivities.js";
 import {
   ATOM_BASE_ROOM_POLICY_URL,
   type RoomStore,
@@ -113,6 +114,7 @@ async function ensureVenueRoom(
           basePolicyUrl: ATOM_BASE_ROOM_POLICY_URL,
           hostRules: venue.houseRules,
         },
+        activities: VENUE_ACTIVITY_PRESETS[venue.roomId] ?? [],
       });
     }
     return coffee;
@@ -134,6 +136,7 @@ async function ensureVenueRoom(
         basePolicyUrl: ATOM_BASE_ROOM_POLICY_URL,
         hostRules: venue.houseRules,
       },
+      activities: VENUE_ACTIVITY_PRESETS[venue.roomId] ?? [],
     });
     return { roomId: venue.roomId, created: false };
   }
@@ -150,6 +153,7 @@ async function ensureVenueRoom(
     hostRules: venue.houseRules,
     roomId: venue.roomId,
     maxMembers: 128,
+    activities: VENUE_ACTIVITY_PRESETS[venue.roomId] ?? [],
   });
   await opts.mlsStore.createRoomHost({
     localDid: opts.identity.did,

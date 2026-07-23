@@ -1,3 +1,6 @@
+import type { RoomActivityDef } from "./roomActivities.js";
+import { formatActivityDisplay } from "./roomActivities.js";
+
 /** Map registry module id (e.g. `community/coffee-shop`) to shell bundle path. */
 export const COFFEE_SHOP_ROOM_ID = "room:coffeeshop";
 
@@ -22,6 +25,9 @@ export type CatalogRoom = {
   status: "active" | "closed" | string;
   rules?: { basePolicyUrl: string; hostRules: string[] };
   creatorDid?: string;
+  activities?: RoomActivityDef[];
+  memberCount?: number;
+  liveCount?: number;
 };
 
 export function moduleBundleUrl(moduleId: string): string {
@@ -48,7 +54,12 @@ const ACTIVITY_LABELS: Record<string, string> = {
   friend_accept: "accepted a friend request",
 };
 
-export function formatRoomActivity(activityKind: string | undefined): string {
+export function formatRoomActivity(
+  activityKind: string | undefined,
+  payload?: Record<string, unknown> | null,
+): string {
+  const fromPayload = formatActivityDisplay(activityKind, payload);
+  if (payload?.emoji || payload?.label) return fromPayload;
   if (!activityKind) return "activity";
-  return ACTIVITY_LABELS[activityKind] ?? activityKind.replace(/-/g, " ");
+  return ACTIVITY_LABELS[activityKind] ?? fromPayload;
 }
