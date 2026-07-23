@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createModuleBridge, MODULE_IFRAME_SANDBOX } from "@qwixl/renderer-web";
 import { CommsAgentClient } from "./comms/client.js";
 import { quickJoinCoffeeShop } from "./discoverActions.js";
 import { loadCommsAgentConfig, loadContacts, saveContacts } from "./comms/storage.js";
@@ -10,7 +9,6 @@ import type { AgentContact } from "./comms/types.js";
 import { loadRoomAttendance, saveRoomAttendance, type RoomAttendanceMode } from "./roomAttendance.js";
 import {
   formatRoomActivity,
-  moduleBundleUrl,
   COFFEE_SHOP_ROOM_ID,
   type CatalogRoom,
 } from "./roomUtils.js";
@@ -20,10 +18,15 @@ import {
   fetchCommunityRoomCatalog,
   fetchRoomCreationStatus,
   fetchRoomJoinRequests,
+  updateCommunityRoomActivities,
   type JoinRequestWire,
 } from "./communityRooms.js";
 import { COMMUNITY_HOST_PUBLIC_URL } from "./hostConfig.js";
-import { ATOM_BASE_ROOM_POLICY_URL } from "./roomPolicy.js";
+import { CommunityRulesModal } from "./CommunityRulesModal.js";
+import {
+  resolveRoomActivities,
+  type RoomActivityDef,
+} from "./roomActivities.js";
 import { formatRoomMemberLabel, formatRoomSenderLabel, loadOwnerHandle, ownerHandleForRooms } from "./ownerHandle.js";
 import { IconLeave, IconRefresh } from "./shell/ShellIcons.js";
 import { ContactAbuseReportForm } from "./ContactAbuseReportForm.js";
@@ -38,6 +41,11 @@ import {
 } from "./compose/friendRequests.js";
 import { resizeTextareaToContent } from "./ui/resizeTextareaToContent.js";
 
+const ROOMS_LIST_WIDTH_KEY = "atom-rooms-list-width";
+const ROOMS_LIST_WIDTH_DEFAULT = 260;
+const ROOMS_LIST_WIDTH_MIN = 200;
+const ROOMS_LIST_WIDTH_MAX = 420;
+
 interface RoomDescriptorWire {
   roomId: string;
   hostDid: string;
@@ -51,6 +59,20 @@ interface RoomDescriptorWire {
   hostUrl?: string;
   creatorDid?: string;
   rules?: { basePolicyUrl: string; hostRules: string[] };
+  activities?: RoomActivityDef[];
+  memberCount?: number;
+  liveCount?: number;
+}
+
+function loadRoomsListWidth(): number {
+  try {
+    const raw = localStorage.getItem(ROOMS_LIST_WIDTH_KEY);
+    const n = raw ? Number(raw) : ROOMS_LIST_WIDTH_DEFAULT;
+    if (!Number.isFinite(n)) return ROOMS_LIST_WIDTH_DEFAULT;
+    return Math.min(ROOMS_LIST_WIDTH_MAX, Math.max(ROOMS_LIST_WIDTH_MIN, n));
+  } catch {
+    return ROOMS_LIST_WIDTH_DEFAULT;
+  }
 }
 
 interface RoomGifPayload {
@@ -129,7 +151,6 @@ export function RoomsPanel({
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [sceneOpen, setSceneOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<"chat" | "members">("chat");
   const [mobileListOpen, setMobileListOpen] = useState(false);
   const [catalog, setCatalog] = useState<CatalogRoom[]>([]);
@@ -146,12 +167,21 @@ export function RoomsPanel({
   });
   const [roomReportOpen, setRoomReportOpen] = useState(false);
   const [pendingJoinRequests, setPendingJoinRequests] = useState<JoinRequestWire[]>([]);
+  const [listWidth, setListWidth] = useState(loadRoomsListWidth);
+  const [listFilter, setListFilter] = useState("");
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [descCollapsed, setDescCollapsed] = useState(false);
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
+  const [manageActivitiesOpen, setManageActivitiesOpen] = useState(false);
+  const [activityDraft, setActivityDraft] = useState<RoomActivityDef[]>([]);
+  const [newActivity, setNewActivity] = useState({ label: "", emoji: "✨" });
+  const messagesScrollRef = useRef<HTMLDivElement | null>(null);
+  const resizingListRef = useRef(false);
   const composeRef = useRef<HTMLTextAreaElement | null>(null);
   const pollRef = useRef<number | null>(null);
   const memberPollRef = useRef<number | null>(null);
   const membersRef = useRef(members);
   const lastSeqRef = useRef(0);
-  const moduleFrameRef = useRef<HTMLIFrameElement | null>(null);
   const localDidRef = useRef(localDid);
 
   membersRef.current = members;
@@ -193,32 +223,70 @@ export function RoomsPanel({
         hostUrl: catalogHostUrl,
         creatorDid: room.creatorDid,
         rules: room.rules,
+        activities: room.activities,
+        memberCount: room.memberCount,
+        liveCount: room.liveCount,
       });
     }
     for (const room of hosted) map.set(room.roomId, room);
-    for (const entry of joined) map.set(entry.roomId, { ...entry.descriptor, hostUrl: entry.hostUrl });
+    for (const entry of joined) {
+      const prev = map.get(entry.roomId);
+      map.set(entry.roomId, {
+        ...prev,
+        ...entry.descriptor,
+        hostUrl: entry.hostUrl,
+        memberCount: prev?.memberCount ?? entry.descriptor.memberCount,
+        liveCount: prev?.liveCount ?? entry.descriptor.liveCount,
+        activities: entry.descriptor.activities ?? prev?.activities,
+      });
+    }
     return [...map.values()];
   }, [catalog, catalogHostUrl, hosted, joined]);
 
   const roomsByCategory = useMemo(() => {
+    const q = listFilter.trim().toLowerCase();
     const groups = new Map<string, RoomDescriptorWire[]>();
     for (const room of allRooms) {
       if (room.status === "closed") continue;
+      if (
+        q &&
+        !room.name.toLowerCase().includes(q) &&
+        !(room.description ?? "").toLowerCase().includes(q) &&
+        !(room.category ?? "").toLowerCase().includes(q)
+      ) {
+        continue;
+      }
       const category = room.category?.trim() || "Town";
       const list = groups.get(category) ?? [];
       list.push(room);
       groups.set(category, list);
     }
     return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [allRooms]);
+  }, [allRooms, listFilter]);
 
   const categoryOptions = useMemo(() => {
-    const set = new Set(roomsByCategory.map(([c]) => c));
+    const set = new Set<string>();
+    for (const room of allRooms) {
+      if (room.category?.trim()) set.add(room.category.trim());
+    }
     for (const preset of ["Town", "Faith", "Fitness", "Arts", "Learning", "Product"]) set.add(preset);
     return [...set].sort((a, b) => a.localeCompare(b));
-  }, [roomsByCategory]);
+  }, [allRooms]);
+
+  const filteredCategoryOptions = useMemo(() => {
+    const q = createForm.category.trim().toLowerCase();
+    if (!q) return categoryOptions;
+    return categoryOptions.filter((option) => option.toLowerCase().includes(q));
+  }, [categoryOptions, createForm.category]);
 
   const selected = allRooms.find((room) => room.roomId === selectedId) ?? null;
+  const selectedActivities = useMemo(
+    () => (selected ? resolveRoomActivities(selected.roomId, selected.activities) : []),
+    [selected],
+  );
+  const canManageActivities = Boolean(
+    selected && localDid && selected.creatorDid && selected.creatorDid === localDid,
+  );
   const canLeave = selectedId ? joinedIds.has(selectedId) : false;
 
   const visibleMessages = useMemo(
@@ -232,25 +300,6 @@ export function RoomsPanel({
       ),
     [messages],
   );
-
-  const moduleMembers = useMemo(() => {
-    return members.map((member) => ({
-      ...member,
-      away: member.did === localDid && attendance === "away",
-    }));
-  }, [members, localDid, attendance]);
-
-  const pushModuleInit = useCallback(() => {
-    const frame = moduleFrameRef.current;
-    if (!frame?.contentWindow || !selected?.moduleId) return;
-    const bridge = createModuleBridge(moduleBundleUrl(selected.moduleId));
-    bridge.sendInit(frame.contentWindow, {
-      roomName: selected.name,
-      topic: selected.topic,
-      members: moduleMembers,
-      nowPlaying: "lo-fi beats (host)",
-    });
-  }, [moduleMembers, selected]);
 
   const refreshCatalog = useCallback(async () => {
     try {
@@ -459,12 +508,11 @@ export function RoomsPanel({
     };
   }, [selectedId, refreshMessages, refreshMembers]);
 
-  useEffect(() => {
-    pushModuleInit();
-  }, [pushModuleInit]);
-
   const sendActivity = useCallback(
-    async (activityKind: string): Promise<void> => {
+    async (
+      activityKind: string,
+      extra?: { emoji?: string; label?: string; animationKey?: string },
+    ): Promise<void> => {
       if (!selectedId) return;
       setLoading(true);
       try {
@@ -472,10 +520,19 @@ export function RoomsPanel({
           roomId: selectedId,
           kind: "activity",
           activityKind,
-          payload: { activityKind },
+          payload: {
+            activityKind,
+            emoji: extra?.emoji,
+            label: extra?.label,
+            animationKey: extra?.animationKey,
+          },
         });
         await refreshMessages();
-        onActivity?.(`Activity: ${activityKind}`);
+        onActivity?.(
+          extra?.emoji && extra?.label
+            ? `${extra.emoji} ${extra.label}`
+            : `Activity: ${activityKind}`,
+        );
       } catch (error) {
         setStatus(error instanceof Error ? error.message : String(error));
       } finally {
@@ -485,30 +542,43 @@ export function RoomsPanel({
     [client, onActivity, refreshMessages, selectedId],
   );
 
-  const sceneModuleBridge = useMemo(
-    () => (selected?.moduleId ? createModuleBridge(moduleBundleUrl(selected.moduleId)) : null),
-    [selected?.moduleId],
-  );
+  useEffect(() => {
+    setDescCollapsed(false);
+    setManageActivitiesOpen(false);
+    if (selected) {
+      setActivityDraft(resolveRoomActivities(selected.roomId, selected.activities));
+    }
+  }, [selectedId, selected]);
 
   useEffect(() => {
-    if (!sceneModuleBridge) return;
-    const isAllowedOrigin = sceneModuleBridge.isAllowedMessageOrigin;
-    function onMessage(event: MessageEvent): void {
-      if (event.source !== moduleFrameRef.current?.contentWindow) return;
-      if (!isAllowedOrigin(event.origin)) return;
-      const data = event.data as {
-        type?: string;
-        event?: { name?: string; payload?: { activityKind?: string } };
-      };
-      if (!selectedId || data?.type !== "event") return;
-      if (data.event?.name !== "community/coffee-shop/activity") return;
-      const activityKind = data.event.payload?.activityKind?.trim();
-      if (!activityKind) return;
-      void sendActivity(activityKind);
+    function onMove(event: MouseEvent): void {
+      if (!resizingListRef.current) return;
+      const next = Math.min(
+        ROOMS_LIST_WIDTH_MAX,
+        Math.max(ROOMS_LIST_WIDTH_MIN, event.clientX - 8),
+      );
+      setListWidth(next);
     }
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [sceneModuleBridge, selectedId, sendActivity]);
+    function onUp(): void {
+      if (!resizingListRef.current) return;
+      resizingListRef.current = false;
+      document.body.classList.remove("rooms-resizing");
+      setListWidth((width) => {
+        try {
+          localStorage.setItem(ROOMS_LIST_WIDTH_KEY, String(width));
+        } catch {
+          /* ignore */
+        }
+        return width;
+      });
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
 
   async function sendMessage(text: string, gif?: GifItem | null): Promise<void> {
     if (!selectedId) return;
@@ -758,6 +828,10 @@ export function RoomsPanel({
         hostRules,
         acceptedBaseRules: true,
         creatorDid: localDid || undefined,
+        activities: [
+          { id: "hello", label: "Said hello", emoji: "👋" },
+          { id: "cheer", label: "Cheering", emoji: "🎉", animationKey: "confetti" },
+        ],
       });
       setCatalogHostUrl(hostUrl);
       setCreateOpen(false);
@@ -892,8 +966,11 @@ export function RoomsPanel({
           ) : null}
         </div>
       ) : null}
-      <div className="panel-body panel-master-detail comms-main">
-        <nav className="panel-list comms-sidebar" aria-label="Rooms">
+      <div
+        className="panel-body panel-master-detail comms-main"
+        style={{ ["--rooms-list-width" as string]: `${listWidth}px` }}
+      >
+        <nav className="panel-list comms-sidebar rooms-list-rail" aria-label="Rooms">
           <div className="panel-list-head panel-list-head--compact">
             <span className="panel-list-head-title">Rooms</span>
             <div className="rooms-list-head-actions">
@@ -916,6 +993,16 @@ export function RoomsPanel({
               </button>
             </div>
           </div>
+          <div className="rooms-list-search">
+            <input
+              className="panel-input"
+              type="search"
+              placeholder="Search rooms…"
+              value={listFilter}
+              onChange={(event) => setListFilter(event.target.value)}
+              aria-label="Filter rooms"
+            />
+          </div>
           {createOpen ? (
             <form
               className="rooms-create-form"
@@ -934,20 +1021,40 @@ export function RoomsPanel({
                   maxLength={80}
                 />
               </label>
-              <label className="rooms-create-field">
+              <label className="rooms-create-field rooms-category-combobox">
                 <span>Category</span>
                 <input
                   className="panel-input"
-                  list="rooms-category-options"
                   value={createForm.category}
-                  onChange={(event) => setCreateForm((f) => ({ ...f, category: event.target.value }))}
+                  onChange={(event) => {
+                    setCreateForm((f) => ({ ...f, category: event.target.value }));
+                    setCategoryMenuOpen(true);
+                  }}
+                  onFocus={() => setCategoryMenuOpen(true)}
+                  onBlur={() => window.setTimeout(() => setCategoryMenuOpen(false), 120)}
                   required
+                  autoComplete="off"
+                  aria-autocomplete="list"
+                  aria-expanded={categoryMenuOpen}
                 />
-                <datalist id="rooms-category-options">
-                  {categoryOptions.map((option) => (
-                    <option key={option} value={option} />
-                  ))}
-                </datalist>
+                {categoryMenuOpen && filteredCategoryOptions.length > 0 ? (
+                  <ul className="rooms-category-menu" role="listbox">
+                    {filteredCategoryOptions.map((option) => (
+                      <li key={option}>
+                        <button
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            setCreateForm((f) => ({ ...f, category: option }));
+                            setCategoryMenuOpen(false);
+                          }}
+                        >
+                          {option}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </label>
               <label className="rooms-create-field">
                 <span>Description</span>
@@ -997,9 +1104,13 @@ export function RoomsPanel({
                 />
                 <span>
                   I accept the{" "}
-                  <a href={ATOM_BASE_ROOM_POLICY_URL} target="_blank" rel="noreferrer">
+                  <button
+                    type="button"
+                    className="rooms-rules-link"
+                    onClick={() => setRulesOpen(true)}
+                  >
                     Atom community rules
-                  </a>
+                  </button>
                 </span>
               </label>
               <div className="rooms-create-actions">
@@ -1045,11 +1156,13 @@ export function RoomsPanel({
                     <ul className="rooms-category-list">
                       {rooms.map((room) => {
                         const isJoined = joinedIds.has(room.roomId);
+                        const members = room.memberCount ?? 0;
+                        const live = room.liveCount ?? 0;
                         return (
                           <li key={room.roomId}>
                             <button
                               type="button"
-                              className={`panel-row panel-row--elevated rooms-room-row${selectedId === room.roomId ? " is-selected" : ""}`}
+                              className={`panel-row panel-row--elevated rooms-room-row rooms-room-chip${selectedId === room.roomId ? " is-selected" : ""}`}
                               onClick={() => {
                                 setSelectedId(room.roomId);
                                 setMobileListOpen(false);
@@ -1061,39 +1174,15 @@ export function RoomsPanel({
                               </span>
                               <span className="panel-row-body">
                                 <span className="panel-row-title">{room.name}</span>
-                                <span className="panel-row-meta">
-                                  {isJoined
-                                    ? "Joined"
-                                    : room.admission === "request"
-                                      ? "Request"
-                                      : room.admission === "invite"
-                                        ? "Invite"
-                                        : "Open"}
-                                  {room.description?.trim()
-                                    ? ` · ${room.description.trim().slice(0, 48)}`
-                                    : room.topic?.trim()
-                                      ? ` · ${room.topic.trim().slice(0, 48)}`
-                                      : ""}
+                                <span className="panel-row-meta rooms-room-stats">
+                                  <span>{isJoined ? "Joined" : "Open"}</span>
+                                  <span aria-label={`${members} members`}>
+                                    {members} member{members === 1 ? "" : "s"}
+                                  </span>
+                                  <span aria-label={`${live} live now`}>{live} live</span>
                                 </span>
                               </span>
                             </button>
-                            {!isJoined ? (
-                              <button
-                                type="button"
-                                className="panel-btn panel-btn-sm rooms-join-inline"
-                                disabled={loading || room.admission === "invite"}
-                                title={
-                                  room.admission === "invite"
-                                    ? "Invite required"
-                                    : room.admission === "request"
-                                      ? "Request to join"
-                                      : "Join"
-                                }
-                                onClick={() => void joinCatalogRoom(room)}
-                              >
-                                {room.admission === "request" ? "Request" : "Join"}
-                              </button>
-                            ) : null}
                           </li>
                         );
                       })}
@@ -1103,6 +1192,17 @@ export function RoomsPanel({
               ))
             )}
           </ul>
+          <div
+            className="rooms-list-resizer"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize rooms list"
+            onMouseDown={(event) => {
+              event.preventDefault();
+              resizingListRef.current = true;
+              document.body.classList.add("rooms-resizing");
+            }}
+          />
         </nav>
         <section className="panel-detail rooms-detail">
           {selected ? (
@@ -1121,8 +1221,12 @@ export function RoomsPanel({
                   <div className="panel-detail-identity comms-peer-identity">
                     <strong className="panel-detail-title comms-peer-name">{selected.name}</strong>
                     <span className="panel-detail-subtitle comms-peer-status">
-                      {members.length > 0 ? `${members.length} here · ` : ""}
-                      {selected.topic ?? selected.roomId}
+                      {(selected.liveCount ?? members.length) > 0
+                        ? `${selected.liveCount ?? members.length} live · `
+                        : ""}
+                      {selected.memberCount != null
+                        ? `${selected.memberCount} joined`
+                        : selected.roomId}
                     </span>
                   </div>
                 </div>
@@ -1196,6 +1300,11 @@ export function RoomsPanel({
                   ) : null}
                 </div>
               </header>
+              {(selected.description || selected.topic) && !descCollapsed ? (
+                <div className="rooms-room-description">
+                  <p>{selected.description?.trim() || selected.topic?.trim()}</p>
+                </div>
+              ) : null}
               {roomReportOpen ? (
                 <div className="rooms-room-report">
                   <ContactAbuseReportForm
@@ -1422,7 +1531,13 @@ export function RoomsPanel({
                       ))}
                     </div>
                   ) : null}
-                  <div className="comms-messages rooms-messages">
+                  <div
+                    className="comms-messages rooms-messages"
+                    ref={messagesScrollRef}
+                    onScroll={(event) => {
+                      setDescCollapsed(event.currentTarget.scrollTop > 28);
+                    }}
+                  >
                     {visibleMessages.length === 0 ? (
                       <div className="comms-empty-thread">
                         <strong>No messages yet</strong>
@@ -1445,7 +1560,7 @@ export function RoomsPanel({
                                   <span className="rooms-msg-edited">(edited)</span>
                                 ) : null}
                                 {msg.kind === "activity" ? (
-                                  <span> · {formatRoomActivity(msg.activityKind)}</span>
+                                  <span> · {formatRoomActivity(msg.activityKind, msg.payload)}</span>
                                 ) : msg.deleted ? (
                                   <p className="rooms-msg-deleted">Message deleted</p>
                                 ) : (
@@ -1551,27 +1666,135 @@ export function RoomsPanel({
                 </div>
               </div>
 
-              {selected.moduleId ? (
-                <details
-                  className="rooms-scene-details"
-                  onToggle={(event) => setSceneOpen((event.currentTarget as HTMLDetailsElement).open)}
-                >
-                  <summary>Room activities</summary>
-                  <p className="rooms-scene-note">
-                    Optional interactive scene for this room (presence avatars, pretend coffee orders). Chat
-                    works without opening this.
-                  </p>
-                  {sceneOpen ? (
-                    <iframe
-                      ref={moduleFrameRef}
-                      className="rooms-module-frame"
-                      title={`${selected.name} activities`}
-                      src={moduleBundleUrl(selected.moduleId)}
-                      sandbox={MODULE_IFRAME_SANDBOX}
-                      onLoad={() => pushModuleInit()}
+              <div className="rooms-activity-bar" aria-label="Room activities">
+                <span className="rooms-activity-bar-label">Activities</span>
+                {selectedActivities.map((activity) => (
+                  <button
+                    key={activity.id}
+                    type="button"
+                    className="panel-btn rooms-activity-chip"
+                    disabled={loading || !canLeave}
+                    title={
+                      canLeave
+                        ? activity.label
+                        : "Join the room to use activities"
+                    }
+                    onClick={() =>
+                      void sendActivity(activity.id, {
+                        emoji: activity.emoji,
+                        label: activity.label,
+                        animationKey: activity.animationKey,
+                      })
+                    }
+                  >
+                    <span aria-hidden="true">{activity.emoji}</span>
+                    <span>{activity.label}</span>
+                  </button>
+                ))}
+                {canManageActivities ? (
+                  <button
+                    type="button"
+                    className="panel-btn panel-btn-sm"
+                    onClick={() => {
+                      setActivityDraft(selectedActivities);
+                      setManageActivitiesOpen((open) => !open);
+                    }}
+                  >
+                    {manageActivitiesOpen ? "Done" : "Manage"}
+                  </button>
+                ) : null}
+              </div>
+              {manageActivitiesOpen && canManageActivities ? (
+                <div className="rooms-activity-manage">
+                  <ul>
+                    {activityDraft.map((activity) => (
+                      <li key={activity.id}>
+                        <span>
+                          {activity.emoji} {activity.label}
+                        </span>
+                        <button
+                          type="button"
+                          className="panel-btn panel-btn-sm"
+                          onClick={() =>
+                            setActivityDraft((rows) => rows.filter((row) => row.id !== activity.id))
+                          }
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="rooms-activity-add">
+                    <input
+                      className="panel-input rooms-activity-emoji"
+                      value={newActivity.emoji}
+                      maxLength={8}
+                      aria-label="Activity emoji"
+                      onChange={(event) =>
+                        setNewActivity((current) => ({ ...current, emoji: event.target.value }))
+                      }
                     />
-                  ) : null}
-                </details>
+                    <input
+                      className="panel-input"
+                      placeholder="Activity label"
+                      value={newActivity.label}
+                      maxLength={80}
+                      onChange={(event) =>
+                        setNewActivity((current) => ({ ...current, label: event.target.value }))
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="panel-btn panel-btn-sm"
+                      disabled={!newActivity.label.trim()}
+                      onClick={() => {
+                        const label = newActivity.label.trim();
+                        const emoji = newActivity.emoji.trim() || "✨";
+                        const id = `custom-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}-${Date.now().toString(36)}`;
+                        setActivityDraft((rows) => [...rows, { id, label, emoji }]);
+                        setNewActivity({ label: "", emoji: "✨" });
+                      }}
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="panel-btn panel-btn-primary panel-btn-sm"
+                    disabled={loading}
+                    onClick={() => {
+                      void (async () => {
+                        if (!selected) return;
+                        setLoading(true);
+                        try {
+                          const room = await updateCommunityRoomActivities(
+                            selected.roomId,
+                            activityDraft,
+                          );
+                          setCatalog((rows) =>
+                            rows.map((row) =>
+                              row.roomId === room.roomId
+                                ? { ...row, activities: room.activities ?? activityDraft }
+                                : row,
+                            ),
+                          );
+                          setManageActivitiesOpen(false);
+                          onActivity?.("Updated room activities");
+                        } catch (error) {
+                          setStatus(error instanceof Error ? error.message : String(error));
+                        } finally {
+                          setLoading(false);
+                        }
+                      })();
+                    }}
+                  >
+                    Save activities
+                  </button>
+                  <p className="rooms-scene-note">
+                    Emoji shows now. Full-screen animations (confetti, ticker-tape) will use each
+                    activity&apos;s reserved animation key later.
+                  </p>
+                </div>
               ) : null}
             </>
           ) : (
@@ -1600,6 +1823,7 @@ export function RoomsPanel({
           )}
         </section>
       </div>
+      <CommunityRulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
     </aside>
   );
 }

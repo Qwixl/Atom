@@ -13,6 +13,7 @@ import {
 import { normalizePeerBaseUrl } from "./deliverObject.js";
 import type { MlsPeerRecordStore } from "./mlsPeerRecords.js";
 import { joinRemoteRoom } from "./roomJoinRemote.js";
+import { normalizeActivities } from "./roomActivities.js";
 import {
   ATOM_BASE_ROOM_POLICY_URL,
   type RoomDescriptor,
@@ -63,19 +64,27 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
   /** Public browse list of active hosted rooms (category grouping in shell). */
   app.get("/rooms/catalog", (_req, res) => {
     res.json({
-      rooms: rooms.listCatalog().map((d) => ({
-        roomId: d.roomId,
-        name: d.name,
-        topic: d.topic,
-        description: d.description,
-        category: d.category,
-        admission: d.admission,
-        moduleId: d.moduleId,
-        hostDid: d.hostDid,
-        status: d.status,
-        rules: d.rules,
-        creatorDid: d.creatorDid,
-      })),
+      rooms: rooms
+        .listCatalog()
+        .map((d) => {
+          const stats = rooms.catalogEntry(d.roomId);
+          return {
+            roomId: d.roomId,
+            name: d.name,
+            topic: d.topic,
+            description: d.description,
+            category: d.category,
+            admission: d.admission,
+            moduleId: d.moduleId,
+            hostDid: d.hostDid,
+            status: d.status,
+            rules: d.rules,
+            creatorDid: d.creatorDid,
+            activities: d.activities,
+            memberCount: stats?.memberCount ?? 0,
+            liveCount: stats?.liveCount ?? 0,
+          };
+        }),
       hostUrl: publicBaseUrl.replace(/\/$/, ""),
     });
   });
@@ -95,6 +104,7 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
         maxMembers?: number;
         roomId?: string;
         acceptedBaseRules?: boolean;
+        activities?: Array<{ id?: string; label?: string; emoji?: string; animationKey?: string }>;
       };
       if (!body.name?.trim()) {
         res.status(400).json({ error: "name required" });
@@ -117,11 +127,25 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
         creatorDid: body.creatorDid,
         maxMembers: body.maxMembers,
         roomId: body.roomId,
+        activities: normalizeActivities(body.activities),
       });
       await mlsStore.createRoomHost({ localDid: identity.did, roomId: descriptor.roomId });
       res.json({ room: descriptor });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.put("/rooms/:roomId/activities", (req, res) => {
+    try {
+      const body = req.body as { activities?: unknown };
+      const descriptor = rooms.setRoomActivities(
+        req.params.roomId,
+        normalizeActivities(body.activities),
+      );
+      res.json({ room: descriptor });
+    } catch (error) {
+      res.status(404).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
