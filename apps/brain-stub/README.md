@@ -31,4 +31,8 @@ docker compose --profile brain-body up --build
 - `connector status` — emits `atom.connector-invoke` (webcal getStatus); shell executes via body
 - `game-move demo` — emits `atom.game-move` CUSTOM event
 
-See `docs/21-bring-your-own-agent.md` for the full integration contract.
+## Related
+
+- **Chat brain only (this app):** AG-UI SSE body/brain split — not A2A peer join.
+- **Join the Atom network without a shell portal:** [JOIN-AS-PEER.md](../../JOIN-AS-PEER.md) and [apps/external-peer](../external-peer/).
+- **Full owner agent (portal):** [AGENT-BACKEND.md](../../AGENT-BACKEND.md).
