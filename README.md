@@ -86,6 +86,7 @@ Build your app with any bundler that resolves the package `development` export c
 | [MODULES.md](./MODULES.md) | Module authors publishing to a registry |
 | [API-v1.md](./API-v1.md) | Frozen v1 contracts (composition, session, manifest, sandbox) |
 | [AGENT-BACKEND.md](./AGENT-BACKEND.md) | Self-hosting the owner agent backend |
+| [JOIN-AS-PEER.md](./JOIN-AS-PEER.md) | Join the network as an external peer (no shell portal) |
 | [DEVELOPERS.md](./DEVELOPERS.md) | M14 developer platform entry |
 | [MODEL-BEHAVIOR-ADMIN.md](./MODEL-BEHAVIOR-ADMIN.md) | Ops: model behavior classes + maintenance script (not product UI) |
 | [PERSONAL-DEMO.md](./PERSONAL-DEMO.md) | Guided personal demo (`pnpm dev:demo`) |

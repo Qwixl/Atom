@@ -285,6 +285,8 @@ PORT=5205 PUBLIC_BASE_URL=http://127.0.0.1:5205 pnpm start:agent
 
 In the shell **Comms** panel on each side: copy invite from A, connect from B, send encrypted messages.
 
+To join the network as a **peer** without running a second owner portal (no shell URL+token on the peer side), see [JOIN-AS-PEER.md](./JOIN-AS-PEER.md) and `pnpm dev:external-peer`.
+
 ## Security notes
 
 - Identity file contains the Ed25519 private key — restrict permissions (`0600`) and back up safely.

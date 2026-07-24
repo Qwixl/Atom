@@ -158,6 +158,22 @@ importers:
         specifier: ^6.0.0
         version: 6.4.3(@types/node@22.20.0)(tsx@4.22.5)
 
+  apps/external-peer:
+    dependencies:
+      '@qwixl/agent-backend':
+        specifier: workspace:*
+        version: link:../../packages/agent-backend
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.0
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.5
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   apps/mcp-bridge:
     dependencies:
       '@ag-ui/client':
