@@ -1235,8 +1235,11 @@ export class CommsAgentClient {
       hostDid: string;
       name: string;
       topic?: string;
+      description?: string;
+      category?: string;
       admission: string;
       moduleId?: string;
+      status?: string;
       maxMembers: number;
     }>;
     joined: Array<{
@@ -1247,11 +1250,30 @@ export class CommsAgentClient {
         hostDid: string;
         name: string;
         topic?: string;
+        description?: string;
+        category?: string;
         moduleId?: string;
+        admission?: string;
+        status?: string;
       };
     }>;
   }> {
     return getJson(this.base(), "/rooms", this.auth, true);
+  }
+
+  async joinRemoteRoomWithOptions(opts: {
+    hostUrl: string;
+    roomId: string;
+    memberName?: string;
+    inviteObject?: unknown;
+    requestOnly?: boolean;
+  }): Promise<{
+    joined?: string;
+    pending?: boolean;
+    alreadyMember?: boolean;
+    descriptor: { roomId: string; name: string; moduleId?: string; category?: string } | null;
+  }> {
+    return postJson(this.base(), "/rooms/join-remote", opts, this.auth, true);
   }
 
   async getRoom(roomId: string): Promise<{

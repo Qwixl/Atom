@@ -29,7 +29,8 @@ USER atom
 
 EXPOSE 5204
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||5204)+'/health').then(r=>r.json()).then(j=>process.exit(j.ok?0:1)).catch(()=>process.exit(1))"
+# /health is on the admin app and requires ATOM_ADMIN_TOKEN (Bearer).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||5204)+'/health',{headers:{Authorization:'Bearer '+(process.env.ATOM_ADMIN_TOKEN||'')}}).then(r=>r.json()).then(j=>process.exit(j.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "dist/cli.js"]

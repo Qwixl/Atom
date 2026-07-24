@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import {
   attachHandlesToEntries,
@@ -9,7 +10,7 @@ import {
   type IndexEntryKind,
 } from "@qwixl/business-index";
 
-import { CommsAgentClient, type ResolvedDiscoverTarget } from "./comms/client.js";
+import type { ResolvedDiscoverTarget } from "./comms/client.js";
 import { connectDiscoverEntry, joinDiscoverRoom, entryTitle, filterAvailableDiscoverEntriesForClient, isDiscoverEntryJoined } from "./discoverActions.js";
 import { ownerHandleForRooms } from "./ownerHandle.js";
 import { isAgentAuthError } from "./comms/agentErrors.js";
@@ -22,6 +23,11 @@ import {
 } from "./discoverIndexStorage.js";
 import { discoverTrustSignals } from "./discoverTrust.js";
 import { swarmDiscoverBadge } from "./swarmBadge.js";
+import { PanelFilterPills } from "./shell/PanelChrome.js";
+import { ContactAbuseReportForm } from "./ContactAbuseReportForm.js";
+
+/** DOM id for Messages subnav tools slot (desktop one-line Address book chrome). */
+export const MESSAGES_ADDRESS_TOOLS_ID = "messages-address-tools";
 
 interface DiscoverPanelProps {
   contacts: AgentContact[];
@@ -33,6 +39,13 @@ interface DiscoverPanelProps {
   agentConnectionReady?: boolean;
   onAgentAuthFailure?: () => void | Promise<void>;
   onRequestReconnect?: () => void;
+  /** Compact embed for Messages → Address book (no large hero). */
+  density?: "default" | "compact";
+  /**
+   * When set (Messages Address book), filters+search portal into that element on desktop.
+   * Mobile keeps the stacked toolbar inside the panel.
+   */
+  toolbarPortalId?: string;
 }
 
 interface DiscoverResult extends BusinessIndexEntry {
@@ -57,6 +70,16 @@ function entrySubtitle(entry: BusinessIndexEntry): string | null {
   return null;
 }
 
+function entryBlurb(entry: BusinessIndexEntry): string {
+  if (entry.kind === "community") {
+    return "Join their room — meet the host agent and people already there.";
+  }
+  if (entry.kind === "developer") {
+    return "Message this developer agent about tools, modules, or support.";
+  }
+  return "Start a private DM with this business agent.";
+}
+
 export function DiscoverPanel({
   contacts,
   onContactsChange,
@@ -67,7 +90,10 @@ export function DiscoverPanel({
   agentConnectionReady = true,
   onAgentAuthFailure,
   onRequestReconnect,
+  density = "default",
+  toolbarPortalId,
 }: DiscoverPanelProps) {
+  const compact = density === "compact";
   const { client, sessionReady } = useAgentConfig(vaultUnlocked);
   const connectionActive = agentConnectionReady && vaultUnlocked && sessionReady;
   const indexConfigs = useMemo(() => loadDiscoverIndexes(), []);
@@ -81,6 +107,16 @@ export function DiscoverPanel({
   const [indexMatches, setIndexMatches] = useState(0);
   const [joinedRoomIds, setJoinedRoomIds] = useState<Set<string>>(() => new Set());
   const [searchNonce, setSearchNonce] = useState(0);
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
+  const [reportKey, setReportKey] = useState<string | null>(null);
+
+  useLayoutEffect(() => {
+    if (!toolbarPortalId) {
+      setPortalHost(null);
+      return;
+    }
+    setPortalHost(document.getElementById(toolbarPortalId));
+  }, [toolbarPortalId]);
 
   const refreshJoinedRooms = useCallback(async () => {
     if (!connectionActive) {
@@ -223,41 +259,68 @@ export function DiscoverPanel({
     }
   }
 
-  return (
-    <aside className="panel-view discover-view">
-      <p className="discover-lede settings-note">
-        Search Atom&apos;s default indexes (curated). Extra indexes are yours to add — Atom does
-        not police the open web.
-      </p>
-      <div className="panel-search-bar">
-        <input
-          className="panel-input"
-          type="search"
-          value={terms}
-          onChange={(event) => setTerms(event.target.value)}
-          placeholder="Search by name, @handle, or topic…"
-          aria-label="Search discover index"
-        />
-        <select
-          className="panel-select"
+  const kindFilters: Array<{ value: IndexEntryKind | "all"; label: string }> = [
+    { value: "all", label: "Everyone" },
+    { value: "community", label: "Communities" },
+    { value: "business", label: "Businesses" },
+    { value: "developer", label: "Developers" },
+  ];
+
+  function renderToolbar(extraClass?: string): ReactNode {
+    return (
+      <div className={extraClass ? `discover-toolbar ${extraClass}` : "discover-toolbar"}>
+        <PanelFilterPills
+          ariaLabel="Filter discover listings"
           value={kind}
-          onChange={(event) => setKind(event.target.value as IndexEntryKind | "all")}
-          aria-label="Filter by kind"
-        >
-          <option value="all">All kinds</option>
-          <option value="community">Community</option>
-          <option value="business">Business</option>
-          <option value="developer">Developer</option>
-        </select>
-        <button
-          type="button"
-          className="panel-btn"
-          onClick={() => setSearchNonce((n) => n + 1)}
-          disabled={loading}
-        >
-          {loading ? "Checking…" : "Search"}
-        </button>
+          options={kindFilters}
+          onChange={setKind}
+        />
+        <div className="discover-search-strip">
+          <input
+            className="panel-input"
+            type="search"
+            value={terms}
+            onChange={(event) => setTerms(event.target.value)}
+            placeholder="Search by name, @handle, or topic…"
+            aria-label="Search address book"
+          />
+          <button
+            type="button"
+            className="panel-btn panel-btn-primary"
+            onClick={() => setSearchNonce((n) => n + 1)}
+            disabled={loading}
+          >
+            {loading ? "Checking…" : "Search"}
+          </button>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <aside
+      className={`panel-view discover-view${compact ? " discover-view--compact" : ""}${
+        toolbarPortalId ? " discover-view--messages-chrome" : ""
+      }`}
+    >
+      {!compact ? (
+        <header className="panel-surface-hero panel-surface-hero--compact">
+          <div className="panel-surface-hero-copy">
+            <p className="panel-surface-eyebrow">Address book</p>
+            <h1 className="panel-surface-title">Meet agents worth knowing</h1>
+            <p className="panel-surface-lede">
+              Search communities, businesses, and developers. Message privately or join a room.
+            </p>
+          </div>
+        </header>
+      ) : null}
+
+      {portalHost
+        ? createPortal(renderToolbar("discover-toolbar--inline"), portalHost)
+        : null}
+      {toolbarPortalId
+        ? renderToolbar("discover-toolbar--stacked")
+        : renderToolbar()}
 
       {status ? (
         <div className="comms-status-error">
@@ -270,83 +333,121 @@ export function DiscoverPanel({
         </div>
       ) : null}
 
+      {!loading && results.length > 0 ? (
+        <p className="discover-status-bar" aria-live="polite">
+          {results.length} agent{results.length === 1 ? "" : "s"} ready to meet
+        </p>
+      ) : null}
+
       <div className="panel-body panel-body-scroll" style={{ padding: 0 }}>
-        <ul className="discover-results">
-          {results.length === 0 && !loading ? (
-            <li className="panel-empty">
+        {results.length === 0 && !loading ? (
+          <div className="panel-empty-state">
+            <strong>
+              {indexMatches > 0
+                ? "Hosts are offline right now"
+                : terms.trim()
+                  ? "Nothing matched"
+                  : "No listings yet"}
+            </strong>
+            <p>
               {indexMatches > 0
                 ? "Matches exist in an index, but their agent host is offline. Try again shortly, or open Rooms → Join Coffee Shop."
                 : terms.trim()
-                  ? "Nothing matched. Curated listings are limited on purpose — try a different name or @handle."
-                  : "No listings yet in the default indexes. Third-party indexes are owner-chosen when you opt in — Atom only curates the store that ships with this shell."}
-            </li>
-          ) : (
-            results.map((entry) => {
+                  ? "Curated listings are limited on purpose — try a different name or @handle."
+                  : "Third-party indexes are owner-chosen when you opt in. Atom only curates the store that ships with this shell."}
+            </p>
+          </div>
+        ) : (
+          <ul className="discover-results-grid">
+            {results.map((entry) => {
               const subtitle = entrySubtitle(entry);
               const trust = discoverTrustSignals(entry, entry.indexLabel, entry.indexUrl);
               const swarm = swarmDiscoverBadge(entry);
+              const canJoin =
+                (entry.kind === "community" || (entry.roomIds?.length ?? 0) > 0) &&
+                !isDiscoverEntryJoined(entry, joinedRoomIds);
+              const cardKey = `${entry.indexLabel}:${entry.businessDomain}:${entry.displayName}`;
               return (
-                <li
-                  key={`${entry.indexLabel}:${entry.businessDomain}:${entry.displayName}`}
-                  className="discover-row"
-                >
-                  <div className="discover-row-main">
-                    <div className="discover-row-title">
-                      <span>{entryTitle(entry)}</span>
-                      <span className="discover-kind">{kindLabel(entry.kind)}</span>
-                      {swarm ? (
-                        <span className={swarm.className} title="Qwixl-operated labeled swarm agent">
-                          {swarm.label}
+                <li key={cardKey}>
+                  <article className="discover-card">
+                    <header className="discover-card-head">
+                      <h3 className="discover-card-title">{entryTitle(entry)}</h3>
+                      <div className="discover-card-badges">
+                        <span className="discover-kind">{kindLabel(entry.kind)}</span>
+                        {swarm ? (
+                          <span className={swarm.className} title="Qwixl-operated labeled swarm agent">
+                            {swarm.label}
+                          </span>
+                        ) : null}
+                        <span
+                          className={`discover-trust discover-trust--${trust.badge}`}
+                          title={
+                            trust.publisherDid
+                              ? `${trust.label} · ${trust.publisherDid}`
+                              : trust.label
+                          }
+                        >
+                          {trust.label}
                         </span>
+                      </div>
+                      {subtitle ? <p className="discover-card-meta">{subtitle}</p> : null}
+                      {!compact ? <p className="discover-card-blurb">{entryBlurb(entry)}</p> : null}
+                    </header>
+                    <footer className="discover-card-actions">
+                      {canJoin ? (
+                        <button
+                          type="button"
+                          className="panel-btn panel-btn-primary"
+                          disabled={loading}
+                          onClick={() => void joinRoom(entry)}
+                        >
+                          Join room
+                        </button>
                       ) : null}
-                      <span
-                        className={`discover-trust discover-trust--${trust.badge}`}
-                        title={
-                          trust.publisherDid
-                            ? `${trust.label} · ${trust.publisherDid}`
-                            : trust.label
-                        }
+                      <button
+                        type="button"
+                        className="panel-btn discover-dm-btn"
+                        disabled={loading}
+                        onClick={() => void connectEntry(entry)}
+                        aria-label={`Send DM to ${entryTitle(entry)}`}
                       >
-                        {trust.label}
-                      </span>
-                    </div>
-                    {subtitle ? <p className="discover-row-meta">{subtitle}</p> : null}
-                    {trust.publisherDid ? (
-                      <p className="discover-row-meta discover-publisher">
-                        Publisher {trust.publisherDid}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="discover-row-actions">
-                    {(entry.kind === "community" || (entry.roomIds?.length ?? 0) > 0) &&
-                    !isDiscoverEntryJoined(entry, joinedRoomIds) ? (
+                        Message
+                      </button>
                       <button
                         type="button"
                         className="panel-btn"
-                        disabled={loading}
-                        onClick={() => void joinRoom(entry)}
+                        onClick={() =>
+                          setReportKey((current) => (current === cardKey ? null : cardKey))
+                        }
                       >
-                        Join room
+                        {reportKey === cardKey ? "Cancel report" : "Report"}
                       </button>
+                    </footer>
+                    {reportKey === cardKey ? (
+                      <ContactAbuseReportForm
+                        target={{
+                          did: entry.did || entry.publisherDid || entry.businessDomain || cardKey,
+                          endpoint: entry.hostUrl || entry.agentCardUrl,
+                          handle: entry.handle,
+                          name: entryTitle(entry),
+                          roomId: entry.roomIds?.[0],
+                        }}
+                        surface={entry.roomIds?.length ? "rooms" : "messages"}
+                        hideAlsoBlock={!entry.did}
+                        onReported={(note) => {
+                          setStatus(note);
+                          setReportKey(null);
+                          onActivity?.(note);
+                        }}
+                        onCancel={() => setReportKey(null)}
+                      />
                     ) : null}
-                    <button
-                      type="button"
-                      className="panel-btn discover-dm-btn"
-                      disabled={loading}
-                      onClick={() => void connectEntry(entry)}
-                      aria-label={`Send DM to ${entryTitle(entry)}`}
-                    >
-                      <span className="discover-dm-icon" aria-hidden="true">
-                        ✉
-                      </span>
-                      DM
-                    </button>
-                  </div>
+                  </article>
                 </li>
               );
-            })
-          )}
-        </ul>
+            })}
+          </ul>
+        )}
       </div>
     </aside>
   );

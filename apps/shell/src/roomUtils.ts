@@ -1,5 +1,34 @@
+import type { RoomActivityDef } from "./roomActivities.js";
+import { formatActivityDisplay } from "./roomActivities.js";
+
 /** Map registry module id (e.g. `community/coffee-shop`) to shell bundle path. */
 export const COFFEE_SHOP_ROOM_ID = "room:coffeeshop";
+
+export const TOWN_VENUE_ROOM_IDS = [
+  "room:coffeeshop",
+  "room:church",
+  "room:gym",
+  "room:movie-theatre",
+  "room:university",
+  "room:atom-hq",
+] as const;
+
+export type CatalogRoom = {
+  roomId: string;
+  name: string;
+  topic?: string;
+  description?: string;
+  category: string;
+  admission: "open" | "invite" | "request" | string;
+  moduleId?: string;
+  hostDid: string;
+  status: "active" | "closed" | string;
+  rules?: { basePolicyUrl: string; hostRules: string[] };
+  creatorDid?: string;
+  activities?: RoomActivityDef[];
+  memberCount?: number;
+  liveCount?: number;
+};
 
 export function moduleBundleUrl(moduleId: string): string {
   const slug = moduleId.trim().replace(/\//g, "-");
@@ -25,7 +54,12 @@ const ACTIVITY_LABELS: Record<string, string> = {
   friend_accept: "accepted a friend request",
 };
 
-export function formatRoomActivity(activityKind: string | undefined): string {
+export function formatRoomActivity(
+  activityKind: string | undefined,
+  payload?: Record<string, unknown> | null,
+): string {
+  const fromPayload = formatActivityDisplay(activityKind, payload);
+  if (payload?.emoji || payload?.label) return fromPayload;
   if (!activityKind) return "activity";
-  return ACTIVITY_LABELS[activityKind] ?? activityKind.replace(/-/g, " ");
+  return ACTIVITY_LABELS[activityKind] ?? fromPayload;
 }

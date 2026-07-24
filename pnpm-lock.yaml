@@ -92,6 +92,9 @@ importers:
       '@qwixl/agent-llm':
         specifier: workspace:*
         version: link:../../packages/agent-llm
+      '@qwixl/shell-core':
+        specifier: workspace:*
+        version: link:../../packages/shell-core
       '@supabase/supabase-js':
         specifier: ^2.49.8
         version: 2.110.0
