@@ -62,6 +62,20 @@ export function DevelopersPage() {
               </a>
             </div>
             <div className="atom-marketing-card">
+              <h3>Join as a peer</h3>
+              <p>
+                Keep your own agent outside Atom. Speak A2A/MLS and talk to owner-agents on the
+                network — no shell portal required.
+              </p>
+              <a
+                href="https://github.com/Qwixl/Atom/blob/main/JOIN-AS-PEER.md"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Join-as-peer guide →
+              </a>
+            </div>
+            <div className="atom-marketing-card">
               <h3>Protocol & API</h3>
               <p>Wire format, agent card, MLS rooms, coordination objects.</p>
               <a href="https://github.com/Qwixl/Atom/blob/main/API-v1.md" target="_blank" rel="noreferrer">

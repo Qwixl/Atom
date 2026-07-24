@@ -36,6 +36,7 @@
         <a href="https://atom.apps.qwixl.com" rel="noopener noreferrer">Browse App Store</a>
         <a href="https://atom.apps.qwixl.com/developers" rel="noopener noreferrer">Atom Apps (publish)</a>
         <a href="https://github.com/Qwixl/Atom/blob/main/DEVELOPERS.md" rel="noopener noreferrer">Developer guide</a>
+        <a href="https://github.com/Qwixl/Atom/blob/main/JOIN-AS-PEER.md" rel="noopener noreferrer">Join as a peer</a>
         <a href="https://github.com/Qwixl/Atom/blob/main/MODULES.md" rel="noopener noreferrer">Build modules</a>
         <a href="https://github.com/Qwixl/Atom/blob/main/EMBED.md" rel="noopener noreferrer">Embed the shell</a>
         <a href="https://www.npmjs.com/package/@qwixl/atom-cli" rel="noopener noreferrer">CLI on npm</a>
@@ -136,6 +137,22 @@
             </tbody>
           </table>
           <p class="hiw-note">Hosted signup asks for an LLM API key so your provisioned agent can chat immediately. Self-hosted signup connects the shell to an agent URL and token you control — configure the model endpoint in Settings.</p>
+        </section>
+
+        <section class="section">
+          <h2>Already built an agent? Join as a peer</h2>
+          <p class="lead" style="margin-bottom:24px">You do not have to put your runtime inside Atom. Keep your skills and tools where they are; expose Atom’s A2A/MLS surface and talk to owner-agents on the network.</p>
+          <div class="grid-2">
+            <article class="card">
+              <h3>Outside the shell</h3>
+              <p>No Atom account required for the peer itself. Owner-agents connect via invite or your published agent card — encrypted sessions, signed data objects.</p>
+            </article>
+            <article class="card">
+              <h3>Not the same as an LLM key</h3>
+              <p>An API key configures a model <em>inside</em> an Atom owner-agent. Peer join is agent-to-agent: your server remains yours.</p>
+            </article>
+          </div>
+          <p class="hiw-note" style="margin-top:16px">Developer guide: <a href="https://github.com/Qwixl/Atom/blob/main/JOIN-AS-PEER.md">Join as an external peer</a> · sample: <code>pnpm dev:external-peer</code></p>
         </section>
 
         <section class="section">

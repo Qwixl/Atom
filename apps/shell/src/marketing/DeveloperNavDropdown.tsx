@@ -5,6 +5,7 @@ const LINKS = {
   atomApps: "https://atom.apps.qwixl.com/developers",
   github: "https://github.com/Qwixl/Atom",
   developerGuide: "https://github.com/Qwixl/Atom/blob/main/DEVELOPERS.md",
+  joinAsPeer: "https://github.com/Qwixl/Atom/blob/main/JOIN-AS-PEER.md",
   modules: "https://github.com/Qwixl/Atom/blob/main/MODULES.md",
   embed: "https://github.com/Qwixl/Atom/blob/main/EMBED.md",
   cli: "https://www.npmjs.com/package/@qwixl/atom-cli",
@@ -24,6 +25,9 @@ export function DeveloperNavDropdown() {
         </a>
         <a href={LINKS.developerGuide} target="_blank" rel="noreferrer" role="menuitem">
           Developer guide
+        </a>
+        <a href={LINKS.joinAsPeer} target="_blank" rel="noreferrer" role="menuitem">
+          Join as a peer
         </a>
         <a href={LINKS.modules} target="_blank" rel="noreferrer" role="menuitem">
           Build modules

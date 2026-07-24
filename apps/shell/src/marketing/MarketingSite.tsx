@@ -115,11 +115,21 @@ export function MarketingSite() {
               <p>
                 Ship modules, connectors, and agent backends on open npm packages. Publish a business
                 agent; show up in Discover; let customer agents book, buy, and coordinate without a
-                bespoke integration per partner.
+                bespoke integration per partner. Already built an agent? Join the network as a peer
+                without becoming a shell portal.
               </p>
               <button type="button" className="atom-btn atom-btn-secondary" onClick={() => navigate("/developers")}>
                 Developer platform
               </button>
+              <a
+                className="atom-btn atom-btn-secondary"
+                href="https://github.com/Qwixl/Atom/blob/main/JOIN-AS-PEER.md"
+                target="_blank"
+                rel="noreferrer"
+                style={{ marginLeft: 8 }}
+              >
+                Join as a peer
+              </a>
             </article>
           </div>
         </section>

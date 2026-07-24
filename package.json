@@ -31,6 +31,7 @@
     "atom": "pnpm --filter @qwixl/atom-cli dev",
     "dev:demo": "node scripts/dev-demo.mjs",
     "dev:demo-peer": "pnpm --filter @qwixl/agent-backend dev:demo-peer",
+    "dev:external-peer": "pnpm --filter @qwixl/external-peer peer:start",
     "dev:coffee-shop": "pnpm --filter @qwixl/agent-backend dev:coffee-shop",
     "start:agent": "pnpm --filter @qwixl/agent-backend start",
     "docker:agent": "docker compose up atom-agent --build",
