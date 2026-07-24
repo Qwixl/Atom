@@ -24,6 +24,7 @@ export default defineConfig({
         { text: "Personal demo", link: "/guides/personal-demo" },
         { text: "Playground", link: "/guides/playground" },
         { text: "Demo peer agent", link: "/guides/demo-peer" },
+        { text: "Join as external peer", link: "/guides/join-as-peer" },
         { text: "Managed hosting", link: "/guides/managed-hosting" },
       ],
       "/reference/": [

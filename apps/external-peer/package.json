@@ -1,0 +1,21 @@
+{
+  "name": "@qwixl/external-peer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reference Atom network peer — join A2A/MLS without running an owner shell portal.",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/peer-start.mjs",
+    "peer:start": "node scripts/peer-start.mjs",
+    "start": "node scripts/peer-start.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@qwixl/agent-backend": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

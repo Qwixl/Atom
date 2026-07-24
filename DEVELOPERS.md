@@ -11,6 +11,7 @@ MCP Apps and vendor app SDKs put your widget inside an AI vendor's chat product 
 | Goal | Start here |
 |---|---|
 | Run an agent backend | `npx @qwixl/agent-backend` — [AGENT-BACKEND.md](./AGENT-BACKEND.md) |
+| Join the network as an external peer | [JOIN-AS-PEER.md](./JOIN-AS-PEER.md) — `pnpm dev:external-peer` |
 | Try MLS + scheduling | [PERSONAL-DEMO.md](./PERSONAL-DEMO.md) — `pnpm dev:demo` |
 | Demo peer (counterpart agent) | [DEMO-PEER.md](./DEMO-PEER.md) — `pnpm dev` → `/demo` or `pnpm dev:demo-peer` |
 | Embed the shell | [EMBED.md](./EMBED.md) |
