@@ -3,6 +3,7 @@
  * Production Docker fleet: private Qwixl/Atom-MC.
  * Local: HOSTED_STUB_AGENT_URL + HOSTED_STUB_AGENT_TOKEN (`pnpm dev:hosting`).
  */
+import { defaultShellOriginsCsv } from "@qwixl/shell-core";
 import express, { type Request, type Response } from "express";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -32,10 +33,7 @@ const aupText = readFileSync(path.join(packageDir, "..", "AUP.md"), "utf8");
 const dataDir = resolveDataDir();
 
 const allowedOrigins = new Set(
-  (
-    process.env.ATOM_SHELL_ORIGINS?.trim() ||
-    "http://localhost:5200,http://127.0.0.1:5200,http://localhost:5203,http://127.0.0.1:5203,https://atom.qwixl.com"
-  )
+  (process.env.ATOM_SHELL_ORIGINS?.trim() || defaultShellOriginsCsv())
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean),

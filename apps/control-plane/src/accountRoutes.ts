@@ -6,6 +6,7 @@ import { verifySupabaseAccessToken } from "./supabaseAuth.js";
 import type { HostedAgentRecord } from "./fleet/types.js";
 import { ensurePersonalWorkspaceId, provisionWorkspaceAgent } from "./workspaceRoutes.js";
 import { mintHostedOwnerSession } from "./hostedSessionMint.js";
+import { probeLlmConnection } from "./fleet/llmProbe.js";
 
 type AccountType = "user" | "business" | "developer";
 
@@ -350,7 +351,21 @@ export function registerAccountRoutes(
       });
       await deps.persistAgents();
 
-      res.json({ status: "updated" });
+      const llmProbe = await probeLlmConnection({
+        apiKey: llmKey,
+        baseUrl: llmBaseUrl || undefined,
+        model: llmModel || undefined,
+      });
+      if (!llmProbe.ok) {
+        res.status(502).json({
+          status: "updated_but_unreachable",
+          error: `Saved on your agent, but the model endpoint failed: ${llmProbe.error}`,
+          llmProbe,
+        });
+        return;
+      }
+
+      res.json({ status: "updated", llmProbe });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }

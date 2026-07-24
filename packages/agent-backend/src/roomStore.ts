@@ -1,22 +1,57 @@
 import { randomUUID } from "node:crypto";
 import { atomicWriteJson, readJsonFile } from "@qwixl/owner-store/file-persistence";
 import { resolveDataPath } from "./dataDir.js";
+import {
+  activitiesForRoomId,
+  normalizeActivities,
+  type RoomActivityDef,
+} from "./roomActivities.js";
 
 const ROOMS_FILE = "rooms.json";
 const SCHEMA_VERSION = 1;
+/** Members with presence/message within this window count as "live". */
+const LIVE_WINDOW_MS = 10 * 60 * 1000;
 
 export type RoomAdmission = "open" | "invite" | "request";
+export type RoomStatus = "active" | "closed";
+
+export const ATOM_BASE_ROOM_POLICY_URL = "https://qwixl.dev/community/aup";
+
+export type { RoomActivityDef };
+
+export interface RoomRules {
+  basePolicyUrl: string;
+  hostRules: string[];
+}
 
 export interface RoomDescriptor {
   roomId: string;
   hostDid: string;
   name: string;
   topic?: string;
+  description?: string;
+  category: string;
   admission: RoomAdmission;
   moduleId?: string;
   policyUrl?: string;
+  rules: RoomRules;
+  creatorDid?: string;
+  status: RoomStatus;
   maxMembers: number;
   createdAt: string;
+  /** Host-defined room activities (emoji + optional future animationKey). */
+  activities: RoomActivityDef[];
+}
+
+export interface RoomJoinRequest {
+  id: string;
+  roomId: string;
+  memberDid: string;
+  memberName?: string;
+  endpoint?: string;
+  keyPackage?: unknown;
+  requestedAt: string;
+  status: "pending" | "approved" | "denied";
 }
 
 export interface RoomMember {
@@ -26,6 +61,8 @@ export interface RoomMember {
   joinedAt: string;
   banned?: boolean;
   mutedUntil?: number;
+  attendance?: "present" | "away";
+  lastSeenAt?: string;
 }
 
 export interface RoomMessage {
@@ -49,12 +86,30 @@ interface RoomsFile {
     members: RoomMember[];
     messages: RoomMessage[];
     nextSeq: number;
+    joinRequests?: RoomJoinRequest[];
   }>;
   joinedRooms: Array<{
     roomId: string;
     hostUrl: string;
     descriptor: RoomDescriptor;
   }>;
+}
+
+function normalizeDescriptor(raw: RoomDescriptor): RoomDescriptor {
+  const hostRules = raw.rules?.hostRules?.filter((r) => r.trim()) ?? [];
+  const activities = activitiesForRoomId(raw.roomId, normalizeActivities(raw.activities));
+  return {
+    ...raw,
+    category: raw.category?.trim() || "Town",
+    description: raw.description?.trim() || raw.topic?.trim(),
+    status: raw.status === "closed" ? "closed" : "active",
+    rules: {
+      basePolicyUrl: raw.rules?.basePolicyUrl?.trim() || raw.policyUrl?.trim() || ATOM_BASE_ROOM_POLICY_URL,
+      hostRules,
+    },
+    policyUrl: raw.policyUrl?.trim() || ATOM_BASE_ROOM_POLICY_URL,
+    activities,
+  };
 }
 
 export class RoomStore {
@@ -65,6 +120,7 @@ export class RoomStore {
       members: RoomMember[];
       messages: RoomMessage[];
       nextSeq: number;
+      joinRequests: RoomJoinRequest[];
     }
   >();
   private joinedRooms = new Map<
@@ -84,10 +140,17 @@ export class RoomStore {
     this.rooms.clear();
     this.joinedRooms.clear();
     for (const room of file.rooms ?? []) {
-      this.rooms.set(room.descriptor.roomId, room);
+      this.rooms.set(room.descriptor.roomId, {
+        ...room,
+        descriptor: normalizeDescriptor(room.descriptor),
+        joinRequests: room.joinRequests ?? [],
+      });
     }
     for (const joined of file.joinedRooms ?? []) {
-      this.joinedRooms.set(joined.roomId, joined);
+      this.joinedRooms.set(joined.roomId, {
+        ...joined,
+        descriptor: normalizeDescriptor(joined.descriptor),
+      });
     }
   }
 
@@ -95,29 +158,46 @@ export class RoomStore {
     hostDid: string;
     name: string;
     topic?: string;
+    description?: string;
+    category?: string;
     admission?: RoomAdmission;
     moduleId?: string;
     policyUrl?: string;
+    hostRules?: string[];
+    creatorDid?: string;
+    status?: RoomStatus;
     maxMembers?: number;
     roomId?: string;
+    activities?: RoomActivityDef[];
   }): RoomDescriptor {
     const roomId = opts.roomId?.trim() || `room:${randomUUID()}`;
-    const descriptor: RoomDescriptor = {
+    const policyUrl = opts.policyUrl?.trim() || ATOM_BASE_ROOM_POLICY_URL;
+    const descriptor = normalizeDescriptor({
       roomId,
       hostDid: opts.hostDid,
       name: opts.name.trim(),
       topic: opts.topic?.trim(),
+      description: opts.description?.trim() || opts.topic?.trim(),
+      category: opts.category?.trim() || "Town",
       admission: opts.admission ?? "invite",
       moduleId: opts.moduleId?.trim(),
-      policyUrl: opts.policyUrl?.trim(),
+      policyUrl,
+      rules: {
+        basePolicyUrl: ATOM_BASE_ROOM_POLICY_URL,
+        hostRules: (opts.hostRules ?? []).map((r) => r.trim()).filter(Boolean),
+      },
+      creatorDid: opts.creatorDid?.trim(),
+      status: opts.status ?? "active",
       maxMembers: opts.maxMembers ?? 64,
       createdAt: new Date().toISOString(),
-    };
+      activities: opts.activities ?? [],
+    });
     this.rooms.set(roomId, {
       descriptor,
       members: [],
       messages: [],
       nextSeq: 1,
+      joinRequests: [],
     });
     void this.persist();
     return descriptor;
@@ -129,6 +209,7 @@ export class RoomStore {
         members: RoomMember[];
         messages: RoomMessage[];
         nextSeq: number;
+        joinRequests: RoomJoinRequest[];
       }
     | undefined {
     return this.rooms.get(roomId);
@@ -136,6 +217,134 @@ export class RoomStore {
 
   listRooms(): RoomDescriptor[] {
     return [...this.rooms.values()].map((room) => room.descriptor);
+  }
+
+  listCatalog(): RoomDescriptor[] {
+    return this.listRooms().filter((d) => d.status === "active");
+  }
+
+  catalogEntry(roomId: string): {
+    descriptor: RoomDescriptor;
+    memberCount: number;
+    liveCount: number;
+  } | null {
+    const room = this.rooms.get(roomId);
+    if (!room || room.descriptor.status !== "active") return null;
+    const now = Date.now();
+    const members = room.members.filter((m) => !m.banned);
+    const liveCount = members.filter((m) => {
+      if (m.attendance === "away") return false;
+      const seen = m.lastSeenAt ? Date.parse(m.lastSeenAt) : Date.parse(m.joinedAt);
+      return Number.isFinite(seen) && now - seen <= LIVE_WINDOW_MS;
+    }).length;
+    return {
+      descriptor: room.descriptor,
+      memberCount: members.length,
+      liveCount,
+    };
+  }
+
+  closeRoom(roomId: string): RoomDescriptor {
+    const room = this.rooms.get(roomId);
+    if (!room) throw new Error(`Unknown room ${roomId}`);
+    room.descriptor = { ...room.descriptor, status: "closed" };
+    void this.persist();
+    return room.descriptor;
+  }
+
+  setRoomActivities(roomId: string, activities: RoomActivityDef[]): RoomDescriptor {
+    const room = this.rooms.get(roomId);
+    if (!room) throw new Error(`Unknown room ${roomId}`);
+    room.descriptor = normalizeDescriptor({
+      ...room.descriptor,
+      activities: normalizeActivities(activities),
+    });
+    void this.persist();
+    return room.descriptor;
+  }
+
+  touchMemberPresence(
+    roomId: string,
+    memberDid: string,
+    attendance: "present" | "away" = "present",
+  ): void {
+    const room = this.rooms.get(roomId);
+    if (!room) return;
+    const member = room.members.find((m) => m.did === memberDid);
+    if (!member) return;
+    member.attendance = attendance;
+    member.lastSeenAt = new Date().toISOString();
+    void this.persist();
+  }
+
+  updateRoomMeta(
+    roomId: string,
+    patch: Partial<
+      Pick<
+        RoomDescriptor,
+        "name" | "topic" | "description" | "category" | "admission" | "rules" | "activities"
+      >
+    >,
+  ): RoomDescriptor {
+    const room = this.rooms.get(roomId);
+    if (!room) throw new Error(`Unknown room ${roomId}`);
+    room.descriptor = normalizeDescriptor({
+      ...room.descriptor,
+      ...patch,
+      rules: patch.rules ?? room.descriptor.rules,
+      activities: patch.activities ?? room.descriptor.activities,
+    });
+    void this.persist();
+    return room.descriptor;
+  }
+
+  listJoinRequests(roomId: string, status: RoomJoinRequest["status"] = "pending"): RoomJoinRequest[] {
+    const room = this.rooms.get(roomId);
+    if (!room) return [];
+    return room.joinRequests.filter((r) => r.status === status);
+  }
+
+  addJoinRequest(opts: {
+    roomId: string;
+    memberDid: string;
+    memberName?: string;
+    endpoint?: string;
+    keyPackage?: unknown;
+  }): RoomJoinRequest {
+    const room = this.rooms.get(opts.roomId);
+    if (!room) throw new Error(`Unknown room ${opts.roomId}`);
+    if (room.descriptor.status === "closed") throw new Error("Room is closed");
+    const existing = room.joinRequests.find(
+      (r) => r.memberDid === opts.memberDid && r.status === "pending",
+    );
+    if (existing) return existing;
+    const entry: RoomJoinRequest = {
+      id: randomUUID(),
+      roomId: opts.roomId,
+      memberDid: opts.memberDid,
+      memberName: opts.memberName?.trim(),
+      endpoint: opts.endpoint?.trim(),
+      keyPackage: opts.keyPackage,
+      requestedAt: new Date().toISOString(),
+      status: "pending",
+    };
+    room.joinRequests.push(entry);
+    void this.persist();
+    return entry;
+  }
+
+  setJoinRequestStatus(
+    roomId: string,
+    requestId: string,
+    status: "approved" | "denied",
+  ): RoomJoinRequest {
+    const room = this.rooms.get(roomId);
+    if (!room) throw new Error(`Unknown room ${roomId}`);
+    const req = room.joinRequests.find((r) => r.id === requestId);
+    if (!req) throw new Error("Join request not found");
+    req.status = status;
+    void this.persist();
+    return req;
   }
 
   addMember(roomId: string, member: Omit<RoomMember, "joinedAt">): RoomMember {
@@ -147,7 +356,13 @@ export class RoomStore {
     if (room.members.length >= room.descriptor.maxMembers) {
       throw new Error("Room is full");
     }
-    const entry: RoomMember = { ...member, joinedAt: new Date().toISOString() };
+    const now = new Date().toISOString();
+    const entry: RoomMember = {
+      ...member,
+      joinedAt: now,
+      lastSeenAt: now,
+      attendance: member.attendance ?? "present",
+    };
     room.members.push(entry);
     void this.persist();
     return entry;
@@ -204,6 +419,14 @@ export class RoomStore {
     room.messages.push(entry);
     if (room.messages.length > 500) {
       room.messages = room.messages.slice(-500);
+    }
+    if (member) {
+      if (msg.kind === "activity" && msg.activityKind === "presence-away") {
+        member.attendance = "away";
+      } else if (msg.activityKind !== "leave") {
+        member.attendance = "present";
+      }
+      member.lastSeenAt = entry.at;
     }
     void this.persist();
     return entry;
@@ -303,8 +526,9 @@ export class RoomStore {
         activities[msg.activityKind] = (activities[msg.activityKind] ?? 0) + 1;
       }
     }
+    const catalog = this.catalogEntry(roomId);
     return {
-      present: room.members.filter((m) => !m.banned).length,
+      present: catalog?.liveCount ?? room.members.filter((m) => !m.banned).length,
       joinsToday,
       messagesToday: todayMessages.filter((m) => m.kind === "message").length,
       activities,

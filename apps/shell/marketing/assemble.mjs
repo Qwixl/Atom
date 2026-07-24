@@ -73,7 +73,7 @@ function rootPage(meta, body, outFile) {
 </head>
 <body>
 ${header}
-<main class="site-main">
+<main class="site-main site-main--home">
 ${body}
 </main>
 ${footer}
@@ -84,7 +84,7 @@ ${footer}
 }
 
 function subPage(meta, body, dir, options = {}) {
-  const mainClass = options.mainClass ?? "site-main";
+  const mainClass = options.mainClass ?? "site-main site-main--inner";
   const hdr = header.replace(/href="\//g, 'href="/');
   const html = `<!doctype html>
 <html lang="en">
@@ -115,89 +115,115 @@ ${footer}
 }
 
 const homeBody = `
-        <section class="hero" data-hero-orbit>
-          <div class="hero-orbit-stage" aria-hidden="true">
-            <svg class="hero-orbit-mark" viewBox="0 0 240 240" fill="none">
-              <ellipse class="hero-orbit-ring hero-orbit-ring--a" cx="120" cy="120" rx="88" ry="36" stroke="currentColor" stroke-width="1.25"/>
-              <ellipse class="hero-orbit-ring hero-orbit-ring--b" cx="120" cy="120" rx="88" ry="36" stroke="currentColor" stroke-width="1.25"/>
-              <ellipse class="hero-orbit-ring hero-orbit-ring--c" cx="120" cy="120" rx="88" ry="36" stroke="currentColor" stroke-width="1.25"/>
-              <circle cx="120" cy="120" r="10" fill="currentColor"/>
-              <circle class="hero-orbit-electron" cx="208" cy="120" r="5" fill="currentColor"/>
-            </svg>
-            <p class="hero-orbit-word">ATOM</p>
-          </div>
-          <div class="hero-copy">
-            <p class="eyebrow">Your portal · Beta — free to use</p>
-            <h1>A portal you own for the agent web</h1>
-            <p class="lead">Not another AI chat app. Your personal agent works for you — talking to business agents backstage, rendering real interfaces in a shell you control, and asking you before anything that matters. Your memory, your rules, export any time.</p>
-            <div class="hero-actions">
-              <a class="btn btn-primary" href="/app/?auth=register">Create free account</a>
-              <a class="btn btn-secondary" href="/demo/">Try live demo</a>
+        <canvas class="hero-bg-canvas" aria-hidden="true"></canvas>
+        <section class="hero-full">
+          <div class="hero-full__inner">
+            <div class="hero-copy">
+              <p class="eyebrow">Agent-first platform · Beta</p>
+              <h1>Your agent.<br>Connected to everything.</h1>
+              <p class="lead">A portal you own for the agent web. Your personal agent works for you — coordinating with business agents backstage, rendering real interfaces in a shell you control, and asking before anything that matters.</p>
+              <div class="hero-actions">
+                <a class="btn btn-primary btn-lg" href="/app/?auth=register">Launch Atom</a>
+                <a class="btn btn-secondary btn-lg" href="/demo/">Try live demo</a>
+              </div>
             </div>
           </div>
         </section>
-        <section class="section callout">
-          <h2>A new reality</h2>
-          <p>Today agents hunt through the human internet — pages, forms, PDFs — and hope they understood correctly. Atom flips that: <strong>agents speak to agents</strong>, using structured data objects, encrypted sessions, and shell-owned confirmation. Businesses publish to the agent web; your agent negotiates; you see a plain summary before anything runs.</p>
-          <p>Where else can agents meet? Scattered APIs and ad-hoc integrations. Atom is the connective tissue — discover, message, coordinate, transact — with one shell you own.</p>
-        </section>
-        <section class="section">
-          <h2>Why Atom is different</h2>
-          <p class="lead" style="margin-bottom:24px">AI assistants are everywhere now, and they can all show buttons and forms in a chat. The difference is who the platform belongs to.</p>
-          <div class="grid-2">
-            <article class="card">
-              <h3>Their chat, their rules</h3>
-              <p>With today's big AI assistants, you live inside <em>their</em> app. They hold your account, your history, and your habits. Businesses build little apps that appear inside that chat — and the platform decides which ones you see, what they can do, and what happens to your data.</p>
-              <p>If you leave, everything stays behind. The assistant works in their house, by their rules.</p>
+
+        <section class="section section--wide" data-reveal>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <div class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="4"/></svg>
+              </div>
+              <h3>Your portal</h3>
+              <p>One account, one agent — hosted in minutes or connected from your own server. Your memory, your rules.</p>
             </article>
-            <article class="card">
-              <h3>Your portal, your agent</h3>
-              <p>Atom is the other way round. The portal is <strong>yours</strong>: your agent works for you, your memory lives in a store you can export, and businesses talk to <em>your agent</em> — they don't get to build the room you stand in.</p>
-              <p>Anything that costs money or commits you to something appears in Atom's own trusted controls, with a record you keep. No app inside the chat can fake that screen.</p>
+            <article class="feature-card">
+              <div class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+              <h3>Agents coordinate</h3>
+              <p>Machine-to-machine negotiation — no more watching AI click through websites built for humans.</p>
             </article>
-          </div>
-          <div class="steps" style="margin-top:24px">
-            <article class="step">
-              <span class="step-num">1</span>
-              <h3>You own the front door</h3>
-              <p>One portal for everything your agent does — not an account inside someone else's assistant.</p>
+            <article class="feature-card">
+              <div class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              </div>
+              <h3>Trust stays yours</h3>
+              <p>Approvals, payments, and personal data guarded by your shell — not by platform goodwill.</p>
             </article>
-            <article class="step">
-              <span class="step-num">2</span>
-              <h3>Agents work backstage</h3>
-              <p>Your agent deals with business agents directly, machine-to-machine — no more watching an AI click through websites built for humans.</p>
-            </article>
-            <article class="step">
-              <span class="step-num">3</span>
-              <h3>Trust stays on your side</h3>
-              <p>Approvals, payments, and your personal data are guarded by <em>your</em> shell — not by the goodwill of a platform or the businesses on it.</p>
+            <article class="feature-card">
+              <div class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              </div>
+              <h3>Modules &amp; tools</h3>
+              <p>Install capabilities from the App Store. Extend your agent with productivity, commerce, and custom modules.</p>
             </article>
           </div>
         </section>
-        <section class="section">
-          <h2>How it feels</h2>
-          <div class="steps">
+
+        <section class="section section--wide" data-reveal>
+          <div class="split-section">
+            <div class="split-section__copy">
+              <p class="eyebrow">Why Atom is different</p>
+              <h2>Their chat, their rules — or your portal, your agent</h2>
+              <p>With today's big AI assistants, you live inside <em>their</em> app. They hold your account, your history, and your habits.</p>
+              <p>Atom flips that. The portal is <strong>yours</strong>: your agent works for you, your memory lives in a store you can export, and businesses talk to <em>your agent</em>.</p>
+              <a class="btn btn-secondary" href="/how-it-works/">How it works</a>
+            </div>
+            <div class="split-section__visual">
+              <div class="compare-card compare-card--theirs">
+                <span class="compare-label">Their assistant</span>
+                <p>You live in their house, by their rules. Leave and everything stays behind.</p>
+              </div>
+              <div class="compare-card compare-card--yours">
+                <span class="compare-label">Your Atom</span>
+                <p>Your agent, your memory, your approvals. Export and leave any time.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section section--wide" data-reveal>
+          <p class="eyebrow section-eyebrow">How it feels</p>
+          <h2 class="section-title">Three steps to the agent web</h2>
+          <div class="steps steps--numbered">
             <article class="step">
-              <span class="step-num">1</span>
+              <span class="step-num">01</span>
               <h3>Tell your agent</h3>
               <p>Plain language in — structured intent out. “Find a coffee shop” or “Schedule standup next week.”</p>
             </article>
             <article class="step">
-              <span class="step-num">2</span>
+              <span class="step-num">02</span>
               <h3>Agents coordinate</h3>
               <p>Your agent messages business agents without you clicking through five websites.</p>
             </article>
             <article class="step">
-              <span class="step-num">3</span>
+              <span class="step-num">03</span>
               <h3>You approve</h3>
               <p>Consequential steps appear in trusted shell chrome. Every decision is logged.</p>
             </article>
           </div>
         </section>
-        <section class="section">
-          <h2>Built for you</h2>
+
+        <section class="section section--wide ecosystem" data-reveal>
+          <p class="eyebrow section-eyebrow">The ecosystem</p>
+          <h2 class="section-title">Atom at the centre</h2>
+          <div class="ecosystem-diagram" aria-hidden="true">
+            <div class="ecosystem-hub">ATOM</div>
+            <div class="ecosystem-node ecosystem-node--1">Your Agent</div>
+            <div class="ecosystem-node ecosystem-node--2">Other Agents</div>
+            <div class="ecosystem-node ecosystem-node--3">People</div>
+            <div class="ecosystem-node ecosystem-node--4">Businesses</div>
+            <div class="ecosystem-node ecosystem-node--5">Tools &amp; Modules</div>
+            <svg class="ecosystem-lines" aria-hidden="true"></svg>
+          </div>
+        </section>
+
+        <section class="section section--wide" data-reveal>
           <div class="grid-2">
-            <article class="card">
+            <article class="card card--lift">
               <h3>Everyday users</h3>
               <p>One account, one agent — hosted in minutes or connected from your own server.</p>
               <ul>
@@ -205,26 +231,29 @@ const homeBody = `
                 <li>Self-hosted — bring URL and token when ready</li>
                 <li>Export and leave — no lock-in</li>
               </ul>
-              <a class="btn btn-primary" href="/app/?auth=register">Enter Atom</a>
+              <a class="btn btn-primary" href="/app/?auth=register">Create free account</a>
             </article>
-            <article class="card">
+            <article class="card card--lift">
               <h3>Developers &amp; businesses</h3>
               <p>Ship modules, connectors, and agent backends on open npm packages.</p>
               <a class="btn btn-secondary" href="/developers/">Developer platform</a>
+              <a class="btn btn-ghost" href="https://atom.apps.qwixl.com" rel="noopener noreferrer">Browse App Store</a>
             </article>
           </div>
         </section>
-        <section class="section callout">
+
+        <section class="section section--wide callout callout--accent" data-reveal>
           <h2>Bring your own model</h2>
-          <p>Atom does not ship a bundled AI vendor. Your agent calls whatever language model you choose — OpenAI, Anthropic-compatible APIs, Groq, Mistral, Google AI, or a model you run locally with Ollama or vLLM. Agent-to-agent messages stay structured and signed; the LLM is only for understanding you and drafting replies.</p>
-          <p><a class="btn btn-secondary" href="/how-it-works/">How it works — models &amp; privacy</a></p>
+          <p>Atom does not ship a bundled AI vendor. Your agent calls whatever language model you choose — OpenAI, Anthropic, Groq, Mistral, Google AI, or a model you run locally. Agent-to-agent messages stay structured and signed; the LLM is only for understanding you and drafting replies.</p>
+          <a class="btn btn-secondary" href="/how-it-works/">Models &amp; privacy</a>
         </section>
-        <section class="section pricing-banner">
+
+        <section class="section section--wide pricing-banner" data-reveal>
           <div>
             <h2>Free during beta</h2>
             <p>Hosted Atom is free while we are in beta. Before any billing starts we will publish pricing and ask you to opt in.</p>
           </div>
-          <span class="beta-badge">Beta</span>
+          <span class="beta-badge beta-badge--lg">Beta</span>
         </section>`;
 
 rootPage(

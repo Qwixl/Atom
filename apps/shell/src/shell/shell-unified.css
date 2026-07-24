@@ -62,8 +62,6 @@
   border: 1px solid var(--shell-border-strong);
 }
 
-/* Primary actions — black / white, not orange */
-
 .shell-btn-primary,
 .panel-btn-primary,
 .shell-composer .shell-btn-primary,

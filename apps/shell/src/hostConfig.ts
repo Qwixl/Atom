@@ -52,6 +52,13 @@ function resolveControlPlaneUrl(): string {
 
 export const CONTROL_PLANE_URL = resolveControlPlaneUrl();
 
+/** Shared Qwixl community host (town venues + user-created rooms). */
+export const COMMUNITY_HOST_PUBLIC_URL =
+  (import.meta.env.VITE_COMMUNITY_HOST_URL as string | undefined)?.trim().replace(/\/$/, "") ||
+  (IS_PRODUCTION_HOST
+    ? "https://coffeeshop.agents.atom.qwixl.com"
+    : "http://127.0.0.1:5305");
+
 /** Default Ollama OpenAI-compatible base (local only; Settings preset). */
 export const DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434/v1";
 

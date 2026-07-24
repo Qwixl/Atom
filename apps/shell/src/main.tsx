@@ -13,6 +13,7 @@ import "./shell-tokens.css";
 import "./atom-ui.css";
 import "./shell/shell-chrome.css";
 import "./shell/panel-layout.css";
+import "./shell/panel-chrome.css";
 import "./shell/atom-panels.css";
 import "./demo/demo-session.css";
 import "./shell/atom-shell.css";

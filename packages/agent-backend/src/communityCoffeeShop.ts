@@ -93,9 +93,16 @@ export async function seedCoffeeShopRoom(opts: {
     hostDid: opts.identity.did,
     name: "Qwixl Coffee Shop",
     topic: "Community hangout — chat, order pretend coffee, meet people",
+    description: "Community hangout — chat, order pretend coffee, meet people",
+    category: "Town",
     admission: "open",
     moduleId: "community/coffee-shop",
     policyUrl: "https://qwixl.dev/community/aup",
+    hostRules: [
+      "Be kind; no harassment",
+      "At most a few NPC greeters per arrival",
+      "Play-money orders only in v1",
+    ],
     roomId: COFFEE_SHOP_ROOM_ID,
     maxMembers: 128,
   });

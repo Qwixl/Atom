@@ -167,7 +167,7 @@ import type { DeviceLocationSnapshot } from "./location/deviceLocation.js";
 import { ProfilePanel } from "./ProfilePanel.js";
 import { SettingsToggle } from "./ui/SettingsToggle.js";
 import { useDirtyForm } from "./ui/useDirtyForm.js";
-import { DiscoverPanel } from "./DiscoverPanel.js";
+import { DiscoverPanel, MESSAGES_ADDRESS_TOOLS_ID } from "./DiscoverPanel.js";
 import { RoomsPanel } from "./RoomsPanel.js";
 import { tryReconnectHostedAgent, completeAgentSetup } from "./auth/completeSetup.js";
 import { loadAccountType, saveAccountType, clearAccountType } from "./accountType.js";
@@ -322,17 +322,20 @@ import { ConfirmationChrome } from "./shell/ConfirmationChrome.js";
 import { AtomShell, type SettingsOpenTarget } from "./shell/AtomShell.js";
 import { IconChevronRight } from "./shell/ShellIcons.js";
 import type { ShellNavPanel } from "./shell/ShellSidebar.js";
+import { ContactAbuseReportForm } from "./ContactAbuseReportForm.js";
 
 type Provider = "mock" | "llm" | "ag-ui";
 type SidePanel = ShellNavPanel;
 
 type ShellSession = AgentSession & { dispose?: () => void };
 
-const SUGGESTIONS = [
-  "Find a coffee shop",
-  "Schedule a team standup next week",
-  "RSVP to the design review",
-  "What time works for our standup?",
+const CHAT_INTENTS = [
+  { label: "Find a coffee shop", hint: "Discover nearby places" },
+  { label: "Schedule a team standup next week", hint: "Calendar coordination" },
+  { label: "RSVP to the design review", hint: "Respond to an invite" },
+  { label: "What time works for our standup?", hint: "Find a meeting slot" },
+  { label: "Summarize my inbox", hint: "Agent briefing" },
+  { label: "Draft a reply to Alex", hint: "Compose a message" },
 ];
 const REGISTRY_URL_KEY = "atom-registry-url";
 const REGISTRY_TRUST_KEY = "atom-registry-trust";
@@ -848,6 +851,7 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsOpenTarget>("default");
   const [accountOpen, setAccountOpen] = useState(false);
+  const [chatAbuseReportOpen, setChatAbuseReportOpen] = useState(false);
 
   useEffect(() => {
     if (!agentConnectionReady || IS_DEMO_MODE) return;
@@ -925,7 +929,7 @@ export function App() {
     ) => void;
   } | null>(null);
   const [custodyError, setCustodyError] = useState<string | null>(null);
-  const [panel, setPanel] = useState<SidePanel>(() => "none");
+  const [panel, setPanel] = useState<SidePanel>(() => (IS_DEMO_MODE ? "comms" : "none"));
   const [boardVoiceMuted, setBoardVoiceMuted] = useState(() => {
     try {
       const rec = (ownerRecordsPersistence.load() ?? []).find(
@@ -953,6 +957,8 @@ export function App() {
   }, []);
   const [roomsFocusId, setRoomsFocusId] = useState<string | null>(null);
   const [commsFocusId, setCommsFocusId] = useState<string | null>(null);
+  /** Messages centre: Inbox threads vs Address book (Discover embed). */
+  const [messagesView, setMessagesView] = useState<"inbox" | "address-book">("inbox");
   const [commsContacts, setCommsContacts] = useState<AgentContact[]>(() =>
     loadContacts(ownerRecordsPersistence.load()),
   );
@@ -2771,11 +2777,18 @@ export function App() {
   const showMainComposer = showMainFeed;
 
   function navigatePanel(next: SidePanel): void {
-    // Profile / Log live in Settings — never as top-level sections.
     if (next === "profile" || next === "log") {
       openSettings(next);
-      setPanel("none");
       return;
+    }
+    // Deep links / old bookmarks: Discover lives under Messages → Address book.
+    if (next === "discover") {
+      setMessagesView("address-book");
+      setPanel("comms");
+      return;
+    }
+    if (next === "comms") {
+      setMessagesView("inbox");
     }
     setPanel(next);
   }
@@ -2853,6 +2866,7 @@ export function App() {
         onOpenSettings={openSettings}
         onOpenAccount={openAccount}
         onLogout={() => void handleLogout()}
+        onReportChatAgent={() => setChatAbuseReportOpen(true)}
         boardAvailable={boardAvailable}
         banner={
           showMainFeed && activeDiscoveryPath && activeDiscoveryPath.steps.length > 0 ? (
@@ -2981,19 +2995,59 @@ export function App() {
         {showMainFeed ? (
         <main className="shell-feed" ref={feedRef}>
           {feed.length === 0 ? (
-            <div className="shell-empty">
-              <h1>Direct your intent.</h1>
-              <p>
-                The agent composes; the shell renders from its trusted catalog. Actions of
-                consequence only ever happen in shell-owned chrome.
-              </p>
-              <div className="shell-suggestions">
-                {SUGGESTIONS.map((suggestion) => (
-                  <button key={suggestion} onClick={() => submitMessage(suggestion)}>
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
+            <div className="shell-empty shell-empty--chat">
+              <header className="shell-empty-hero">
+                <p className="shell-empty-eyebrow">Your agent</p>
+                <h1>What do you need?</h1>
+                <p>Ask in plain language — your agent replies here and can compose trusted UI.</p>
+              </header>
+
+              <nav className="shell-pathway-row" aria-label="Where to start">
+                <button
+                  type="button"
+                  className="shell-pathway-chip shell-pathway-chip--primary"
+                  onClick={() => {
+                    const el = document.querySelector<HTMLTextAreaElement>(".shell-composer textarea, .shell-composer input");
+                    el?.focus();
+                  }}
+                >
+                  Ask agent
+                </button>
+                <button
+                  type="button"
+                  className="shell-pathway-chip"
+                  onClick={() => {
+                    setMessagesView("address-book");
+                    setPanel("comms");
+                  }}
+                >
+                  Address book
+                </button>
+                <button
+                  type="button"
+                  className="shell-pathway-chip"
+                  onClick={() => setPanel("rooms")}
+                >
+                  Rooms
+                </button>
+              </nav>
+
+              <section className="panel-carousel shell-intent-carousel" aria-label="Suggested intents">
+                <h2 className="panel-carousel-label">Try an intent</h2>
+                <div className="panel-carousel-track">
+                  {CHAT_INTENTS.map((intent) => (
+                    <button
+                      key={intent.label}
+                      type="button"
+                      className="panel-carousel-card"
+                      onClick={() => submitMessage(intent.label)}
+                    >
+                      <span className="panel-carousel-card-title">{intent.label}</span>
+                      <span className="panel-carousel-card-desc">{intent.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
               {provider === "llm" ? (
                 <p className="shell-empty-note">
                   Live agent: composes from the catalog. Connect WebCal in Settings → Connectors for
@@ -3060,64 +3114,93 @@ export function App() {
         ) : null}
 
         {!IS_DEMO_MODE && panel === "comms" ? (
-          <div className="shell-panel-view shell-panel-view--inset">
-          <CommsPanel
-            contacts={commsContacts}
-            ownerRecords={profileRecords}
-            ownerStore={ownerStore}
-            focusContactId={commsFocusId}
-            vaultUnlocked={vaultUnlocked}
-            agentConnectionReady={agentConnectionReady}
-            onAgentAuthFailure={handleAgentAuthFailure}
-            onRequestReconnect={() => {
-              resetFirstRunDone();
-              clearCommsAgentConfig();
-              navigate("/app/?auth=login", true);
-            }}
-            onContactsChanged={() => {
-              setCommsFocusId(null);
-              setCommsContacts(loadContacts(ownerStore.list()));
-            }}
-            onProfileChanged={() => {
-              setProfileRecords(ownerStore.list());
-              setCommsContacts(loadContacts(ownerStore.list()));
-            }}
-            onRequestConfirmation={requestCommsConfirmation}
-            attestationEntries={attestations}
-            catalog={catalog}
-            registry={registry}
-            modulesEnabled={modulesActive}
-          />
-          </div>
-        ) : null}
-
-        {!IS_DEMO_MODE && panel === "discover" ? (
-          <div className="shell-panel-view shell-panel-view--inset">
-          <DiscoverPanel
-            contacts={commsContacts}
-            vaultUnlocked={vaultUnlocked}
-            agentConnectionReady={agentConnectionReady}
-            onAgentAuthFailure={handleAgentAuthFailure}
-            onRequestReconnect={() => {
-              resetFirstRunDone();
-              clearCommsAgentConfig();
-              navigate("/app/?auth=login", true);
-            }}
-            onContactsChange={setCommsContacts}
-            onJoinedRoom={(roomId) => {
-              setRoomsFocusId(roomId);
-              setPanel("rooms");
-            }}
-            onDmStarted={(contactId) => {
-              setCommsFocusId(contactId);
-              setPanel("comms");
-            }}
-          />
+          <div className="shell-panel-view messages-centre">
+            <div
+              className={`messages-subnav${messagesView === "address-book" ? " messages-subnav--address-book" : ""}`}
+            >
+              <div className="messages-subnav-tabs" role="tablist" aria-label="Messages">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={messagesView === "inbox"}
+                  className={`messages-subnav-tab${messagesView === "inbox" ? " is-active" : ""}`}
+                  onClick={() => setMessagesView("inbox")}
+                >
+                  Inbox
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={messagesView === "address-book"}
+                  className={`messages-subnav-tab${messagesView === "address-book" ? " is-active" : ""}`}
+                  onClick={() => setMessagesView("address-book")}
+                >
+                  Address book
+                </button>
+              </div>
+              {messagesView === "address-book" ? (
+                <div id={MESSAGES_ADDRESS_TOOLS_ID} className="messages-subnav-tools" />
+              ) : null}
+            </div>
+            {messagesView === "inbox" ? (
+              <CommsPanel
+                contacts={commsContacts}
+                ownerRecords={profileRecords}
+                ownerStore={ownerStore}
+                focusContactId={commsFocusId}
+                vaultUnlocked={vaultUnlocked}
+                agentConnectionReady={agentConnectionReady}
+                onAgentAuthFailure={handleAgentAuthFailure}
+                onRequestReconnect={() => {
+                  resetFirstRunDone();
+                  clearCommsAgentConfig();
+                  navigate("/app/?auth=login", true);
+                }}
+                onContactsChanged={() => {
+                  setCommsFocusId(null);
+                  setCommsContacts(loadContacts(ownerStore.list()));
+                }}
+                onProfileChanged={() => {
+                  setProfileRecords(ownerStore.list());
+                  setCommsContacts(loadContacts(ownerStore.list()));
+                }}
+                onRequestConfirmation={requestCommsConfirmation}
+                attestationEntries={attestations}
+                catalog={catalog}
+                registry={registry}
+                modulesEnabled={modulesActive}
+                onOpenAddressBook={() => setMessagesView("address-book")}
+              />
+            ) : (
+              <DiscoverPanel
+                density="compact"
+                toolbarPortalId={MESSAGES_ADDRESS_TOOLS_ID}
+                contacts={commsContacts}
+                vaultUnlocked={vaultUnlocked}
+                agentConnectionReady={agentConnectionReady}
+                onAgentAuthFailure={handleAgentAuthFailure}
+                onRequestReconnect={() => {
+                  resetFirstRunDone();
+                  clearCommsAgentConfig();
+                  navigate("/app/?auth=login", true);
+                }}
+                onContactsChange={setCommsContacts}
+                onJoinedRoom={(roomId) => {
+                  setRoomsFocusId(roomId);
+                  setPanel("rooms");
+                }}
+                onDmStarted={(contactId) => {
+                  setCommsFocusId(contactId);
+                  setMessagesView("inbox");
+                  setPanel("comms");
+                }}
+              />
+            )}
           </div>
         ) : null}
 
         {!IS_DEMO_MODE && panel === "rooms" ? (
-          <div className="shell-panel-view shell-panel-view--inset">
+          <div className="shell-panel-view">
           <RoomsPanel
             initialRoomId={roomsFocusId}
             contacts={commsContacts}
@@ -3130,7 +3213,10 @@ export function App() {
               navigate("/app/?auth=login", true);
             }}
             onContactsChange={setCommsContacts}
-            onOpenDiscover={() => setPanel("discover")}
+            onOpenDiscover={() => {
+              setMessagesView("address-book");
+              setPanel("comms");
+            }}
             onActivity={() => {
               if (roomsFocusId) setRoomsFocusId(null);
             }}
@@ -3138,6 +3224,33 @@ export function App() {
           </div>
         ) : null}
       </AtomShell>
+
+      {chatAbuseReportOpen ? (
+        <div className="settings-overlay" role="presentation">
+          <div className="settings-dialog" role="dialog" aria-label="Report chat agent">
+            <div className="settings-dialog-header">
+              <h2>Report chat agent</h2>
+            </div>
+            <div className="settings-dialog-body">
+              <p className="settings-note">
+                Report harmful behavior from your personal Chat agent. Do not paste private message
+                contents.
+              </p>
+              <ContactAbuseReportForm
+                target={{
+                  did: loadCommsAgentConfig().adminUrl || agUiConfig.url || "chat-agent",
+                  endpoint: agUiConfig.url || loadCommsAgentConfig().adminUrl,
+                  name: "Chat agent",
+                }}
+                surface="chat"
+                hideAlsoBlock
+                onReported={() => setChatAbuseReportOpen(false)}
+                onCancel={() => setChatAbuseReportOpen(false)}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {chromePending ? (
         <ConfirmationChrome
@@ -3900,7 +4013,7 @@ function SettingsDialog({
     setHostedLlmError(null);
     setHostedLlmNote(null);
     try {
-      await updateHostedLlmConnection({
+      const updateResult = await updateHostedLlmConnection({
         llmApiKey: key,
         llmProvider: resolved.provider,
         llmBaseUrl: resolved.baseUrl,
@@ -3915,9 +4028,22 @@ function SettingsDialog({
       if (adminUrl) {
         onSaveAgUi(saveAgUiConfigForAgent(adminUrl));
       }
-      setHostedLlmNote(
-        "Saved on your agent (the key field clears on purpose). Chat uses that server key — wait a few seconds for the restart, then try again.",
-      );
+      if (updateResult.status === "updated_but_unreachable") {
+        setHostedLlmError(
+          updateResult.llmProbe?.error
+            ? `Saved on your agent, but Chat cannot reach the model yet: ${updateResult.llmProbe.error}`
+            : "Saved on your agent, but Chat cannot reach the model yet. Check provider, base URL, and model.",
+        );
+        setHostedLlmNote(null);
+      } else if (updateResult.llmProbe?.ok) {
+        setHostedLlmNote(
+          `Saved and verified with ${updateResult.llmProbe.model ?? resolved.model}. Chat is ready — try a message.`,
+        );
+      } else {
+        setHostedLlmNote(
+          "Saved on your agent (the key field clears on purpose). Chat uses that server key — wait a few seconds for the restart, then try again.",
+        );
+      }
     } catch (error) {
       setHostedLlmError(
         presentUserError(error, {

@@ -7,7 +7,6 @@ import {
   IconChat,
   IconChevronDown,
   IconChevronRight,
-  IconDiscover,
   IconExit,
   IconGames,
   IconMenu,
@@ -49,6 +48,8 @@ type AtomShellProps = {
   boardAvailable?: boolean;
   showDemoTag?: boolean;
   variant?: "default" | "demo";
+  /** Chat agent overflow — report personal agent / chat surface. */
+  onReportChatAgent?: () => void;
   children: React.ReactNode;
 };
 
@@ -56,7 +57,6 @@ type AtomShellProps = {
 const PRIMARY_NAV: Omit<NavItem, "badge" | "locked">[] = [
   { id: "none", label: "Chat", icon: IconChat },
   { id: "comms", label: "Messages", icon: IconMessages },
-  { id: "discover", label: "Discover", icon: IconDiscover },
   { id: "rooms", label: "Rooms", icon: IconRooms },
 ];
 
@@ -133,6 +133,7 @@ export function AtomShell({
   boardAvailable = false,
   showDemoTag = false,
   variant = "default",
+  onReportChatAgent,
   children,
 }: AtomShellProps) {
   const locked = new Set(lockedSections);
@@ -361,6 +362,18 @@ export function AtomShell({
             <IconProfile className="atom-nav-icon" />
             <span>Account</span>
           </button>
+          {onReportChatAgent ? (
+            <button
+              type="button"
+              className="atom-nav-popover-item"
+              onClick={() => {
+                hideNavMenu();
+                onReportChatAgent();
+              }}
+            >
+              <span>Report chat agent</span>
+            </button>
+          ) : null}
           <button
             type="button"
             className="atom-nav-popover-item"
