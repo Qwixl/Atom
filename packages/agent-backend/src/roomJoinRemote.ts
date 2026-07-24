@@ -2,7 +2,7 @@
  * Shared remote room join (admin route + swarm room-invite auto-accept).
  */
 
-import type { AgentKeyPair } from "@qwixl/protocol";
+import type { AgentKeyPair, DataObject } from "@qwixl/protocol";
 import { connectMlsPeer } from "./mlsReconnect.js";
 import { adminBaseFromPeerUrl, type MlsSessionStore } from "./mlsSessions.js";
 import type { MlsPeerRecordStore } from "./mlsPeerRecords.js";
@@ -18,8 +18,20 @@ export interface JoinRemoteRoomDeps {
 
 export async function joinRemoteRoom(
   deps: JoinRemoteRoomDeps,
-  opts: { hostUrl: string; roomId: string; memberName?: string },
-): Promise<{ joined: string; descriptor: RoomDescriptor | null; alreadyMember: boolean }> {
+  opts: {
+    hostUrl: string;
+    roomId: string;
+    memberName?: string;
+    inviteObject?: DataObject;
+    requestOnly?: boolean;
+  },
+): Promise<{
+  joined?: string;
+  descriptor: RoomDescriptor | null;
+  alreadyMember?: boolean;
+  pending?: boolean;
+  request?: unknown;
+}> {
   const { identity, mlsStore, rooms, peerRecords, publicBaseUrl } = deps;
   const hostUrl = opts.hostUrl.trim();
   const roomId = opts.roomId.trim();
@@ -29,7 +41,31 @@ export async function joinRemoteRoom(
   const adminBase = adminBaseFromPeerUrl(hostUrl);
   const joinedLocal = rooms.getJoinedRoom(roomId);
   if (joinedLocal && mlsStore.hasRoomSession(roomId)) {
-    return { joined: roomId, descriptor: joinedLocal.descriptor, alreadyMember: true };
+    // After a host recreate, local MLS/joined state can outlive the host roster.
+    // Confirm membership; if missing, drop local state and fall through to re-join.
+    try {
+      const membersResp = await fetch(
+        `${adminBase}/rooms/${encodeURIComponent(roomId)}/members`,
+      );
+      if (membersResp.ok) {
+        const body = (await membersResp.json()) as { members?: Array<{ did?: string }> };
+        const onHost = (body.members ?? []).some((m) => m.did === identity.did);
+        if (onHost) {
+          void fetch(`${adminBase}/rooms/${encodeURIComponent(roomId)}/presence`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ memberDid: identity.did, attendance: "present" }),
+          }).catch(() => undefined);
+          return { joined: roomId, descriptor: joinedLocal.descriptor, alreadyMember: true };
+        }
+        rooms.forgetJoinedRoom(roomId);
+        mlsStore.dropRoomSession(roomId);
+      } else {
+        return { joined: roomId, descriptor: joinedLocal.descriptor, alreadyMember: true };
+      }
+    } catch {
+      return { joined: roomId, descriptor: joinedLocal.descriptor, alreadyMember: true };
+    }
   }
   const memberKp = await mlsStore.memberKeyPackage(identity.did);
   const joinResp = await fetch(`${adminBase}/rooms/${encodeURIComponent(roomId)}/join`, {
@@ -40,6 +76,8 @@ export async function joinRemoteRoom(
       memberEndpoint: `${publicBaseUrl.replace(/\/$/, "")}/a2a/jsonrpc`,
       memberName: opts.memberName?.trim(),
       keyPackageWire: Buffer.from(memberKp.wire).toString("base64"),
+      inviteObject: opts.inviteObject,
+      requestOnly: opts.requestOnly,
     }),
   });
   if (!joinResp.ok) {
@@ -48,6 +86,8 @@ export async function joinRemoteRoom(
   }
   const joined = (await joinResp.json()) as {
     alreadyMember?: boolean;
+    pending?: boolean;
+    request?: unknown;
     handshake?: {
       initiatorDid: string;
       welcome: string;
@@ -55,6 +95,9 @@ export async function joinRemoteRoom(
       memberDids?: string[];
     };
   };
+  if (joined.pending) {
+    return { pending: true, request: joined.request, descriptor: null };
+  }
   if (joined.alreadyMember) {
     if (!mlsStore.hasRoomSession(roomId)) {
       throw new Error(

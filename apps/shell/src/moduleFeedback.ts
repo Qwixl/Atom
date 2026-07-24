@@ -1,6 +1,7 @@
 /** Client helpers for control-plane module feedback, module abuse, and comms abuse (M-TS-04/08/11). */
 
 import { controlPlaneBaseUrl } from "./hostConfig.js";
+import { supabaseAccessToken } from "./auth/hostedAccount.js";
 
 export type ModuleAbuseCategory =
   | "malware"
@@ -42,9 +43,12 @@ const DETAILS_MAX = 2000;
 const ID_MAX = 200;
 
 async function postControlPlaneJson(path: string, body: Record<string, unknown>): Promise<void> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = await supabaseAccessToken().catch(() => null);
+  if (token) headers.Authorization = `Bearer ${token}`;
   const response = await fetch(`${controlPlaneBaseUrl()}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -105,6 +109,7 @@ export async function submitCommsAbuseReport(opts: {
   peerName?: string;
   roomId?: string;
   alsoBlock?: boolean;
+  surface?: "chat" | "messages" | "rooms" | "modules" | "other";
 }): Promise<void> {
   const peerDid = opts.peerDid.trim();
   if (!peerDid) {
@@ -122,6 +127,7 @@ export async function submitCommsAbuseReport(opts: {
     peerName: opts.peerName?.trim().slice(0, 120) || undefined,
     roomId: opts.roomId?.trim().slice(0, ID_MAX) || undefined,
     alsoBlock: opts.alsoBlock === true,
+    surface: opts.surface ?? (opts.roomId ? "rooms" : "messages"),
   });
 
   const peerEndpoint = opts.peerEndpoint?.trim();

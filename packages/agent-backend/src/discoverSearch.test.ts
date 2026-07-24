@@ -72,6 +72,7 @@ const baseConfig: AgentBackendConfig = {
   brainAlwaysOn: true,
   brainIntervalMs: 60000,
   agentKind: "owner",
+  meshBootstrap: false,
   killSwitch: false,
   ...testReachabilityDefaults({ publicBaseUrl: "http://127.0.0.1:5204" }),
 };

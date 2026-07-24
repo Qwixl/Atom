@@ -5,6 +5,7 @@ import type { ActionReserveRefKind, MonetaryAmount, RsvpAnswer, SchedulingSlot }
 import type { AttestationEntry, Catalog, ModuleRegistry, BattleshipsMove } from "@qwixl/shell-core";
 import { BattleshipsA2AHost } from "@qwixl/shell-core";
 import { ThreadItemView, useRespondedProposalIds, useRespondedTransactionIds, threadItemNeedsActions } from "./comms/CoordinationCard.js";
+import { PanelFilterPills } from "./shell/PanelChrome.js";
 import { CommsAgentClient } from "./comms/client.js";
 import { CommsGameModal } from "./comms/CommsGameModal.js";
 import { CommsModuleEmbed } from "./comms/CommsModuleEmbed.js";
@@ -129,6 +130,7 @@ export function CommsPanel({
   catalog,
   registry,
   modulesEnabled = true,
+  onOpenAddressBook,
 }: {
   contacts: AgentContact[];
   ownerRecords: OwnerRecord[];
@@ -147,6 +149,8 @@ export function CommsPanel({
   agentConnectionReady?: boolean;
   onAgentAuthFailure?: () => void | Promise<void>;
   onRequestReconnect?: () => void;
+  /** Open Messages → Address book (Discover embed). */
+  onOpenAddressBook?: () => void;
   /** Ephemeral demo session — do not read/write live agent config. */
   agentConfigOverride?: CommsAgentConfig;
   onPersistContacts?: (contacts: AgentContact[]) => void;
@@ -203,6 +207,7 @@ export function CommsPanel({
   const [tttModalOpen, setTttModalOpen] = useState(false);
   const autoOpenedTttGameIdRef = useRef<string | null>(null);
   const [contactSearch, setContactSearch] = useState("");
+  const [contactFilter, setContactFilter] = useState<"all" | "encrypted" | "connecting">("all");
   const [webcalBusyEvents, setWebcalBusyEvents] = useState<WebcalBusyEvent[]>([]);
   const [abuseReportOpen, setAbuseReportOpen] = useState(false);
 
@@ -260,14 +265,17 @@ export function CommsPanel({
   const ownerCategories = useMemo(() => uniqueOwnerCategories(ownerRecords), [ownerRecords]);
   const visibleContacts = useMemo(() => {
     const query = contactSearch.trim().toLowerCase();
-    if (!query) return contacts;
     return contacts.filter((contact) => {
+      const encrypted = mlsPeers.includes(contact.did);
+      if (contactFilter === "encrypted" && !encrypted) return false;
+      if (contactFilter === "connecting" && encrypted) return false;
+      if (!query) return true;
       const haystack = [contactDisplayName(contact), contact.name, contact.handle ?? ""]
         .join(" ")
         .toLowerCase();
       return haystack.includes(query);
     });
-  }, [contactSearch, contacts]);
+  }, [contactFilter, contactSearch, contacts, mlsPeers]);
 
   const liveClient = useCallback(() => {
     const cfg = loadCommsAgentConfig();
@@ -2299,36 +2307,63 @@ export function CommsPanel({
       <div className={`panel-body panel-master-detail comms-main${demoMode ? " comms-main--demo" : ""}`}>
         {!demoSession ? (
         <nav className="panel-list comms-sidebar" aria-label="Contacts">
-          <div className="panel-list-head">
-            <span>Contacts</span>
-            {!showSetup && contacts.length > 0 ? (
-              <button
-                type="button"
-                className="panel-btn-ghost"
-                onClick={() => {
-                  if (ATOM_BROWSER_MODE) {
+          <div className="panel-list-head panel-list-head--compact">
+            <span className="panel-list-head-title">Inbox</span>
+            <div className="panel-list-head-actions">
+              {onOpenAddressBook ? (
+                <button type="button" className="panel-btn panel-btn-primary" onClick={onOpenAddressBook}>
+                  Meet someone
+                </button>
+              ) : null}
+              {!showSetup && contacts.length > 0 ? (
+                <button
+                  type="button"
+                  className="panel-btn"
+                  onClick={() => {
+                    if (ATOM_BROWSER_MODE) {
+                      setShowAddContact(true);
+                      return;
+                    }
+                    setShowSetup(true);
                     setShowAddContact(true);
-                    return;
-                  }
-                  setShowSetup(true);
-                  setShowAddContact(true);
-                }}
-              >
-                + Add
-              </button>
-            ) : null}
+                  }}
+                >
+                  + Add
+                </button>
+              ) : null}
+            </div>
           </div>
           {contacts.length > 0 ? (
-            <label className="comms-contact-search">
-              <span className="visually-hidden">Search contacts</span>
-              <input
-                className="panel-input"
-                type="search"
-                value={contactSearch}
-                onChange={(event) => setContactSearch(event.target.value)}
-                placeholder="Search contacts…"
+            <>
+              <PanelFilterPills
+                ariaLabel="Filter contacts"
+                value={contactFilter}
+                options={[
+                  { value: "all", label: "All", count: contacts.length },
+                  {
+                    value: "encrypted",
+                    label: "Encrypted",
+                    count: contacts.filter((c) => mlsPeers.includes(c.did)).length,
+                  },
+                  {
+                    value: "connecting",
+                    label: "Connecting",
+                    count: contacts.filter((c) => !mlsPeers.includes(c.did)).length,
+                  },
+                ]}
+                onChange={setContactFilter}
               />
-            </label>
+              <label className="comms-contact-search">
+                <span className="visually-hidden">Search contacts</span>
+                <input
+                  className="panel-input"
+                  type="search"
+                  value={contactSearch}
+                  onChange={(event) => setContactSearch(event.target.value)}
+                  placeholder="Search contacts…"
+                />
+              </label>
+            </>
           ) : null}
           {ATOM_BROWSER_MODE && showAddContact ? (
             <div className="comms-setup-card comms-browser-add">
@@ -2371,11 +2406,20 @@ export function CommsPanel({
           ) : null}
           <ul className="panel-list-scroll comms-contact-list">
             {contacts.length === 0 ? (
-              <li className="panel-empty">
-                {ATOM_BROWSER_MODE ? "No contacts yet. Use Discover to message someone." : "No contacts yet. Open Setup to connect."}
+              <li className="panel-empty-state panel-empty-state--compact">
+                <strong>No conversations yet</strong>
+                <p>Meet someone in Address book — they appear here when you Message them.</p>
+                {onOpenAddressBook ? (
+                  <button type="button" className="panel-btn panel-btn-primary" onClick={onOpenAddressBook}>
+                    Open Address book
+                  </button>
+                ) : null}
               </li>
             ) : visibleContacts.length === 0 ? (
-              <li className="panel-empty">No contacts match your search.</li>
+              <li className="panel-empty-state panel-empty-state--compact">
+                <strong>No matches</strong>
+                <p>Try a different name, or clear your search.</p>
+              </li>
             ) : (
               visibleContacts.map((contact) => {
                 const encrypted = mlsPeers.includes(contact.did);
@@ -2384,7 +2428,7 @@ export function CommsPanel({
                   <li key={contact.id}>
                     <button
                       type="button"
-                      className={`panel-row comms-contact${isSelected ? " is-selected" : ""}`}
+                      className={`panel-row panel-row--elevated comms-contact${isSelected ? " is-selected" : ""}`}
                       onClick={() => setSelectedId(contact.id)}
                     >
                       <span className="panel-avatar comms-contact-avatar" aria-hidden="true">
@@ -2918,13 +2962,15 @@ export function CommsPanel({
               ) : null}
             </>
           ) : (
-            <div className="panel-empty comms-no-selection">
-              <strong>Select a contact</strong>
-              <p>
-                {ATOM_BROWSER_MODE
-                  ? "Choose someone from the list, use Discover, or add a contact with + Add."
-                  : "Choose someone from the list, or open Setup to add a new contact."}
-              </p>
+            <div className="panel-empty-state comms-no-selection">
+              <p className="panel-surface-eyebrow">Inbox</p>
+              <strong>Pick a thread — or meet someone new</strong>
+              <p>Choose a contact on the left, or open Address book to find someone.</p>
+              {onOpenAddressBook ? (
+                <button type="button" className="panel-btn panel-btn-primary" onClick={onOpenAddressBook}>
+                  Open Address book
+                </button>
+              ) : null}
             </div>
           )}
         </section>
