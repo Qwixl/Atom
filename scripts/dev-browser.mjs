@@ -99,7 +99,7 @@ console.log(`
 ================================================================================
   Atom (browser mode)
 
-  Opening ${SHELL_URL}  (marketing — static HTML, SEO-friendly)
+  Opening ${SHELL_URL}  (platform landing + /app shell)
   App shell: ${SHELL_URL}/app/
   Live demo: ${SHELL_URL}/demo/  →  Start demo opens ${SHELL_URL}/app/?demo=1
 

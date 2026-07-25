@@ -2,7 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { marketingStaticPlugin } from "./src/vite-marketing-static.ts";
+import { platformStaticPlugin } from "./src/vite-platform-static.ts";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const shellRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: productionBuild ? "/app/" : "/",
-    plugins: [react(), marketingStaticPlugin()],
+    plugins: [react(), platformStaticPlugin()],
     appType: "spa",
     root: shellRoot,
     publicDir: path.join(shellRoot, "public"),

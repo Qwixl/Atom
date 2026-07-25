@@ -4,7 +4,7 @@ import { App } from "./App.js";
 import { AuthWizard } from "./auth/AuthWizard.js";
 import { EmailConfirmCallback } from "./auth/EmailConfirmCallback.js";
 import { hasSupabaseAuthCallbackInUrl } from "./auth/emailConfirmBridge.js";
-import { DemoPeerPage } from "./marketing/DemoPeerPage.js";
+import { DemoPeerPage } from "./demo/DemoPeerPage.js";
 import { DemoSessionApp } from "./demo/DemoSessionApp.js";
 import { useSearchString } from "./navigation.js";
 import { isDemoSessionActive } from "./demo/demoSessionStorage.js";
@@ -39,7 +39,7 @@ function LiveAppGate() {
   return <App />;
 }
 
-/** React shell only — marketing is static HTML at site root. */
+/** React shell only — commercial marketing lives in private Atom-MC. */
 export function RootApp() {
   const search = useSearchString();
   const params = new URLSearchParams(search);

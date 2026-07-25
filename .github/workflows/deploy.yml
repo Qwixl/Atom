@@ -12,37 +12,8 @@ permissions:
   actions: read
 
 jobs:
-  deploy-shell-atom:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        with:
-          version: 10.32.1
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build:packages
-      - run: pnpm registry:verify
-      - run: pnpm --filter @qwixl/shell-app build
-        env:
-          VITE_CONTROL_PLANE_URL: https://control.atom.qwixl.com
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-
-      - uses: amondnet/vercel-action@16e87c0a08142b0d0d33b76aeaf20823c381b9b9 # v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_SHELL_ATOM }}
-          vercel-version: 54.20.1
-          vercel-args: "--prod"
+  # atom.qwixl.com (marketing + /app SPA) deploys from private Qwixl/Atom-MC
+  # (.github/workflows/deploy-website.yml). This public repo is the platform only.
 
   deploy-atom-registry:
     if: github.event_name == 'workflow_dispatch'

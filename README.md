@@ -211,28 +211,20 @@ Or push a tag `v*` to trigger `.github/workflows/release.yml` (runs `pnpm releas
 
 ## Deploy reference hosts
 
-Atom deploys as **separate Vercel projects** from the [`Qwixl/Atom`](https://github.com/Qwixl/Atom) repo. This is independent of the Qwixl product monorepo and its Vercel project.
+This public repo is the **platform** (WordPress.org-style). The commercial website and paid accounts live in private **Atom-MC**, not here.
 
-| Project | Root directory | Production URL |
+| Project | Source | Production URL |
 |---|---|---|
-| `shell-atom` | `apps/shell` | https://atom.qwixl.com |
-| `atom-registry` | `apps/registry-host` | https://atom.registry.qwixl.com |
+| Website + hosted shell | Private `Qwixl/Atom-MC` (`apps/marketing`) | https://atom.qwixl.com |
+| Module registry | This repo `apps/registry-host` | https://atom.registry.qwixl.com |
 
-Both projects connect to `Qwixl/Atom` on GitHub. In each Vercel project's **Settings → General → Root Directory**, set the path above so monorepo builds resolve `workspace:*` deps.
+Self-hosters: build the shell with `pnpm --filter @qwixl/shell-app build` → `apps/shell/dist/` (minimal platform landing + `/app` SPA). Point `VITE_CONTROL_PLANE_URL` at your own control plane.
 
-Build settings (also in each app's `vercel.json`):
-
-**shell-atom** — install: `cd ../.. && pnpm install` · build: `cd ../.. && pnpm build:packages && pnpm --filter @qwixl/shell-app build` · output: `dist`
-
-**atom-registry** — install: `cd ../.. && pnpm install` · build: `cd ../.. && pnpm --filter @qwixl/registry-host build` · output: `dist`
-
-Set the shell's registry URL in Settings to `https://atom.registry.qwixl.com` when testing cross-host module loads.
-
-Optional GitHub Actions deploy (`.github/workflows/deploy.yml`) requires secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID_SHELL_ATOM`, `VERCEL_PROJECT_ID_ATOM_REGISTRY`.
+Optional GitHub Actions deploy for the registry (`.github/workflows/deploy.yml`) requires secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID_ATOM_REGISTRY`.
 
 ## Status
 
-Shell platform v0.1.1 — live at [atom.qwixl.com](https://atom.qwixl.com) and [atom.registry.qwixl.com](https://atom.registry.qwixl.com). Packages on npm: [@qwixl/shell-core](https://www.npmjs.com/package/@qwixl/shell-core) and siblings. After clone, `pnpm registry:verify` must pass before publish/deploy.
+Open platform packages on npm: [@qwixl/shell-core](https://www.npmjs.com/package/@qwixl/shell-core) and siblings. Hosted demo UI: [atom.qwixl.com](https://atom.qwixl.com). Registry: [atom.registry.qwixl.com](https://atom.registry.qwixl.com). After clone, `pnpm registry:verify` must pass before publish/deploy.
 
 ## Support the project
 
