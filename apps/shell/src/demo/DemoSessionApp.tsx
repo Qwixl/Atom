@@ -11,7 +11,7 @@ import {
   loadDemoSessionDeliveryUrl,
   loadDemoSessionPeerConfig,
 } from "./demoSessionStorage.js";
-import { DEMO_PEER_TOKEN, demoPeerAdminUrl } from "../marketing/demoPeerConnect.js";
+import { DEMO_PEER_TOKEN, demoPeerAdminUrl } from "./demoPeerConnect.js";
 
 export function DemoSessionApp() {
   const aliceConfig = useMemo(() => loadDemoSessionConfig(), []);
