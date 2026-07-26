@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-22T07:55:59.094Z",
+  "updatedAt": "2026-07-26T19:48:46.967Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
@@ -265,20 +265,6 @@
       "signatureUrl": "signature.sigstore.json"
     },
     {
-      "id": "scheduling/meeting-picker",
-      "version": "1.0.0",
-      "manifestUrl": "scheduling/meeting-picker/manifest.json",
-      "integrity": "sha256:e4cfce12254407a7c14045ce6b17bbe15f198d1cb151bfa99ca8e4fbfdea4cf4",
-      "bundleIntegrity": "sha256:f4871a5bff83ac4a0c1167294c5da79ff6bb748d34c91c9eb495a71001d60f06",
-      "publisher": "did:key:z6Mkatomexamples01",
-      "categories": [
-        "scheduling",
-        "coordination"
-      ],
-      "tier": "system",
-      "signatureUrl": "signature.sigstore.json"
-    },
-    {
       "id": "travel/seat-map",
       "version": "1.0.0",
       "manifestUrl": "travel/seat-map/manifest.json",
@@ -288,6 +274,20 @@
       "categories": [
         "travel"
       ],
+      "signatureUrl": "signature.sigstore.json"
+    },
+    {
+      "id": "scheduling/meeting-picker",
+      "version": "1.0.0",
+      "manifestUrl": "scheduling/meeting-picker/manifest.json",
+      "integrity": "sha256:b669824a428dbc6473f716ac214d1b1fbb015cb85ad8d4cc488e6148d2591968",
+      "bundleIntegrity": "sha256:9804d2e43a5ff846a019e3219830b94cd1d7f5062e269e7496a4bfab1f9012a4",
+      "publisher": "did:key:z6Mkatomexamples01",
+      "categories": [
+        "scheduling",
+        "coordination"
+      ],
+      "tier": "system",
       "signatureUrl": "signature.sigstore.json"
     }
   ]
