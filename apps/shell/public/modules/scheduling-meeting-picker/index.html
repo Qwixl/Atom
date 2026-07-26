@@ -6,38 +6,57 @@
   <title>Meeting picker</title>
   <style>
     * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
-    body { margin: 0; padding: 8px 10px; min-height: 0; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
-    .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    body { margin: 0; padding: 10px 12px; min-height: 0; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
+    .stack { display: flex; flex-direction: column; gap: 8px; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+    .field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 120px; }
+    .field label { font-size: 11px; font-weight: 600; color: var(--atom-color-text-dim, #666); }
     input, select, button { font: inherit; }
     input, select {
-      flex: 1; min-width: 110px; padding: 6px 8px;
+      width: 100%; padding: 8px 10px;
       border: 1px solid var(--atom-color-border, #ccc); border-radius: var(--atom-radius-sm, 6px);
       background: var(--atom-color-bg-raised, #fafafa); color: inherit;
     }
     button.send {
       padding: 8px 14px; border: none; border-radius: var(--atom-radius-sm, 6px);
       background: var(--atom-color-accent, #111); color: var(--atom-color-bg, #fff); cursor: pointer;
+      white-space: nowrap;
     }
     button.send:disabled { opacity: 0.45; cursor: not-allowed; }
-    .warn { margin-top: 8px; font-size: 12px; color: #b45309; }
-    .busy-note { margin-top: 4px; font-size: 11px; color: var(--atom-color-text-dim, #666); }
+    .warn { margin: 0; font-size: 12px; color: #b45309; }
+    .busy-note { margin: 0; font-size: 11px; color: var(--atom-color-text-dim, #666); }
   </style>
 </head>
 <body>
-  <div class="row">
-    <input id="title" type="text" placeholder="Title" aria-label="Meeting title" />
-    <input id="start" type="datetime-local" aria-label="Date and time" />
-    <select id="duration" aria-label="Duration">
-      <option value="15">15 min</option>
-      <option value="30" selected>30 min</option>
-      <option value="45">45 min</option>
-      <option value="60">1 hour</option>
-      <option value="90">1.5 hours</option>
-    </select>
-    <button type="button" class="send" id="send">Send proposal</button>
+  <div class="stack">
+    <div class="field">
+      <label for="title">Title</label>
+      <input id="title" type="text" placeholder="Title" aria-label="Meeting title" />
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="date">Date</label>
+        <input id="date" type="date" aria-label="Meeting date" />
+      </div>
+      <div class="field">
+        <label for="time">Time</label>
+        <input id="time" type="time" aria-label="Meeting time" />
+      </div>
+      <div class="field" style="flex:0.7;min-width:96px">
+        <label for="duration">Duration</label>
+        <select id="duration" aria-label="Duration">
+          <option value="15">15 min</option>
+          <option value="30" selected>30 min</option>
+          <option value="45">45 min</option>
+          <option value="60">1 hour</option>
+          <option value="90">1.5 hours</option>
+        </select>
+      </div>
+      <button type="button" class="send" id="send">Send proposal</button>
+    </div>
+    <p class="warn" id="conflict" hidden>That time overlaps an event on your calendar.</p>
+    <p class="busy-note" id="busyNote" hidden></p>
   </div>
-  <p class="warn" id="conflict" hidden>That time overlaps an event on your calendar.</p>
-  <p class="busy-note" id="busyNote" hidden></p>
   <script>
     let shellOrigin = null;
     let busyEvents = [];
@@ -50,10 +69,22 @@
       const root = document.documentElement.style;
       for (const k of themeKeys) if (theme[k]) root.setProperty(cssMap[k], theme[k]);
     }
-    function defaultStart() {
-      const next = new Date(); next.setMinutes(0,0,0); next.setHours(next.getHours()+1);
-      const offset = next.getTimezoneOffset();
-      return new Date(next.getTime() - offset * 60000).toISOString().slice(0,16);
+    /** Next weekday (Mon–Fri) at 10:00 local — readable default for “next week” demos. */
+    function defaultStartParts() {
+      const next = new Date();
+      next.setHours(10, 0, 0, 0);
+      next.setDate(next.getDate() + 1);
+      while (next.getDay() === 0 || next.getDay() === 6) next.setDate(next.getDate() + 1);
+      const y = next.getFullYear();
+      const m = String(next.getMonth() + 1).padStart(2, "0");
+      const d = String(next.getDate()).padStart(2, "0");
+      return { date: y + "-" + m + "-" + d, time: "10:00" };
+    }
+    function startLocalValue() {
+      const date = document.getElementById("date").value;
+      const time = document.getElementById("time").value || "10:00";
+      if (!date) return "";
+      return date + "T" + time;
     }
     function slotFromInputs(title, startLocal, durationMin) {
       const start = new Date(startLocal);
@@ -74,7 +105,7 @@
       return false;
     }
     function updateConflict() {
-      const startLocal = document.getElementById("start").value;
+      const startLocal = startLocalValue();
       const durationMin = Number(document.getElementById("duration").value);
       const title = document.getElementById("title").value.trim() || "Meeting";
       const slot = slotFromInputs(title, startLocal, durationMin);
@@ -87,23 +118,29 @@
       } else {
         note.hidden = true;
       }
+      reportHeight();
     }
     function emit(name, payload) {
       if (shellOrigin) window.parent.postMessage({ type:"event", name, payload }, shellOrigin);
     }
     function reportHeight() {
-      const height = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, 120);
+      const height = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, 140);
       window.parent.postMessage({ type: "resize", height }, "*");
+    }
+    function applyStartParts(parts) {
+      document.getElementById("date").value = parts.date;
+      document.getElementById("time").value = parts.time;
     }
     document.getElementById("send").addEventListener("click", () => {
       const title = document.getElementById("title").value.trim() || "Meeting";
-      const startLocal = document.getElementById("start").value;
+      const startLocal = startLocalValue();
       const durationMin = Number(document.getElementById("duration").value);
       const slot = slotFromInputs(title, startLocal, durationMin);
       if (!slot) return;
       emit("meetingProposed", { title, slots: [slot] });
     });
-    document.getElementById("start").addEventListener("change", updateConflict);
+    document.getElementById("date").addEventListener("change", updateConflict);
+    document.getElementById("time").addEventListener("change", updateConflict);
     document.getElementById("duration").addEventListener("change", updateConflict);
     window.addEventListener("message", (event) => {
       const data = event.data;
@@ -113,14 +150,18 @@
       const props = data.props || {};
       busyEvents = Array.isArray(props.busyEvents) ? props.busyEvents : [];
       const titleEl = document.getElementById("title");
-      const startEl = document.getElementById("start");
       const nextDefaultTitle = typeof props.defaultTitle === "string" && props.defaultTitle.trim()
         ? props.defaultTitle.trim()
         : "Meeting";
       // Parent re-inits on poll/re-render — never wipe a title the user (or agent) already set.
       if (!initialized) {
         titleEl.value = nextDefaultTitle;
-        startEl.value = props.defaultStart || defaultStart();
+        if (typeof props.defaultStart === "string" && props.defaultStart.includes("T")) {
+          const [date, timePart] = props.defaultStart.split("T");
+          applyStartParts({ date, time: (timePart || "10:00").slice(0, 5) });
+        } else {
+          applyStartParts(defaultStartParts());
+        }
         initialized = true;
       } else if (titleEl.value.trim() === "" || titleEl.value === lastDefaultTitle) {
         titleEl.value = nextDefaultTitle;
