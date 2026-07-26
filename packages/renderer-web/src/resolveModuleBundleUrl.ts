@@ -5,13 +5,18 @@ export function resolveModuleBundleUrlWithBase(
   baseUrl: string,
 ): string {
   if (/^https?:\/\//i.test(bundleUrl)) return bundleUrl;
-  // Module bundles are static files at origin /modules/… — never under /app/.
-  // Resolving them with base "/app/" hits the SPA path, which ships
-  // frame-ancestors 'none' / X-Frame-Options: DENY and blocks iframes
-  // (Chrome: ERR_BLOCKED_BY_RESPONSE). Vercel rewrites /app/modules → /modules,
-  // but response headers are matched on the request URL.
+  // Catalog paths are "/modules/…". In Vite dev (base "/") that is the site root.
+  // Production shell is served under /app/, and static modules ship beside it at
+  // /app/modules/… — resolve against the shell base so iframes do not 404 at
+  // origin /modules/… on atom.qwixl.com.
   if (bundleUrl === "/modules" || bundleUrl.startsWith("/modules/")) {
-    return new URL(bundleUrl, origin.endsWith("/") ? origin : `${origin}/`).href;
+    const pathPrefix =
+      !baseUrl || baseUrl === "/"
+        ? "/"
+        : baseUrl.endsWith("/")
+          ? baseUrl
+          : `${baseUrl}/`;
+    return new URL(bundleUrl.replace(/^\//, ""), `${origin.replace(/\/$/, "")}${pathPrefix}`).href;
   }
   const pathPrefix = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
   return new URL(bundleUrl.replace(/^\//, ""), `${origin}${pathPrefix}`).href;
