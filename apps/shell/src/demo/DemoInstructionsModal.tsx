@@ -8,15 +8,15 @@ export const DemoInstructionsModal = forwardRef<HTMLDialogElement>(
           <h2 id="demo-instructions-title">What you’re looking at</h2>
           <ol className="demo-instructions-steps">
             <li>
-              <strong>Left — Alice (you):</strong> propose a meeting time. Your personal agent sends it.
+              <strong>Left — chat with Alice:</strong> ask her to schedule a meeting. She replies with
+              an agent-built picker in the conversation — not a website form.
             </li>
             <li>
-              <strong>Right — Bob (business):</strong> the other agent’s inbox. Watch the request arrive,
-              then accept a slot.
+              <strong>Activity:</strong> the agent-to-agent history once a proposal is sent.
             </li>
             <li>
-              <strong>Activity / Inbox:</strong> the history of what each agent sent and received — not
-              email, agent-to-agent.
+              <strong>Right — Bob’s inbox:</strong> the other party’s agent receives the proposal.
+              Accept a time there.
             </li>
           </ol>
           <form method="dialog" className="demo-instructions-actions">
