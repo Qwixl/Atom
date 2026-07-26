@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { reportSpeechUsageToControlPlane } from "../controlPlaneCredits.js";
 import { applyHumanFilter } from "./humanFilter.js";
 import type { VoiceBackend } from "./types.js";
 
@@ -21,6 +22,10 @@ export function registerVoiceAdminRoutes(app: Express, voice: VoiceBackend): voi
         text: filtered.text,
         voiceId: body.voiceId?.trim(),
       });
+      // Atom Credits speech meter (MC prices chars; no-op unless hosted Standard/BYOK).
+      if (voice.id !== "stub") {
+        reportSpeechUsageToControlPlane({ charCount: filtered.text.length });
+      }
       res.json({
         ok: true,
         ...result,
