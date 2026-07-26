@@ -279,6 +279,8 @@ export function DemoPairView({
               <div className="demo-pane-chat">
                 <DemoAliceChatPane
                   peerName={bob.label}
+                  aliceAdminUrl={alice.adminUrl}
+                  aliceAdminToken={alice.adminToken}
                   busyOutbound={busy}
                   onMeetingProposed={sendProposal}
                   onPickerVisible={() =>
