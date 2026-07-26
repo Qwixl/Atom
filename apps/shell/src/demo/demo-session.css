@@ -18,18 +18,37 @@
   padding: 20px 24px;
 }
 
+/* Demo session scrolls the window so explainers can sit below the live pair. */
+.atom-app--demo .atom-app-body,
+.atom-app--demo .atom-app-stage,
+.atom-app--demo .atom-app-content {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 .atom-app--demo .atom-app-stage {
-  padding: 24px 32px;
+  padding: 24px 32px 48px;
   display: flex;
   align-items: stretch;
   justify-content: center;
+  height: auto;
+  min-height: 0;
+}
+
+.atom-app--demo .atom-app-content {
+  flex: none;
+  height: auto;
+  min-height: min-content;
+  max-width: none;
+  overflow: visible;
 }
 
 .demo-session-frame {
-  flex: 1;
+  flex: none;
   width: 100%;
   max-width: 1120px;
   min-height: 0;
+  height: auto;
   display: flex;
   flex-direction: column;
   margin: 0 auto;
