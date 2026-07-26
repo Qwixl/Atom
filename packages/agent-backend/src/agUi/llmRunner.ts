@@ -22,9 +22,13 @@ import {
 } from "@qwixl/shell-core";
 import { v4 as uuid } from "uuid";
 import {
+  DEMO_MEETING_CONFIRM_REFUSE,
+  DEMO_MEETING_CONFIRM_SYSTEM_PROMPT,
   DEMO_MEETING_ONLY_REFUSE,
   DEMO_MEETING_ONLY_SYSTEM_PROMPT,
+  evaluateDemoMeetingConfirm,
   evaluateDemoMeetingOnly,
+  isDemoMeetingConfirmEnabled,
   isDemoMeetingOnlyEnabled,
 } from "../demoMeetingGate.js";
 import { recordHostedModelSighting } from "../modelBehaviorSightings.js";
@@ -496,6 +500,13 @@ export async function* runLlmAgUiEvents(
       return;
     }
   }
+  if (isDemoMeetingConfirmEnabled() && inboundAsk) {
+    const demoVerdict = evaluateDemoMeetingConfirm(inboundAsk);
+    if (demoVerdict.action === "refuse") {
+      yield* textAgUiEvents(uuid(), DEMO_MEETING_CONFIRM_REFUSE);
+      return;
+    }
+  }
   if (config.agentKind === "swarm-npc" && inboundAsk) {
     const { evaluateInboundForNpc, SWARM_ABUSE_REFUSE_TEXT } = await import(
       "../swarmAbuseGate.js"
@@ -544,8 +555,10 @@ export async function* runLlmAgUiEvents(
         ? { open: [], guardedCategories: [], agentKind }
         : undefined;
   const demoMeetingOnly = isDemoMeetingOnlyEnabled();
-  // Demo personal must not advertise connector tools — Ollama small models fail/hang on tool schemas.
-  const llmConfig: LlmAgUiConfig = demoMeetingOnly
+  const demoMeetingConfirm = isDemoMeetingConfirmEnabled();
+  const demoScoped = demoMeetingOnly || demoMeetingConfirm;
+  // Demo agents must not advertise connector tools — Ollama small models fail/hang on tool schemas.
+  const llmConfig: LlmAgUiConfig = demoScoped
     ? {
         ...config,
         atomConnectorsAvailable: false,
@@ -554,12 +567,12 @@ export async function* runLlmAgUiEvents(
       }
     : config;
   const toolProfile = buildAgentToolProfile(undefined, {
-    atomConnectorsAvailable: demoMeetingOnly
+    atomConnectorsAvailable: demoScoped
       ? false
       : swarmNpc
         ? connectorsEnabled(llmConfig)
         : !swarmRole && connectorsEnabled(llmConfig),
-    connectedConnectorIds: demoMeetingOnly
+    connectedConnectorIds: demoScoped
       ? []
       : swarmNpc
         ? (["news-search", "page-fetch"] as AtomConnectorId[])
@@ -571,9 +584,11 @@ export async function* runLlmAgUiEvents(
   if (swarmNpc) toolProfile.includeDeprecatedAlias = false;
   const baseSystem = demoMeetingOnly
     ? DEMO_MEETING_ONLY_SYSTEM_PROMPT
-    : buildSystemPrompt(catalog, mergedProfile, toolProfile);
+    : demoMeetingConfirm
+      ? DEMO_MEETING_CONFIRM_SYSTEM_PROMPT
+      : buildSystemPrompt(catalog, mergedProfile, toolProfile);
   const systemContent =
-    !demoMeetingOnly && llmConfig.safetyPrefix?.trim()
+    !demoScoped && llmConfig.safetyPrefix?.trim()
       ? `${llmConfig.safetyPrefix.trim()}\n\n${baseSystem}`
       : baseSystem;
   const messages: ChatMessage[] = [
@@ -606,7 +621,7 @@ export async function* runLlmAgUiEvents(
 
   const ownerAsk = lastUserContent(input);
   if (
-    !demoMeetingOnly &&
+    !demoScoped &&
     ownerAsk &&
     ownerMessageNeedsSettingsProposal(ownerAsk) &&
     !protocolMessagesHaveSettingsProposal((parsed as { messages: unknown[] }).messages)

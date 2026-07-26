@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meeting confirmation</title>
+  <style>
+    * { box-sizing: border-box; font-family: var(--atom-font-sans, system-ui, sans-serif); }
+    body { margin: 0; padding: 10px 12px; min-height: 100px; background: var(--atom-color-bg, #fff); color: var(--atom-color-text, #111); }
+    h3 { margin: 0 0 6px; font-size: 15px; font-weight: 650; }
+    .meta { margin: 0 0 10px; font-size: 13px; color: var(--atom-color-text-dim, #666); }
+    .slots { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+    .slot {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 8px 10px; border: 1px solid var(--atom-color-border, #ccc);
+      border-radius: var(--atom-radius-sm, 6px); background: var(--atom-color-bg-raised, #fafafa);
+    }
+    .slot span { font-size: 13px; }
+    button {
+      font: inherit; padding: 7px 12px; border-radius: var(--atom-radius-sm, 6px); cursor: pointer;
+      border: 1px solid var(--atom-color-border, #ccc); background: #fff; color: inherit;
+    }
+    button.accept {
+      border: none; background: var(--atom-color-accent, #111); color: var(--atom-color-bg, #fff);
+    }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <h3 id="title">Meeting</h3>
+  <p class="meta" id="meta">Choose a time to accept, or decline.</p>
+  <div class="slots" id="slots"></div>
+  <button type="button" id="decline">Decline</button>
+  <script>
+    let shellOrigin = null;
+    let slots = [];
+    let title = "Meeting";
+    let done = false;
+    const themeKeys = ["colorBg","colorBgRaised","colorText","colorTextDim","colorAccent","colorBorder","radiusSm","fontSans"];
+    const cssMap = { colorBg:"--atom-color-bg", colorBgRaised:"--atom-color-bg-raised", colorText:"--atom-color-text", colorTextDim:"--atom-color-text-dim", colorAccent:"--atom-color-accent", colorBorder:"--atom-color-border", radiusSm:"--atom-radius-sm", fontSans:"--atom-font-sans" };
+    function applyTheme(theme) {
+      if (!theme) return;
+      const root = document.documentElement.style;
+      for (const k of themeKeys) if (theme[k]) root.setProperty(cssMap[k], theme[k]);
+    }
+    function emit(name, payload) {
+      if (!shellOrigin || done) return;
+      done = true;
+      window.parent.postMessage({ type: "event", name, payload }, shellOrigin);
+      document.querySelectorAll("button").forEach((b) => { b.disabled = true; });
+    }
+    function reportHeight() {
+      const height = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, 100);
+      window.parent.postMessage({ type: "resize", height }, "*");
+    }
+    function render() {
+      document.getElementById("title").textContent = title || "Meeting";
+      const root = document.getElementById("slots");
+      root.innerHTML = "";
+      for (const slot of slots) {
+        const row = document.createElement("div");
+        row.className = "slot";
+        const label = document.createElement("span");
+        label.textContent = slot.label || slot.start || "Proposed time";
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "accept";
+        btn.textContent = "Accept";
+        btn.addEventListener("click", () => {
+          emit("meetingResponse", { response: "accept", title, slotId: slot.id, slot });
+        });
+        row.appendChild(label);
+        row.appendChild(btn);
+        root.appendChild(row);
+      }
+      reportHeight();
+    }
+    document.getElementById("decline").addEventListener("click", () => {
+      emit("meetingResponse", { response: "decline", title });
+    });
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.type !== "init") return;
+      shellOrigin = event.origin;
+      applyTheme(data.theme);
+      const props = data.props || {};
+      title = typeof props.title === "string" && props.title.trim() ? props.title.trim() : "Meeting";
+      slots = Array.isArray(props.slots) ? props.slots : [];
+      render();
+    });
+    window.parent.postMessage({ type: "ready" }, "*");
+    reportHeight();
+  </script>
+</body>
+</html>
