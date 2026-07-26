@@ -1,11 +1,11 @@
 /**
- * Offline entitlement certificate verify against pinned Atom App Store key (D072 / A008).
- * Compact format matches Atom-Apps `backend/app/entitlements.py`.
+ * Offline entitlement certificate verify against the pinned Atom Apps store public key.
+ * Consumer-side only — verifies a cert presented at install time (module import path).
  */
 
 import { verifyBytes } from "@qwixl/protocol";
 
-/** Production store public key (urlsafe base64, no padding) — Atom-Apps A008 ceremony. */
+/** Atom Apps store public key (urlsafe base64, no padding). */
 export const ATOM_APPS_STORE_PUBLIC_KEY_B64 = "hlieSW_xscS6hdAGVvxV2wOdeb6hjTv1iN17-dIZy48";
 
 export type EntitlementCertificate = {

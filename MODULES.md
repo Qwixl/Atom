@@ -95,9 +95,9 @@ Optional `pricing` on `manifest.json` and mirrored on the index entry:
 }
 ```
 
-Omit `pricing` or set `"model": "free"` for free modules. Paid distribution for Atom owners is via the commercial **Atom App Store** (`https://atom.apps.qwixl.com`): developer is merchant of record (Stripe Connect); store take is **15% application fee** on paid Checkout (D103 / Atom-Apps A010). Package and publish from the store console — see [Atom Apps publish docs](https://atom.apps.qwixl.com/docs/publish).
+Omit `pricing` or set `"model": "free"` for free modules. Paid modules set `purchaseUrl` (and optionally an entitlement certificate at install). Owners can install from any compliant registry URL — including the commercial Atom Apps registry (`https://atom.apps.qwixl.com/registry/index.json`) via the shell Install / App Store handoff. See [Atom Apps publish docs](https://atom.apps.qwixl.com/docs/publish) for packaging modules for that registry.
 
-Governance of the open registry protocol: `06-decisions-log.md#d029`. Default commercial host: `#d071` / `#d099`.
+Governance of the open registry protocol: `06-decisions-log.md#d029`.
 
 ## iframe bridge
 

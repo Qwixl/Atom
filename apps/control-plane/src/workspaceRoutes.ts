@@ -25,9 +25,6 @@ async function requireUser(req: Request, res: Response) {
 }
 
 function publicProvisionError(message: string): string {
-  if (/command failed:\s*docker|docker run/i.test(message)) {
-    return "Could not start your hosted agent. Check that Docker is running on the control plane host.";
-  }
   return message;
 }
 

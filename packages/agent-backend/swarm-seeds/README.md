@@ -1,5 +1,5 @@
-# Swarm seeds
+# Swarm seed fixtures
 
-Canonical Qwixl NPC/venue seeds also live in private **Atom-MC** (`seeds/swarm/`). Copies here keep local `swarm-npc` runtime and tests working without Atom-MC.
+Sample NPC/venue seeds for local `swarm-npc` runtime and tests.
 
-Edit both places when changing the roster, or treat Atom-MC as ops source of truth after NPC deploy.
+Edit these when changing the demo roster used by OSS developers. They are not a production ops runbook.
