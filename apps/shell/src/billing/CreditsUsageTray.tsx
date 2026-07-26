@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { getSupabaseClient, isSupabaseConfigured } from "../auth/hostedAccount.js";
-import { CONTROL_PLANE_URL } from "../hostConfig.js";
+import { getSupabaseClient } from "../auth/hostedAccount.js";
+import { CONTROL_PLANE_URL, isSupabaseConfigured } from "../hostConfig.js";
 import "./credits-tray.css";
 
 export type CreditsSummary = {
