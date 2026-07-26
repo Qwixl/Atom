@@ -13,9 +13,11 @@ import { mergeThread } from "./comms/coordinationThread.js";
 import type { CommsThreadItem, InboxEntryWire } from "./comms/types.js";
 import { DemoProposalComposer } from "./DemoProposalComposer.js";
 import { DEMO_PERSONAS } from "./demoPersonas.js";
+import { DemoAliceChatPane } from "./demo/DemoAliceChatPane.js";
 import {
   DemoCoach,
   nextCoachAfterAccept,
+  nextCoachAfterPicker,
   nextCoachAfterSend,
   nextCoachWhenBobReady,
   type DemoCoachStep,
@@ -48,10 +50,8 @@ function deliveryBaseFor(agent: DemoPairAgent): string {
   return agent.deliveryBase ?? resolveAgentDeliveryBase(agent.adminUrl);
 }
 
-function missionPhase(step: DemoCoachStep | null): "propose" | "watch" | "accept" | "done" {
-  if (!step || step === "welcome" || step === "title" || step === "when" || step === "send") {
-    return "propose";
-  }
+function missionPhase(step: DemoCoachStep | null): "ask" | "watch" | "accept" | "done" {
+  if (!step || step === "welcome" || step === "ask" || step === "pick") return "ask";
   if (step === "watch") return "watch";
   if (step === "accept") return "accept";
   return "done";
@@ -258,35 +258,11 @@ export function DemoPairView({
   const phase = missionPhase(coachStep);
 
   return (
-    <div className="atom-pair demo-pair">
-      {guided ? (
-        <aside className="demo-mission" aria-label="What this demo shows">
-          <div className="demo-mission-copy">
-            <strong>Live demo: two agents booking a meeting</strong>
-            <p>
-              You control both sides. Propose a time as Alice on the left, watch it arrive for Bob on
-              the right, then accept it as Bob.
-            </p>
-          </div>
-          <ol className="demo-mission-steps">
-            <li data-active={phase === "propose"} data-done={phase !== "propose"}>
-              <span className="demo-step-num">1</span> Propose
-            </li>
-            <li
-              data-active={phase === "watch"}
-              data-done={phase === "accept" || phase === "done"}
-            >
-              <span className="demo-step-num">2</span> Watch arrive
-            </li>
-            <li data-active={phase === "accept"} data-done={phase === "done"}>
-              <span className="demo-step-num">3</span> Accept as Bob
-            </li>
-          </ol>
-        </aside>
-      ) : showIntro ? (
+    <div className={`atom-pair demo-pair${guided ? " demo-pair--guided" : ""}`}>
+      {!guided && showIntro ? (
         <p className="atom-pair-intro demo-pair-intro">
-          <strong>Alice</strong> (left) sends a meeting proposal to <strong>Bob</strong> (right). Bob
-          accepts or declines. Both agents update live.
+          <strong>Alice</strong> (left) asks her agent to propose a meeting to <strong>Bob</strong>{" "}
+          (right). Bob accepts. Both agents update live.
         </p>
       ) : null}
 
@@ -295,22 +271,35 @@ export function DemoPairView({
           <header className="atom-pane-header demo-pane-header">
             <span className="atom-pane-title demo-pane-title">You · Alice</span>
             <span className="atom-pane-meta demo-pane-meta">
-              Your personal agent — compose and send a meeting request
+              Chat with your agent — she builds UI in the conversation
             </span>
           </header>
-          <div className="atom-pane-body demo-pane-body">
-            <div className="atom-pane-form demo-pane-form">
-              <DemoProposalComposer peerName={bob.label} busy={busy} onSend={sendProposal} />
-            </div>
+          <div className="atom-pane-body demo-pane-body demo-pane-body--chat">
+            {guided ? (
+              <div className="demo-pane-chat">
+                <DemoAliceChatPane
+                  peerName={bob.label}
+                  busyOutbound={busy}
+                  onMeetingProposed={sendProposal}
+                  onPickerVisible={() =>
+                    setCoachStep((current) => (current ? nextCoachAfterPicker(current) : current))
+                  }
+                />
+              </div>
+            ) : (
+              <div className="atom-pane-form demo-pane-form">
+                <DemoProposalComposer peerName={bob.label} busy={busy} onSend={sendProposal} />
+              </div>
+            )}
             <div className="atom-pane-thread demo-pane-thread">
               <header className="demo-section-head demo-section-head--activity">
                 <h4>Activity</h4>
-                <p>History for Alice’s agent — focus on the form above to send your proposal</p>
+                <p>Agent-to-agent messages Alice has sent and received</p>
               </header>
               <div className="atom-pane-thread-scroll demo-pane-thread-scroll">
                 {aliceThread.length === 0 ? (
                   <p className="atom-pane-empty demo-pane-empty">
-                    Nothing here yet. Send a proposal above — Bob’s inbox on the right will update.
+                    When Alice’s agent sends a proposal, it shows up here and in Bob’s inbox.
                   </p>
                 ) : (
                   aliceThread.map((item) => (
@@ -345,59 +334,81 @@ export function DemoPairView({
           </div>
         </section>
 
-        <section
-          className="atom-pane atom-pane--bob demo-pane demo-pane--bob"
-          aria-label="Bob"
-          data-demo-target="bob-pane"
-        >
-          <header className="atom-pane-header demo-pane-header">
-            <span className="atom-pane-title demo-pane-title">Bob · Business</span>
-            <span className="atom-pane-meta demo-pane-meta">
-              The other party’s agent — receive and accept the request
-            </span>
-          </header>
-          <div className="atom-pane-thread atom-pane-thread--full demo-pane-thread demo-pane-thread--full">
-            <header className="demo-section-head demo-section-head--activity">
-              <h4>Inbox</h4>
-              <p>
-                {bobThread.length === 0
-                  ? "Waiting for Alice’s agent to send a meeting request"
-                  : "Open a request and accept a time"}
-              </p>
+        <div className="demo-bob-column">
+          {guided ? (
+            <aside className="demo-mission demo-mission--bob" aria-label="What to do next">
+              <div className="demo-mission-copy">
+                <strong>What you’re watching</strong>
+                <p>Bob’s agent receives Alice’s proposal. Accept a time on this side.</p>
+              </div>
+              <ol className="demo-mission-steps">
+                <li data-active={phase === "ask"} data-done={phase !== "ask"}>
+                  <span className="demo-step-num">1</span> Ask Alice
+                </li>
+                <li data-active={phase === "watch"} data-done={phase === "accept" || phase === "done"}>
+                  <span className="demo-step-num">2</span> Arrives here
+                </li>
+                <li data-active={phase === "accept"} data-done={phase === "done"}>
+                  <span className="demo-step-num">3</span> Accept
+                </li>
+              </ol>
+            </aside>
+          ) : null}
+
+          <section
+            className="atom-pane atom-pane--bob demo-pane demo-pane--bob"
+            aria-label="Bob"
+            data-demo-target="bob-pane"
+          >
+            <header className="atom-pane-header demo-pane-header">
+              <span className="atom-pane-title demo-pane-title">Bob · Business</span>
+              <span className="atom-pane-meta demo-pane-meta">
+                The other party’s agent inbox — receive and accept
+              </span>
             </header>
-            <div className="atom-pane-thread-scroll demo-pane-thread-scroll">
-              {bobThread.length === 0 ? (
-                <p className="atom-pane-empty demo-pane-empty">
-                  Empty for now. After you press Send on the left, the proposal appears here.
+            <div className="atom-pane-thread atom-pane-thread--full demo-pane-thread demo-pane-thread--full">
+              <header className="demo-section-head demo-section-head--activity">
+                <h4>Inbox</h4>
+                <p>
+                  {bobThread.length === 0
+                    ? "Waiting for Alice’s agent to send a meeting request"
+                    : "Open a request and accept a time"}
                 </p>
-              ) : (
-                bobThread.map((item) => (
-                  <ThreadItemView
-                    key={item.id}
-                    item={item}
-                    busy={busy}
-                    showActions={threadItemNeedsActions(
-                      item,
-                      bobResponded,
-                      bobTxnResponded,
-                      bobAcceptedOffers,
-                    )}
-                    onAcceptSlot={(proposalId, slot) =>
-                      void confirmRespond("bob", proposalId, "accept", slot)
-                    }
-                    onDeclineProposal={(proposalId) =>
-                      void confirmRespond("bob", proposalId, "decline")
-                    }
-                    onRsvp={() => {}}
-                    onConfirmTransaction={() => {}}
-                    onDeclineTransaction={() => {}}
-                    onAcceptOffer={() => {}}
-                  />
-                ))
-              )}
+              </header>
+              <div className="atom-pane-thread-scroll demo-pane-thread-scroll">
+                {bobThread.length === 0 ? (
+                  <p className="atom-pane-empty demo-pane-empty">
+                    Empty for now. After Alice proposes a time in chat, it appears here.
+                  </p>
+                ) : (
+                  bobThread.map((item) => (
+                    <ThreadItemView
+                      key={item.id}
+                      item={item}
+                      busy={busy}
+                      showActions={threadItemNeedsActions(
+                        item,
+                        bobResponded,
+                        bobTxnResponded,
+                        bobAcceptedOffers,
+                      )}
+                      onAcceptSlot={(proposalId, slot) =>
+                        void confirmRespond("bob", proposalId, "accept", slot)
+                      }
+                      onDeclineProposal={(proposalId) =>
+                        void confirmRespond("bob", proposalId, "decline")
+                      }
+                      onRsvp={() => {}}
+                      onConfirmTransaction={() => {}}
+                      onDeclineTransaction={() => {}}
+                      onAcceptOffer={() => {}}
+                    />
+                  ))
+                )}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
 
       {note ? (
