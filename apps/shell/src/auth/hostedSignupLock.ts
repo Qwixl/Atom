@@ -34,6 +34,8 @@ export type ResolvedHostedSignup = {
   llmProvider: string;
   llmBaseUrl: string;
   llmModel: string;
+  /** standard = platform LLM (no owner key); byok = owner key required */
+  billingLane?: "standard" | "byok";
 };
 
 /** Merge React state with persisted signup draft (state updates may lag behind resume). */
@@ -44,10 +46,12 @@ export function resolveHostedSignupFields(state: {
   llmProvider?: string;
   llmBaseUrl?: string;
   llmModel?: string;
+  billingLane?: "standard" | "byok";
 }): ResolvedHostedSignup | null {
   const pending = loadPendingHostedAuth();
   const email = state.email.trim() || pending?.email?.trim() || "";
   const handle = state.handle.trim() || pending?.handle?.trim() || "";
+  const billingLane = state.billingLane ?? "byok";
   const llmApiKey = state.llmApiKey.trim() || pending?.llmApiKey?.trim() || "";
   const llmProvider =
     state.llmProvider?.trim() || pending?.llmProvider?.trim() || "openai";
@@ -63,7 +67,19 @@ export function resolveHostedSignupFields(state: {
     state.llmModel?.trim() ||
     pending?.llmModel?.trim() ||
     (llmProvider === "openrouter" ? "openai/gpt-4o-mini" : "gpt-4o-mini");
-  if (!handle || !llmApiKey) return null;
+  if (!handle) return null;
+  if (billingLane === "standard") {
+    return {
+      email,
+      handle,
+      llmApiKey: "",
+      llmProvider: "openrouter",
+      llmBaseUrl: "https://openrouter.ai/api/v1",
+      llmModel: "",
+      billingLane: "standard",
+    };
+  }
+  if (!llmApiKey) return null;
   if (llmProvider === "custom" && !llmBaseUrl) return null;
-  return { email, handle, llmApiKey, llmProvider, llmBaseUrl, llmModel };
+  return { email, handle, llmApiKey, llmProvider, llmBaseUrl, llmModel, billingLane: "byok" };
 }

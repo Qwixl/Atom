@@ -132,6 +132,7 @@ import { MockAgentSession } from "./mock-agent.js";
 import { loadBriefingPreferences, BRIEFING_OPEN_MESSAGE, BRIEFING_FIRE_MESSAGE, applyCuratorBriefingTopics, formatBriefingContextForPrompt, rememberBriefingTopic, saveBriefingPreferences } from "./briefing/briefingPreferences.js";
 import { BriefingSettingsPanel } from "./briefing/BriefingSettingsPanel.js";
 import { StandingIntentsPanel } from "./brain/StandingIntentsPanel.js";
+import { CreditsUsageTray } from "./billing/CreditsUsageTray.js";
 import { PushSettingsPanel } from "./brain/PushSettingsPanel.js";
 import {
   ensureCapacitorPush,
@@ -161,6 +162,7 @@ import {
 } from "./brain/briefingAutoFire.js";
 import { useBrainPendingPoll } from "./brain/useBrainPendingPoll.js";
 import { SpendPolicySettingsPanel } from "./billing/SpendPolicySettingsPanel.js";
+import { PlanLaneSettingsPanel } from "./billing/PlanLaneSettingsPanel.js";
 import { formatLocationContextForPrompt } from "./location/locationContext.js";
 import { loadLocationPreferences } from "./location/locationPreferences.js";
 import type { DeviceLocationSnapshot } from "./location/deviceLocation.js";
@@ -2928,6 +2930,12 @@ export function App() {
                 </span>
               </button>
             ) : null}
+            {agentConnectionReady ? (
+              <CreditsUsageTray
+                accountId={loadOwnerHandle() || "personal"}
+                onOpenSettings={() => setPanel("profile")}
+              />
+            ) : null}
           </>
         }
         composer={
@@ -4527,6 +4535,9 @@ function SettingsDialog({
   function renderPaymentsPanel() {
     return (
       <div className="settings-panel payments-settings">
+        <h3 className="settings-subtitle">Hosted plan</h3>
+        <PlanLaneSettingsPanel embedded />
+        <hr className="settings-divider" />
         <SettingsToggle
           checked={agentShopperOn}
           label="Allow Agent Shopping"

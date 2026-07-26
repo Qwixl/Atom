@@ -1,5 +1,8 @@
 import type { BudgetLedgerStore } from "./budgetLedger.js";
 import { evaluateSpend } from "./billingAdmin.js";
+import { reportInferenceUsageToControlPlane } from "./controlPlaneCredits.js";
+
+export { reportInferenceUsageToControlPlane } from "./controlPlaneCredits.js";
 
 /** Rough USD→minor estimate for LLM usage when provider does not return cost. */
 export function estimateLlmCostMinor(input: {
@@ -18,6 +21,10 @@ export function estimateLlmCostMinor(input: {
   return Math.max(1, Math.round(usd * 100));
 }
 
+/**
+ * Record LLM spend against owner spend-policy ledger.
+ * Qwixl Atom Credits metering for Standard accounts is owned by Atom-MC.
+ */
 export function recordLlmInferenceSpend(
   budgetLedger: BudgetLedgerStore,
   input: {
@@ -43,6 +50,11 @@ export function recordLlmInferenceSpend(
     amountMinor,
     currency: "USD",
     description: `llm ${input.model ?? "unknown"} in=${input.promptTokens ?? 0} out=${input.completionTokens ?? 0}`,
+  });
+  reportInferenceUsageToControlPlane({
+    promptTokens: input.promptTokens,
+    completionTokens: input.completionTokens,
+    model: input.model,
   });
   return { ok: true, amountMinor };
 }

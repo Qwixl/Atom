@@ -195,6 +195,9 @@ export interface BootstrapHostedAccountInput {
   llmProvider?: string;
   llmModel?: string;
   llmBaseUrl?: string;
+  billingLane?: "standard" | "byok";
+  readinessSkuId?: string;
+  modelTierId?: string;
 }
 
 export async function signupHostedDevAccount(input: {
@@ -256,6 +259,9 @@ export async function bootstrapHostedAccount(input: BootstrapHostedAccountInput)
       llmProvider: input.llmProvider,
       llmModel: input.llmModel,
       llmBaseUrl: input.llmBaseUrl,
+      billingLane: input.billingLane,
+      readinessSkuId: input.readinessSkuId,
+      modelTierId: input.modelTierId,
     }),
   });
   const data = (await resp.json()) as { error?: string };
