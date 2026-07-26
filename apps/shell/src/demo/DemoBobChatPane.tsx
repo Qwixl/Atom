@@ -15,6 +15,8 @@ import {
   ModuleRegistry,
   registerCorePrimitives,
   registerEcosystemModules,
+  type Composition,
+  type CompositionNode,
   type UiEvent,
 } from "@qwixl/shell-core";
 import { agUiAuthHeaders, agUiUrlFromAgentAdminUrl } from "../agUiConfig.js";
@@ -27,6 +29,21 @@ export type DemoBobProposalNotice = {
   title: string;
   slots: SchedulingSlot[];
 };
+
+/** Keep meeting-confirm props grounded in the A2A proposal (models may drift labels/times). */
+function groundMeetingConfirmProps(composition: Composition, proposal: DemoBobProposalNotice): void {
+  const walk = (node: CompositionNode) => {
+    if (node.component === "scheduling/meeting-confirm") {
+      node.props = {
+        ...(node.props ?? {}),
+        title: proposal.title,
+        slots: proposal.slots,
+      };
+    }
+    for (const child of node.children ?? []) walk(child);
+  };
+  walk(composition.root);
+}
 
 export type DemoBobChatPaneHandle = {
   notifyProposal: (proposal: DemoBobProposalNotice) => void;
@@ -74,12 +91,16 @@ export const DemoBobChatPane = forwardRef<
     [bobAdminToken, bobAdminUrl],
   );
 
+  const inboundProposalRef = useRef<DemoBobProposalNotice | null>(null);
+
   const conversation = useMemo(
     () =>
       new ConversationRuntime({
         catalog,
         beforeResolveComposition: async (composition) => {
           await registry.ensureModules(catalog, composition);
+          const proposal = inboundProposalRef.current;
+          if (proposal) groundMeetingConfirmProps(composition, proposal);
         },
       }),
     [catalog, registry],
@@ -125,6 +146,7 @@ export const DemoBobChatPane = forwardRef<
       if (notifiedRef.current === proposal.proposalId) return;
       notifiedRef.current = proposal.proposalId;
       activeProposalIdRef.current = proposal.proposalId;
+      inboundProposalRef.current = proposal;
       const slotLines = proposal.slots
         .map(
           (slot, index) =>
@@ -136,7 +158,7 @@ export const DemoBobChatPane = forwardRef<
         `proposalId=${proposal.proposalId}\n` +
         `title=${proposal.title}\n` +
         `slots:\n${slotLines}\n` +
-        `Compose scheduling/meeting-confirm so I can accept or decline.`;
+        `Compose scheduling/meeting-confirm with these exact title and slots so I can accept or decline.`;
       conversation.appendUser("New meeting proposal from Alice");
       session.sendUserMessage(text);
     },

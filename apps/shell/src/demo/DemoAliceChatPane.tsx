@@ -147,7 +147,7 @@ export function DemoAliceChatPane({
 
   return (
     <div className="demo-alice-chat" data-demo-target="alice-chat">
-      <div className="demo-alice-chat-feed" ref={feedRef}>
+      <div className="demo-alice-chat-feed" data-demo-target="alice-feed" ref={feedRef}>
         {snapshot.feed.length === 0 ? (
           <div className="demo-alice-chat-empty">
             <p>
