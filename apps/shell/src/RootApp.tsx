@@ -45,6 +45,7 @@ export function RootApp() {
   const params = new URLSearchParams(search);
   const auth = params.get("auth");
   const demo = params.get("demo");
+  const embedded = params.get("embed") === "1";
 
   if (auth === "login" || auth === "register") {
     if (hasSupabaseAuthCallbackInUrl()) {
@@ -53,7 +54,12 @@ export function RootApp() {
     return (
       <AuthWizard
         mode={auth}
+        embedded={embedded}
         onClose={() => {
+          if (embedded) {
+            window.parent.postMessage({ source: "atom-auth", type: "close" }, "*");
+            return;
+          }
           window.location.href = "/";
         }}
       />
