@@ -203,7 +203,9 @@ export function DemoAliceChatPane({
             );
           })
         )}
-        {snapshot.busy ? <div className="feed-busy demo-feed-busy">Alice’s agent is working</div> : null}
+        {snapshot.busy ? (
+          <div className="feed-busy demo-feed-busy">Alice’s agent is working…</div>
+        ) : null}
       </div>
 
       <footer className="demo-alice-composer" data-demo-target="ask-compose">
