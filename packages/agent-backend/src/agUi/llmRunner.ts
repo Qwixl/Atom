@@ -483,6 +483,17 @@ export async function* runLlmAgUiEvents(
     );
     return;
   }
+  {
+    const { evaluateDemoMeetingOnly, DEMO_MEETING_ONLY_REFUSE, isDemoMeetingOnlyEnabled } =
+      await import("../demoMeetingGate.js");
+    if (isDemoMeetingOnlyEnabled() && inboundAsk) {
+      const demoVerdict = evaluateDemoMeetingOnly(inboundAsk);
+      if (demoVerdict.action === "refuse") {
+        yield* textAgUiEvents(uuid(), DEMO_MEETING_ONLY_REFUSE);
+        return;
+      }
+    }
+  }
   if (config.agentKind === "swarm-npc" && inboundAsk) {
     const { evaluateInboundForNpc, SWARM_ABUSE_REFUSE_TEXT } = await import(
       "../swarmAbuseGate.js"
