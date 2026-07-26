@@ -1,6 +1,5 @@
 /**
- * Public control-plane STUB (D097) — local hosting UX only.
- * Production Docker fleet: private Qwixl/Atom-MC.
+ * Public control-plane stub — local hosting UX only.
  * Local: HOSTED_STUB_AGENT_URL + HOSTED_STUB_AGENT_TOKEN (`pnpm dev:hosting`).
  */
 import { defaultShellOriginsCsv } from "@qwixl/shell-core";
@@ -418,7 +417,7 @@ init()
         console.log(`  dev stub agent: ${stub.agentUrl}`);
       } else {
         console.log(
-          "  hosted stub disabled — set HOSTED_STUB_* for local (pnpm dev:hosting); production fleet is Atom-MC",
+          "  hosted stub disabled — set HOSTED_STUB_* for local (pnpm dev:hosting)",
         );
       }
     });

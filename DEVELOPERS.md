@@ -24,11 +24,9 @@ MCP Apps and vendor app SDKs put your widget inside an AI vendor's chat product 
 | Model behavior admin (ops) | [MODEL-BEHAVIOR-ADMIN.md](./MODEL-BEHAVIOR-ADMIN.md) — classes + cron script; not a Settings feature |
 | M16 launch gates | [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md) |
 
-## Production hosting security (M21)
+## Hosting security (M21)
 
-Qwixl production control plane and fleet live in private **`Qwixl/Atom-MC`** (Mission Control). This repo’s `apps/control-plane` is a **local stub** only (`HOSTED_STUB_*`).
-
-Production env is documented in Atom-MC `.env.example`. Long-term public URLs use `{handle}.agents.atom.qwixl.com` (D098).
+This repo’s `apps/control-plane` is a **local stub** only (`HOSTED_STUB_*`). Commercial hosted fleets are out of scope here — self-host the agent, or point the shell at your own control plane.
 
 Before registry deploy: `pnpm registry:verify --require-integrity --signatures`. Publisher/Sigstore keys are CI secrets only — see [SECURITY.md](./SECURITY.md) § Registry publisher hygiene.
 
@@ -78,6 +76,6 @@ Ten modules in `apps/shell/public/registry/` — run `pnpm registry:verify` afte
 
 ## Managed hosting (M15)
 
-Local stack: `pnpm dev:hosting` (stub control plane :5300 + stub agent :5301). Production fleet: **Atom-MC** (private). See `apps/docs-site/guides/managed-hosting.md`. Marketing site at `/` handles signup; `/app` is the shell.
+Local stack: `pnpm dev:hosting` (stub control plane :5300 + stub agent :5301). See `apps/docs-site/guides/managed-hosting.md`. Platform landing at `/`; `/app` is the shell.
 
 Business index: `/business-index/index.json` on the shell host; query helpers in `@qwixl/business-index`.

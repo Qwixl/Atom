@@ -117,17 +117,15 @@ Each hosted agent receives a bearer token at signup. It is equivalent to **root 
 
 **Operator rule:** treat `ATOM_ADMIN_TOKEN` and signup responses like production root credentials. Rotate on compromise via re-provision or export→self-host.
 
-## Hosted control plane (production)
+## Hosted control plane (local stub)
 
-Qwixl’s production control plane and Docker fleet run in the private **Atom-MC** repo (`Qwixl/Atom-MC`), not from this Apache-2.0 tree. This repo’s `apps/control-plane` is a **local stub** for `pnpm dev:hosting` only (no Docker provisioner).
+This repo’s `apps/control-plane` is a **local stub** for `pnpm dev:hosting` only. It does not orchestrate remote agent fleets. Operators who run their own hosting stack should keep provision secrets and fleet tooling outside this Apache-2.0 tree.
 
-| Env (Atom-MC / production) | Purpose |
+| Env (local stub) | Purpose |
 |---|---|
-| `ATOM_FLEET_MODE=docker` | Per-owner agent containers (Atom-MC only) |
-| `ATOM_FLEET_PUBLIC_URL_TEMPLATE` | **Required** in production — prefer `https://{handle}.agents.example.com` (D098); `{port}` transitional |
-| `ATOM_PROVISION_SECRET` | When set, `/provision` requires `Authorization: Bearer` (disabled in production when unset) |
+| `HOSTED_STUB_AGENT_URL` / `HOSTED_STUB_AGENT_TOKEN` | Stub agent credentials returned by `/signup` |
+| `ATOM_PROVISION_SECRET` | When set, privileged routes require `Authorization: Bearer` |
 | `ATOM_SHELL_ORIGINS` | CORS allowlist for shell origins |
-| `NODE_ENV=production` | Enables fleet HTTPS invariants and provision lockdown |
 
 Rate limits (M21.2): `/signup` 5 per 15 min per IP; `/handles/check` 30 per min per IP.
 
@@ -139,7 +137,7 @@ Rate limits (M21.2): `/signup` 5 per 15 min per IP; `/handles/check` 30 per min 
 
 ## Hardening queue (M21)
 
-Hosted production hardening is tracked in the private roadmap (`docs/09-roadmap.md` § Production security hardening queue). Public operational priority: deploy production shell guards → control plane rate limits → fleet HTTPS → room admission defaults.
+Public operational priority: shell production guards → control-plane rate limits → room admission defaults.
 
 ## Reporting
 

@@ -158,7 +158,7 @@ Set on every agent-backend deployment:
 |---|---|
 | `STRIPE_SECRET_KEY` | `sk_live_...` |
 | `STRIPE_PUBLISHABLE_KEY` | `pk_live_...` |
-| `ATOM_STRIPE_PRODUCT_ID` | `prod_Uow5DYOhPM0O0k` (from `setup:stripe`) |
+| `ATOM_STRIPE_PRODUCT_ID` | `prod_…` (from `setup:stripe`) |
 
 ## M11.3 transaction commit (two-party)
 
@@ -301,7 +301,7 @@ Many subsystems ship **v1 engines** to prove product loops before production sca
 |---|---|---|
 | Pluggable backend + env | Business knowledge RAG | `ATOM_BUSINESS_KNOWLEDGE_BACKEND=json\|sqlite\|remote` |
 | Interface + inject | Payments | `PaymentRail` (Stripe, mock in tests) |
-| Interface + inject | Hosted fleet | `FleetProvisioner` (`dev-stub`, Docker, future cloud) |
+| Interface + inject | Hosted signup (local) | Control-plane stub `FleetProvisioner` (`dev-stub`) |
 | Interface + inject | Connectors | `ConnectorBackend` registry (WebCal v1) |
 | Interface + inject | Embeddings | `createTextEmbedder()` / `ATOM_EMBEDDER=hash\|api` |
 | JSON file store (M13.6) | Transaction commit, dispute channels, qualify, inbox, commerce intents | Atomic JSON beside identity dir; survives restart |
@@ -313,7 +313,7 @@ Many subsystems ship **v1 engines** to prove product loops before production sca
 - Export bundle: identity + business data + MLS peers + commerce state + vault + MLS sessions + rooms + contacts — restart agent after import.
 - Shell owner store + memory: **localStorage** — quota-sensitive; IndexedDB planned.
 - Module store: beta-free flag; no in-app billing yet.
-- Hosted signup: dev stub or local Docker fleet — not production cloud fleet until M15 substrate (Q17).
+- Hosted signup in this repo: local control-plane stub only (`pnpm dev:hosting`).
 
 Full inventory (private working doc): `docs/02-architecture/20-v1-production-gaps.md`. Decision: D048.
 

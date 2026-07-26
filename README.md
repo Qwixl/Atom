@@ -64,7 +64,7 @@ Developer docs (tutorial, playground, modules): run `pnpm dev:docs` or read [DEV
 | `@qwixl/agent-llm` | yes | LLM-backed `AgentSession` for the reference shell. |
 | `@qwixl/secret-store` | monorepo only | Pluggable secret storage for connection credentials. |
 
-Reference apps (not published): `apps/shell`, `apps/embed-demo`, `apps/docs-site`, `apps/control-plane` (local **stub** only — production fleet is private `Qwixl/Atom-MC`), `apps/ag-ui-server`, `apps/registry-host`.
+Reference apps (not published): `apps/shell`, `apps/embed-demo`, `apps/docs-site`, `apps/control-plane` (local **stub** only), `apps/ag-ui-server`, `apps/registry-host`.
 
 ## Install (consumers)
 
