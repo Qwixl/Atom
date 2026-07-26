@@ -85,6 +85,12 @@ export {
   type SwarmAbuseVerdict,
 } from "./swarmAbuseGate.js";
 export {
+  DEMO_MEETING_ONLY_REFUSE,
+  evaluateDemoMeetingOnly,
+  isDemoMeetingOnlyEnabled,
+  type DemoMeetingVerdict,
+} from "./demoMeetingGate.js";
+export {
   PoliceMonitor,
   sharedPoliceMonitor,
   evaluateNpcSample,

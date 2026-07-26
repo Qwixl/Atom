@@ -41,6 +41,8 @@
   <script>
     let shellOrigin = null;
     let busyEvents = [];
+    let initialized = false;
+    let lastDefaultTitle = "Meeting";
     const themeKeys = ["colorBg","colorBgRaised","colorText","colorTextDim","colorAccent","colorBorder","radiusSm","fontSans"];
     const cssMap = { colorBg:"--atom-color-bg", colorBgRaised:"--atom-color-bg-raised", colorText:"--atom-color-text", colorTextDim:"--atom-color-text-dim", colorAccent:"--atom-color-accent", colorBorder:"--atom-color-border", radiusSm:"--atom-radius-sm", fontSans:"--atom-font-sans" };
     function applyTheme(theme) {
@@ -110,9 +112,21 @@
       applyTheme(data.theme);
       const props = data.props || {};
       busyEvents = Array.isArray(props.busyEvents) ? props.busyEvents : [];
-      document.getElementById("title").value = props.defaultTitle || "Meeting";
-      document.getElementById("start").value = props.defaultStart || defaultStart();
-      if (props.peerName) document.getElementById("title").placeholder = "Meeting with " + props.peerName;
+      const titleEl = document.getElementById("title");
+      const startEl = document.getElementById("start");
+      const nextDefaultTitle = typeof props.defaultTitle === "string" && props.defaultTitle.trim()
+        ? props.defaultTitle.trim()
+        : "Meeting";
+      // Parent re-inits on poll/re-render — never wipe a title the user (or agent) already set.
+      if (!initialized) {
+        titleEl.value = nextDefaultTitle;
+        startEl.value = props.defaultStart || defaultStart();
+        initialized = true;
+      } else if (titleEl.value.trim() === "" || titleEl.value === lastDefaultTitle) {
+        titleEl.value = nextDefaultTitle;
+      }
+      lastDefaultTitle = nextDefaultTitle;
+      if (props.peerName) titleEl.placeholder = "Meeting with " + props.peerName;
       updateConflict();
       reportHeight();
     });

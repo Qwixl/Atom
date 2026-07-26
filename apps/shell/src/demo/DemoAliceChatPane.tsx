@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { SchedulingSlot } from "@qwixl/a2a-transport";
+import { AgUiAgentSession } from "@qwixl/ag-ui-adapter";
 import {
   Catalog,
   ConversationRuntime,
@@ -8,21 +9,25 @@ import {
   registerEcosystemModules,
   type UiEvent,
 } from "@qwixl/shell-core";
+import { agUiAuthHeaders, agUiUrlFromAgentAdminUrl } from "../agUiConfig.js";
 import { ChatFeedSurface } from "../chat/ChatFeedSurface.js";
 import { findModuleEmbed } from "../chat/moduleEmbedDefaults.js";
 import { PRODUCTION_REGISTRY_TRUST, PRODUCTION_REGISTRY_URL } from "../hostConfig.js";
-import { MockAgentSession } from "../mock-agent.js";
 import { resizeTextareaToContent } from "../ui/resizeTextareaToContent.js";
 
-const SUGGESTED_PROMPT = "Schedule a meeting with Bob next week";
+const SUGGESTED_PROMPT = "Ask Bob if he wants to go for a quick pint";
 
 export function DemoAliceChatPane({
   peerName,
+  aliceAdminUrl,
+  aliceAdminToken,
   busyOutbound,
   onMeetingProposed,
   onPickerVisible,
 }: {
   peerName: string;
+  aliceAdminUrl: string;
+  aliceAdminToken: string;
   busyOutbound: boolean;
   onMeetingProposed: (title: string, slots: SchedulingSlot[]) => void | Promise<void>;
   onPickerVisible?: () => void;
@@ -43,7 +48,15 @@ export function DemoAliceChatPane({
     [],
   );
 
-  const session = useMemo(() => new MockAgentSession(), []);
+  const session = useMemo(
+    () =>
+      new AgUiAgentSession({
+        url: agUiUrlFromAgentAdminUrl(aliceAdminUrl),
+        headers: agUiAuthHeaders(aliceAdminToken),
+      }),
+    [aliceAdminToken, aliceAdminUrl],
+  );
+
   const conversation = useMemo(
     () =>
       new ConversationRuntime({
@@ -135,8 +148,8 @@ export function DemoAliceChatPane({
         {snapshot.feed.length === 0 ? (
           <div className="demo-alice-chat-empty">
             <p>
-              Ask Alice to set up a meeting — she’ll build an interactive picker in this chat, then
-              send it to {peerName}.
+              Ask Alice to arrange something with {peerName} — a meeting, pint, coffee, or day out.
+              She’ll pick the right UI in this chat, then send it agent-to-agent.
             </p>
             <button
               type="button"
@@ -186,7 +199,7 @@ export function DemoAliceChatPane({
           value={draft}
           disabled={snapshot.busy || busyOutbound}
           aria-label="Message to Alice’s agent"
-          placeholder="Ask Alice to schedule a meeting…"
+          placeholder="Ask Alice to arrange a meeting…"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
