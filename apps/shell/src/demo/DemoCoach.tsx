@@ -22,7 +22,7 @@ const TIPS: Tip[] = [
     id: "welcome",
     target: null,
     kicker: "Agent web demo",
-    title: "Ask your agent — don’t fill a form",
+    title: "Ask your agent to set up the meeting",
     body: "On the left, talk to Alice like you would in Atom. She builds an interactive meeting picker in the chat. When you confirm a time, her agent sends it to Bob on the right — agent to agent.",
     actionLabel: "Show me",
   },
@@ -31,14 +31,14 @@ const TIPS: Tip[] = [
     target: "[data-demo-target='ask'], [data-demo-target='ask-compose']",
     kicker: "Step 1 of 3",
     title: "Ask Alice to schedule",
-    body: "Tap the suggestion chip (or type your own ask). Alice’s agent will reply with a built-in picker component — not a static webpage form.",
+    body: "Tap the suggestion chip (or type your own ask). Alice’s agent will reply with an interactive picker built into the chat.",
   },
   {
     id: "pick",
     target: "[data-demo-target='picker']",
     kicker: "Step 1 of 3",
     title: "Use the agent-built picker",
-    body: "This control was composed by the agent into the chat. Pick a time and propose the meeting — that’s an Atom module, rendered inline.",
+    body: "This control was composed by the agent into the chat. Choose a time and propose the meeting — that’s an Atom module, rendered inline.",
   },
   {
     id: "watch",
@@ -124,12 +124,21 @@ export function DemoCoach({
   }, [step]);
 
   const pad = 8;
+  const tipEstimate = 210;
   const tipStyle =
     rect && tip.target
-      ? ({
-          top: Math.min(window.innerHeight - 200, Math.max(12, rect.top + rect.height + pad + 4)),
-          left: Math.min(window.innerWidth - 320, Math.max(12, rect.left)),
-        } as const)
+      ? (() => {
+          const belowTop = rect.top + rect.height + pad + 4;
+          const aboveTop = rect.top - tipEstimate - pad;
+          const placeAbove =
+            belowTop + tipEstimate > window.innerHeight - 16 && aboveTop >= 12;
+          return {
+            top: placeAbove
+              ? Math.max(12, aboveTop)
+              : Math.min(window.innerHeight - tipEstimate, Math.max(12, belowTop)),
+            left: Math.min(window.innerWidth - 320, Math.max(12, rect.left)),
+          } as const;
+        })()
       : undefined;
 
   return (
