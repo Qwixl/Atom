@@ -17,6 +17,7 @@ import {
   registerEcosystemModules,
   type Composition,
   type CompositionNode,
+  type JsonObject,
   type UiEvent,
 } from "@qwixl/shell-core";
 import { agUiAuthHeaders, agUiUrlFromAgentAdminUrl } from "../agUiConfig.js";
@@ -34,11 +35,12 @@ export type DemoBobProposalNotice = {
 function groundMeetingConfirmProps(composition: Composition, proposal: DemoBobProposalNotice): void {
   const walk = (node: CompositionNode) => {
     if (node.component === "scheduling/meeting-confirm") {
-      node.props = {
+      const props: JsonObject = {
         ...(node.props ?? {}),
         title: proposal.title,
-        slots: proposal.slots,
+        slots: JSON.parse(JSON.stringify(proposal.slots)) as JsonObject["slots"],
       };
+      node.props = props;
     }
     for (const child of node.children ?? []) walk(child);
   };
