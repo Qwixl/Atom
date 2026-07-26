@@ -23,6 +23,7 @@ import {
   nextCoachAfterSend,
   type DemoCoachStep,
 } from "./demo/DemoCoach.js";
+import { DemoExploreCopy } from "./demo/DemoExploreCopy.js";
 
 const POLL_MS = 2000;
 
@@ -505,6 +506,8 @@ export function DemoPairView({
           </section>
         </div>
       </div>
+
+      {guided ? <DemoExploreCopy /> : null}
 
       {note ? (
         <p className="atom-pair-note demo-pair-note" role="status">

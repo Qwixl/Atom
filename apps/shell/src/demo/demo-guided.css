@@ -1,9 +1,79 @@
 /* Guided live demo — chat-first Alice, Bob-only mission, coach overlays */
 
+.demo-pair--guided {
+  flex: none;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  gap: 28px;
+}
+
 .demo-pair--guided .atom-pair-columns {
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   gap: 16px;
   align-items: stretch;
+  /* First screen is the interactive pair; explainers sit below and force page scroll. */
+  flex: none;
+  height: min(720px, calc(100dvh - var(--atom-header-h, 44px) - 72px));
+  min-height: min(560px, calc(100dvh - var(--atom-header-h, 44px) - 72px));
+}
+
+.demo-explore {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 8px 4px 64px;
+  max-width: 40rem;
+}
+
+.demo-explore-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.demo-explore-kicker {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--shell-status-active, #e87722);
+}
+
+.demo-explore-title {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+  color: var(--shell-text);
+}
+
+.demo-explore-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.demo-explore-body p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--shell-text-muted);
+}
+
+.demo-explore-body code {
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--shell-inset-bg);
+  color: var(--shell-text);
+}
+
+.demo-explore-block--tech .demo-explore-title {
+  font-size: 1.25rem;
 }
 
 .demo-bob-column {
