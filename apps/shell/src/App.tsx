@@ -144,6 +144,7 @@ import {
   VoiceSettingsPanel,
   loadVoiceOptIn,
 } from "./brain/VoicePushToTalk.js";
+import { VoiceConvAiButton, loadConvAiOptIn } from "./brain/VoiceConvAi.js";
 import {
   PRESENTATION_BOARD_MODULE_ID,
   PresentationBoardPanel,
@@ -2941,6 +2942,11 @@ export function App() {
         composer={
           showMainComposer ? (
             <>
+              <VoiceConvAiButton
+                enabled={
+                  loadConvAiOptIn() && Boolean(agentConnectionReady && vaultUnlocked)
+                }
+              />
               <VoicePushToTalk
                 enabled={
                   (loadVoiceOptIn() || (boardAvailable && panel === "board" && !boardVoiceMuted)) &&

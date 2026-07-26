@@ -52,18 +52,22 @@ export function reportInferenceUsageToControlPlane(input: {
   });
 }
 
-/** Standard + BYOK speech (char count; MC prices). */
+/** Standard + BYOK speech (char count and/or ConvAI duration; MC prices). */
 export function reportSpeechUsageToControlPlane(input: {
-  charCount: number;
+  charCount?: number;
+  /** ElevenLabs ConvAI session length — MC prices per minute. */
+  durationSeconds?: number;
   idempotencyKey?: string;
 }): void {
   const lane = billingLane();
   if (lane !== "standard" && lane !== "byok") return;
-  const charCount = Math.max(0, Math.floor(input.charCount));
-  if (charCount <= 0) return;
+  const charCount = Math.max(0, Math.floor(input.charCount ?? 0));
+  const durationSeconds = Math.max(0, Math.floor(input.durationSeconds ?? 0));
+  if (charCount <= 0 && durationSeconds <= 0) return;
   postUsage({
     meter: "speech",
-    charCount,
+    ...(charCount > 0 ? { charCount } : {}),
+    ...(durationSeconds > 0 ? { durationSeconds } : {}),
     idempotencyKey: input.idempotencyKey,
   });
 }

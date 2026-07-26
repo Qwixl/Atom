@@ -1,3 +1,4 @@
+import { loadElevenLabsConvAiConfig } from "./elevenLabsConvAi.js";
 import { OpenAiRealtimeVoiceBackend } from "./openaiRealtimeVoiceBackend.js";
 import type {
   VoiceBackend,
@@ -16,7 +17,7 @@ export class StubVoiceBackend implements VoiceBackend {
       configured: true,
       duplex: "none",
       message:
-        "Voice seam is stubbed. Set ATOM_VOICE_PROVIDER=openai-realtime (uses LLM_API_KEY) for push-to-talk MVP.",
+        "Voice seam is stubbed. Set ATOM_VOICE_PROVIDER=openai-realtime (uses LLM_API_KEY) for push-to-talk, or configure ELEVENLABS_* for Conversational AI.",
     };
   }
 
@@ -30,10 +31,33 @@ export class StubVoiceBackend implements VoiceBackend {
   }
 }
 
+/** ConvAI token mint lives on /voice/convai/*; this backend marks provider status only. */
+function elevenLabsVoiceBackend(env: NodeJS.ProcessEnv): VoiceBackend {
+  const convai = loadElevenLabsConvAiConfig(env);
+  const configured = Boolean(convai);
+  return {
+    id: "elevenlabs",
+    status: () => ({
+      provider: "elevenlabs",
+      configured,
+      duplex: configured ? "full" : "none",
+      message: configured
+        ? "ElevenLabs Conversational AI ready (mint tokens via POST /voice/convai/token)."
+        : 'Set ELEVENLABS_API_KEY and ELEVENLABS_AGENT_ID (or ATOM_PLATFORM_ELEVENLABS_*).',
+    }),
+    synthesize: async (request) => new StubVoiceBackend().synthesize(request),
+  };
+}
+
 export function loadVoiceBackend(env: NodeJS.ProcessEnv = process.env): VoiceBackend {
   const provider = (env.ATOM_VOICE_PROVIDER?.trim().toLowerCase() || "").trim();
   const apiKey = env.LLM_API_KEY?.trim() || env.OPENAI_API_KEY?.trim() || "";
   const baseUrl = env.LLM_BASE_URL?.trim() || "https://api.openai.com/v1";
+  const convaiConfigured = Boolean(loadElevenLabsConvAiConfig(env));
+
+  if (provider === "elevenlabs" || (provider === "" && convaiConfigured && !apiKey)) {
+    return elevenLabsVoiceBackend(env);
+  }
 
   const useOpenAi =
     provider === "openai-realtime" || (provider === "" && Boolean(apiKey));
@@ -55,20 +79,6 @@ export function loadVoiceBackend(env: NodeJS.ProcessEnv = process.env): VoiceBac
         configured: false,
         duplex: "half",
         message: 'Provider "openai-realtime" selected but LLM_API_KEY / OPENAI_API_KEY missing.',
-      }),
-      synthesize: async (request) => new StubVoiceBackend().synthesize(request),
-    };
-  }
-
-  if (provider === "elevenlabs") {
-    return {
-      id: "elevenlabs",
-      status: () => ({
-        provider: "elevenlabs",
-        configured: false,
-        duplex: "none",
-        message:
-          'Provider "elevenlabs" selected but not implemented yet. Use openai-realtime for MVP.',
       }),
       synthesize: async (request) => new StubVoiceBackend().synthesize(request),
     };
