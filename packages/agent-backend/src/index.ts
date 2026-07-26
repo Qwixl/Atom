@@ -86,6 +86,7 @@ export {
 } from "./swarmAbuseGate.js";
 export {
   DEMO_MEETING_ONLY_REFUSE,
+  DEMO_MEETING_ONLY_SYSTEM_PROMPT,
   evaluateDemoMeetingOnly,
   isDemoMeetingOnlyEnabled,
   type DemoMeetingVerdict,

@@ -21,6 +21,12 @@ import {
   type AgentOutput,
 } from "@qwixl/shell-core";
 import { v4 as uuid } from "uuid";
+import {
+  DEMO_MEETING_ONLY_REFUSE,
+  DEMO_MEETING_ONLY_SYSTEM_PROMPT,
+  evaluateDemoMeetingOnly,
+  isDemoMeetingOnlyEnabled,
+} from "../demoMeetingGate.js";
 import { recordHostedModelSighting } from "../modelBehaviorSightings.js";
 import type { SwarmMemoryStore } from "../swarmMemoryStore.js";
 import {
@@ -483,15 +489,11 @@ export async function* runLlmAgUiEvents(
     );
     return;
   }
-  {
-    const { evaluateDemoMeetingOnly, DEMO_MEETING_ONLY_REFUSE, isDemoMeetingOnlyEnabled } =
-      await import("../demoMeetingGate.js");
-    if (isDemoMeetingOnlyEnabled() && inboundAsk) {
-      const demoVerdict = evaluateDemoMeetingOnly(inboundAsk);
-      if (demoVerdict.action === "refuse") {
-        yield* textAgUiEvents(uuid(), DEMO_MEETING_ONLY_REFUSE);
-        return;
-      }
+  if (isDemoMeetingOnlyEnabled() && inboundAsk) {
+    const demoVerdict = evaluateDemoMeetingOnly(inboundAsk);
+    if (demoVerdict.action === "refuse") {
+      yield* textAgUiEvents(uuid(), DEMO_MEETING_ONLY_REFUSE);
+      return;
     }
   }
   if (config.agentKind === "swarm-npc" && inboundAsk) {
@@ -541,22 +543,30 @@ export async function* runLlmAgUiEvents(
       : agentKind !== "owner"
         ? { open: [], guardedCategories: [], agentKind }
         : undefined;
+  const demoMeetingOnly = isDemoMeetingOnlyEnabled();
   const toolProfile = buildAgentToolProfile(undefined, {
-    atomConnectorsAvailable: swarmNpc
-      ? connectorsEnabled(config)
-      : !swarmRole && connectorsEnabled(config),
-    connectedConnectorIds: swarmNpc
-      ? (["news-search", "page-fetch"] as AtomConnectorId[])
-      : swarmRole
-        ? []
-        : config.connectedConnectorIds,
+    atomConnectorsAvailable: demoMeetingOnly
+      ? false
+      : swarmNpc
+        ? connectorsEnabled(config)
+        : !swarmRole && connectorsEnabled(config),
+    connectedConnectorIds: demoMeetingOnly
+      ? []
+      : swarmNpc
+        ? (["news-search", "page-fetch"] as AtomConnectorId[])
+        : swarmRole
+          ? []
+          : config.connectedConnectorIds,
     model: config.model,
   });
   if (swarmNpc) toolProfile.includeDeprecatedAlias = false;
-  const baseSystem = buildSystemPrompt(catalog, mergedProfile, toolProfile);
-  const systemContent = config.safetyPrefix?.trim()
-    ? `${config.safetyPrefix.trim()}\n\n${baseSystem}`
-    : baseSystem;
+  const baseSystem = demoMeetingOnly
+    ? DEMO_MEETING_ONLY_SYSTEM_PROMPT
+    : buildSystemPrompt(catalog, mergedProfile, toolProfile);
+  const systemContent =
+    !demoMeetingOnly && config.safetyPrefix?.trim()
+      ? `${config.safetyPrefix.trim()}\n\n${baseSystem}`
+      : baseSystem;
   const messages: ChatMessage[] = [
     {
       role: "system",
@@ -567,9 +577,11 @@ export async function* runLlmAgUiEvents(
 
   let raw: string;
   try {
-    const rounds = swarmNpc
-      ? (config.swarmToolBudget?.maxToolRoundsPerTurn ?? 2)
-      : MAX_TOOL_ROUNDS;
+    const rounds = demoMeetingOnly
+      ? 0
+      : swarmNpc
+        ? (config.swarmToolBudget?.maxToolRoundsPerTurn ?? 2)
+        : MAX_TOOL_ROUNDS;
     raw = await runChatWithOptionalTools(config, messages, rounds);
   } catch (error) {
     yield* textAgUiEvents(
