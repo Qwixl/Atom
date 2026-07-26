@@ -1,3 +1,5 @@
+import type { AtomAccountType } from "./hostedAccount.js";
+
 const STORAGE_KEY = "atom:pending-hosted-auth";
 const AT_PROVISION_KEY = "atom:signup-at-provision";
 
@@ -5,6 +7,8 @@ export type PendingHostedAuth = {
   kind: "register" | "login";
   email: string;
   handle?: string;
+  accountType?: AtomAccountType;
+  accountTypes?: AtomAccountType[];
   llmApiKey?: string;
   llmProvider?: string;
   llmBaseUrl?: string;
