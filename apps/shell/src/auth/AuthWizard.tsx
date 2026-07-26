@@ -16,6 +16,7 @@ import {
   type AtomAccountType,
 } from "./hostedAccount.js";
 import { saveAccountType } from "../accountType.js";
+import { AccountTypeSelection } from "./accountTypeSelection.js";
 import { completeAgentSetup } from "./completeSetup.js";
 import { loadFirstRunDone } from "../firstRunStorage.js";
 import { AuthStepper } from "./AuthStepper.js";
@@ -91,6 +92,7 @@ import "./auth-wizard.css";
 type AuthWizardProps = {
   mode: AuthWizardMode;
   onClose: () => void;
+  embedded?: boolean;
 };
 
 type ProvisionTask = {
@@ -99,7 +101,29 @@ type ProvisionTask = {
   state: "pending" | "active" | "done" | "error";
 };
 
-export function AuthWizard({ mode, onClose }: AuthWizardProps) {
+function applyPendingAccountTypes(
+  pending: { accountTypes?: AtomAccountType[]; accountType?: AtomAccountType },
+  setPersonal: (v: boolean) => void,
+  setDeveloper: (v: boolean) => void,
+  setBusiness: (v: boolean) => void,
+): void {
+  try {
+    const selection =
+      pending.accountTypes && pending.accountTypes.length > 0
+        ? AccountTypeSelection.fromAccountTypes(pending.accountTypes)
+        : pending.accountType
+          ? AccountTypeSelection.fromAccountTypes([pending.accountType])
+          : null;
+    if (!selection) return;
+    setPersonal(selection.persona === "user");
+    setDeveloper(selection.persona === "developer");
+    setBusiness(selection.business);
+  } catch {
+    /* keep defaults */
+  }
+}
+
+export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps) {
   const initialLane = parseLaneFromSearch(typeof window !== "undefined" ? window.location.search : "");
   const [billingLane, setBillingLane] = useState<BillingLane>(() => {
     if (initialLane) return initialLane;
@@ -112,7 +136,9 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
     hostingTypeForLane(initialLane ?? (isHostedSignupAvailable() ? "standard" : "self_hosted")),
   );
   const [loginNeedsConfirm, setLoginNeedsConfirm] = useState(false);
-  const [accountType, setAccountType] = useState<AtomAccountType>("user");
+  const [personal, setPersonal] = useState(true);
+  const [developer, setDeveloper] = useState(false);
+  const [business, setBusiness] = useState(false);
 
   const [remoteCatalog, setRemoteCatalog] = useState<RemotePlanCatalog | null>(null);
 
@@ -120,6 +146,68 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
     if (mode !== "register") return;
     void fetchPlanCatalog().then(setRemoteCatalog);
   }, [mode]);
+
+  useEffect(() => {
+    if (!embedded) return;
+    const prevBody = document.body.style.background;
+    const prevHtml = document.documentElement.style.background;
+    document.body.style.background = "transparent";
+    document.documentElement.style.background = "transparent";
+    return () => {
+      document.body.style.background = prevBody;
+      document.documentElement.style.background = prevHtml;
+    };
+  }, [embedded]);
+
+  useEffect(() => {
+    if (!embedded) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [embedded, onClose]);
+
+  function currentAccountSelection(): AccountTypeSelection {
+    return AccountTypeSelection.fromFlags({ personal, developer, business });
+  }
+
+  function navigateAfterAuthSuccess() {
+    if (embedded) {
+      window.parent.postMessage({ source: "atom-auth", type: "done" }, "*");
+      return;
+    }
+    try {
+      if (window.top) {
+        window.top.location.href = "/app/";
+        return;
+      }
+    } catch {
+      /* cross-origin top — fall through */
+    }
+    window.location.replace("/app/");
+  }
+
+  function togglePersonal(checked: boolean) {
+    if (checked) {
+      setPersonal(true);
+      setDeveloper(false);
+    } else {
+      setPersonal(false);
+    }
+  }
+
+  function toggleDeveloper(checked: boolean) {
+    if (checked) {
+      setDeveloper(true);
+      setPersonal(false);
+    } else {
+      setDeveloper(false);
+    }
+  }
 
   function selectBillingLane(lane: BillingLane) {
     setBillingLane(lane);
@@ -147,12 +235,6 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
   const topUpOptions = remoteCatalog
     ? ([0, ...remoteCatalog.topUpPacksPence] as number[])
     : [...TOP_UP_OPTIONS_PENCE];
-
-  const ACCOUNT_TYPES: { id: AtomAccountType; label: string; hint: string }[] = [
-    { id: "user", label: "Personal", hint: "Everyday use — chat, messages, rooms" },
-    { id: "business", label: "Business", hint: "Brand, catalog, and business agent" },
-    { id: "developer", label: "Developer", hint: "Build modules and connectors" },
-  ];
 
   const supabaseHostedRegister =
     mode === "register" && hosting === "hosted" && usesSupabaseHostedAuth();
@@ -267,6 +349,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         if (pending) {
           setEmail(pending.email);
           if (pending.handle) setHandle(pending.handle);
+          applyPendingAccountTypes(pending, setPersonal, setDeveloper, setBusiness);
           if (pending.llmApiKey) {
             setLlmConnection((prev) => ({
               ...prev,
@@ -301,6 +384,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
 
       setEmail(pending.email);
       if (pending.handle) setHandle(pending.handle);
+      applyPendingAccountTypes(pending, setPersonal, setDeveloper, setBusiness);
       if (pending.llmApiKey) {
         setLlmConnection((prev) => ({
           ...prev,
@@ -473,7 +557,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       updateTask("connect", "done");
       clearPendingHostedAuth();
       clearSignupAtProvision();
-      window.location.replace("/app/");
+      navigateAfterAuthSuccess();
     } catch (connectErr) {
       releaseProvisioningLock();
       const fields = resolveHostedSignupFields({
@@ -529,9 +613,13 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       }
 
       advanceTask("auth", "agent");
+      const selection = currentAccountSelection();
+      const accountType = selection.primaryAccountType();
+      const accountTypes = selection.toAccountTypes();
       await bootstrapHostedAccount({
         handle: bareOwnerHandle(fields.handle),
         accountType,
+        accountTypes,
         llmApiKey: fields.llmApiKey,
         llmProvider: fields.llmProvider,
         llmBaseUrl: fields.llmBaseUrl,
@@ -550,11 +638,11 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         kind: "hosted",
         skipConnectionProbe: true,
       });
-      saveAccountType(accountType);
+      saveAccountType(accountType, accountTypes);
       updateTask("connect", "done");
       clearPendingHostedAuth();
       clearSignupAtProvision();
-      window.location.replace("/app/");
+      navigateAfterAuthSuccess();
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err);
       setError(friendlyHostedProvisionError(raw));
@@ -596,7 +684,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       updateTask("connect", "done");
       clearPendingHostedAuth();
       clearSignupAtProvision();
-      window.location.replace("/app/");
+      navigateAfterAuthSuccess();
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err);
       setError(friendlyHostedProvisionError(raw));
@@ -613,12 +701,21 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
     if (!validateProfile()) return;
 
     if (usesSupabaseHostedAuth() && hosting === "hosted" && mode === "register") {
+      let selection: AccountTypeSelection;
+      try {
+        selection = currentAccountSelection();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        return;
+      }
       setBusy(true);
       setError(null);
       savePendingHostedAuth({
         kind: "register",
         email: email.trim(),
         handle,
+        accountType: selection.primaryAccountType(),
+        accountTypes: selection.toAccountTypes(),
         llmApiKey: llmConnection.apiKey,
         llmProvider: llmConnection.providerId,
         llmBaseUrl: llmConnection.baseUrl,
@@ -746,13 +843,16 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
           handle: handle.trim() ? bareOwnerHandle(handle) : undefined,
           kind: "self-hosted",
         });
-        if (mode === "register") saveAccountType(accountType);
+        if (mode === "register") {
+          const selection = currentAccountSelection();
+          saveAccountType(selection.primaryAccountType(), selection.toAccountTypes());
+        }
         updateTask("connect", "done");
       }
 
       clearPendingHostedAuth();
       clearSignupAtProvision();
-      window.location.replace("/app/");
+      navigateAfterAuthSuccess();
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err);
       setError(friendlyHostedProvisionError(raw));
@@ -849,6 +949,12 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
   function handlePrimary() {
     setError(null);
     if (step === "account-type") {
+      try {
+        currentAccountSelection();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        return;
+      }
       goNext();
       return;
     }
@@ -887,26 +993,45 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
           <>
             <h3 className="auth-slide-title">What kind of account?</h3>
             <p className="auth-slide-desc">
-              Personal for everyday use, Business for a brand agent, Developer for building modules.
+              Personal or Developer (pick one). Add Business if you also want a brand agent.
             </p>
             <div className="auth-radio-stack">
-              {ACCOUNT_TYPES.map((type) => (
-                <label
-                  key={type.id}
-                  className={`atom-radio-card${accountType === type.id ? " is-selected" : ""}`}
-                >
-                  <input
-                    type="radio"
-                    name="accountType"
-                    checked={accountType === type.id}
-                    onChange={() => setAccountType(type.id)}
-                  />
-                  <span>
-                    <strong>{type.label}</strong>
-                    <span>{type.hint}</span>
-                  </span>
-                </label>
-              ))}
+              <label className={`atom-radio-card${personal ? " is-selected" : ""}`}>
+                <input
+                  type="checkbox"
+                  name="accountPersona"
+                  checked={personal}
+                  onChange={(e) => togglePersonal(e.target.checked)}
+                />
+                <span>
+                  <strong>Personal</strong>
+                  <span>Everyday use — chat, messages, rooms</span>
+                </span>
+              </label>
+              <label className={`atom-radio-card${developer ? " is-selected" : ""}`}>
+                <input
+                  type="checkbox"
+                  name="accountPersona"
+                  checked={developer}
+                  onChange={(e) => toggleDeveloper(e.target.checked)}
+                />
+                <span>
+                  <strong>Developer</strong>
+                  <span>Build modules and connectors</span>
+                </span>
+              </label>
+              <label className={`atom-radio-card${business ? " is-selected" : ""}`}>
+                <input
+                  type="checkbox"
+                  name="accountBusiness"
+                  checked={business}
+                  onChange={(e) => setBusiness(e.target.checked)}
+                />
+                <span>
+                  <strong>Business</strong>
+                  <span>Optional — brand, catalog, and business agent</span>
+                </span>
+              </label>
             </div>
           </>
         );
@@ -1220,7 +1345,11 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
   }
 
   return (
-    <div className="chrome-overlay auth-modal-overlay atom-auth-modal" role="dialog" aria-modal="true">
+    <div
+      className={`chrome-overlay auth-modal-overlay atom-auth-modal${embedded ? " auth-embed" : ""}`}
+      role="dialog"
+      aria-modal="true"
+    >
       <div className="auth-modal" onClick={(e) => e.stopPropagation()}>
         <div className="auth-modal-header">
           <h2>{title}</h2>
