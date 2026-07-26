@@ -244,6 +244,41 @@ export async function signupHostedDevAccount(input: {
   };
 }
 
+export type SubscriptionCheckoutHint = {
+  method?: string;
+  path?: string;
+  body?: {
+    accountId?: string;
+    lane?: "standard" | "byok";
+    readinessSkuId?: string;
+  };
+};
+
+export class SubscriptionRequiredError extends Error {
+  readonly checkout: SubscriptionCheckoutHint;
+
+  constructor(message: string, checkout: SubscriptionCheckoutHint) {
+    super(message);
+    this.name = "SubscriptionRequiredError";
+    this.checkout = checkout;
+  }
+}
+
+/** Parse bootstrap failure bodies; used by bootstrapHostedAccount and unit tests. */
+export function throwIfBootstrapFailed(
+  status: number,
+  data: { error?: string; message?: string; checkout?: SubscriptionCheckoutHint },
+): void {
+  if (status >= 200 && status < 300) return;
+  if (status === 402 && data.error === "subscription_required") {
+    throw new SubscriptionRequiredError(
+      data.message?.trim() || "Complete payment before provisioning your hosted agent.",
+      data.checkout ?? {},
+    );
+  }
+  throw new Error(data.error ?? data.message ?? `Signup failed (${status})`);
+}
+
 export async function bootstrapHostedAccount(input: BootstrapHostedAccountInput): Promise<void> {
   const token = await supabaseAccessToken();
   if (!token) throw new Error("Sign in required");
@@ -270,8 +305,62 @@ export async function bootstrapHostedAccount(input: BootstrapHostedAccountInput)
       modelTierId: input.modelTierId,
     }),
   });
-  const data = (await resp.json()) as { error?: string };
-  if (!resp.ok) throw new Error(data.error ?? `Signup failed (${resp.status})`);
+  let data: { error?: string; message?: string; checkout?: SubscriptionCheckoutHint } = {};
+  try {
+    data = (await resp.json()) as typeof data;
+  } catch {
+    if (!resp.ok) throw new Error(`Signup failed (${resp.status})`);
+    return;
+  }
+  throwIfBootstrapFailed(resp.status, data);
+}
+
+export async function startHostedPlanCheckout(input: {
+  lane: "standard" | "byok";
+  readinessSkuId: string;
+  topUpPence?: number;
+  successUrl?: string;
+  cancelUrl?: string;
+}): Promise<{ checkoutUrl: string }> {
+  const token = await supabaseAccessToken();
+  if (!token) throw new Error("Sign in required");
+
+  const { data: auth, error: authError } = await getSupabaseClient().auth.getUser();
+  if (authError || !auth.user?.id) throw new Error("Sign in required");
+
+  const { CONTROL_PLANE_URL } = await import("../hostConfig.js");
+  const resp = await fetch(`${CONTROL_PLANE_URL.replace(/\/$/, "")}/billing/plans/subscribe`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      accountId: auth.user.id,
+      lane: input.lane,
+      readinessSkuId: input.readinessSkuId,
+      topUpPence: input.topUpPence,
+      successUrl: input.successUrl,
+      cancelUrl: input.cancelUrl,
+    }),
+  });
+  const data = (await resp.json().catch(() => ({}))) as {
+    checkoutUrl?: string | null;
+    error?: string;
+    status?: string;
+  };
+  if (!resp.ok) {
+    throw new Error(data.error ?? `Checkout failed (${resp.status})`);
+  }
+  const checkoutUrl = data.checkoutUrl?.trim();
+  if (!checkoutUrl) {
+    // Beta waiver can return status without a Stripe URL.
+    if (data.status === "beta_included") {
+      throw new Error("Plan is included during beta — retry provisioning.");
+    }
+    throw new Error("Checkout URL was not returned");
+  }
+  return { checkoutUrl };
 }
 
 export async function fetchHostedAccountStatus(): Promise<{

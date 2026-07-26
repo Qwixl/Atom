@@ -1,4 +1,5 @@
 import type { AtomAccountType } from "./hostedAccount.js";
+import type { BillingLane, ModelTierId, ReadinessSkuId } from "./planLanes.js";
 
 const STORAGE_KEY = "atom:pending-hosted-auth";
 const AT_PROVISION_KEY = "atom:signup-at-provision";
@@ -13,6 +14,10 @@ export type PendingHostedAuth = {
   llmProvider?: string;
   llmBaseUrl?: string;
   llmModel?: string;
+  billingLane?: BillingLane;
+  readinessSkuId?: ReadinessSkuId;
+  modelTierId?: ModelTierId;
+  topUpPence?: number;
 };
 
 export function savePendingHostedAuth(data: PendingHostedAuth): void {
