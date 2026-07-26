@@ -13,6 +13,13 @@ import { mergeThread } from "./comms/coordinationThread.js";
 import type { CommsThreadItem, InboxEntryWire } from "./comms/types.js";
 import { DemoProposalComposer } from "./DemoProposalComposer.js";
 import { DEMO_PERSONAS } from "./demoPersonas.js";
+import {
+  DemoCoach,
+  nextCoachAfterAccept,
+  nextCoachAfterSend,
+  nextCoachWhenBobReady,
+  type DemoCoachStep,
+} from "./demo/DemoCoach.js";
 
 const POLL_MS = 2000;
 
@@ -33,10 +40,21 @@ type DemoPairViewProps = {
   alice?: DemoPairAgent;
   bob?: DemoPairAgent;
   showIntro?: boolean;
+  /** Interactive coach overlays for the public live demo. */
+  guided?: boolean;
 };
 
 function deliveryBaseFor(agent: DemoPairAgent): string {
   return agent.deliveryBase ?? resolveAgentDeliveryBase(agent.adminUrl);
+}
+
+function missionPhase(step: DemoCoachStep | null): "propose" | "watch" | "accept" | "done" {
+  if (!step || step === "welcome" || step === "title" || step === "when" || step === "send") {
+    return "propose";
+  }
+  if (step === "watch") return "watch";
+  if (step === "accept") return "accept";
+  return "done";
 }
 
 export function DemoPairView({
@@ -44,6 +62,7 @@ export function DemoPairView({
   alice = DEMO_PERSONAS.alice,
   bob = DEMO_PERSONAS.bob,
   showIntro = true,
+  guided = false,
 }: DemoPairViewProps) {
   const aliceDelivery = deliveryBaseFor(alice);
   const bobDelivery = deliveryBaseFor(bob);
@@ -65,6 +84,8 @@ export function DemoPairView({
   const [bobOutbound, setBobOutbound] = useState<CommsThreadItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [coachStep, setCoachStep] = useState<DemoCoachStep | null>(guided ? "welcome" : null);
+  const [userSent, setUserSent] = useState(false);
 
   const aliceEndpoint = agentJsonRpcEndpoint(aliceDelivery);
   const bobEndpoint = agentJsonRpcEndpoint(bobDelivery);
@@ -109,6 +130,21 @@ export function DemoPairView({
   const bobAcceptedOffers = useMemo(() => new Set<string>(), []);
   const aliceAcceptedOffers = useMemo(() => new Set<string>(), []);
 
+  const bobHasActionableProposal = useMemo(
+    () =>
+      bobThread.some((item) =>
+        threadItemNeedsActions(item, bobResponded, bobTxnResponded, bobAcceptedOffers),
+      ),
+    [bobAcceptedOffers, bobResponded, bobThread, bobTxnResponded],
+  );
+
+  useEffect(() => {
+    if (!coachStep || !userSent) return;
+    if (bobHasActionableProposal) {
+      setCoachStep((current) => (current ? nextCoachWhenBobReady(current) : current));
+    }
+  }, [bobHasActionableProposal, coachStep, userSent]);
+
   async function sendProposal(title: string, slots: SchedulingSlot[]) {
     if (!bobDid) return;
     setBusy(true);
@@ -133,6 +169,8 @@ export function DemoPairView({
           slots,
         },
       ]);
+      setUserSent(true);
+      setCoachStep((current) => (current ? nextCoachAfterSend(current) : current));
       await refresh();
     } catch (error) {
       setNote(error instanceof Error ? error.message : String(error));
@@ -206,6 +244,9 @@ export function DemoPairView({
           slotLabel: slot?.label,
         },
       ]);
+      if (side === "bob" && response === "accept") {
+        setCoachStep((current) => (current ? nextCoachAfterAccept(current) : current));
+      }
       await refresh();
     } catch (error) {
       setNote(error instanceof Error ? error.message : String(error));
@@ -214,31 +255,62 @@ export function DemoPairView({
     }
   }
 
+  const phase = missionPhase(coachStep);
+
   return (
     <div className="atom-pair demo-pair">
-      {showIntro ? (
+      {guided ? (
+        <aside className="demo-mission" aria-label="What this demo shows">
+          <div className="demo-mission-copy">
+            <strong>Live demo: two agents booking a meeting</strong>
+            <p>
+              You control both sides. Propose a time as Alice on the left, watch it arrive for Bob on
+              the right, then accept it as Bob.
+            </p>
+          </div>
+          <ol className="demo-mission-steps">
+            <li data-active={phase === "propose"} data-done={phase !== "propose"}>
+              <span className="demo-step-num">1</span> Propose
+            </li>
+            <li
+              data-active={phase === "watch"}
+              data-done={phase === "accept" || phase === "done"}
+            >
+              <span className="demo-step-num">2</span> Watch arrive
+            </li>
+            <li data-active={phase === "accept"} data-done={phase === "done"}>
+              <span className="demo-step-num">3</span> Accept as Bob
+            </li>
+          </ol>
+        </aside>
+      ) : showIntro ? (
         <p className="atom-pair-intro demo-pair-intro">
-          <strong>Alice</strong> (left) sends a meeting proposal to <strong>Bob</strong> (right).
-          Bob accepts or declines in shell confirmation chrome. Both agents update live.
+          <strong>Alice</strong> (left) sends a meeting proposal to <strong>Bob</strong> (right). Bob
+          accepts or declines. Both agents update live.
         </p>
       ) : null}
 
       <div className="atom-pair-columns demo-pair-columns">
         <section className="atom-pane atom-pane--alice demo-pane demo-pane--alice" aria-label="Alice">
           <header className="atom-pane-header demo-pane-header">
-            <span className="atom-pane-title demo-pane-title">Alice</span>
-            <span className="atom-pane-meta demo-pane-meta">Personal agent → Bob</span>
+            <span className="atom-pane-title demo-pane-title">You · Alice</span>
+            <span className="atom-pane-meta demo-pane-meta">
+              Your personal agent — compose and send a meeting request
+            </span>
           </header>
           <div className="atom-pane-body demo-pane-body">
             <div className="atom-pane-form demo-pane-form">
               <DemoProposalComposer peerName={bob.label} busy={busy} onSend={sendProposal} />
             </div>
             <div className="atom-pane-thread demo-pane-thread">
-              <h4 className="atom-pane-thread-label demo-pane-thread-label">Sent &amp; received</h4>
+              <header className="demo-section-head demo-section-head--activity">
+                <h4>Activity</h4>
+                <p>History for Alice’s agent — focus on the form above to send your proposal</p>
+              </header>
               <div className="atom-pane-thread-scroll demo-pane-thread-scroll">
                 {aliceThread.length === 0 ? (
                   <p className="atom-pane-empty demo-pane-empty">
-                    Send a proposal — it appears on Bob&apos;s side.
+                    Nothing here yet. Send a proposal above — Bob’s inbox on the right will update.
                   </p>
                 ) : (
                   aliceThread.map((item) => (
@@ -246,12 +318,15 @@ export function DemoPairView({
                       key={item.id}
                       item={item}
                       busy={busy}
-                      showActions={threadItemNeedsActions(
-                        item,
-                        aliceResponded,
-                        aliceTxnResponded,
-                        aliceAcceptedOffers,
-                      )}
+                      showActions={
+                        !guided &&
+                        threadItemNeedsActions(
+                          item,
+                          aliceResponded,
+                          aliceTxnResponded,
+                          aliceAcceptedOffers,
+                        )
+                      }
                       onAcceptSlot={(proposalId, slot) =>
                         void confirmRespond("alice", proposalId, "accept", slot)
                       }
@@ -270,16 +345,31 @@ export function DemoPairView({
           </div>
         </section>
 
-        <section className="atom-pane atom-pane--bob demo-pane demo-pane--bob" aria-label="Bob">
+        <section
+          className="atom-pane atom-pane--bob demo-pane demo-pane--bob"
+          aria-label="Bob"
+          data-demo-target="bob-pane"
+        >
           <header className="atom-pane-header demo-pane-header">
-            <span className="atom-pane-title demo-pane-title">Bob</span>
-            <span className="atom-pane-meta demo-pane-meta">Business agent ← Alice</span>
+            <span className="atom-pane-title demo-pane-title">Bob · Business</span>
+            <span className="atom-pane-meta demo-pane-meta">
+              The other party’s agent — receive and accept the request
+            </span>
           </header>
           <div className="atom-pane-thread atom-pane-thread--full demo-pane-thread demo-pane-thread--full">
-            <h4 className="atom-pane-thread-label demo-pane-thread-label">Inbox</h4>
+            <header className="demo-section-head demo-section-head--activity">
+              <h4>Inbox</h4>
+              <p>
+                {bobThread.length === 0
+                  ? "Waiting for Alice’s agent to send a meeting request"
+                  : "Open a request and accept a time"}
+              </p>
+            </header>
             <div className="atom-pane-thread-scroll demo-pane-thread-scroll">
               {bobThread.length === 0 ? (
-                <p className="atom-pane-empty demo-pane-empty">Waiting for Alice&apos;s proposal…</p>
+                <p className="atom-pane-empty demo-pane-empty">
+                  Empty for now. After you press Send on the left, the proposal appears here.
+                </p>
               ) : (
                 bobThread.map((item) => (
                   <ThreadItemView
@@ -314,6 +404,14 @@ export function DemoPairView({
         <p className="atom-pair-note demo-pair-note" role="status">
           {note}
         </p>
+      ) : null}
+
+      {coachStep ? (
+        <DemoCoach
+          step={coachStep}
+          onStepChange={setCoachStep}
+          onDismiss={() => setCoachStep(null)}
+        />
       ) : null}
     </div>
   );
