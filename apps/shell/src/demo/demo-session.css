@@ -18,39 +18,41 @@
   padding: 20px 24px;
 }
 
-/* Demo session scrolls the window so explainers can sit below the live pair. */
-.atom-app--demo .atom-app-body,
-.atom-app--demo .atom-app-stage,
-.atom-app--demo .atom-app-content {
+/*
+ * Demo session: scroll the body so explainers can sit below the live pair.
+ * Keep stage/content as block flow (not shrink-wrapped flex) so the pair
+ * workspace cannot collapse to zero height.
+ */
+.atom-app--demo .atom-app-body {
   overflow-x: hidden;
   overflow-y: auto;
 }
 
 .atom-app--demo .atom-app-stage {
-  padding: 24px 32px 48px;
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
+  display: block;
+  overflow: visible;
   height: auto;
-  min-height: 0;
+  min-height: min-content;
+  padding: 20px 32px 48px;
 }
 
 .atom-app--demo .atom-app-content {
+  display: block;
   flex: none;
+  width: 100%;
+  max-width: 1120px;
   height: auto;
   min-height: min-content;
-  max-width: none;
+  margin: 0 auto;
   overflow: visible;
 }
 
 .demo-session-frame {
-  flex: none;
+  display: block;
   width: 100%;
   max-width: 1120px;
-  min-height: 0;
   height: auto;
-  display: flex;
-  flex-direction: column;
+  min-height: min-content;
   margin: 0 auto;
 }
 
@@ -101,6 +103,11 @@
 @media (max-width: 800px) {
   .atom-app--demo .atom-app-stage {
     padding: 16px;
+  }
+
+  .demo-pair-workspace {
+    height: auto;
+    min-height: 70dvh;
   }
 }
 

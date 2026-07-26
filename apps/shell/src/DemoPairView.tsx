@@ -332,6 +332,7 @@ export function DemoPairView({
         </p>
       ) : null}
 
+      <div className="demo-pair-workspace">
       <div className="atom-pair-columns demo-pair-columns">
         <section className="atom-pane atom-pane--alice demo-pane demo-pane--alice" aria-label="Alice">
           <header className="atom-pane-header demo-pane-header">
@@ -505,6 +506,7 @@ export function DemoPairView({
             </div>
           </section>
         </div>
+      </div>
       </div>
 
       {guided ? <DemoExploreCopy /> : null}
