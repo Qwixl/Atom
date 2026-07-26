@@ -65,6 +65,12 @@ export class DataObjectInbox {
   count(): number {
     return this.entries.length;
   }
+
+  /** Wipe persisted inbox (public demo session reset). */
+  clear(): void {
+    this.entries.length = 0;
+    this.writer.persist();
+  }
 }
 
 export type { DataObject };

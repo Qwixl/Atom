@@ -85,9 +85,13 @@ export {
   type SwarmAbuseVerdict,
 } from "./swarmAbuseGate.js";
 export {
+  DEMO_MEETING_CONFIRM_REFUSE,
+  DEMO_MEETING_CONFIRM_SYSTEM_PROMPT,
   DEMO_MEETING_ONLY_REFUSE,
   DEMO_MEETING_ONLY_SYSTEM_PROMPT,
+  evaluateDemoMeetingConfirm,
   evaluateDemoMeetingOnly,
+  isDemoMeetingConfirmEnabled,
   isDemoMeetingOnlyEnabled,
   type DemoMeetingVerdict,
 } from "./demoMeetingGate.js";

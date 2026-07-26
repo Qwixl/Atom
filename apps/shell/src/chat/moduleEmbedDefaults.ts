@@ -75,6 +75,13 @@ export function withModulePropDefaults(
       ...props,
     };
   }
+  if (moduleId === "scheduling/meeting-confirm") {
+    return {
+      title: typeof props.title === "string" ? props.title : "Meeting",
+      slots: Array.isArray(props.slots) ? props.slots : [],
+      ...props,
+    };
+  }
   if (moduleId === "atom/presentation-board") {
     return {
       title: "Presentation board",
