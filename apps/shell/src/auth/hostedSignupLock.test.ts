@@ -17,6 +17,7 @@ describe("resolveHostedSignupFields", () => {
       llmProvider: "openrouter",
       llmBaseUrl: "https://openrouter.ai/api/v1",
       llmModel: "anthropic/claude-sonnet-4",
+      billingLane: "byok",
     });
   });
 
@@ -34,6 +35,23 @@ describe("resolveHostedSignupFields", () => {
       llmProvider: "openai",
       llmBaseUrl: "https://api.openai.com/v1",
       llmModel: "gpt-4o-mini",
+      billingLane: "byok",
+    });
+  });
+
+  it("allows Standard signup without owner LLM key", () => {
+    expect(
+      resolveHostedSignupFields({
+        email: "a@b.co",
+        handle: "@you",
+        llmApiKey: "",
+        billingLane: "standard",
+      }),
+    ).toMatchObject({
+      handle: "@you",
+      billingLane: "standard",
+      llmApiKey: "",
+      llmProvider: "openrouter",
     });
   });
 

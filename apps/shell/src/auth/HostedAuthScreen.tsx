@@ -16,17 +16,17 @@ import { resolveHostedLlmConnection } from "../settings/llmProviderPresets.js";
 
 type AuthMode = "signup" | "login";
 
-/** Buyer lanes (D094) — prices published; beta charges waived. */
+/** Account kinds — plan lane is chosen in AuthWizard (prices from Atom-MC catalog). */
 const ACCOUNT_TYPES: { id: AtomAccountType; label: string; hint: string }[] = [
   {
     id: "user",
     label: "Personal",
-    hint: "Managed agent — sleep £5 / hourly wake £10 / always-on £20 (beta free; BYOK)",
+    hint: "Everyday use — Standard (credits) or BYOK hosting",
   },
   {
     id: "business",
     label: "Business",
-    hint: "Always-on storefront + Discover listing — £50/mo after beta (listing free at launch)",
+    hint: "Brand, catalog, and business agent",
   },
   {
     id: "developer",
