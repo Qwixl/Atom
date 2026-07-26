@@ -1,13 +1,13 @@
 {
   "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
   "dsseEnvelope": {
-    "payload": "eyJfdHlwZSI6Imh0dHBzOi8vaW4tdG90by5pby9TdGF0ZW1lbnQvdjEiLCJzdWJqZWN0IjpbeyJuYW1lIjoibWFuaWZlc3QuanNvbiIsImRpZ2VzdCI6eyJzaGEyNTYiOiJhNjQ1YWJiMTUzOGUxYTQxMTVmYTBjYmY5MDllMzEwNTU3ZTEwZmQzMjJkOTYxYzI3ZWQ2MjdhODZjMzQzYTI1In19XSwicHJlZGljYXRlVHlwZSI6Imh0dHBzOi8vYXRvbS5xd2l4bC5kZXYvYXR0ZXN0YXRpb24vbW9kdWxlLW1hbmlmZXN0L3YxIiwicHJlZGljYXRlIjp7ImJ1aWxkZXIiOnsiaWQiOiJhdG9tLXJlZ2lzdHJ5LXNpZ24ifSwibm90ZSI6ImF0b20tcmVnaXN0cnkgZGlnZXN0LWFuY2hvcmVkIFNpZ3N0b3JlIERTU0UgKE0tVFMtMDMgY3VyYXRlZCBzdG9yZTsgRnVsY2lvIG9wdGlvbmFsIHZpYSAtLWZ1bGNpbykifX0",
+    "payload": "eyJfdHlwZSI6Imh0dHBzOi8vaW4tdG90by5pby9TdGF0ZW1lbnQvdjEiLCJzdWJqZWN0IjpbeyJuYW1lIjoibWFuaWZlc3QuanNvbiIsImRpZ2VzdCI6eyJzaGEyNTYiOiJlMmNlNjUzMjg2MTQ0MzBlMDAwOTQzN2Y4YmYwYjJlMzZlOWRjMzU3NDdmNjUwZmEwOTU1YTM4ZmFhYWY5YzM4In19XSwicHJlZGljYXRlVHlwZSI6Imh0dHBzOi8vYXRvbS5xd2l4bC5kZXYvYXR0ZXN0YXRpb24vbW9kdWxlLW1hbmlmZXN0L3YxIiwicHJlZGljYXRlIjp7ImJ1aWxkZXIiOnsiaWQiOiJhdG9tLXJlZ2lzdHJ5LXNpZ24ifSwibm90ZSI6ImF0b20tcmVnaXN0cnkgZGlnZXN0LWFuY2hvcmVkIFNpZ3N0b3JlIERTU0UgKE0tVFMtMDMgY3VyYXRlZCBzdG9yZTsgRnVsY2lvIG9wdGlvbmFsIHZpYSAtLWZ1bGNpbykifX0",
     "payloadType": "application/vnd.in-toto+json",
     "signatures": [
       {
-        "sig": "MEUCID2Sw7XVb9N0ByPkPwkm5asQLphMX3ao4dN87Tcj_-QnAiEAgM4_cI9UHMy8lPivdrE8cq9W4zJHgbcdVofWS_fqm8I",
+        "sig": "MEQCIHYn_WwokXCddUvmYIyufyO69-IGYeI-M0LP63LvWO64AiBuwe0dO3ATSIEZQhuLa1FeG8nTGaKv6drN8jC9I517oA",
         "keyid": "",
-        "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAELQSCX3mYeF6tVqRcSWkJvK32GcHY\nITdowOBn+bypmtq+RcLheyvt0/pDhL3/slgla+g53Wx5Mwgk8Znp7NcU5w==\n-----END PUBLIC KEY-----\n"
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAElQpp92YlxT6f0SA7bdMuAbK7RAbp\nxLv36qbohbNKwcpFRo0gZ4IIumcTUq2BeU+eW93xs7BCATXlx2BN0mXBog==\n-----END PUBLIC KEY-----\n"
       }
     ]
   }
