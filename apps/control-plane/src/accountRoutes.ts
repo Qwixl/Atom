@@ -21,6 +21,8 @@ interface BootstrapBody {
   llmProvider?: string;
   llmModel?: string;
   llmBaseUrl?: string;
+  /** Qwixl commercial lanes are handled by Atom-MC production CP, not this stub. */
+  billingLane?: string;
 }
 
 async function requireUser(req: Request, res: Response) {
@@ -168,15 +170,25 @@ export function registerAccountRoutes(
         .eq("id", user.id);
       if (profileError) throw new Error(profileError.message);
 
+      if (body.billingLane === "standard") {
+        res.status(501).json({
+          error:
+            "Standard (all-inclusive) plans are provisioned by Atom-MC production control plane, not this local stub.",
+        });
+        return;
+      }
+
       const llmKey = body.llmApiKey?.trim();
+      const llmBaseUrl = body.llmBaseUrl?.trim() || undefined;
+      const llmModel = body.llmModel?.trim() || undefined;
       if (llmKey) {
         const { error: llmError } = await supabaseAdmin().from("user_llm_settings").upsert(
           {
             user_id: user.id,
             provider: body.llmProvider?.trim() || "openai",
             api_key: llmKey,
-            base_url: body.llmBaseUrl?.trim() || null,
-            model: body.llmModel?.trim() || null,
+            base_url: llmBaseUrl ?? null,
+            model: llmModel ?? null,
           },
           { onConflict: "user_id" },
         );
@@ -222,8 +234,8 @@ export function registerAccountRoutes(
         workspaceKind: "personal",
         handle: parsedHandle.handle,
         llmApiKey: llmKey || undefined,
-        llmBaseUrl: body.llmBaseUrl?.trim() || undefined,
-        llmModel: body.llmModel?.trim() || undefined,
+        llmBaseUrl,
+        llmModel,
       });
 
       await supabaseAdmin()

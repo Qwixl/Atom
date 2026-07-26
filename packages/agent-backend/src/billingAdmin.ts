@@ -1,5 +1,4 @@
 import type { Express } from "express";
-import type { AuthenticatedRequest } from "./adminAuth.js";
 import { BudgetLedgerStore } from "./budgetLedger.js";
 import { defaultSpendPolicy, spendPolicyAllows, type SpendCategory, type SpendPolicy } from "./spendPolicy.js";
 import fs from "node:fs";
@@ -83,6 +82,8 @@ export function registerBillingAdminRoutes(app: Express, deps: BillingAdminDeps)
           : "duty-cycled",
       ...alwaysOnBrainPricePayload(),
       hosting: hostingSkusPayload(),
+      /** Qwixl account lanes / Atom Credits: Atom-MC GET /billing/plans */
+      plansCatalog: "atom-mc",
     });
   });
 
@@ -159,7 +160,7 @@ export function registerBillingAdminRoutes(app: Express, deps: BillingAdminDeps)
     });
   });
 
-  /** Always-on Agent Brain subscription — charged at beta exit (D078 / Q13). */
+  /** Legacy always-on brain Checkout alias (D078). Full plan ladder: Atom-MC. */
   app.post("/billing/hosting/subscribe", async (req, res) => {
     const body = req.body as { workspaceId?: string; successUrl?: string; cancelUrl?: string };
     const workspaceId = body.workspaceId?.trim();
@@ -175,7 +176,16 @@ export function registerBillingAdminRoutes(app: Express, deps: BillingAdminDeps)
         status: "beta_included",
         alwaysOnBrain: true,
         ...price,
-        message: `Always-on Agent Brain is included during beta. Published price after beta: ${ALWAYS_ON_BRAIN_PRICE.displayPrice}.`,
+        message:
+          "Always-on reachability is included during beta. Operator price: set ATOM_ALWAYS_ON_PRICE_PENCE or use Atom-MC plan catalog.",
+      });
+      return;
+    }
+    if (!ALWAYS_ON_BRAIN_PRICE.unitAmountPence) {
+      res.status(503).json({
+        error:
+          "No always-on price configured (set ATOM_ALWAYS_ON_PRICE_PENCE). Qwixl hosted plans use Atom-MC /billing/plans/subscribe.",
+        ...price,
       });
       return;
     }
@@ -207,7 +217,6 @@ export function registerBillingAdminRoutes(app: Express, deps: BillingAdminDeps)
               product_data: { name: ALWAYS_ON_BRAIN_PRICE.productName },
             },
           };
-      // Stripe Checkout expects nested form keys; flatten for stripeRequest.
       const params: Record<string, string | number | boolean> = {
         mode: "subscription",
         success_url: successUrl,

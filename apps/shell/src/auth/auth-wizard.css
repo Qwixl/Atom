@@ -169,6 +169,12 @@
   gap: 14px;
 }
 
+.auth-slide-subtitle {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
 .auth-slide-title {
   margin: 0;
   font-size: 15px;
