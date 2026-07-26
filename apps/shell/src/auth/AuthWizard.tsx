@@ -13,6 +13,8 @@ import {
   resendSignupConfirmation,
   signInSupabaseAccount,
   signupHostedDevAccount,
+  startHostedPlanCheckout,
+  SubscriptionRequiredError,
   type AtomAccountType,
 } from "./hostedAccount.js";
 import { saveAccountType } from "../accountType.js";
@@ -121,6 +123,30 @@ function applyPendingAccountTypes(
   } catch {
     /* keep defaults */
   }
+}
+
+function applyPendingPlanFields(
+  pending: {
+    billingLane?: BillingLane;
+    readinessSkuId?: ReadinessSkuId;
+    modelTierId?: ModelTierId;
+    topUpPence?: number;
+  },
+  setters: {
+    setBillingLane: (v: BillingLane) => void;
+    setReadinessSkuId: (v: ReadinessSkuId) => void;
+    setModelTierId: (v: ModelTierId) => void;
+    setTopUpPence: (v: number) => void;
+    setHosting: (v: HostingType) => void;
+  },
+): void {
+  if (pending.billingLane) {
+    setters.setBillingLane(pending.billingLane);
+    setters.setHosting(hostingTypeForLane(pending.billingLane));
+  }
+  if (pending.readinessSkuId) setters.setReadinessSkuId(pending.readinessSkuId);
+  if (pending.modelTierId) setters.setModelTierId(pending.modelTierId);
+  if (typeof pending.topUpPence === "number") setters.setTopUpPence(pending.topUpPence);
 }
 
 export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps) {
@@ -339,32 +365,59 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
     void (async () => {
       const params = new URLSearchParams(window.location.search);
       const resumeSetup = params.get("resume") === "1";
+      const billing = params.get("billing");
       const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
       const isReload = nav?.type === "reload";
       const reloadMidSetup = isReload && isSignupAtProvision();
       const hasSession = await hasSupabaseSession();
       const pending = loadPendingHostedAuth();
 
-      if (hasSession && !loadFirstRunDone() && mode === "register") {
-        if (pending) {
-          setEmail(pending.email);
-          if (pending.handle) setHandle(pending.handle);
-          applyPendingAccountTypes(pending, setPersonal, setDeveloper, setBusiness);
-          if (pending.llmApiKey) {
-            setLlmConnection((prev) => ({
-              ...prev,
-              apiKey: pending.llmApiKey ?? prev.apiKey,
-              providerId:
-                pending.llmProvider === "openrouter" ||
-                pending.llmProvider === "custom" ||
-                pending.llmProvider === "openai"
-                  ? pending.llmProvider
-                  : prev.providerId,
-              baseUrl: pending.llmBaseUrl ?? prev.baseUrl,
-              model: pending.llmModel ?? prev.model,
-            }));
-          }
+      const restorePending = (p: NonNullable<typeof pending>) => {
+        setEmail(p.email);
+        if (p.handle) setHandle(p.handle);
+        applyPendingAccountTypes(p, setPersonal, setDeveloper, setBusiness);
+        applyPendingPlanFields(p, {
+          setBillingLane,
+          setReadinessSkuId,
+          setModelTierId,
+          setTopUpPence,
+          setHosting,
+        });
+        if (p.llmApiKey) {
+          setLlmConnection((prev) => ({
+            ...prev,
+            apiKey: p.llmApiKey ?? prev.apiKey,
+            providerId:
+              p.llmProvider === "openrouter" ||
+              p.llmProvider === "custom" ||
+              p.llmProvider === "openai"
+                ? p.llmProvider
+                : prev.providerId,
+            baseUrl: p.llmBaseUrl ?? prev.baseUrl,
+            model: p.llmModel ?? prev.model,
+          }));
         }
+        if (p.kind === "register") setHosting("hosted");
+      };
+
+      if (billing === "plan-cancel" && mode === "register") {
+        if (pending) restorePending(pending);
+        setHosting("hosted");
+        goTo("hosting");
+        setError("Payment was cancelled. Your plan was not charged — pick a plan and continue when ready.");
+        return;
+      }
+
+      if (billing === "plan-success" && mode === "register" && pending && hasSession) {
+        restorePending(pending);
+        setHosting("hosted");
+        goTo("provisioning");
+        void runHostedSupabaseProvisioning();
+        return;
+      }
+
+      if (hasSession && !loadFirstRunDone() && mode === "register") {
+        if (pending) restorePending(pending);
         setHosting("hosted");
         goTo("provisioning");
         void resumeHostedSupabaseSetup();
@@ -382,24 +435,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
 
       if (!pending) return;
 
-      setEmail(pending.email);
-      if (pending.handle) setHandle(pending.handle);
-      applyPendingAccountTypes(pending, setPersonal, setDeveloper, setBusiness);
-      if (pending.llmApiKey) {
-        setLlmConnection((prev) => ({
-          ...prev,
-          apiKey: pending.llmApiKey ?? prev.apiKey,
-          providerId:
-            pending.llmProvider === "openrouter" ||
-            pending.llmProvider === "custom" ||
-            pending.llmProvider === "openai"
-              ? pending.llmProvider
-              : prev.providerId,
-          baseUrl: pending.llmBaseUrl ?? prev.baseUrl,
-          model: pending.llmModel ?? prev.model,
-        }));
-      }
-      if (pending.kind === "register") setHosting("hosted");
+      restorePending(pending);
 
       if (hasSession) {
         goTo("provisioning");
@@ -594,6 +630,19 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
     setError(null);
     setProvisionTasks(initProvisionTasks());
 
+    const pending = loadPendingHostedAuth();
+    const planLane: "standard" | "byok" =
+      pending?.billingLane === "byok"
+        ? "byok"
+        : pending?.billingLane === "standard"
+          ? "standard"
+          : billingLane === "byok"
+            ? "byok"
+            : "standard";
+    const planReadinessSkuId = pending?.readinessSkuId ?? readinessSkuId;
+    const planModelTierId = pending?.modelTierId ?? modelTierId;
+    const planTopUpPence = pending?.topUpPence ?? topUpPence;
+
     try {
       if (!(await hasSupabaseSession())) {
         throw new Error("Sign in required — confirm your email first.");
@@ -606,14 +655,26 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         llmProvider: llmConnection.providerId,
         llmBaseUrl: llmConnection.baseUrl,
         llmModel: llmConnection.model,
-        billingLane: billingLane === "byok" ? "byok" : "standard",
+        billingLane: planLane,
       });
       if (!fields) {
         throw new Error("Signup details missing — go back to Profile and try again.");
       }
 
       advanceTask("auth", "agent");
-      const selection = currentAccountSelection();
+      const selection = (() => {
+        try {
+          return currentAccountSelection();
+        } catch {
+          if (pending?.accountTypes?.length) {
+            return AccountTypeSelection.fromAccountTypes(pending.accountTypes);
+          }
+          if (pending?.accountType) {
+            return AccountTypeSelection.fromAccountTypes([pending.accountType]);
+          }
+          throw new Error("Account type missing — go back and try again.");
+        }
+      })();
       const accountType = selection.primaryAccountType();
       const accountTypes = selection.toAccountTypes();
       await bootstrapHostedAccount({
@@ -625,8 +686,8 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         llmBaseUrl: fields.llmBaseUrl,
         llmModel: fields.llmModel,
         billingLane: fields.billingLane,
-        readinessSkuId,
-        modelTierId: billingLane === "standard" ? modelTierId : undefined,
+        readinessSkuId: planReadinessSkuId,
+        modelTierId: planLane === "standard" ? planModelTierId : undefined,
       });
       advanceTask("agent", "connect");
       const connection = await fetchHostedAgentConnection();
@@ -644,6 +705,70 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       clearSignupAtProvision();
       navigateAfterAuthSuccess();
     } catch (err) {
+      if (err instanceof SubscriptionRequiredError) {
+        try {
+          const selection = (() => {
+            try {
+              return currentAccountSelection();
+            } catch {
+              if (pending?.accountTypes?.length) {
+                return AccountTypeSelection.fromAccountTypes(pending.accountTypes);
+              }
+              if (pending?.accountType) {
+                return AccountTypeSelection.fromAccountTypes([pending.accountType]);
+              }
+              throw new Error("Account type missing — go back and try again.");
+            }
+          })();
+          savePendingHostedAuth({
+            kind: "register",
+            email: (pending?.email ?? email).trim(),
+            handle: pending?.handle ?? handle,
+            accountType: selection.primaryAccountType(),
+            accountTypes: selection.toAccountTypes(),
+            llmApiKey: pending?.llmApiKey ?? llmConnection.apiKey,
+            llmProvider: pending?.llmProvider ?? llmConnection.providerId,
+            llmBaseUrl: pending?.llmBaseUrl ?? llmConnection.baseUrl,
+            llmModel: pending?.llmModel ?? llmConnection.model,
+            billingLane: planLane,
+            readinessSkuId: planReadinessSkuId,
+            modelTierId: planLane === "standard" ? planModelTierId : undefined,
+            topUpPence: planTopUpPence,
+          });
+          markSignupAtProvision();
+          setProvisionTasks([
+            { id: "auth", label: "Creating account", state: "done" },
+            { id: "agent", label: "Redirecting to payment…", state: "active" },
+            { id: "connect", label: "Connecting shell", state: "pending" },
+          ]);
+          const origin = window.location.origin;
+          const { checkoutUrl } = await startHostedPlanCheckout({
+            lane: planLane,
+            readinessSkuId: planReadinessSkuId,
+            topUpPence: planTopUpPence > 0 ? planTopUpPence : undefined,
+            successUrl: `${origin}/app/?billing=plan-success&auth=register`,
+            cancelUrl: `${origin}/app/?billing=plan-cancel&auth=register`,
+          });
+          try {
+            if (window.top) {
+              window.top.location.href = checkoutUrl;
+              return;
+            }
+          } catch {
+            /* cross-origin top — fall through */
+          }
+          window.location.href = checkoutUrl;
+          return;
+        } catch (checkoutErr) {
+          const raw =
+            checkoutErr instanceof Error ? checkoutErr.message : String(checkoutErr);
+          setError(friendlyHostedProvisionError(raw));
+          setProvisionTasks((prev) =>
+            prev.map((t) => (t.state === "active" ? { ...t, state: "error" } : t)),
+          );
+        }
+        return;
+      }
       const raw = err instanceof Error ? err.message : String(err);
       setError(friendlyHostedProvisionError(raw));
       setProvisionTasks((prev) =>
@@ -720,6 +845,10 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         llmProvider: llmConnection.providerId,
         llmBaseUrl: llmConnection.baseUrl,
         llmModel: llmConnection.model,
+        billingLane: billingLane === "byok" ? "byok" : billingLane === "standard" ? "standard" : "self_hosted",
+        readinessSkuId,
+        modelTierId: billingLane === "standard" ? modelTierId : undefined,
+        topUpPence,
       });
       try {
         if (await hasSupabaseSession()) {
