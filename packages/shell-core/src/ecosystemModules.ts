@@ -22,6 +22,25 @@ export const ECOSYSTEM_MODULE_MANIFESTS: ModuleManifest[] = [
     tier: "system",
   },
   {
+    id: "scheduling/meeting-confirm",
+    version: "1.0.0",
+    publisher: "did:key:z6Mkatomexamples01",
+    targets: ["web"],
+    bundleUrl: "/modules/scheduling-meeting-confirm/index.html",
+    components: [
+      {
+        name: "scheduling/meeting-confirm",
+        semanticRole: "input/confirmation",
+        events: [{ name: "meetingResponse" }],
+        agentHint:
+          "Inline accept/decline card for an inbound scheduling proposal. Props: { title, slots: [{ id, label, start, end }] }. Emits meetingResponse with { response: accept|decline, slotId?, slot?, title? }.",
+      },
+    ],
+    capabilities: [],
+    categories: ["scheduling", "coordination"],
+    tier: "system",
+  },
+  {
     id: "connectors/webcal",
     version: "1.0.0",
     publisher: "did:key:z6Mkatomexamples01",

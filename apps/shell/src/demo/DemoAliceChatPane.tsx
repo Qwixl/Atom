@@ -24,6 +24,7 @@ export function DemoAliceChatPane({
   busyOutbound,
   onMeetingProposed,
   onPickerVisible,
+  onUserAsked,
 }: {
   peerName: string;
   aliceAdminUrl: string;
@@ -31,6 +32,7 @@ export function DemoAliceChatPane({
   busyOutbound: boolean;
   onMeetingProposed: (title: string, slots: SchedulingSlot[]) => void | Promise<void>;
   onPickerVisible?: () => void;
+  onUserAsked?: () => void;
 }) {
   const catalog = useMemo(() => {
     const c = new Catalog();
@@ -116,6 +118,7 @@ export function DemoAliceChatPane({
     conversation.appendUser(trimmed);
     session.sendUserMessage(trimmed);
     setDraft("");
+    onUserAsked?.();
   }
 
   function handleUiEvent(event: UiEvent) {
@@ -143,13 +146,13 @@ export function DemoAliceChatPane({
   }
 
   return (
-    <div className="demo-alice-chat">
+    <div className="demo-alice-chat" data-demo-target="alice-chat">
       <div className="demo-alice-chat-feed" ref={feedRef}>
         {snapshot.feed.length === 0 ? (
           <div className="demo-alice-chat-empty">
             <p>
-              Ask Alice to schedule a meeting with {peerName}. She’ll build a picker in this chat —
-              you can change the title and time before sending it agent-to-agent.
+              Ask Alice to schedule a meeting with {peerName}. Her agent asks for anything missing,
+              then builds a picker you can edit before sending agent-to-agent.
             </p>
             <button
               type="button"
