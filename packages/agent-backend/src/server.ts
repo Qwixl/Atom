@@ -592,6 +592,15 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
         currency,
         description,
       });
+      // Atom Credits Agent Spend purse (MC) — GBP pence when currency is gbp.
+      if (currency?.toLowerCase() === "gbp" && amountMinor > 0) {
+        void import("./controlPlaneCredits.js").then(({ reportAgentSpendToControlPlane }) => {
+          reportAgentSpendToControlPlane({
+            amountPence: amountMinor,
+            description: description ?? "agent spend",
+          });
+        });
+      }
     },
   });
   registerQualifyAdminRoutes(adminApp, { store: qualifyStore });

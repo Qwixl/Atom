@@ -73,6 +73,19 @@ import {
   validatePasswordMatch,
   validatePasswordStrength,
 } from "./passwordValidation.js";
+import {
+  BYOK_READINESS,
+  MODEL_TIER_OPTIONS,
+  STANDARD_READINESS,
+  TOP_UP_OPTIONS_PENCE,
+  hostingTypeForLane,
+  parseLaneFromSearch,
+  topUpHint,
+  type BillingLane,
+  type ModelTierId,
+  type ReadinessSkuId,
+} from "./planLanes.js";
+import { fetchPlanCatalog, type RemotePlanCatalog } from "./fetchPlanCatalog.js";
 import "./auth-wizard.css";
 
 type AuthWizardProps = {
@@ -87,11 +100,53 @@ type ProvisionTask = {
 };
 
 export function AuthWizard({ mode, onClose }: AuthWizardProps) {
+  const initialLane = parseLaneFromSearch(typeof window !== "undefined" ? window.location.search : "");
+  const [billingLane, setBillingLane] = useState<BillingLane>(() => {
+    if (initialLane) return initialLane;
+    return isHostedSignupAvailable() ? "standard" : "self_hosted";
+  });
+  const [readinessSkuId, setReadinessSkuId] = useState<ReadinessSkuId>("on_when_needed");
+  const [modelTierId, setModelTierId] = useState<ModelTierId>("balanced");
+  const [topUpPence, setTopUpPence] = useState(0);
   const [hosting, setHosting] = useState<HostingType>(() =>
-    isHostedSignupAvailable() ? "hosted" : "self-hosted",
+    hostingTypeForLane(initialLane ?? (isHostedSignupAvailable() ? "standard" : "self_hosted")),
   );
   const [loginNeedsConfirm, setLoginNeedsConfirm] = useState(false);
   const [accountType, setAccountType] = useState<AtomAccountType>("user");
+
+  const [remoteCatalog, setRemoteCatalog] = useState<RemotePlanCatalog | null>(null);
+
+  useEffect(() => {
+    if (mode !== "register") return;
+    void fetchPlanCatalog().then(setRemoteCatalog);
+  }, [mode]);
+
+  function selectBillingLane(lane: BillingLane) {
+    setBillingLane(lane);
+    setHosting(hostingTypeForLane(lane));
+    setReadinessSkuId("on_when_needed");
+    setTopUpPence(0);
+  }
+
+  const standardReadiness = remoteCatalog
+    ? Object.values(remoteCatalog.lanes.standard.skus).map((s) => ({
+        id: s.id as ReadinessSkuId,
+        displayName: s.displayName,
+        displayPrice: s.displayPrice,
+        hint: remoteCatalog.lanes.standard.summary,
+      }))
+    : STANDARD_READINESS;
+  const byokReadiness = remoteCatalog
+    ? Object.values(remoteCatalog.lanes.byok.skus).map((s) => ({
+        id: s.id as ReadinessSkuId,
+        displayName: s.displayName,
+        displayPrice: s.displayPrice,
+        hint: remoteCatalog.lanes.byok.summary,
+      }))
+    : BYOK_READINESS;
+  const topUpOptions = remoteCatalog
+    ? ([0, ...remoteCatalog.topUpPacksPence] as number[])
+    : [...TOP_UP_OPTIONS_PENCE];
 
   const ACCOUNT_TYPES: { id: AtomAccountType; label: string; hint: string }[] = [
     { id: "user", label: "Personal", hint: "Everyday use — chat, messages, rooms" },
@@ -405,6 +460,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         llmProvider: llmConnection.providerId,
         llmBaseUrl: llmConnection.baseUrl,
         llmModel: llmConnection.model,
+        billingLane: billingLane === "byok" ? "byok" : "standard",
       });
       await completeAgentSetup({
         adminUrl: connection.adminUrl,
@@ -427,6 +483,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         llmProvider: llmConnection.providerId,
         llmBaseUrl: llmConnection.baseUrl,
         llmModel: llmConnection.model,
+        billingLane: billingLane === "byok" ? "byok" : "standard",
       });
       if (fields) {
         await runHostedSupabaseProvisioning();
@@ -465,6 +522,7 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         llmProvider: llmConnection.providerId,
         llmBaseUrl: llmConnection.baseUrl,
         llmModel: llmConnection.model,
+        billingLane: billingLane === "byok" ? "byok" : "standard",
       });
       if (!fields) {
         throw new Error("Signup details missing — go back to Profile and try again.");
@@ -478,6 +536,9 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
         llmProvider: fields.llmProvider,
         llmBaseUrl: fields.llmBaseUrl,
         llmModel: fields.llmModel,
+        billingLane: fields.billingLane,
+        readinessSkuId,
+        modelTierId: billingLane === "standard" ? modelTierId : undefined,
       });
       advanceTask("agent", "connect");
       const connection = await fetchHostedAgentConnection();
@@ -755,22 +816,24 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       return true;
     }
     if (hosting === "hosted") {
-      if (!llmConnection.apiKey.trim()) {
-        setError("Add your LLM API key to continue.");
-        return false;
-      }
-      const resolved = resolveHostedLlmConnection({
-        providerId: llmConnection.providerId,
-        baseUrl: llmConnection.baseUrl,
-        model: llmConnection.model,
-      });
-      if (!resolved.baseUrl.trim() || !resolved.model.trim()) {
-        setError(
-          llmConnection.providerId === "custom"
-            ? "Add an endpoint base URL and model id."
-            : "Choose a model for your provider.",
-        );
-        return false;
+      if (billingLane === "byok") {
+        if (!llmConnection.apiKey.trim()) {
+          setError("Add your LLM API key to continue.");
+          return false;
+        }
+        const resolved = resolveHostedLlmConnection({
+          providerId: llmConnection.providerId,
+          baseUrl: llmConnection.baseUrl,
+          model: llmConnection.model,
+        });
+        if (!resolved.baseUrl.trim() || !resolved.model.trim()) {
+          setError(
+            llmConnection.providerId === "custom"
+              ? "Add an endpoint base URL and model id."
+              : "Choose a model for your provider.",
+          );
+          return false;
+        }
       }
       if (handleStatus?.includes("taken")) {
         setError("Choose a different handle.");
@@ -850,40 +913,131 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
       case "hosting":
         return (
           <>
-            <h3 className="auth-slide-title">How will you run your agent?</h3>
+            <h3 className="auth-slide-title">Choose your plan</h3>
             <p className="auth-slide-desc">
-              Hosted agents run on Qwixl infrastructure. Self-hosted agents run on your own server.
+              Standard includes Atom Credits. BYOK is hosting only with your LLM key. Self-hosted is
+              free — optional top-ups for Agent Spend.
             </p>
             <div className="auth-radio-stack">
-              <label className={`atom-radio-card${hosting === "hosted" ? " is-selected" : ""}`}>
+              <label className={`atom-radio-card${billingLane === "standard" ? " is-selected" : ""}`}>
                 <input
                   type="radio"
-                  name="hosting"
-                  checked={hosting === "hosted"}
-                  onChange={() => setHosting("hosted")}
+                  name="billingLane"
+                  checked={billingLane === "standard"}
+                  onChange={() => selectBillingLane("standard")}
+                  disabled={!isHostedSignupAvailable()}
                 />
                 <span>
-                  <strong>Hosted</strong>
-                  <span>Qwixl runs your agent — no server setup.</span>
-                  {IS_LOCAL_DEV && !usesSupabaseHostedAuth() ? (
-                    <span className="atom-note">
-                      Local dev — uses the control plane stub started with pnpm dev.
-                    </span>
-                  ) : null}
+                  <strong>Standard</strong>
+                  <span>
+                    {remoteCatalog?.lanes.standard.displayFrom ?? "Hosted"} — agent + credits for
+                    chat, speech, and Agent Spend
+                  </span>
                 </span>
               </label>
-              <label className={`atom-radio-card${hosting === "self-hosted" ? " is-selected" : ""}`}>
+              <label className={`atom-radio-card${billingLane === "byok" ? " is-selected" : ""}`}>
                 <input
                   type="radio"
-                  name="hosting"
-                  checked={hosting === "self-hosted"}
-                  onChange={() => setHosting("self-hosted")}
+                  name="billingLane"
+                  checked={billingLane === "byok"}
+                  onChange={() => selectBillingLane("byok")}
+                  disabled={!isHostedSignupAvailable()}
                 />
                 <span>
-                  <strong>Self hosted</strong>
-                  <span>Connect an agent you operate with URL and token.</span>
+                  <strong>BYOK</strong>
+                  <span>
+                    {remoteCatalog?.lanes.byok.displayFrom ?? "Hosted"} — you bring your LLM key;
+                    top-ups for speech &amp; Agent Spend
+                  </span>
                 </span>
               </label>
+              <label
+                className={`atom-radio-card${billingLane === "self_hosted" ? " is-selected" : ""}`}
+              >
+                <input
+                  type="radio"
+                  name="billingLane"
+                  checked={billingLane === "self_hosted"}
+                  onChange={() => selectBillingLane("self_hosted")}
+                />
+                <span>
+                  <strong>Self-hosted</strong>
+                  <span>Free — run your own agent; optional top-ups for Agent Spend with Atom</span>
+                </span>
+              </label>
+            </div>
+
+            {billingLane === "standard" || billingLane === "byok" ? (
+              <>
+                <h4 className="auth-slide-subtitle">Readiness</h4>
+                <div className="auth-radio-stack">
+                  {(billingLane === "standard" ? standardReadiness : byokReadiness).map((sku) => (
+                    <label
+                      key={sku.id}
+                      className={`atom-radio-card${readinessSkuId === sku.id ? " is-selected" : ""}`}
+                    >
+                      <input
+                        type="radio"
+                        name="readiness"
+                        checked={readinessSkuId === sku.id}
+                        onChange={() => setReadinessSkuId(sku.id)}
+                      />
+                      <span>
+                        <strong>
+                          {sku.displayName} · {sku.displayPrice}
+                        </strong>
+                        <span>{sku.hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            ) : null}
+
+            {billingLane === "standard" ? (
+              <>
+                <h4 className="auth-slide-subtitle">Agent level</h4>
+                <div className="auth-radio-stack">
+                  {MODEL_TIER_OPTIONS.map((tier) => (
+                    <label
+                      key={tier.id}
+                      className={`atom-radio-card${modelTierId === tier.id ? " is-selected" : ""}`}
+                    >
+                      <input
+                        type="radio"
+                        name="modelTier"
+                        checked={modelTierId === tier.id}
+                        onChange={() => setModelTierId(tier.id)}
+                      />
+                      <span>
+                        <strong>{tier.label}</strong>
+                        <span>{tier.hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            ) : null}
+
+            <h4 className="auth-slide-subtitle">Optional top-up</h4>
+            <p className="atom-note">{topUpHint(billingLane)}</p>
+            <div className="auth-radio-stack">
+              {topUpOptions.map((pence) => (
+                <label
+                  key={pence}
+                  className={`atom-radio-card${topUpPence === pence ? " is-selected" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    name="topUp"
+                    checked={topUpPence === pence}
+                    onChange={() => setTopUpPence(pence)}
+                  />
+                  <span>
+                    <strong>{pence === 0 ? "No top-up now" : `£${(pence / 100).toFixed(0)}`}</strong>
+                  </span>
+                </label>
+              ))}
             </div>
           </>
         );
@@ -950,7 +1104,9 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
                   ? "Confirm your handle and reconnect to your local agent."
                   : "Reconnect your self-hosted agent."
                 : hosting === "hosted"
-                  ? "Your public handle and LLM provider key."
+                  ? billingLane === "standard"
+                    ? "Your public handle. Chat models are included — no API key needed."
+                    : "Your public handle and LLM provider key."
                   : ATOM_BROWSER_MODE
                     ? "Your handle and local agent connection (pre-filled for this dev session)."
                     : "Your handle and agent connection details."}
@@ -965,7 +1121,12 @@ export function AuthWizard({ mode, onClose }: AuthWizardProps) {
             </label>
             {handleStatus ? <p className="atom-note">{handleStatus}</p> : null}
 
-            {mode === "register" && hosting === "hosted" ? (
+            {mode === "register" && hosting === "hosted" && billingLane === "standard" ? (
+              <p className="atom-note">
+                Standard uses Atom’s included models (Efficient / Balanced / Maximum). You can change
+                the level later in Settings. BYOK keys are not available on this plan.
+              </p>
+            ) : mode === "register" && hosting === "hosted" && billingLane === "byok" ? (
               <HostedLlmConnectionFields value={llmConnection} onChange={setLlmConnection} />
             ) : (
               <>

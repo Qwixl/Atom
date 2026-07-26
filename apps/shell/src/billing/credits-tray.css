@@ -1,0 +1,53 @@
+.atom-credits-tray {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.atom-credits-tray__btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 4px 8px;
+  border: 1px solid var(--shell-border, #333);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1.2;
+}
+
+.atom-credits-tray__balance {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.atom-credits-tray__meta {
+  font-size: 0.7rem;
+  opacity: 0.75;
+}
+
+.atom-credits-toast {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  min-width: 220px;
+  max-width: 280px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--shell-border, #333);
+  background: var(--shell-raised-bg, #1a1a1a);
+  box-shadow: var(--shell-shadow-sm, 0 4px 16px rgba(0, 0, 0, 0.25));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.atom-credits-toast p {
+  margin: 0;
+  font-size: 0.85rem;
+}
