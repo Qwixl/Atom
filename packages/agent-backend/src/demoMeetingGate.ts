@@ -90,6 +90,6 @@ Reply with ONLY valid JSON (no markdown fences, no prose outside JSON):
 
 Rules:
 - Always include the scheduling/meeting-picker composition for allowed asks.
-- defaultTitle must come from the user's words (e.g. "Quick pint", "Coffee catch-up", "Team standup"). Never leave a generic "Meeting" if they named something else.
+- defaultTitle: use "Meeting" for a generic schedule ask. If the user names something specific (coffee, pint, standup, etc.), use that short title instead.
 - Do not invent other components, tools, games, calendars, or connectors.
 - Refuse line (exact): Sorry I can't help you with that, I only set agent-to-agent meetings.`;
