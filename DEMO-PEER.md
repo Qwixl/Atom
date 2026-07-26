@@ -45,4 +45,11 @@ State resets when demo data dirs or container volumes are cleared. Labeled as de
 
 ## Production host
 
-Deploy the same `@qwixl/agent-backend` image with `ATOM_DEMO_PEER=1` and a known `ATOM_ADMIN_TOKEN`. Point the production shell build at the public URL (`VITE_DEMO_PEER_URL`).
+Atom-MC deploys shared demo agents on the primary droplet (`ops/swarm-host/ensure_demo_agents.sh`):
+
+| Role | URL | Token |
+|---|---|---|
+| Visitor personal agent | `https://demo.agents.atom.qwixl.com` | `atom-demo-alice-token` |
+| Demo peer (`ATOM_DEMO_PEER=1`) | `https://demopeer.agents.atom.qwixl.com` | `atom-demo-peer-token` |
+
+The website build sets `VITE_DEMO_PERSONAL_AGENT_*` and `VITE_DEMO_PEER_*` to those values so `/app/?demo=1` works with no account.
