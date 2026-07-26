@@ -6,6 +6,16 @@
     max(16px, env(safe-area-inset-left, 0px));
 }
 
+/* Embed iframe: transparent chrome so marketing shows through. */
+.auth-modal-overlay.auth-embed {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.auth-embed.atom-auth-modal {
+  background: transparent;
+}
+
 .auth-modal {
   width: min(440px, 100%);
   max-height: min(

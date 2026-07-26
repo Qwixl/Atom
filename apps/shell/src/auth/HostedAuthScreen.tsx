@@ -3,9 +3,10 @@ import {
   bootstrapHostedAccount,
   fetchHostedAgentConnection,
   getSupabaseClient,
-  type AtomAccountType,
 } from "./hostedAccount.js";
+import { AccountTypeSelection } from "./accountTypeSelection.js";
 import { completeAgentSetup } from "./completeSetup.js";
+import { saveAccountType } from "../accountType.js";
 import { bareOwnerHandle, normalizeOwnerHandle, validateOwnerHandle } from "../ownerHandle.js";
 import {
   defaultHostedLlmConnectionFields,
@@ -16,25 +17,6 @@ import { resolveHostedLlmConnection } from "../settings/llmProviderPresets.js";
 
 type AuthMode = "signup" | "login";
 
-/** Account kinds — plan lane is chosen in AuthWizard (prices from Atom-MC catalog). */
-const ACCOUNT_TYPES: { id: AtomAccountType; label: string; hint: string }[] = [
-  {
-    id: "user",
-    label: "Personal",
-    hint: "Everyday use — Standard (credits) or BYOK hosting",
-  },
-  {
-    id: "business",
-    label: "Business",
-    hint: "Brand, catalog, and business agent",
-  },
-  {
-    id: "developer",
-    label: "Developer",
-    hint: "Build and ship modules",
-  },
-];
-
 export function HostedAuthScreen({
   onDone,
 }: {
@@ -44,12 +26,32 @@ export function HostedAuthScreen({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [handle, setHandle] = useState("");
-  const [accountType, setAccountType] = useState<AtomAccountType>("user");
+  const [personal, setPersonal] = useState(true);
+  const [developer, setDeveloper] = useState(false);
+  const [business, setBusiness] = useState(false);
   const [llmConnection, setLlmConnection] = useState<HostedLlmConnectionFieldsValue>(() =>
     defaultHostedLlmConnectionFields("openai"),
   );
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+
+  function togglePersonal(checked: boolean) {
+    if (checked) {
+      setPersonal(true);
+      setDeveloper(false);
+    } else {
+      setPersonal(false);
+    }
+  }
+
+  function toggleDeveloper(checked: boolean) {
+    if (checked) {
+      setDeveloper(true);
+      setPersonal(false);
+    } else {
+      setDeveloper(false);
+    }
+  }
 
   async function wireAgentAfterAuth() {
     const connection = await fetchHostedAgentConnection();
@@ -65,6 +67,14 @@ export function HostedAuthScreen({
   }
 
   async function submitSignup() {
+    let selection: AccountTypeSelection;
+    try {
+      selection = AccountTypeSelection.fromFlags({ personal, developer, business });
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+      return;
+    }
+
     const handleError = validateOwnerHandle(handle);
     if (handleError) {
       setStatus(handleError);
@@ -108,14 +118,18 @@ export function HostedAuthScreen({
       });
       if (signInError) throw signInError;
 
+      const accountType = selection.primaryAccountType();
+      const accountTypes = selection.toAccountTypes();
       await bootstrapHostedAccount({
         handle: bareOwnerHandle(handle),
         accountType,
+        accountTypes,
         llmApiKey: llmConnection.apiKey.trim(),
         llmProvider: resolved.provider,
         llmBaseUrl: resolved.baseUrl,
         llmModel: resolved.model,
       });
+      saveAccountType(accountType, accountTypes);
       await wireAgentAfterAuth();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
@@ -182,19 +196,39 @@ export function HostedAuthScreen({
         <>
           <fieldset className="field">
             <legend>Account type</legend>
-            {ACCOUNT_TYPES.map((type) => (
-              <label key={type.id} className="radio-row">
-                <input
-                  type="radio"
-                  name="accountType"
-                  checked={accountType === type.id}
-                  onChange={() => setAccountType(type.id)}
-                />
-                <span>
-                  <strong>{type.label}</strong> — {type.hint}
-                </span>
-              </label>
-            ))}
+            <p className="muted">
+              Personal or Developer (pick one). Add Business if you also want a brand agent.
+            </p>
+            <label className="radio-row">
+              <input
+                type="checkbox"
+                checked={personal}
+                onChange={(e) => togglePersonal(e.target.checked)}
+              />
+              <span>
+                <strong>Personal</strong> — Everyday use — Standard (credits) or BYOK hosting
+              </span>
+            </label>
+            <label className="radio-row">
+              <input
+                type="checkbox"
+                checked={developer}
+                onChange={(e) => toggleDeveloper(e.target.checked)}
+              />
+              <span>
+                <strong>Developer</strong> — Build and ship modules
+              </span>
+            </label>
+            <label className="radio-row">
+              <input
+                type="checkbox"
+                checked={business}
+                onChange={(e) => setBusiness(e.target.checked)}
+              />
+              <span>
+                <strong>Business</strong> — Brand, catalog, and business agent (optional)
+              </span>
+            </label>
           </fieldset>
 
           <label className="field">
