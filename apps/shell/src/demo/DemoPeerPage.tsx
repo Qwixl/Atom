@@ -15,10 +15,7 @@ import "./demo-peer.css";
 type ServiceStatus = "checking" | "ready" | "missing";
 
 function demoPersonalAgentUrl(): string {
-  return resolveInjectedUrl(
-    import.meta.env.VITE_DEMO_PERSONAL_AGENT_URL as string | undefined,
-    "http://127.0.0.1:5204",
-  );
+  return resolveInjectedUrl(import.meta.env.VITE_DEMO_PERSONAL_AGENT_URL as string | undefined, "http://127.0.0.1:5204");
 }
 
 function demoPersonalAgentToken(): string {
