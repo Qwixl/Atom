@@ -66,22 +66,25 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  /* Form is flex:none — when it is taller than the pane, scroll the body
-     so the send button is reachable (page stage uses overflow:hidden). */
+  overflow: hidden;
+}
+
+/* Cap the form so Sent/Received keeps a usable share of the pane; scroll
+   inside the form when the composer is taller than the cap. */
+.atom-pane-form {
+  flex: 0 1 auto;
+  max-height: 58%;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-}
-
-.atom-pane-form {
-  flex: none;
   padding: 16px;
   border-bottom: 1px solid var(--shell-border);
 }
 
 .atom-pane-thread {
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 42%;
+  min-height: 180px;
   display: flex;
   flex-direction: column;
 }
