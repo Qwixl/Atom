@@ -111,7 +111,7 @@ export class MockAgentSession extends SessionEmitter implements AgentSession {
       this.later(400, () =>
         this.emit({
           type: "text",
-          text: "Opening Messages to send that proposal to your contact.",
+          text: "Got it — sending that meeting proposal to your contact’s agent.",
         }),
       );
       this.later(450, () => this.finishTurn());

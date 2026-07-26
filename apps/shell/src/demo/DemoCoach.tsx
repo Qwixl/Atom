@@ -2,9 +2,8 @@ import { useEffect, useLayoutEffect, useState } from "react";
 
 export type DemoCoachStep =
   | "welcome"
-  | "title"
-  | "when"
-  | "send"
+  | "ask"
+  | "pick"
   | "watch"
   | "accept"
   | "done";
@@ -22,54 +21,45 @@ const TIPS: Tip[] = [
   {
     id: "welcome",
     target: null,
-    kicker: "2-minute tour",
-    title: "Agents booking a meeting — live",
-    body: "Left is Alice (you). Right is Bob (a business). You’ll send a meeting request from Alice, watch it land in Bob’s inbox, then accept it as Bob. If Activity already shows a note from Bob, ignore it for now — focus on Send.",
-    actionLabel: "Show me what to do",
+    kicker: "Agent web demo",
+    title: "Ask your agent — don’t fill a form",
+    body: "On the left, talk to Alice like you would in Atom. She builds an interactive meeting picker in the chat. When you confirm a time, her agent sends it to Bob on the right — agent to agent.",
+    actionLabel: "Show me",
   },
   {
-    id: "title",
-    target: "[data-demo-target='title']",
+    id: "ask",
+    target: "[data-demo-target='ask'], [data-demo-target='ask-compose']",
     kicker: "Step 1 of 3",
-    title: "Type a meeting title",
-    body: "Edit the title, or leave it as-is. This is what Bob’s agent will show when the request arrives.",
-    actionLabel: "Next — pick a time",
+    title: "Ask Alice to schedule",
+    body: "Tap the suggestion chip (or type your own ask). Alice’s agent will reply with a built-in picker component — not a static webpage form.",
   },
   {
-    id: "when",
-    target: "[data-demo-target='when']",
+    id: "pick",
+    target: "[data-demo-target='picker']",
     kicker: "Step 1 of 3",
-    title: "Select date and time",
-    body: "Choose when you want to meet. You’re telling Alice’s agent what to propose.",
-    actionLabel: "Next — send",
-  },
-  {
-    id: "send",
-    target: "[data-demo-target='send']",
-    kicker: "Step 1 of 3",
-    title: "Now send",
-    body: "Press Send to Bob. Alice’s agent delivers the proposal directly to Bob’s agent — not by email.",
+    title: "Use the agent-built picker",
+    body: "This control was composed by the agent into the chat. Pick a time and propose the meeting — that’s an Atom module, rendered inline.",
   },
   {
     id: "watch",
     target: "[data-demo-target='bob-pane']",
     kicker: "Step 2 of 3",
-    title: "Look at Bob’s inbox",
-    body: "Your proposal appears on the right. That’s Bob’s agent receiving Alice’s message live.",
+    title: "Watch Bob’s inbox",
+    body: "Alice’s agent delivered the proposal to Bob’s agent. The right column is the other party’s view — live, no email thread.",
   },
   {
     id: "accept",
     target: "[data-demo-target='bob-pane']",
     kicker: "Step 3 of 3",
-    title: "Accept a time as Bob",
-    body: "On the right, press Accept on a slot. You’re deciding as Bob — the reply shows up in Alice’s Activity.",
+    title: "Accept as Bob",
+    body: "Press Accept on a slot in Bob’s inbox. You’re deciding for the business agent — Alice’s Activity updates with the reply.",
   },
   {
     id: "done",
     target: null,
     kicker: "Done",
-    title: "That’s agent-to-agent scheduling",
-    body: "Two agents coordinated a meeting while you stayed in control. Exit anytime, or send another proposal to try again.",
+    title: "That’s the agent web",
+    body: "Natural language → agent-built UI → agent-to-agent delivery → human approval. Exit anytime, or ask Alice to propose another time.",
     actionLabel: "Finish guide",
   },
 ];
@@ -133,20 +123,12 @@ export function DemoCoach({
     };
   }, [step]);
 
-  if (step === "done" && !tip.actionLabel) return null;
-
   const pad = 8;
   const tipStyle =
     rect && tip.target
       ? ({
-          top: Math.min(
-            window.innerHeight - 200,
-            Math.max(12, rect.top + rect.height + pad + 4),
-          ),
-          left: Math.min(
-            window.innerWidth - 320,
-            Math.max(12, rect.left),
-          ),
+          top: Math.min(window.innerHeight - 200, Math.max(12, rect.top + rect.height + pad + 4)),
+          left: Math.min(window.innerWidth - 320, Math.max(12, rect.left)),
         } as const)
       : undefined;
 
@@ -186,9 +168,7 @@ export function DemoCoach({
               type="button"
               className="btn btn-primary"
               onClick={() => {
-                if (step === "welcome") onStepChange("title");
-                else if (step === "title") onStepChange("when");
-                else if (step === "when") onStepChange("send");
+                if (step === "welcome") onStepChange("ask");
                 else if (step === "done") onDismiss();
               }}
             >
@@ -205,13 +185,23 @@ export function DemoCoach({
   );
 }
 
+export function nextCoachAfterAsk(step: DemoCoachStep): DemoCoachStep {
+  if (step === "ask" || step === "welcome") return "pick";
+  return step;
+}
+
+export function nextCoachAfterPicker(step: DemoCoachStep): DemoCoachStep {
+  if (step === "ask" || step === "welcome") return "pick";
+  return step;
+}
+
 export function nextCoachAfterSend(step: DemoCoachStep): DemoCoachStep {
-  if (step === "send" || step === "title" || step === "when" || step === "welcome") return "watch";
+  if (step === "ask" || step === "pick" || step === "welcome") return "watch";
   return step;
 }
 
 export function nextCoachWhenBobReady(step: DemoCoachStep): DemoCoachStep {
-  if (step === "watch" || step === "send") return "accept";
+  if (step === "watch" || step === "pick" || step === "ask") return "accept";
   return step;
 }
 

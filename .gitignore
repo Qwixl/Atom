@@ -1,40 +1,37 @@
+
+!.env.example
 # ------------------------------------------------------------------
+# Build/tooling artifacts
+# Capacitor / Android local build output (project sources under apps/native/android stay tracked)
 # PRIVATE WORKING MATERIAL — never committed to the public repo.
 # See AGENTS.md (itself private): the public repo carries only what is
 # strictly necessary to build and run the shell.
-# ------------------------------------------------------------------
-/.cursor/
-/.agents/
-/docs/
-/AGENTS.md
-/notes/
-/scratch/
-/supabase/
-/secrets/
+**/.vite/
+**/model-behavior-sightings.json
+*.key
 *.local.*
+*.pem
 *.private.*
 *.sightings.json
-**/model-behavior-sightings.json
-*.pem
-*.key
-credentials.json
-id_rsa
-.env
-.env.*
-!.env.example
-
-# ------------------------------------------------------------------
-# Build/tooling artifacts
-# ------------------------------------------------------------------
-node_modules/
-dist/
-**/.vite/
 *.tsbuildinfo
 .DS_Store
-
-# Capacitor / Android local build output (project sources under apps/native/android stay tracked)
-apps/native/android/.gradle/
+.env
+.env.*
+.idea/
+/.agents/
+/.cursor/
+/AGENTS.md
+/docs/
+/notes/
+/scratch/
+/secrets/
+/supabase/
 apps/native/android/**/build/
-apps/native/android/local.properties
-apps/native/android/captures/
+apps/native/android/.gradle/
 apps/native/android/.idea/
+apps/native/android/captures/
+apps/native/android/local.properties
+credentials.json
+dist/
+id_rsa
+node_modules/
