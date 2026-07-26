@@ -60,12 +60,21 @@ export function CommsModuleEmbed({
     };
   }, [catalog, moduleId, registry]);
 
+  // Stable serialize so parent re-renders (inbox poll) do not re-init the iframe.
+  const propsKey = useMemo(() => {
+    try {
+      return JSON.stringify(props);
+    } catch {
+      return String(Date.now());
+    }
+  }, [props]);
+
   useEffect(() => {
     if (!ready || !bridge) return;
     const win = iframeRef.current?.contentWindow;
     if (!win) return;
     bridge.sendInit(win, propsRef.current);
-  }, [bridge, props, ready]);
+  }, [bridge, propsKey, ready]);
 
   useEffect(() => {
     if (!bridge) return;
