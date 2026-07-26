@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { AtomIdent } from "../brand/AtomIdent.js";
-import { ATOM_BROWSER_MODE } from "../hostConfig.js";
+import { ATOM_BROWSER_MODE, resolveInjectedUrl } from "../hostConfig.js";
 import { loadBrowserAgentConfig } from "../browserAgentConfig.js";
 import {
   checkAgentHealth,
@@ -14,14 +14,37 @@ import "./demo-peer.css";
 
 type ServiceStatus = "checking" | "ready" | "missing";
 
+function demoPersonalAgentUrl(): string {
+  return resolveInjectedUrl(import.meta.env.VITE_DEMO_PERSONAL_AGENT_URL as string | undefined, "http://127.0.0.1:5204");
+}
+
+function demoPersonalAgentToken(): string {
+  return (import.meta.env.VITE_DEMO_PERSONAL_AGENT_TOKEN as string | undefined)?.trim() ?? "";
+}
+
+function initialPersonalUrl(browserUrl: string | undefined): string {
+  if (browserUrl?.trim()) return browserUrl.trim();
+  const fromEnv = demoPersonalAgentUrl();
+  if (fromEnv) return fromEnv;
+  return loadCommsAgentConfig().adminUrl ?? defaultCommsAgentUrl();
+}
+
+function initialPersonalToken(browserToken: string | undefined): string {
+  if (browserToken?.trim()) return browserToken.trim();
+  const fromEnv = demoPersonalAgentToken();
+  if (fromEnv) return fromEnv;
+  return loadCommsAgentConfig().adminToken?.trim() ?? "";
+}
+
 export function DemoPeerPage({ onComplete }: { onComplete?: () => void }) {
   const browserConfig = loadBrowserAgentConfig();
   const browserMode = ATOM_BROWSER_MODE && Boolean(browserConfig?.adminToken);
+  const hostedDemoPersonal = Boolean(demoPersonalAgentUrl() && demoPersonalAgentToken());
 
-  const [personalUrl, setPersonalUrl] = useState(
-    browserConfig?.adminUrl ?? loadCommsAgentConfig().adminUrl ?? defaultCommsAgentUrl(),
+  const [personalUrl, setPersonalUrl] = useState(() => initialPersonalUrl(browserConfig?.adminUrl));
+  const [personalToken, setPersonalToken] = useState(() =>
+    initialPersonalToken(browserConfig?.adminToken),
   );
-  const [personalToken, setPersonalToken] = useState(browserConfig?.adminToken ?? "");
   const [personalStatus, setPersonalStatus] = useState<ServiceStatus>("checking");
   const [peerStatus, setPeerStatus] = useState<ServiceStatus>("checking");
   const [busy, setBusy] = useState(false);
@@ -37,7 +60,9 @@ export function DemoPeerPage({ onComplete }: { onComplete?: () => void }) {
       setPersonalStatus("missing");
     }
     try {
-      await fetchDemoPeerDid(demoPeerAdminUrl());
+      const peerUrl = demoPeerAdminUrl();
+      if (!peerUrl) throw new Error("Demo peer URL is not configured");
+      await fetchDemoPeerDid(peerUrl);
       setPeerStatus("ready");
     } catch {
       setPeerStatus("missing");
@@ -94,7 +119,7 @@ export function DemoPeerPage({ onComplete }: { onComplete?: () => void }) {
               Demo peer: {peerStatus === "ready" ? "Ready" : "Unavailable"}
             </li>
           </ul>
-          {browserMode ? null : SHOW_DEV_WORKFLOWS ? (
+          {browserMode || hostedDemoPersonal ? null : SHOW_DEV_WORKFLOWS ? (
             <>
               <label className="atom-field">
                 <span className="atom-field-label">Agent URL</span>
