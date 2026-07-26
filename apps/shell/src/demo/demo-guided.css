@@ -452,9 +452,13 @@
 
 /* Elevate only the interactive hotspot above the scrim — never above the tip card. */
 html[data-demo-coach="ask"] [data-demo-target="ask"],
-html[data-demo-coach="pick"] [data-demo-target="picker"],
-html[data-demo-coach="watch"] [data-demo-target="bob-pane"],
-html[data-demo-coach="accept"] [data-demo-target="bob-pane"] {
+html[data-demo-coach="ask"] [data-demo-target="ask-compose"],
+html[data-demo-coach="build"] [data-demo-target="alice-chat"],
+html[data-demo-coach="build"] [data-demo-target="picker"],
+html[data-demo-coach="build"] [data-demo-target="ask-compose"],
+html[data-demo-coach="bob"] [data-demo-target="bob-chat"],
+html[data-demo-coach="bob"] [data-demo-target="bob-pane"],
+html[data-demo-coach="bob"] [data-demo-target="bob-confirm"] {
   position: relative;
   z-index: 83;
 }
