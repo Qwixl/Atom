@@ -286,25 +286,14 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* Busy status must stay readable (shared .feed-busy is muted + fades to 0.4). */
+/* Busy status: readable color, same pulse as shared .feed-busy. */
 .demo-alice-chat-feed .demo-feed-busy,
 .demo-bob-chat .demo-feed-busy {
   color: var(--shell-text);
   font-size: 13px;
   font-weight: 650;
   padding: 6px 0 2px;
-  opacity: 1;
-  animation: demo-busy-pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes demo-busy-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.72;
-  }
+  animation: pulse 1.4s infinite;
 }
 
 .demo-alice-chat-empty {
@@ -601,7 +590,8 @@ html[data-demo-coach="build"] [data-demo-target="alice-feed"] {
   .demo-mission-steps li[data-active="true"],
   .demo-coach-wait,
   .demo-ask-chip,
-  .demo-feed-busy {
+  .demo-alice-chat-feed .demo-feed-busy,
+  .demo-bob-chat .demo-feed-busy {
     animation: none;
     transition: none;
   }

@@ -244,7 +244,7 @@ export const DemoBobChatPane = forwardRef<
           })
         )}
         {snapshot.busy || busyOutbound ? (
-          <div className="feed-busy demo-feed-busy">Bob’s agent is working</div>
+          <div className="feed-busy demo-feed-busy">Bob’s agent is working…</div>
         ) : null}
       </div>
     </div>

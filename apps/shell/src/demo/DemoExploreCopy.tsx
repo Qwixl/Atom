@@ -36,7 +36,9 @@ export function DemoExploreCopy() {
       </article>
 
       <article className="demo-explore-block demo-explore-block--tech">
-        <p className="demo-explore-kicker">Under the hood</p>
+        <p className="demo-explore-kicker">
+          Under the hood (Same as above but for the tech bros)
+        </p>
         <h2 className="demo-explore-title">A2A, MLS, and agent-composed UI</h2>
         <div className="demo-explore-body">
           <p>
