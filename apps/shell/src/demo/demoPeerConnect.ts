@@ -20,7 +20,9 @@ export const DEMO_PEER_TOKEN =
   (import.meta.env.VITE_DEMO_PEER_TOKEN as string | undefined)?.trim() ?? "atom-demo-peer-token";
 
 export async function fetchDemoPeerDid(adminBase: string): Promise<string> {
-  const resp = await fetch(`${adminBase.replace(/\/$/, "")}/mls/key-package`);
+  const base = productionFetchUrl(adminBase) ?? (import.meta.env.PROD ? null : adminBase.trim());
+  if (!base) throw new Error("Demo peer URL is not configured");
+  const resp = await fetch(`${base.replace(/\/$/, "")}/mls/key-package`);
   if (!resp.ok) throw new Error(`Demo peer not reachable (${resp.status})`);
   const body = (await resp.json()) as { did?: string };
   if (!body.did?.trim()) throw new Error("Demo peer returned no DID");
