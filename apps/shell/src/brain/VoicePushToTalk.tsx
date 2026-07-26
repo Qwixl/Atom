@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
 import { SettingsToggle } from "../ui/SettingsToggle.js";
 import { loadCommsAgentConfigSecure } from "../comms/storage.js";
+import { loadConvAiOptIn, saveConvAiOptIn } from "./VoiceConvAi.js";
 
 const VOICE_OPT_IN_KEY = "atom.voice.pushToTalk";
 
@@ -189,7 +190,9 @@ export function VoicePushToTalk({
 export function VoiceSettingsPanel({ embedded = false }: { embedded?: boolean }) {
   const { config } = useAgentConfig(true);
   const [optIn, setOptIn] = useState(loadVoiceOptIn);
+  const [convAiOptIn, setConvAiOptIn] = useState(loadConvAiOptIn);
   const [providerNote, setProviderNote] = useState<string | null>(null);
+  const [convaiNote, setConvaiNote] = useState<string | null>(null);
 
   useEffect(() => {
     if (!config.adminToken?.trim()) return;
@@ -200,12 +203,23 @@ export function VoiceSettingsPanel({ embedded = false }: { embedded?: boolean })
           headers: { Authorization: `Bearer ${config.adminToken!.trim()}` },
         });
         if (!resp.ok) return;
-        const body = (await resp.json()) as { message?: string; configured?: boolean; provider?: string };
+        const body = (await resp.json()) as {
+          message?: string;
+          configured?: boolean;
+          provider?: string;
+          convai?: { configured?: boolean; agentId?: string | null };
+        };
         setProviderNote(
           `${body.provider ?? "voice"}: ${body.message ?? (body.configured ? "ready" : "not configured")}`,
         );
+        setConvaiNote(
+          body.convai?.configured
+            ? `Conversational AI ready${body.convai.agentId ? ` (${body.convai.agentId})` : ""}.`
+            : "Conversational AI not configured on this agent.",
+        );
       } catch {
         setProviderNote(null);
+        setConvaiNote(null);
       }
     })();
   }, [config]);
@@ -213,9 +227,22 @@ export function VoiceSettingsPanel({ embedded = false }: { embedded?: boolean })
   const fields = (
     <>
       <p className="settings-note">
-        Push-to-talk: hold the mic button in Chat, speak a short request, and hear a spoken reply.
-        Uses your agent&apos;s OpenAI-compatible key (Whisper + TTS). Always-on voice minutes stay on
-        the always-on tier.
+        Live voice chat uses ElevenLabs Conversational AI (human-like duplex). Your agent mints a
+        short-lived session token — the platform API key never reaches the browser. Minutes debit
+        Atom Credits when billed.
+      </p>
+      {convaiNote ? <p className="settings-note">{convaiNote}</p> : null}
+      <SettingsToggle
+        checked={convAiOptIn}
+        label="Show live voice chat in Chat"
+        onChange={(enabled) => {
+          saveConvAiOptIn(enabled);
+          setConvAiOptIn(enabled);
+        }}
+      />
+      <p className="settings-note">
+        Push-to-talk (optional): hold the mic, speak a short request, hear a TTS reply via your
+        agent&apos;s OpenAI-compatible key.
       </p>
       {providerNote ? <p className="settings-note">{providerNote}</p> : null}
       <SettingsToggle

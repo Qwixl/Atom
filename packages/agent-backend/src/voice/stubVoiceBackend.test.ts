@@ -28,9 +28,20 @@ describe("loadVoiceBackend", () => {
     expect(backend.status().duplex).toBe("half");
   });
 
-  it("returns placeholder for unimplemented providers", () => {
+  it("selects elevenlabs when provider set (unconfigured without key)", () => {
     const backend = loadVoiceBackend({ ATOM_VOICE_PROVIDER: "elevenlabs" });
     expect(backend.id).toBe("elevenlabs");
     expect(backend.status().configured).toBe(false);
+  });
+
+  it("marks elevenlabs configured when ConvAI env present", () => {
+    const backend = loadVoiceBackend({
+      ATOM_VOICE_PROVIDER: "elevenlabs",
+      ELEVENLABS_API_KEY: "sk_el",
+      ELEVENLABS_AGENT_ID: "agent_x",
+    });
+    expect(backend.id).toBe("elevenlabs");
+    expect(backend.status().configured).toBe(true);
+    expect(backend.status().duplex).toBe("full");
   });
 });
