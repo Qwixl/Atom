@@ -53,6 +53,15 @@
       const height = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, 100);
       window.parent.postMessage({ type: "resize", height }, "*");
     }
+    function formatSlotLabel(slot) {
+      const start = slot && slot.start ? new Date(slot.start) : null;
+      if (start && !Number.isNaN(start.getTime())) {
+        return start.toLocaleString(undefined, {
+          weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+        });
+      }
+      return (slot && (slot.label || slot.start)) || "Proposed time";
+    }
     function render() {
       document.getElementById("title").textContent = title || "Meeting";
       const root = document.getElementById("slots");
@@ -61,7 +70,8 @@
         const row = document.createElement("div");
         row.className = "slot";
         const label = document.createElement("span");
-        label.textContent = slot.label || slot.start || "Proposed time";
+        // Prefer ISO start (ground truth from A2A) over any model-written label.
+        label.textContent = formatSlotLabel(slot);
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "accept";
