@@ -9,7 +9,7 @@ export const DemoInstructionsModal = forwardRef<HTMLDialogElement>(
           <ol className="demo-instructions-steps">
             <li>
               <strong>Left — chat with Alice:</strong> ask her to schedule a meeting. She replies with
-              an agent-built picker in the conversation — not a website form.
+              an agent-built picker right in the conversation.
             </li>
             <li>
               <strong>Activity:</strong> the agent-to-agent history once a proposal is sent.
