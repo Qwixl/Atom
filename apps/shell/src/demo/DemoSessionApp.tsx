@@ -75,6 +75,7 @@ export function DemoSessionApp() {
         <div className="demo-session-frame">
           <DemoPairView
             showIntro={false}
+            guided
             alice={{
               label: "Alice",
               adminUrl: aliceConfig.adminUrl,

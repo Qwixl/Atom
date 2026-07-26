@@ -45,44 +45,57 @@ export function DemoProposalComposer({
   );
 
   return (
-    <section className="demo-proposal-composer">
-      <h4>Send proposal</h4>
-      <p className="comms-hint">Pick a time and send to {peerName}.</p>
-      <label className="atom-field">
-        <span className="atom-field-label">Title</span>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} />
-      </label>
-      <div className="demo-proposal-datetime">
-        <label className="atom-field">
-          <span className="atom-field-label">Date</span>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </label>
-        <label className="atom-field">
-          <span className="atom-field-label">Time</span>
-          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-        </label>
-        <label className="atom-field">
-          <span className="atom-field-label">Duration (min)</span>
+    <section className="demo-proposal-composer" aria-label="Propose a meeting">
+      <header className="demo-section-head">
+        <h4>Propose a meeting</h4>
+        <p>Your agent will send this request to {peerName} — agent to agent.</p>
+      </header>
+
+      <div className="demo-composer-grid">
+        <label className="demo-field demo-field--title" data-demo-target="title">
+          <span className="demo-field-label">Meeting title</span>
           <input
-            type="number"
-            min={15}
-            step={15}
-            value={duration}
-            onChange={(e) => setDuration(Number(e.target.value) || 30)}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            autoComplete="off"
           />
         </label>
+        <div className="demo-field-when" data-demo-target="when">
+          <label className="demo-field">
+            <span className="demo-field-label">Date</span>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </label>
+          <label className="demo-field">
+            <span className="demo-field-label">Time</span>
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+          </label>
+          <label className="demo-field">
+            <span className="demo-field-label">Mins</span>
+            <input
+              type="number"
+              min={15}
+              step={15}
+              value={duration}
+              onChange={(e) => setDuration(Number(e.target.value) || 30)}
+            />
+          </label>
+        </div>
       </div>
-      <p className="demo-proposal-preview">
-        Proposed slot: <strong>{previewSlot.label}</strong>
-      </p>
-      <button
-        type="button"
-        className="chrome-approve"
-        disabled={busy || !title.trim() || !date || !time}
-        onClick={() => onSend(title.trim(), [previewSlot])}
-      >
-        Send proposal to {peerName}
-      </button>
+
+      <div className="demo-composer-footer">
+        <p className="demo-proposal-preview">
+          Offering: <strong>{previewSlot.label}</strong>
+        </p>
+        <button
+          type="button"
+          className="chrome-approve demo-composer-send"
+          data-demo-target="send"
+          disabled={busy || !title.trim() || !date || !time}
+          onClick={() => onSend(title.trim(), [previewSlot])}
+        >
+          {busy ? "Sending…" : `Send to ${peerName}`}
+        </button>
+      </div>
     </section>
   );
 }
