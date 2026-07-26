@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-26T19:48:46.967Z",
+  "updatedAt": "2026-07-26T21:13:14.579Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
@@ -280,8 +280,8 @@
       "id": "scheduling/meeting-picker",
       "version": "1.0.0",
       "manifestUrl": "scheduling/meeting-picker/manifest.json",
-      "integrity": "sha256:b669824a428dbc6473f716ac214d1b1fbb015cb85ad8d4cc488e6148d2591968",
-      "bundleIntegrity": "sha256:9804d2e43a5ff846a019e3219830b94cd1d7f5062e269e7496a4bfab1f9012a4",
+      "integrity": "sha256:a645abb1538e1a4115fa0cbf909e310557e10fd322d961c27ed627a86c343a25",
+      "bundleIntegrity": "sha256:9f5c3feee18fdfea4672daadcaed01f6143523d56a0f18d4c2a55eb2f6443360",
       "publisher": "did:key:z6Mkatomexamples01",
       "categories": [
         "scheduling",
