@@ -3,9 +3,8 @@ import { useEffect, useLayoutEffect, useState } from "react";
 export type DemoCoachStep =
   | "welcome"
   | "ask"
-  | "pick"
-  | "watch"
-  | "accept"
+  | "build"
+  | "bob"
   | "done";
 
 type Tip = {
@@ -23,7 +22,7 @@ const TIPS: Tip[] = [
     target: null,
     kicker: "Agent web demo",
     title: "Ask your agent to set up the meeting",
-    body: "On the left, talk to Alice like you would in Atom. She builds an interactive meeting picker in the chat. When you confirm a time, her agent sends it to Bob on the right — agent to agent.",
+    body: "For this demo you are Alice talking to her agent. Ask it to set up a meeting with Bob — Bob’s agent will accept or decline. It’s a simple look at an agent completing a task and rendering dynamic, in-chat components.",
     actionLabel: "Show me",
   },
   {
@@ -31,35 +30,28 @@ const TIPS: Tip[] = [
     target: "[data-demo-target='ask'], [data-demo-target='ask-compose']",
     kicker: "Step 1 of 3",
     title: "Ask Alice to schedule",
-    body: "Tap the suggestion chip (or type your own ask). Alice’s agent will reply with an interactive picker built into the chat.",
+    body: "Tap the suggestion chip (or type your own ask). Alice’s agent runs on a real model — if something’s missing (like a day or time), it will ask before building UI.",
   },
   {
-    id: "pick",
-    target: "[data-demo-target='picker']",
-    kicker: "Step 1 of 3",
-    title: "Use the agent-built picker",
-    body: "Alice’s agent built this control in the chat. You can edit the title and time, then send the proposal — that’s an Atom module, rendered inline.",
-  },
-  {
-    id: "watch",
-    target: "[data-demo-target='bob-pane']",
+    id: "build",
+    target: "[data-demo-target='alice-chat'], [data-demo-target='picker']",
     kicker: "Step 2 of 3",
-    title: "Watch Bob’s inbox",
-    body: "Alice’s agent delivered this proposal to Bob’s agent. The right column is the other party’s view — live, no email thread.",
+    title: "Alice’s agent builds the UI",
+    body: "Watch the chat: clarifying questions first if needed, then an interactive meeting picker composed in the conversation. Edit the title/time if you like, then send the proposal.",
   },
   {
-    id: "accept",
-    target: "[data-demo-target='bob-pane']",
+    id: "bob",
+    target: "[data-demo-target='bob-chat'], [data-demo-target='bob-pane']",
     kicker: "Step 3 of 3",
-    title: "Accept as Bob",
-    body: "Press Accept on the new proposal in Bob’s inbox. You’re deciding for the business agent — Alice’s Activity updates with the reply.",
+    title: "Bob’s agent confirms",
+    body: "Bob’s agent receives the proposal and builds its own confirmation component. Accept or decline — both Activity feeds update.",
   },
   {
     id: "done",
     target: null,
     kicker: "Done",
     title: "That’s the agent web",
-    body: "Natural language → agent-built UI → agent-to-agent delivery → human approval. Exit anytime, or ask Alice to propose another time.",
+    body: "Natural language → agent-built UI → agent-to-agent delivery → human approval. Reload the page anytime for a clean demo (nothing is kept).",
     actionLabel: "Finish guide",
   },
 ];
@@ -195,27 +187,26 @@ export function DemoCoach({
 }
 
 export function nextCoachAfterAsk(step: DemoCoachStep): DemoCoachStep {
-  if (step === "ask" || step === "welcome") return "pick";
+  if (step === "ask" || step === "welcome") return "build";
   return step;
 }
 
 export function nextCoachAfterPicker(step: DemoCoachStep): DemoCoachStep {
-  if (step === "ask" || step === "welcome") return "pick";
+  if (step === "ask" || step === "welcome" || step === "build") return "build";
   return step;
 }
 
 export function nextCoachAfterSend(step: DemoCoachStep): DemoCoachStep {
-  if (step === "ask" || step === "pick" || step === "welcome") return "watch";
+  if (step === "ask" || step === "build" || step === "welcome") return "bob";
   return step;
 }
 
-/** Only advance from watch → accept once *this* run’s proposal is in Bob’s inbox. */
 export function nextCoachWhenBobReady(step: DemoCoachStep): DemoCoachStep {
-  if (step === "watch") return "accept";
+  if (step === "bob") return "bob";
   return step;
 }
 
 export function nextCoachAfterAccept(step: DemoCoachStep): DemoCoachStep {
-  if (step === "accept" || step === "watch") return "done";
+  if (step === "bob" || step === "build") return "done";
   return step;
 }

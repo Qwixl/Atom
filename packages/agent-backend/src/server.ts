@@ -749,6 +749,11 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     res.json({ entries: inbox.list() });
   });
 
+  adminApp.delete("/inbox", (_req, res) => {
+    inbox.clear();
+    res.json({ ok: true, cleared: true });
+  });
+
   adminApp.get("/mls/key-package", keyPackageRateLimit, async (_req, res) => {
     try {
       const payload = await mlsStore.keyPackageForHandshake(identity.did);
