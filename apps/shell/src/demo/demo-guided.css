@@ -366,7 +366,7 @@
 
 .demo-coach-card {
   position: fixed;
-  z-index: 82;
+  z-index: 90;
   width: min(340px, calc(100vw - 24px));
   padding: 16px 16px 14px;
   border-radius: 14px;
@@ -450,8 +450,8 @@
   animation: demo-pulse-soft 1.4s ease-in-out infinite;
 }
 
+/* Elevate only the interactive hotspot above the scrim — never above the tip card. */
 html[data-demo-coach="ask"] [data-demo-target="ask"],
-html[data-demo-coach="ask"] [data-demo-target="ask-compose"],
 html[data-demo-coach="pick"] [data-demo-target="picker"],
 html[data-demo-coach="watch"] [data-demo-target="bob-pane"],
 html[data-demo-coach="accept"] [data-demo-target="bob-pane"] {
