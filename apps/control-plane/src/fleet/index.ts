@@ -1,7 +1,6 @@
 /**
- * Public Atom control-plane stub (D097).
- * Production Docker fleet lives in private Qwixl/Atom-MC.
- * Local: HOSTED_STUB_AGENT_URL + HOSTED_STUB_AGENT_TOKEN via `pnpm dev:hosting`.
+ * Public Atom control-plane stub — local hosting UX only (`pnpm dev:hosting`).
+ * This package does not include remote fleet orchestration.
  */
 import type { FleetProvisioner, HostedAgentRecord, ProvisionOutcome } from "./types.js";
 
@@ -55,8 +54,7 @@ class DevStubProvisioner implements FleetProvisioner {
     return {
       agent,
       status: "provisioned-dev",
-      message:
-        "Local stub: agent at HOSTED_STUB_AGENT_URL. Production fleet is Atom-MC (private), not this package.",
+      message: "Local stub: agent at HOSTED_STUB_AGENT_URL.",
     };
   }
 
@@ -83,7 +81,7 @@ class UnconfiguredProvisioner implements FleetProvisioner {
     brainAlwaysOn?: boolean;
   }): Promise<ProvisionOutcome> {
     throw new Error(
-      "Hosted signup stub only: set HOSTED_STUB_AGENT_URL + HOSTED_STUB_AGENT_TOKEN (pnpm dev:hosting), or use Qwixl Atom-MC for production fleet.",
+      "Hosted signup stub only: set HOSTED_STUB_AGENT_URL + HOSTED_STUB_AGENT_TOKEN (pnpm dev:hosting).",
     );
   }
 
@@ -101,7 +99,6 @@ class UnconfiguredProvisioner implements FleetProvisioner {
   }
 }
 
-/** Stub never runs Docker — production provisioner is Atom-MC. */
 export async function createFleetProvisioner(
   _agents: Map<string, HostedAgentRecord>,
 ): Promise<FleetProvisioner> {
@@ -109,9 +106,8 @@ export async function createFleetProvisioner(
   return new UnconfiguredProvisioner();
 }
 
-export async function ensureCommunityHost(_dataDir: string): Promise<void> {
-  /* production community host: Atom-MC */
-}
+/** Optional community-host URL for local demos (no orchestration here). */
+export async function ensureCommunityHost(_dataDir: string): Promise<void> {}
 
 export function resolveCommunityHostPublicUrl(): string | undefined {
   return process.env.ATOM_COMMUNITY_HOST_URL?.trim() || undefined;

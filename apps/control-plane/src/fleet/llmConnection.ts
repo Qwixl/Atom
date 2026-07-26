@@ -1,4 +1,4 @@
-/** LLM env vars passed into hosted agent containers. */
+/** LLM connection fields for hosted-agent env (operator-defined). */
 
 export type FleetLlmConnection = {
   apiKey?: string;
@@ -6,20 +6,14 @@ export type FleetLlmConnection = {
   model?: string;
 };
 
-/** Docker `-e` pairs for LLM_API_KEY / LLM_BASE_URL / LLM_MODEL. */
-export function llmConnectionEnvArgs(connection: FleetLlmConnection): string[] {
-  const args: string[] = [];
+/** Env map for LLM_API_KEY / LLM_BASE_URL / LLM_MODEL. */
+export function llmConnectionEnv(connection: FleetLlmConnection): Record<string, string> {
+  const out: Record<string, string> = {};
   const apiKey = connection.apiKey?.trim();
   const baseUrl = connection.baseUrl?.trim().replace(/\/+$/, "");
   const model = connection.model?.trim();
-  if (apiKey) {
-    args.push("-e", `LLM_API_KEY=${apiKey}`);
-  }
-  if (baseUrl) {
-    args.push("-e", `LLM_BASE_URL=${baseUrl}`);
-  }
-  if (model) {
-    args.push("-e", `LLM_MODEL=${model}`);
-  }
-  return args;
+  if (apiKey) out.LLM_API_KEY = apiKey;
+  if (baseUrl) out.LLM_BASE_URL = baseUrl;
+  if (model) out.LLM_MODEL = model;
+  return out;
 }
