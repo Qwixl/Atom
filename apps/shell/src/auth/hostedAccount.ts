@@ -190,7 +190,10 @@ export type AtomAccountType = "user" | "business" | "developer";
 
 export interface BootstrapHostedAccountInput {
   handle: string;
+  /** Primary account type (profiles.account_type) — back-compat. */
   accountType: AtomAccountType;
+  /** Full selection list when Personal/Developer + optional Business. */
+  accountTypes?: AtomAccountType[];
   llmApiKey: string;
   llmProvider?: string;
   llmModel?: string;
@@ -255,6 +258,9 @@ export async function bootstrapHostedAccount(input: BootstrapHostedAccountInput)
     body: JSON.stringify({
       handle: input.handle,
       accountType: input.accountType,
+      ...(input.accountTypes && input.accountTypes.length > 0
+        ? { accountTypes: input.accountTypes }
+        : {}),
       llmApiKey: input.llmApiKey,
       llmProvider: input.llmProvider,
       llmModel: input.llmModel,
