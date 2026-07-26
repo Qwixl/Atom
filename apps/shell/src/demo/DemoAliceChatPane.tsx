@@ -15,7 +15,7 @@ import { findModuleEmbed } from "../chat/moduleEmbedDefaults.js";
 import { PRODUCTION_REGISTRY_TRUST, PRODUCTION_REGISTRY_URL } from "../hostConfig.js";
 import { resizeTextareaToContent } from "../ui/resizeTextareaToContent.js";
 
-const SUGGESTED_PROMPT = "Ask Bob if he wants to go for a quick pint";
+const SUGGESTED_PROMPT = "Schedule a meeting with Bob next week";
 
 export function DemoAliceChatPane({
   peerName,
@@ -148,8 +148,8 @@ export function DemoAliceChatPane({
         {snapshot.feed.length === 0 ? (
           <div className="demo-alice-chat-empty">
             <p>
-              Ask Alice to arrange something with {peerName} — a meeting, pint, coffee, or day out.
-              She’ll pick the right UI in this chat, then send it agent-to-agent.
+              Ask Alice to schedule a meeting with {peerName}. She’ll build a picker in this chat —
+              you can change the title and time before sending it agent-to-agent.
             </p>
             <button
               type="button"

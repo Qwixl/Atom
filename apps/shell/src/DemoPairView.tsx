@@ -85,7 +85,8 @@ export function DemoPairView({
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [coachStep, setCoachStep] = useState<DemoCoachStep | null>(guided ? "welcome" : null);
-  const [userSent, setUserSent] = useState(false);
+  /** Object id of the proposal sent in this guided run — ignores leftover Bob inbox noise. */
+  const [sentProposalId, setSentProposalId] = useState<string | null>(null);
 
   const aliceEndpoint = agentJsonRpcEndpoint(aliceDelivery);
   const bobEndpoint = agentJsonRpcEndpoint(bobDelivery);
@@ -130,20 +131,45 @@ export function DemoPairView({
   const bobAcceptedOffers = useMemo(() => new Set<string>(), []);
   const aliceAcceptedOffers = useMemo(() => new Set<string>(), []);
 
-  const bobHasActionableProposal = useMemo(
+  const guidedAliceThread = useMemo(() => {
+    if (!guided || !sentProposalId) return guided ? [] : aliceThread;
+    return aliceThread.filter(
+      (item) =>
+        item.id === sentProposalId ||
+        (item.kind === "scheduling-response" && item.proposalId === sentProposalId),
+    );
+  }, [aliceThread, guided, sentProposalId]);
+
+  const guidedBobThread = useMemo(() => {
+    if (!guided || !sentProposalId) return guided ? [] : bobThread;
+    return bobThread.filter(
+      (item) =>
+        item.id === sentProposalId ||
+        (item.kind === "scheduling-response" && item.proposalId === sentProposalId),
+    );
+  }, [bobThread, guided, sentProposalId]);
+
+  const displayAliceThread = guided ? guidedAliceThread : aliceThread;
+  const displayBobThread = guided ? guidedBobThread : bobThread;
+
+  const bobHasThisProposal = useMemo(
     () =>
-      bobThread.some((item) =>
-        threadItemNeedsActions(item, bobResponded, bobTxnResponded, bobAcceptedOffers),
+      Boolean(
+        sentProposalId &&
+          bobThread.some(
+            (item) =>
+              item.kind === "scheduling-proposal" &&
+              item.id === sentProposalId &&
+              threadItemNeedsActions(item, bobResponded, bobTxnResponded, bobAcceptedOffers),
+          ),
       ),
-    [bobAcceptedOffers, bobResponded, bobThread, bobTxnResponded],
+    [bobAcceptedOffers, bobResponded, bobThread, bobTxnResponded, sentProposalId],
   );
 
   useEffect(() => {
-    if (!coachStep || !userSent) return;
-    if (bobHasActionableProposal) {
-      setCoachStep((current) => (current ? nextCoachWhenBobReady(current) : current));
-    }
-  }, [bobHasActionableProposal, coachStep, userSent]);
+    if (coachStep !== "watch" || !bobHasThisProposal) return;
+    setCoachStep((current) => (current ? nextCoachWhenBobReady(current) : current));
+  }, [bobHasThisProposal, coachStep]);
 
   async function sendProposal(title: string, slots: SchedulingSlot[]) {
     if (!bobDid) return;
@@ -169,7 +195,7 @@ export function DemoPairView({
           slots,
         },
       ]);
-      setUserSent(true);
+      setSentProposalId(objectId);
       setCoachStep((current) => (current ? nextCoachAfterSend(current) : current));
       await refresh();
     } catch (error) {
@@ -299,12 +325,12 @@ export function DemoPairView({
                 <p>Agent-to-agent messages Alice has sent and received</p>
               </header>
               <div className="atom-pane-thread-scroll demo-pane-thread-scroll">
-                {aliceThread.length === 0 ? (
+                {displayAliceThread.length === 0 ? (
                   <p className="atom-pane-empty demo-pane-empty">
                     When Alice’s agent sends a proposal, it shows up here and in Bob’s inbox.
                   </p>
                 ) : (
-                  aliceThread.map((item) => (
+                  displayAliceThread.map((item) => (
                     <ThreadItemView
                       key={item.id}
                       item={item}
@@ -372,18 +398,18 @@ export function DemoPairView({
               <header className="demo-section-head demo-section-head--activity">
                 <h4>Inbox</h4>
                 <p>
-                  {bobThread.length === 0
+                  {displayBobThread.length === 0
                     ? "Waiting for Alice’s agent to send a meeting request"
                     : "Open a request and accept a time"}
                 </p>
               </header>
               <div className="atom-pane-thread-scroll demo-pane-thread-scroll">
-                {bobThread.length === 0 ? (
+                {displayBobThread.length === 0 ? (
                   <p className="atom-pane-empty demo-pane-empty">
                     Empty for now. After Alice proposes a time in chat, it appears here.
                   </p>
                 ) : (
-                  bobThread.map((item) => (
+                  displayBobThread.map((item) => (
                     <ThreadItemView
                       key={item.id}
                       item={item}

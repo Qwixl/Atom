@@ -38,21 +38,21 @@ const TIPS: Tip[] = [
     target: "[data-demo-target='picker']",
     kicker: "Step 1 of 3",
     title: "Use the agent-built picker",
-    body: "This control was composed by the agent into the chat. Choose a time and propose the meeting — that’s an Atom module, rendered inline.",
+    body: "Alice’s agent built this control in the chat. You can edit the title and time, then send the proposal — that’s an Atom module, rendered inline.",
   },
   {
     id: "watch",
     target: "[data-demo-target='bob-pane']",
     kicker: "Step 2 of 3",
     title: "Watch Bob’s inbox",
-    body: "Alice’s agent delivered the proposal to Bob’s agent. The right column is the other party’s view — live, no email thread.",
+    body: "Alice’s agent delivered this proposal to Bob’s agent. The right column is the other party’s view — live, no email thread.",
   },
   {
     id: "accept",
     target: "[data-demo-target='bob-pane']",
     kicker: "Step 3 of 3",
     title: "Accept as Bob",
-    body: "Press Accept on a slot in Bob’s inbox. You’re deciding for the business agent — Alice’s Activity updates with the reply.",
+    body: "Press Accept on the new proposal in Bob’s inbox. You’re deciding for the business agent — Alice’s Activity updates with the reply.",
   },
   {
     id: "done",
@@ -209,8 +209,9 @@ export function nextCoachAfterSend(step: DemoCoachStep): DemoCoachStep {
   return step;
 }
 
+/** Only advance from watch → accept once *this* run’s proposal is in Bob’s inbox. */
 export function nextCoachWhenBobReady(step: DemoCoachStep): DemoCoachStep {
-  if (step === "watch" || step === "pick" || step === "ask") return "accept";
+  if (step === "watch") return "accept";
   return step;
 }
 
