@@ -21,6 +21,12 @@ import {
   type AgentOutput,
 } from "@qwixl/shell-core";
 import { v4 as uuid } from "uuid";
+import {
+  DEMO_MEETING_ONLY_REFUSE,
+  DEMO_MEETING_ONLY_SYSTEM_PROMPT,
+  evaluateDemoMeetingOnly,
+  isDemoMeetingOnlyEnabled,
+} from "../demoMeetingGate.js";
 import { recordHostedModelSighting } from "../modelBehaviorSightings.js";
 import type { SwarmMemoryStore } from "../swarmMemoryStore.js";
 import {
@@ -483,15 +489,11 @@ export async function* runLlmAgUiEvents(
     );
     return;
   }
-  {
-    const { evaluateDemoMeetingOnly, DEMO_MEETING_ONLY_REFUSE, isDemoMeetingOnlyEnabled } =
-      await import("../demoMeetingGate.js");
-    if (isDemoMeetingOnlyEnabled() && inboundAsk) {
-      const demoVerdict = evaluateDemoMeetingOnly(inboundAsk);
-      if (demoVerdict.action === "refuse") {
-        yield* textAgUiEvents(uuid(), DEMO_MEETING_ONLY_REFUSE);
-        return;
-      }
+  if (isDemoMeetingOnlyEnabled() && inboundAsk) {
+    const demoVerdict = evaluateDemoMeetingOnly(inboundAsk);
+    if (demoVerdict.action === "refuse") {
+      yield* textAgUiEvents(uuid(), DEMO_MEETING_ONLY_REFUSE);
+      return;
     }
   }
   if (config.agentKind === "swarm-npc" && inboundAsk) {
@@ -541,22 +543,39 @@ export async function* runLlmAgUiEvents(
       : agentKind !== "owner"
         ? { open: [], guardedCategories: [], agentKind }
         : undefined;
+  const demoMeetingOnly = isDemoMeetingOnlyEnabled();
+  // Demo personal must not advertise connector tools — Ollama small models fail/hang on tool schemas.
+  const llmConfig: LlmAgUiConfig = demoMeetingOnly
+    ? {
+        ...config,
+        atomConnectorsAvailable: false,
+        connectorExecutor: undefined,
+        connectedConnectorIds: [],
+      }
+    : config;
   const toolProfile = buildAgentToolProfile(undefined, {
-    atomConnectorsAvailable: swarmNpc
-      ? connectorsEnabled(config)
-      : !swarmRole && connectorsEnabled(config),
-    connectedConnectorIds: swarmNpc
-      ? (["news-search", "page-fetch"] as AtomConnectorId[])
-      : swarmRole
-        ? []
-        : config.connectedConnectorIds,
-    model: config.model,
+    atomConnectorsAvailable: demoMeetingOnly
+      ? false
+      : swarmNpc
+        ? connectorsEnabled(llmConfig)
+        : !swarmRole && connectorsEnabled(llmConfig),
+    connectedConnectorIds: demoMeetingOnly
+      ? []
+      : swarmNpc
+        ? (["news-search", "page-fetch"] as AtomConnectorId[])
+        : swarmRole
+          ? []
+          : llmConfig.connectedConnectorIds,
+    model: llmConfig.model,
   });
   if (swarmNpc) toolProfile.includeDeprecatedAlias = false;
-  const baseSystem = buildSystemPrompt(catalog, mergedProfile, toolProfile);
-  const systemContent = config.safetyPrefix?.trim()
-    ? `${config.safetyPrefix.trim()}\n\n${baseSystem}`
-    : baseSystem;
+  const baseSystem = demoMeetingOnly
+    ? DEMO_MEETING_ONLY_SYSTEM_PROMPT
+    : buildSystemPrompt(catalog, mergedProfile, toolProfile);
+  const systemContent =
+    !demoMeetingOnly && llmConfig.safetyPrefix?.trim()
+      ? `${llmConfig.safetyPrefix.trim()}\n\n${baseSystem}`
+      : baseSystem;
   const messages: ChatMessage[] = [
     {
       role: "system",
@@ -568,9 +587,9 @@ export async function* runLlmAgUiEvents(
   let raw: string;
   try {
     const rounds = swarmNpc
-      ? (config.swarmToolBudget?.maxToolRoundsPerTurn ?? 2)
+      ? (llmConfig.swarmToolBudget?.maxToolRoundsPerTurn ?? 2)
       : MAX_TOOL_ROUNDS;
-    raw = await runChatWithOptionalTools(config, messages, rounds);
+    raw = await runChatWithOptionalTools(llmConfig, messages, rounds);
   } catch (error) {
     yield* textAgUiEvents(
       uuid(),
@@ -587,6 +606,7 @@ export async function* runLlmAgUiEvents(
 
   const ownerAsk = lastUserContent(input);
   if (
+    !demoMeetingOnly &&
     ownerAsk &&
     ownerMessageNeedsSettingsProposal(ownerAsk) &&
     !protocolMessagesHaveSettingsProposal((parsed as { messages: unknown[] }).messages)
@@ -594,7 +614,7 @@ export async function* runLlmAgUiEvents(
     messages.push({ role: "assistant", content: raw });
     messages.push({ role: "user", content: softConfirmRepairUserContent() });
     try {
-      raw = await runChatWithOptionalTools(config, messages);
+      raw = await runChatWithOptionalTools(llmConfig, messages);
       const repaired = extractJson(raw);
       if (
         repaired &&
