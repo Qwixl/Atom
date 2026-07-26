@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SchedulingSlot } from "@qwixl/a2a-transport";
 import type { ConsequentialAction } from "@qwixl/shell-core";
 import {
@@ -14,12 +14,13 @@ import type { CommsThreadItem, InboxEntryWire } from "./comms/types.js";
 import { DemoProposalComposer } from "./DemoProposalComposer.js";
 import { DEMO_PERSONAS } from "./demoPersonas.js";
 import { DemoAliceChatPane } from "./demo/DemoAliceChatPane.js";
+import { DemoBobChatPane, type DemoBobChatPaneHandle } from "./demo/DemoBobChatPane.js";
 import {
   DemoCoach,
   nextCoachAfterAccept,
+  nextCoachAfterAsk,
   nextCoachAfterPicker,
   nextCoachAfterSend,
-  nextCoachWhenBobReady,
   type DemoCoachStep,
 } from "./demo/DemoCoach.js";
 
@@ -50,10 +51,10 @@ function deliveryBaseFor(agent: DemoPairAgent): string {
   return agent.deliveryBase ?? resolveAgentDeliveryBase(agent.adminUrl);
 }
 
-function missionPhase(step: DemoCoachStep | null): "ask" | "watch" | "accept" | "done" {
-  if (!step || step === "welcome" || step === "ask" || step === "pick") return "ask";
-  if (step === "watch") return "watch";
-  if (step === "accept") return "accept";
+function missionPhase(step: DemoCoachStep | null): "ask" | "build" | "bob" | "done" {
+  if (!step || step === "welcome" || step === "ask") return "ask";
+  if (step === "build") return "build";
+  if (step === "bob") return "bob";
   return "done";
 }
 
@@ -87,6 +88,9 @@ export function DemoPairView({
   const [coachStep, setCoachStep] = useState<DemoCoachStep | null>(guided ? "welcome" : null);
   /** Object id of the proposal sent in this guided run — ignores leftover Bob inbox noise. */
   const [sentProposalId, setSentProposalId] = useState<string | null>(null);
+  const [sessionReady, setSessionReady] = useState(!guided);
+  const bobChatRef = useRef<DemoBobChatPaneHandle>(null);
+  const bobNotifiedRef = useRef<string | null>(null);
 
   const aliceEndpoint = agentJsonRpcEndpoint(aliceDelivery);
   const bobEndpoint = agentJsonRpcEndpoint(bobDelivery);
@@ -108,11 +112,39 @@ export function DemoPairView({
     }
   }, [aliceClient, bobClient]);
 
+  // Guided demo: wipe both agent inboxes on every load so nothing is retained.
   useEffect(() => {
+    if (!guided) {
+      setSessionReady(true);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        await Promise.all([aliceClient.clearInbox(), bobClient.clearInbox()]);
+      } catch {
+        /* older agents without DELETE /inbox — still continue */
+      }
+      if (cancelled) return;
+      setAliceOutbound([]);
+      setBobOutbound([]);
+      setSentProposalId(null);
+      setAliceInbox([]);
+      setBobInbox([]);
+      setSessionReady(true);
+      await refresh();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [aliceClient, bobClient, guided, refresh]);
+
+  useEffect(() => {
+    if (!sessionReady) return;
     void refresh();
     const timer = window.setInterval(() => void refresh(), POLL_MS);
     return () => window.clearInterval(timer);
-  }, [refresh]);
+  }, [refresh, sessionReady]);
 
   const aliceThread = useMemo(() => {
     if (!bobDid) return [];
@@ -152,24 +184,31 @@ export function DemoPairView({
   const displayAliceThread = guided ? guidedAliceThread : aliceThread;
   const displayBobThread = guided ? guidedBobThread : bobThread;
 
-  const bobHasThisProposal = useMemo(
-    () =>
-      Boolean(
-        sentProposalId &&
-          bobThread.some(
-            (item) =>
-              item.kind === "scheduling-proposal" &&
-              item.id === sentProposalId &&
-              threadItemNeedsActions(item, bobResponded, bobTxnResponded, bobAcceptedOffers),
-          ),
-      ),
-    [bobAcceptedOffers, bobResponded, bobThread, bobTxnResponded, sentProposalId],
-  );
+  const thisProposal = useMemo(() => {
+    if (!sentProposalId) return null;
+    const fromOutbound = aliceOutbound.find(
+      (item): item is Extract<CommsThreadItem, { kind: "scheduling-proposal" }> =>
+        item.kind === "scheduling-proposal" && item.id === sentProposalId,
+    );
+    if (fromOutbound) return fromOutbound;
+    return (
+      bobThread.find(
+        (item): item is Extract<CommsThreadItem, { kind: "scheduling-proposal" }> =>
+          item.kind === "scheduling-proposal" && item.id === sentProposalId,
+      ) ?? null
+    );
+  }, [aliceOutbound, bobThread, sentProposalId]);
 
   useEffect(() => {
-    if (coachStep !== "watch" || !bobHasThisProposal) return;
-    setCoachStep((current) => (current ? nextCoachWhenBobReady(current) : current));
-  }, [bobHasThisProposal, coachStep]);
+    if (!guided || !thisProposal || !sentProposalId) return;
+    if (bobNotifiedRef.current === sentProposalId) return;
+    bobNotifiedRef.current = sentProposalId;
+    bobChatRef.current?.notifyProposal({
+      proposalId: sentProposalId,
+      title: thisProposal.title,
+      slots: thisProposal.slots,
+    });
+  }, [guided, sentProposalId, thisProposal]);
 
   async function sendProposal(title: string, slots: SchedulingSlot[]) {
     if (!bobDid) return;
@@ -270,7 +309,7 @@ export function DemoPairView({
           slotLabel: slot?.label,
         },
       ]);
-      if (side === "bob" && response === "accept") {
+      if (side === "bob") {
         setCoachStep((current) => (current ? nextCoachAfterAccept(current) : current));
       }
       await refresh();
@@ -309,6 +348,9 @@ export function DemoPairView({
                   aliceAdminToken={alice.adminToken}
                   busyOutbound={busy}
                   onMeetingProposed={sendProposal}
+                  onUserAsked={() =>
+                    setCoachStep((current) => (current ? nextCoachAfterAsk(current) : current))
+                  }
                   onPickerVisible={() =>
                     setCoachStep((current) => (current ? nextCoachAfterPicker(current) : current))
                   }
@@ -367,17 +409,20 @@ export function DemoPairView({
             <aside className="demo-mission demo-mission--bob" aria-label="What to do next">
               <div className="demo-mission-copy">
                 <strong>What you’re watching</strong>
-                <p>Bob’s agent receives Alice’s proposal. Accept a time on this side.</p>
+                <p>Bob’s agent builds a confirmation in chat. Accept or decline on that component.</p>
               </div>
               <ol className="demo-mission-steps">
                 <li data-active={phase === "ask"} data-done={phase !== "ask"}>
                   <span className="demo-step-num">1</span> Ask Alice
                 </li>
-                <li data-active={phase === "watch"} data-done={phase === "accept" || phase === "done"}>
-                  <span className="demo-step-num">2</span> Arrives here
+                <li
+                  data-active={phase === "build"}
+                  data-done={phase === "bob" || phase === "done"}
+                >
+                  <span className="demo-step-num">2</span> Alice builds UI
                 </li>
-                <li data-active={phase === "accept"} data-done={phase === "done"}>
-                  <span className="demo-step-num">3</span> Accept
+                <li data-active={phase === "bob"} data-done={phase === "done"}>
+                  <span className="demo-step-num">3</span> Bob confirms
                 </li>
               </ol>
             </aside>
@@ -391,48 +436,70 @@ export function DemoPairView({
             <header className="atom-pane-header demo-pane-header">
               <span className="atom-pane-title demo-pane-title">Bob · Business</span>
               <span className="atom-pane-meta demo-pane-meta">
-                The other party’s agent inbox — receive and accept
+                {guided
+                  ? "Bob’s agent builds confirmation UI in the chat"
+                  : "The other party’s agent inbox — receive and accept"}
               </span>
             </header>
-            <div className="atom-pane-thread atom-pane-thread--full demo-pane-thread demo-pane-thread--full">
-              <header className="demo-section-head demo-section-head--activity">
-                <h4>Inbox</h4>
-                <p>
-                  {displayBobThread.length === 0
-                    ? "Waiting for Alice’s agent to send a meeting request"
-                    : "Open a request and accept a time"}
-                </p>
-              </header>
-              <div className="atom-pane-thread-scroll demo-pane-thread-scroll">
-                {displayBobThread.length === 0 ? (
-                  <p className="atom-pane-empty demo-pane-empty">
-                    Empty for now. After Alice proposes a time in chat, it appears here.
+            <div className="atom-pane-body demo-pane-body demo-pane-body--chat">
+              {guided ? (
+                <div className="demo-pane-chat">
+                  <DemoBobChatPane
+                    ref={bobChatRef}
+                    bobAdminUrl={bob.adminUrl}
+                    bobAdminToken={bob.adminToken}
+                    busyOutbound={busy}
+                    onMeetingResponse={(proposalId, response, slot) =>
+                      confirmRespond("bob", proposalId, response, slot)
+                    }
+                  />
+                </div>
+              ) : null}
+              <div className="atom-pane-thread demo-pane-thread">
+                <header className="demo-section-head demo-section-head--activity">
+                  <h4>{guided ? "Activity" : "Inbox"}</h4>
+                  <p>
+                    {displayBobThread.length === 0
+                      ? "Waiting for Alice’s agent to send a meeting request"
+                      : guided
+                        ? "Agent-to-agent messages Bob has sent and received"
+                        : "Open a request and accept a time"}
                   </p>
-                ) : (
-                  displayBobThread.map((item) => (
-                    <ThreadItemView
-                      key={item.id}
-                      item={item}
-                      busy={busy}
-                      showActions={threadItemNeedsActions(
-                        item,
-                        bobResponded,
-                        bobTxnResponded,
-                        bobAcceptedOffers,
-                      )}
-                      onAcceptSlot={(proposalId, slot) =>
-                        void confirmRespond("bob", proposalId, "accept", slot)
-                      }
-                      onDeclineProposal={(proposalId) =>
-                        void confirmRespond("bob", proposalId, "decline")
-                      }
-                      onRsvp={() => {}}
-                      onConfirmTransaction={() => {}}
-                      onDeclineTransaction={() => {}}
-                      onAcceptOffer={() => {}}
-                    />
-                  ))
-                )}
+                </header>
+                <div className="atom-pane-thread-scroll demo-pane-thread-scroll">
+                  {displayBobThread.length === 0 ? (
+                    <p className="atom-pane-empty demo-pane-empty">
+                      Empty for now. After Alice proposes a time, it appears here.
+                    </p>
+                  ) : (
+                    displayBobThread.map((item) => (
+                      <ThreadItemView
+                        key={item.id}
+                        item={item}
+                        busy={busy}
+                        showActions={
+                          !guided &&
+                          threadItemNeedsActions(
+                            item,
+                            bobResponded,
+                            bobTxnResponded,
+                            bobAcceptedOffers,
+                          )
+                        }
+                        onAcceptSlot={(proposalId, slot) =>
+                          void confirmRespond("bob", proposalId, "accept", slot)
+                        }
+                        onDeclineProposal={(proposalId) =>
+                          void confirmRespond("bob", proposalId, "decline")
+                        }
+                        onRsvp={() => {}}
+                        onConfirmTransaction={() => {}}
+                        onDeclineTransaction={() => {}}
+                        onAcceptOffer={() => {}}
+                      />
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </section>

@@ -109,6 +109,19 @@ export class CommsAgentClient {
     return body.entries ?? [];
   }
 
+  /** Wipe agent inbox (guided demo reload reset). */
+  async clearInbox(): Promise<void> {
+    assertProductionAgentUrl(this.base());
+    const resp = await fetch(`${this.base()}/inbox`, {
+      method: "DELETE",
+      headers: adminHeaders(this.auth, true),
+    });
+    if (!resp.ok) {
+      const err = (await resp.json().catch(() => ({}))) as { error?: string };
+      throw new Error(formatAgentError(new Error(err.error ?? `Request failed (${resp.status})`)));
+    }
+  }
+
   async createInvite(ttlSeconds?: number): Promise<{ token: string; issuerDid: string }> {
     return postJson(
       this.base(),
