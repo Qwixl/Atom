@@ -44,16 +44,25 @@ export function RootApp() {
   const search = useSearchString();
   const params = new URLSearchParams(search);
   const auth = params.get("auth");
+  const billing = params.get("billing");
   const demo = params.get("demo");
   const embedded = params.get("embed") === "1";
 
-  if (auth === "login" || auth === "register") {
+  // Stripe plan checkout returns here; resume register wizard (provision or cancel message).
+  const billingRegister =
+    billing === "plan-success" || billing === "plan-cancel"
+      ? ("register" as const)
+      : null;
+  const wizardMode =
+    auth === "login" || auth === "register" ? auth : billingRegister;
+
+  if (wizardMode) {
     if (hasSupabaseAuthCallbackInUrl()) {
-      return <EmailConfirmCallback mode={auth} />;
+      return <EmailConfirmCallback mode={wizardMode === "login" ? "login" : "register"} />;
     }
     return (
       <AuthWizard
-        mode={auth}
+        mode={wizardMode}
         embedded={embedded}
         onClose={() => {
           if (embedded) {
