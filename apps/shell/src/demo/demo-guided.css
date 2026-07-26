@@ -249,10 +249,15 @@
   line-height: 1.4;
 }
 
-.demo-feed-agent {
+/* Beat styles.css `.feed-agent` (loaded later) — readable agent turns in demo chat. */
+.demo-alice-chat-feed .feed-agent.demo-feed-agent,
+.demo-bob-chat .feed-agent.demo-feed-agent {
   align-self: flex-start;
   max-width: 95%;
-  padding: 2px 0;
+  padding: 8px 12px;
+  border-radius: 14px 14px 14px 4px;
+  border: 1px solid var(--shell-border);
+  background: var(--shell-raised-bg);
   font-size: 13px;
   line-height: 1.45;
   color: var(--shell-text);
@@ -450,14 +455,12 @@
   animation: demo-pulse-soft 1.4s ease-in-out infinite;
 }
 
-/* Elevate only the interactive hotspot above the scrim — never above the tip card. */
+/* Elevate only the interactive hotspot above the scrim — never above the tip card.
+   Do NOT elevate ask-compose / bob-pane (Activity) — those stay greyed under the scrim. */
 html[data-demo-coach="ask"] [data-demo-target="ask"],
-html[data-demo-coach="ask"] [data-demo-target="ask-compose"],
-html[data-demo-coach="build"] [data-demo-target="alice-chat"],
+html[data-demo-coach="build"] [data-demo-target="alice-feed"],
 html[data-demo-coach="build"] [data-demo-target="picker"],
-html[data-demo-coach="build"] [data-demo-target="ask-compose"],
 html[data-demo-coach="bob"] [data-demo-target="bob-chat"],
-html[data-demo-coach="bob"] [data-demo-target="bob-pane"],
 html[data-demo-coach="bob"] [data-demo-target="bob-confirm"] {
   position: relative;
   z-index: 83;

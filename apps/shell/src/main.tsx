@@ -16,11 +16,12 @@ import "./shell/panel-layout.css";
 import "./shell/panel-chrome.css";
 import "./shell/atom-panels.css";
 import "./demo/demo-session.css";
-import "./demo/demo-guided.css";
 import "./shell/atom-shell.css";
 import "./shell/shell-unified.css";
 import "./compose/compose-extras.css";
 import "./styles.css";
+/* After styles.css so demo chat/coach overrides win over shared feed colors. */
+import "./demo/demo-guided.css";
 import { initDocumentTheme } from "./theme/ThemeToggle.js";
 
 const SKIN_KEY = "atom-shell-skin";
