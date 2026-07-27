@@ -55,14 +55,6 @@ export async function saveWebPushSubscription(
   });
 }
 
-export async function saveFcmToken(config: CommsAgentConfig, token: string): Promise<void> {
-  await putPushSubscription(config, {
-    kind: "fcm",
-    endpoint: token,
-    userAgent: navigator.userAgent,
-  });
-}
-
 /** Register Web Push after vault unlock when owner opted in. */
 export async function ensureWebPushSubscription(
   config: CommsAgentConfig,
@@ -114,47 +106,5 @@ export async function unsubscribeWebPush(config: CommsAgentConfig): Promise<void
     const endpoint = sub.endpoint;
     await sub.unsubscribe().catch(() => undefined);
     await deletePushSubscription(config, endpoint).catch(() => undefined);
-  }
-}
-
-/** Capacitor Android FCM registration when running inside the native wrapper. */
-export async function ensureCapacitorPush(
-  config: CommsAgentConfig,
-): Promise<"subscribed" | "unsupported" | "denied" | "error"> {
-  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-  if (!cap?.isNativePlatform?.()) return "unsupported";
-  try {
-    const { PushNotifications } = await import("@capacitor/push-notifications");
-    const perm = await PushNotifications.requestPermissions();
-    if (perm.receive !== "granted") return "denied";
-    await PushNotifications.register();
-    // Open Chat (or payload url) when the owner taps a notification.
-    void PushNotifications.addListener("pushNotificationActionPerformed", (event) => {
-      const data = event.notification.data as { url?: string } | undefined;
-      const target = typeof data?.url === "string" && data.url.trim() ? data.url.trim() : "/app/";
-      try {
-        const next = new URL(target, window.location.origin);
-        if (next.origin === window.location.origin) {
-          window.location.assign(`${next.pathname}${next.search}${next.hash}`);
-        }
-      } catch {
-        window.location.assign("/app/");
-      }
-    });
-    return await new Promise((resolve) => {
-      const timeout = window.setTimeout(() => resolve("error"), 15_000);
-      void PushNotifications.addListener("registration", (token) => {
-        window.clearTimeout(timeout);
-        void saveFcmToken(config, token.value)
-          .then(() => resolve("subscribed"))
-          .catch(() => resolve("error"));
-      });
-      void PushNotifications.addListener("registrationError", () => {
-        window.clearTimeout(timeout);
-        resolve("error");
-      });
-    });
-  } catch {
-    return "unsupported";
   }
 }
