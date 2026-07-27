@@ -111,7 +111,11 @@ Hosts resolve LLM and other credentials via the `SecretStore` interface. Adapter
 - Module bundles should be served **cross-origin** from the shell in production (registry host).
 - Outbound events: `{ type: "event", name, payload }` — `name` must be declared in manifest. `SurfaceRenderer` drops undeclared names; `CommsModuleEmbed` (Messages/Chat) forwards whatever the frame posts, so treat the manifest list as the contract, not a filter.
 - Sandbox enforces: no storage (`localStorage`/`indexedDB`/cookies), no top-level navigation, no shell DOM or origin access, no permission-gated APIs (geolocation, camera, mic) — all consequences of the opaque origin.
-- **Network is not enforced by the sandbox** — it depends on the CSP of the host serving the bundle. `apps/registry-host/vercel.json` sends `default-src 'none'`; shell-served `/modules/` sends `connect-src 'self'` (`apps/shell/vercel.json`); the Atom Apps store serves module files from its own origin under `default-src 'none'` and additionally rejects network primitives (`fetch`, XHR, WebSocket, `sendBeacon`, `EventSource`, remote `<script>`/`<iframe>`/form actions) at publish time. If you self-host bundles, **this is yours to set**: a host that sends no CSP restricts nothing, and the sandbox will not save you.
+- **Network is not enforced by the sandbox** — it depends on the CSP of the host actually serving the bundle, which is a deployment property, not a code property:
+  - `apps/registry-host/vercel.json` sends `default-src 'none'`, and `atom.registry.qwixl.com` is its own Vercel project, so this **is** in force.
+  - `apps/shell/vercel.json` declares `connect-src 'self'` for `/modules/`, but on `atom.qwixl.com` that path is served by a different project (`Atom-MC/apps/marketing`, which sets no headers), so **in production those modules currently receive no CSP**. Declaring a policy in the shell's `vercel.json` only helps where the shell project serves the request.
+  - The Atom Apps store serves module files from its own origin under `default-src 'none'`, and additionally rejects network primitives (`fetch`, XHR, WebSocket, `sendBeacon`, `EventSource`, remote `<script>`/`<iframe>`/form actions) at publish time.
+  - If you self-host, **this is yours to set**: a host that sends no CSP restricts nothing, and the sandbox will not save you. Check the response headers on a real module URL rather than trusting a config file in the repo.
 
 ## Registry index (v1)
 
