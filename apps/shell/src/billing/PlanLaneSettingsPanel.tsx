@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { CONTROL_PLANE_URL, isSupabaseConfigured } from "../hostConfig.js";
 import { getSupabaseClient } from "../auth/hostedAccount.js";
+import { controlPlaneAuthHeaders } from "./controlPlaneAuth.js";
 
 type Lane = "standard" | "byok" | "self_hosted";
 
@@ -31,8 +32,10 @@ export function PlanLaneSettingsPanel({ embedded = false }: { embedded?: boolean
     const base = CONTROL_PLANE_URL?.replace(/\/$/, "");
     const id = await accountId();
     if (!base || !id) return;
+    const headers = await controlPlaneAuthHeaders();
+    if (!headers) return;
     try {
-      const resp = await fetch(`${base}/billing/credits/${encodeURIComponent(id)}`);
+      const resp = await fetch(`${base}/billing/credits/${encodeURIComponent(id)}`, { headers });
       if (!resp.ok) return;
       const data = (await resp.json()) as { summary?: CreditsSummary };
       if (data.summary) setSummary(data.summary);
@@ -52,13 +55,18 @@ export function PlanLaneSettingsPanel({ embedded = false }: { embedded?: boolean
       setError("Sign in required to change plan lane.");
       return;
     }
+    const headers = await controlPlaneAuthHeaders({ "Content-Type": "application/json" });
+    if (!headers) {
+      setError("Sign in required to change plan lane.");
+      return;
+    }
     setBusy(true);
     setError(null);
     setNote(null);
     try {
       const resp = await fetch(`${base}/billing/credits/schedule-lane`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ accountId: id, pendingLane }),
       });
       const data = (await resp.json()) as {
@@ -85,11 +93,16 @@ export function PlanLaneSettingsPanel({ embedded = false }: { embedded?: boolean
     const base = CONTROL_PLANE_URL?.replace(/\/$/, "");
     const id = await accountId();
     if (!base || !id) return;
+    const headers = await controlPlaneAuthHeaders({ "Content-Type": "application/json" });
+    if (!headers) {
+      setError("Sign in required to change speech.");
+      return;
+    }
     setBusy(true);
     try {
       const resp = await fetch(`${base}/billing/credits/speech`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ accountId: id, enabled }),
       });
       const data = (await resp.json()) as { summary?: CreditsSummary; error?: string };
@@ -107,11 +120,16 @@ export function PlanLaneSettingsPanel({ embedded = false }: { embedded?: boolean
     const base = CONTROL_PLANE_URL?.replace(/\/$/, "");
     const id = await accountId();
     if (!base || !id) return;
+    const headers = await controlPlaneAuthHeaders({ "Content-Type": "application/json" });
+    if (!headers) {
+      setError("Sign in required to change model tier.");
+      return;
+    }
     setBusy(true);
     try {
       const resp = await fetch(`${base}/billing/credits/model-tier`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ accountId: id, modelTierId }),
       });
       const data = (await resp.json()) as { summary?: CreditsSummary; error?: string };
