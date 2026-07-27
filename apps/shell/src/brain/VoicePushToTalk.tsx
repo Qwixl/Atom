@@ -1,24 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
-import { SettingsToggle } from "../ui/SettingsToggle.js";
 import { loadCommsAgentConfigSecure } from "../comms/storage.js";
 import { getChatSessionToken } from "../comms/chatSessionToken.js";
-import { notifyVoiceOptInChanged } from "./voiceOptIn.js";
+import { supabaseAccessToken } from "../auth/hostedAccount.js";
+import { CONTROL_PLANE_URL } from "../hostConfig.js";
+import { VOICE_OPTIN_EVENT } from "./voiceOptIn.js";
+import {
+  loadSpeechVoiceId,
+  loadVoiceMode,
+  loadVoiceOptIn,
+  saveSpeechVoiceId,
+  saveVoiceMode,
+  saveVoiceOptIn,
+  type VoiceMode,
+} from "./voiceMode.js";
 
-const VOICE_OPT_IN_KEY = "atom.voice.pushToTalk";
+export { loadVoiceOptIn, saveVoiceOptIn, loadVoiceMode, saveVoiceMode };
 
-export function loadVoiceOptIn(): boolean {
-  try {
-    return localStorage.getItem(VOICE_OPT_IN_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-export function saveVoiceOptIn(enabled: boolean): void {
-  localStorage.setItem(VOICE_OPT_IN_KEY, enabled ? "1" : "0");
-  notifyVoiceOptInChanged();
-}
+type CatalogEntry = { handle: string; voiceId: string; label: string };
 
 async function blobToBase64(blob: Blob): Promise<string> {
   const buf = await blob.arrayBuffer();
@@ -43,7 +42,7 @@ export function VoicePushToTalk({
   enabled,
   onTranscript,
   onSpokenReply,
-  humanFilter = true,
+  humanFilter: _humanFilter = true,
 }: {
   enabled: boolean;
   onTranscript: (text: string) => Promise<string | null>;
@@ -58,7 +57,6 @@ export function VoicePushToTalk({
   const mediaRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  /** True from press until stop finishes — survives async getUserMedia race. */
   const holdingRef = useRef(false);
   const recordingRef = useRef(false);
 
@@ -104,9 +102,7 @@ export function VoicePushToTalk({
     try {
       const bearer = await resolveVoiceBearer(config.adminToken);
       if (!bearer) throw new Error("Unlock your vault / sign in to use voice.");
-      const admin = config.adminUrl?.trim()
-        ? config
-        : await loadCommsAgentConfigSecure();
+      const admin = config.adminUrl?.trim() ? config : await loadCommsAgentConfigSecure();
       const base = admin.adminUrl.replace(/\/$/, "");
       const audioBase64 = await blobToBase64(blob);
       const tr = await fetch(`${base}/voice/transcribe`, {
@@ -132,28 +128,6 @@ export function VoicePushToTalk({
         return;
       }
       onSpokenReply?.(reply);
-      setStatus("Speaking…");
-      const syn = await fetch(`${base}/voice/synthesize`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${bearer}`,
-        },
-        body: JSON.stringify({ text: reply.slice(0, 2000), humanFilter }),
-      });
-      const synBody = (await syn.json().catch(() => ({}))) as {
-        audioBase64?: string | null;
-        mimeType?: string | null;
-        error?: string;
-      };
-      if (!syn.ok) throw new Error(synBody.error || `Voice failed (${syn.status})`);
-      if (synBody.audioBase64) {
-        const mime = synBody.mimeType || "audio/mpeg";
-        const audio = new Audio(`data:${mime};base64,${synBody.audioBase64}`);
-        await audio.play();
-      } else {
-        throw new Error("Voice returned no audio.");
-      }
       setStatus(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -161,7 +135,7 @@ export function VoicePushToTalk({
     } finally {
       setBusy(false);
     }
-  }, [config, onTranscript, onSpokenReply, humanFilter, releaseMic]);
+  }, [config, onTranscript, onSpokenReply, releaseMic]);
 
   const startRecording = useCallback(async () => {
     setError(null);
@@ -250,51 +224,169 @@ export function VoicePushToTalk({
 }
 
 export function VoiceSettingsPanel({ embedded = false }: { embedded?: boolean }) {
-  const { config } = useAgentConfig(true);
-  const [optIn, setOptIn] = useState(loadVoiceOptIn);
-  const [providerNote, setProviderNote] = useState<string | null>(null);
+  const [mode, setMode] = useState<VoiceMode>(loadVoiceMode);
+  const [voiceId, setVoiceId] = useState(loadSpeechVoiceId);
+  const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
+  const [creditNote, setCreditNote] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!config.adminUrl?.trim()) return;
+    const sync = () => {
+      setMode(loadVoiceMode());
+      setVoiceId(loadSpeechVoiceId());
+    };
+    window.addEventListener(VOICE_OPTIN_EVENT, sync);
+    return () => window.removeEventListener(VOICE_OPTIN_EVENT, sync);
+  }, []);
+
+  useEffect(() => {
+    const cp = CONTROL_PLANE_URL.replace(/\/$/, "");
+    if (!cp) return;
     void (async () => {
       try {
-        const bearer = await resolveVoiceBearer(config.adminToken);
-        if (!bearer) return;
-        const base = config.adminUrl.replace(/\/$/, "");
-        const resp = await fetch(`${base}/voice/status`, {
-          headers: { Authorization: `Bearer ${bearer}` },
+        const token = await supabaseAccessToken();
+        const resp = await fetch(`${cp}/voice/status`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (!resp.ok) return;
         const body = (await resp.json()) as {
-          message?: string;
-          configured?: boolean;
-          provider?: string;
+          catalog?: CatalogEntry[];
+          credits?: {
+            canUsePaid?: boolean;
+            balancePence?: number;
+            speechEnabled?: boolean;
+            voiceId?: string;
+          };
         };
-        setProviderNote(
-          `${body.provider ?? "voice"}: ${body.message ?? (body.configured ? "ready" : "not configured")}`,
-        );
+        if (Array.isArray(body.catalog) && body.catalog.length) {
+          setCatalog(body.catalog);
+        }
+        if (body.credits?.voiceId) {
+          setVoiceId(body.credits.voiceId);
+          saveSpeechVoiceId(body.credits.voiceId);
+        }
+        if (body.credits) {
+          const pounds = ((body.credits.balancePence ?? 0) / 100).toFixed(2);
+          if (!body.credits.speechEnabled) {
+            setCreditNote("Conversational is off for this account (speech disabled).");
+          } else if (!body.credits.canUsePaid) {
+            setCreditNote(`Atom Credits £${pounds} — top up to use Conversational.`);
+          } else {
+            setCreditNote(`Atom Credits £${pounds} — Conversational available.`);
+          }
+        }
       } catch {
-        setProviderNote(null);
+        setCreditNote(null);
       }
     })();
-  }, [config]);
+  }, []);
+
+  const applyMode = (next: VoiceMode) => {
+    saveVoiceMode(next);
+    setMode(next);
+    if (next === "conversational") {
+      void (async () => {
+        const cp = CONTROL_PLANE_URL.replace(/\/$/, "");
+        const token = await supabaseAccessToken();
+        if (!cp || !token) return;
+        try {
+          await fetch(`${cp}/voice/speech-enable`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: "{}",
+          });
+          await applyVoice(loadSpeechVoiceId());
+        } catch {
+          /* preference save best-effort */
+        }
+      })();
+    }
+  };
+
+  const applyVoice = async (nextId: string) => {
+    setVoiceId(nextId);
+    saveSpeechVoiceId(nextId);
+    setSaveError(null);
+    const cp = CONTROL_PLANE_URL.replace(/\/$/, "");
+    const token = await supabaseAccessToken();
+    if (!cp || !token) return;
+    try {
+      const resp = await fetch(`${cp}/voice/preference`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ voiceId: nextId, enableSpeech: true }),
+      });
+      if (!resp.ok) {
+        const body = (await resp.json().catch(() => ({}))) as { error?: string };
+        setSaveError(body.error || "Could not save voice preference.");
+      }
+    } catch {
+      setSaveError("Could not save voice preference.");
+    }
+  };
 
   const fields = (
     <>
       <p className="settings-note">
-        <strong>Talk</strong> (chat bar) is live conversation — billed per minute while connected.
-        <br />
-        <strong>Hold to talk</strong> is short voice notes; replies can be spoken aloud.
+        Default is off. Free uses your device voice. Conversational uses Atom Credits (Talk +
+        spoken replies).
       </p>
-      {providerNote ? <p className="settings-note">{providerNote}</p> : null}
-      <SettingsToggle
-        checked={optIn}
-        label="Show Hold to talk in Chat"
-        onChange={(enabled) => {
-          saveVoiceOptIn(enabled);
-          setOptIn(enabled);
-        }}
-      />
+      <fieldset className="settings-fieldset" style={{ border: "none", padding: 0, margin: 0 }}>
+        <legend className="settings-note" style={{ padding: 0 }}>
+          Voice
+        </legend>
+        {(
+          [
+            ["off", "Off"],
+            ["free", "Atom’s Voice (Free)"],
+            ["conversational", "Atom’s Voice – Conversational (Paid)"],
+          ] as const
+        ).map(([value, label]) => (
+          <label
+            key={value}
+            className="settings-note"
+            style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}
+          >
+            <input
+              type="radio"
+              name="atom-voice-mode"
+              checked={mode === value}
+              onChange={() => applyMode(value)}
+            />
+            {label}
+          </label>
+        ))}
+      </fieldset>
+      {mode === "conversational" ? (
+        <>
+          {creditNote ? <p className="settings-note">{creditNote}</p> : null}
+          {catalog.length > 0 ? (
+            <label className="settings-note" style={{ display: "block", marginTop: 8 }}>
+              Conversational voice
+              <select
+                value={voiceId}
+                onChange={(e) => void applyVoice(e.target.value)}
+                style={{ display: "block", width: "100%", marginTop: 4 }}
+              >
+                {catalog.map((v) => (
+                  <option key={v.voiceId} value={v.voiceId}>
+                    {v.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <p className="settings-note">Voice list loads when Mission Control is reachable.</p>
+          )}
+          {saveError ? <p className="settings-note settings-error">{saveError}</p> : null}
+        </>
+      ) : null}
     </>
   );
 
