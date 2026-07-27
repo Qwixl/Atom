@@ -1,23 +1,48 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
-import { SettingsToggle } from "../ui/SettingsToggle.js";
 import { loadCommsAgentConfigSecure } from "../comms/storage.js";
 import { getChatSessionToken } from "../comms/chatSessionToken.js";
-import { notifyVoiceOptInChanged } from "./voiceOptIn.js";
+import { supabaseAccessToken } from "../auth/hostedAccount.js";
+import { CONTROL_PLANE_URL } from "../hostConfig.js";
+import { SettingsToggle } from "../ui/SettingsToggle.js";
+import { VOICE_OPTIN_EVENT } from "./voiceOptIn.js";
+import {
+  loadSpeechVoiceId,
+  loadVoiceMode,
+  loadVoiceOptIn,
+  saveSpeechVoiceId,
+  saveVoiceMode,
+  saveVoiceOptIn,
+  type VoiceMode,
+} from "./voiceMode.js";
 
-const VOICE_OPT_IN_KEY = "atom.voice.pushToTalk";
+export { loadVoiceOptIn, saveVoiceOptIn, loadVoiceMode, saveVoiceMode };
 
-export function loadVoiceOptIn(): boolean {
-  try {
-    return localStorage.getItem(VOICE_OPT_IN_KEY) === "1";
-  } catch {
-    return false;
-  }
+type CatalogEntry = {
+  handle: string;
+  voiceId: string;
+  label: string;
+  displayLabel?: string;
+};
+
+const SILENCE_AUTO_OFF_MS = 60_000;
+const SPEECH_RMS_THRESHOLD = 0.02;
+const END_SILENCE_MS = 1_200;
+const MAX_UTTERANCE_MS = 20_000;
+const MIN_UTTERANCE_MS = 500;
+
+function catalogOptionLabel(entry: CatalogEntry): string {
+  if (entry.displayLabel?.trim()) return entry.displayLabel.trim();
+  const raw = entry.handle.replace(/^#?atom-/, "");
+  const name = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : entry.label;
+  return `${name} — ${entry.label}`;
 }
 
-export function saveVoiceOptIn(enabled: boolean): void {
-  localStorage.setItem(VOICE_OPT_IN_KEY, enabled ? "1" : "0");
-  notifyVoiceOptInChanged();
+function formatElapsed(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 async function blobToBase64(blob: Blob): Promise<string> {
@@ -30,7 +55,6 @@ async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(binary);
 }
 
-/** Prefer short-lived chat session, then vault admin token. */
 async function resolveVoiceBearer(adminToken?: string): Promise<string | null> {
   const session = getChatSessionToken()?.trim();
   if (session) return session;
@@ -39,11 +63,30 @@ async function resolveVoiceBearer(adminToken?: string): Promise<string | null> {
   return secure.adminToken?.trim() || null;
 }
 
+async function chargePaidMinute(sequence: number, sessionId: string): Promise<boolean> {
+  const cp = CONTROL_PLANE_URL.replace(/\/$/, "");
+  const token = await supabaseAccessToken();
+  if (!cp || !token) return false;
+  const resp = await fetch(`${cp}/voice/convai/heartbeat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      sliceSeconds: 60,
+      conversationId: sessionId,
+      sequence,
+    }),
+  });
+  return resp.ok;
+}
+
 export function VoicePushToTalk({
   enabled,
   onTranscript,
   onSpokenReply,
-  humanFilter = true,
+  humanFilter: _humanFilter = true,
 }: {
   enabled: boolean;
   onTranscript: (text: string) => Promise<string | null>;
@@ -51,16 +94,28 @@ export function VoicePushToTalk({
   humanFilter?: boolean;
 }) {
   const { config } = useAgentConfig(true);
-  const [recording, setRecording] = useState(false);
+  const [micOn, setMicOn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const mediaRef = useRef<MediaRecorder | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [costPounds, setCostPounds] = useState(0.1);
+  const [voiceMode, setVoiceMode] = useState<VoiceMode>(loadVoiceMode);
+
+  const micOnRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  /** True from press until stop finishes — survives async getUserMedia race. */
-  const holdingRef = useRef(false);
-  const recordingRef = useRef(false);
+  const loopAbortRef = useRef<AbortController | null>(null);
+  const lastSpeechAtRef = useRef(0);
+  const sessionStartedAtRef = useRef(0);
+  const paidSessionIdRef = useRef("");
+  const paidMinuteSeqRef = useRef(0);
+  const tickTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const sync = () => setVoiceMode(loadVoiceMode());
+    window.addEventListener(VOICE_OPTIN_EVENT, sync);
+    return () => window.removeEventListener(VOICE_OPTIN_EVENT, sync);
+  }, []);
 
   const releaseMic = useCallback(() => {
     const stream = streamRef.current;
@@ -70,231 +125,446 @@ export function VoicePushToTalk({
     }
   }, []);
 
-  const stopAndSend = useCallback(async () => {
-    holdingRef.current = false;
-    const recorder = mediaRef.current;
-    if (!recorder) {
-      releaseMic();
-      setRecording(false);
-      recordingRef.current = false;
-      return;
+  const clearTick = useCallback(() => {
+    if (tickTimerRef.current) {
+      clearInterval(tickTimerRef.current);
+      tickTimerRef.current = null;
     }
-    setRecording(false);
-    recordingRef.current = false;
-    await new Promise<void>((resolve) => {
-      recorder.onstop = () => resolve();
-      try {
-        if (recorder.state !== "inactive") recorder.stop();
-        else resolve();
-      } catch {
-        resolve();
-      }
-    });
-    mediaRef.current = null;
-    releaseMic();
-    const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
-    chunksRef.current = [];
-    if (blob.size < 200) {
-      setError("Recording too short.");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    setStatus("Listening…");
-    try {
-      const bearer = await resolveVoiceBearer(config.adminToken);
-      if (!bearer) throw new Error("Unlock your vault / sign in to use voice.");
-      const admin = config.adminUrl?.trim()
-        ? config
-        : await loadCommsAgentConfigSecure();
-      const base = admin.adminUrl.replace(/\/$/, "");
-      const audioBase64 = await blobToBase64(blob);
-      const tr = await fetch(`${base}/voice/transcribe`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${bearer}`,
-        },
-        body: JSON.stringify({
-          audioBase64,
-          mimeType: blob.type || "audio/webm",
-          filename: "ptt.webm",
-        }),
-      });
-      const trBody = (await tr.json().catch(() => ({}))) as { text?: string; error?: string };
-      if (!tr.ok) throw new Error(trBody.error || `Could not hear that (${tr.status})`);
-      const text = trBody.text?.trim();
-      if (!text) throw new Error("No speech detected.");
-      setStatus("Thinking…");
-      const reply = await onTranscript(text);
-      if (!reply?.trim()) {
-        setStatus(null);
-        return;
-      }
-      onSpokenReply?.(reply);
-      setStatus("Speaking…");
-      const syn = await fetch(`${base}/voice/synthesize`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${bearer}`,
-        },
-        body: JSON.stringify({ text: reply.slice(0, 2000), humanFilter }),
-      });
-      const synBody = (await syn.json().catch(() => ({}))) as {
-        audioBase64?: string | null;
-        mimeType?: string | null;
-        error?: string;
-      };
-      if (!syn.ok) throw new Error(synBody.error || `Voice failed (${syn.status})`);
-      if (synBody.audioBase64) {
-        const mime = synBody.mimeType || "audio/mpeg";
-        const audio = new Audio(`data:${mime};base64,${synBody.audioBase64}`);
-        await audio.play();
-      } else {
-        throw new Error("Voice returned no audio.");
-      }
-      setStatus(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setStatus(null);
-    } finally {
-      setBusy(false);
-    }
-  }, [config, onTranscript, onSpokenReply, humanFilter, releaseMic]);
+  }, []);
 
-  const startRecording = useCallback(async () => {
-    setError(null);
-    holdingRef.current = true;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!holdingRef.current) {
-        for (const track of stream.getTracks()) track.stop();
-        return;
-      }
-      streamRef.current = stream;
+  const stopMicSession = useCallback(
+    (opts?: { error?: string }) => {
+      micOnRef.current = false;
+      setMicOn(false);
+      loopAbortRef.current?.abort();
+      loopAbortRef.current = null;
+      releaseMic();
+      clearTick();
+      setBusy(false);
+      setStatus(null);
+      setElapsedMs(0);
+      setCostPounds(0.1);
+      sessionStartedAtRef.current = 0;
+      if (opts?.error) setError(opts.error);
+      else setError(null);
+    },
+    [clearTick, releaseMic],
+  );
+
+  const recordUtterance = useCallback(
+    async (stream: MediaStream, signal: AbortSignal): Promise<Blob | null> => {
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/webm")
           ? "audio/webm"
           : undefined;
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      chunksRef.current = [];
+      const chunks: Blob[] = [];
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
+        if (e.data.size > 0) chunks.push(e.data);
       };
-      mediaRef.current = recorder;
-      recorder.start();
-      recordingRef.current = true;
-      setRecording(true);
-      setStatus("Listening… release to send");
-      if (!holdingRef.current) {
-        void stopAndSend();
-      }
-    } catch (err) {
-      holdingRef.current = false;
-      releaseMic();
-      setError(err instanceof Error ? err.message : "Microphone permission denied");
-    }
-  }, [releaseMic, stopAndSend]);
 
-  const onRelease = useCallback(() => {
-    holdingRef.current = false;
-    if (recordingRef.current || mediaRef.current) {
-      void stopAndSend();
-    } else {
-      releaseMic();
-    }
-  }, [stopAndSend, releaseMic]);
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.fftSize);
 
-  useEffect(() => {
-    return () => {
-      holdingRef.current = false;
+      const started = Date.now();
+      let heardSpeech = false;
+      let silenceMs = 0;
+
+      recorder.start(250);
+
+      await new Promise<void>((resolve) => {
+        const tick = () => {
+          if (signal.aborted || !micOnRef.current) {
+            resolve();
+            return;
+          }
+          analyser.getByteTimeDomainData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i++) {
+            const v = (data[i]! - 128) / 128;
+            sum += v * v;
+          }
+          const rms = Math.sqrt(sum / data.length);
+          const elapsed = Date.now() - started;
+          if (rms >= SPEECH_RMS_THRESHOLD) {
+            heardSpeech = true;
+            silenceMs = 0;
+          } else if (heardSpeech) {
+            silenceMs += 100;
+            if (silenceMs >= END_SILENCE_MS && elapsed >= MIN_UTTERANCE_MS) {
+              resolve();
+              return;
+            }
+          }
+          if (elapsed >= MAX_UTTERANCE_MS) {
+            resolve();
+            return;
+          }
+          window.setTimeout(tick, 100);
+        };
+        tick();
+      });
+
+      await new Promise<void>((resolve) => {
+        recorder.onstop = () => resolve();
+        try {
+          if (recorder.state !== "inactive") recorder.stop();
+          else resolve();
+        } catch {
+          resolve();
+        }
+      });
       try {
-        mediaRef.current?.stop();
+        await audioCtx.close();
       } catch {
         /* ignore */
       }
+
+      if (!heardSpeech || chunks.length === 0) return null;
+      return new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+    },
+    [],
+  );
+
+  const processBlob = useCallback(
+    async (blob: Blob): Promise<boolean> => {
+      if (blob.size < 400) return false;
+      setBusy(true);
+      setStatus("Listening…");
+      try {
+        const bearer = await resolveVoiceBearer(config.adminToken);
+        if (!bearer) throw new Error("Unlock your vault / sign in to use voice.");
+        const admin = config.adminUrl?.trim() ? config : await loadCommsAgentConfigSecure();
+        const base = admin.adminUrl.replace(/\/$/, "");
+        const audioBase64 = await blobToBase64(blob);
+        const tr = await fetch(`${base}/voice/transcribe`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${bearer}`,
+          },
+          body: JSON.stringify({
+            audioBase64,
+            mimeType: blob.type || "audio/webm",
+            filename: "mic.webm",
+          }),
+        });
+        const trBody = (await tr.json().catch(() => ({}))) as { text?: string; error?: string };
+        if (!tr.ok) throw new Error(trBody.error || `Could not hear that (${tr.status})`);
+        const text = trBody.text?.trim();
+        if (!text) return false;
+        lastSpeechAtRef.current = Date.now();
+        setStatus("Thinking…");
+        const reply = await onTranscript(text);
+        if (reply?.trim()) onSpokenReply?.(reply);
+        setStatus(micOnRef.current ? "Mic on — speak anytime" : null);
+        setError(null);
+        return true;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [config, onTranscript, onSpokenReply],
+  );
+
+  const runMicLoop = useCallback(async () => {
+    const abort = new AbortController();
+    loopAbortRef.current = abort;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!micOnRef.current || abort.signal.aborted) {
+        for (const track of stream.getTracks()) track.stop();
+        return;
+      }
+      streamRef.current = stream;
+      setStatus("Mic on — speak anytime");
+      setError(null);
+
+      while (micOnRef.current && !abort.signal.aborted) {
+        if (Date.now() - lastSpeechAtRef.current >= SILENCE_AUTO_OFF_MS) {
+          stopMicSession({ error: "Mic off — no speech for a minute." });
+          return;
+        }
+        const blob = await recordUtterance(stream, abort.signal);
+        if (!micOnRef.current || abort.signal.aborted) break;
+        if (!blob) continue;
+        try {
+          await processBlob(blob);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
+          setStatus(micOnRef.current ? "Mic on — speak anytime" : null);
+        }
+      }
+    } catch (err) {
+      stopMicSession({
+        error: err instanceof Error ? err.message : "Microphone permission denied",
+      });
+    }
+  }, [processBlob, recordUtterance, stopMicSession]);
+
+  const startMicSession = useCallback(async () => {
+    const mode = loadVoiceMode();
+    setVoiceMode(mode);
+    micOnRef.current = true;
+    setMicOn(true);
+    lastSpeechAtRef.current = Date.now();
+    sessionStartedAtRef.current = Date.now();
+    setElapsedMs(0);
+    setCostPounds(0.1);
+    setError(null);
+
+    if (mode === "conversational") {
+      paidSessionIdRef.current = `mic-${Date.now()}`;
+      paidMinuteSeqRef.current = 0;
+      const ok = await chargePaidMinute(0, paidSessionIdRef.current);
+      if (!ok) {
+        stopMicSession({ error: "Not enough Atom Credits." });
+        return;
+      }
+      paidMinuteSeqRef.current = 1;
+    }
+
+    clearTick();
+    tickTimerRef.current = setInterval(() => {
+      if (!micOnRef.current || !sessionStartedAtRef.current) return;
+      const elapsed = Date.now() - sessionStartedAtRef.current;
+      setElapsedMs(elapsed);
+      if (loadVoiceMode() === "conversational") {
+        const minutes = Math.floor(elapsed / 60_000) + 1;
+        setCostPounds(minutes * 0.1);
+        while (paidMinuteSeqRef.current < minutes) {
+          const seq = paidMinuteSeqRef.current;
+          paidMinuteSeqRef.current = seq + 1;
+          void chargePaidMinute(seq, paidSessionIdRef.current).then((ok) => {
+            if (!ok) {
+              stopMicSession({ error: "Not enough Atom Credits." });
+            }
+          });
+        }
+      }
+      if (Date.now() - lastSpeechAtRef.current >= SILENCE_AUTO_OFF_MS) {
+        stopMicSession({ error: "Mic off — no speech for a minute." });
+      }
+    }, 1000);
+
+    void runMicLoop();
+  }, [clearTick, runMicLoop, stopMicSession]);
+
+  const onMicToggle = useCallback(
+    (on: boolean) => {
+      if (on) void startMicSession();
+      else stopMicSession();
+    },
+    [startMicSession, stopMicSession],
+  );
+
+  useEffect(() => {
+    return () => {
+      micOnRef.current = false;
+      loopAbortRef.current?.abort();
       releaseMic();
+      clearTick();
     };
-  }, [releaseMic]);
+  }, [clearTick, releaseMic]);
+
+  useEffect(() => {
+    if (!enabled && micOnRef.current) stopMicSession();
+  }, [enabled, stopMicSession]);
 
   if (!enabled) return null;
 
+  const showPaidMeter = voiceMode === "conversational" && micOn;
+
   return (
-    <div className="voice-ptt" aria-live="polite">
-      <button
-        type="button"
-        className={`chrome-approve voice-ptt-btn${recording ? " voice-ptt-btn--active" : ""}`}
-        disabled={busy}
-        onMouseDown={() => void startRecording()}
-        onMouseUp={onRelease}
-        onMouseLeave={() => {
-          if (holdingRef.current || recordingRef.current) onRelease();
-        }}
-        onTouchStart={(e) => {
-          e.preventDefault();
-          void startRecording();
-        }}
-        onTouchEnd={(e) => {
-          e.preventDefault();
-          onRelease();
-        }}
-      >
-        {busy ? "Working…" : recording ? "Release to send" : "Hold to talk"}
-      </button>
-      {status ? <span className="settings-note">{status}</span> : null}
-      {error ? <span className="settings-note settings-error">{error}</span> : null}
+    <div className="voice-tray-item voice-ptt" aria-live="polite">
+      <SettingsToggle
+        className="settings-switch--inline voice-tray-switch"
+        checked={micOn}
+        disabled={busy && !micOn}
+        label="Mic"
+        onChange={onMicToggle}
+      />
+      {showPaidMeter ? (
+        <span className="voice-tray-meter" title="Session time and cost">
+          {formatElapsed(elapsedMs)}
+          <span className="voice-tray-meter-sep" aria-hidden="true">
+            ·
+          </span>
+          £{costPounds.toFixed(2)}
+        </span>
+      ) : null}
+      {error ? <span className="voice-tray-error">{error}</span> : null}
+      <span className="visually-hidden">{status}</span>
     </div>
   );
 }
 
 export function VoiceSettingsPanel({ embedded = false }: { embedded?: boolean }) {
-  const { config } = useAgentConfig(true);
-  const [optIn, setOptIn] = useState(loadVoiceOptIn);
-  const [providerNote, setProviderNote] = useState<string | null>(null);
+  const [mode, setMode] = useState<VoiceMode>(loadVoiceMode);
+  const [voiceId, setVoiceId] = useState(loadSpeechVoiceId);
+  const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
+  const [creditNote, setCreditNote] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!config.adminUrl?.trim()) return;
+    const sync = () => {
+      setMode(loadVoiceMode());
+      setVoiceId(loadSpeechVoiceId());
+    };
+    window.addEventListener(VOICE_OPTIN_EVENT, sync);
+    return () => window.removeEventListener(VOICE_OPTIN_EVENT, sync);
+  }, []);
+
+  useEffect(() => {
+    const cp = CONTROL_PLANE_URL.replace(/\/$/, "");
+    if (!cp) return;
     void (async () => {
       try {
-        const bearer = await resolveVoiceBearer(config.adminToken);
-        if (!bearer) return;
-        const base = config.adminUrl.replace(/\/$/, "");
-        const resp = await fetch(`${base}/voice/status`, {
-          headers: { Authorization: `Bearer ${bearer}` },
+        const token = await supabaseAccessToken();
+        const resp = await fetch(`${cp}/voice/status`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (!resp.ok) return;
         const body = (await resp.json()) as {
-          message?: string;
-          configured?: boolean;
-          provider?: string;
+          catalog?: CatalogEntry[];
+          credits?: {
+            canUsePaid?: boolean;
+            balancePence?: number;
+            speechEnabled?: boolean;
+            voiceId?: string;
+          };
         };
-        setProviderNote(
-          `${body.provider ?? "voice"}: ${body.message ?? (body.configured ? "ready" : "not configured")}`,
-        );
+        if (Array.isArray(body.catalog) && body.catalog.length) {
+          setCatalog(body.catalog);
+        }
+        if (body.credits?.voiceId) {
+          setVoiceId(body.credits.voiceId);
+          saveSpeechVoiceId(body.credits.voiceId);
+        }
+        if (body.credits) {
+          const pounds = ((body.credits.balancePence ?? 0) / 100).toFixed(2);
+          if (!body.credits.canUsePaid) {
+            setCreditNote(`Credits £${pounds}`);
+          } else {
+            setCreditNote(`Credits £${pounds}`);
+          }
+        }
       } catch {
-        setProviderNote(null);
+        setCreditNote(null);
       }
     })();
-  }, [config]);
+  }, []);
+
+  const applyVoice = async (nextId: string) => {
+    setVoiceId(nextId);
+    saveSpeechVoiceId(nextId);
+    setSaveError(null);
+    const cp = CONTROL_PLANE_URL.replace(/\/$/, "");
+    const token = await supabaseAccessToken();
+    if (!cp || !token) return;
+    try {
+      const resp = await fetch(`${cp}/voice/preference`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ voiceId: nextId, enableSpeech: true }),
+      });
+      if (!resp.ok) {
+        const body = (await resp.json().catch(() => ({}))) as { error?: string };
+        setSaveError(body.error || "Could not save voice preference.");
+      }
+    } catch {
+      setSaveError("Could not save voice preference.");
+    }
+  };
+
+  const applyMode = (next: VoiceMode) => {
+    saveVoiceMode(next);
+    setMode(next);
+    if (next === "conversational") {
+      void (async () => {
+        const cp = CONTROL_PLANE_URL.replace(/\/$/, "");
+        const token = await supabaseAccessToken();
+        if (!cp || !token) return;
+        try {
+          await fetch(`${cp}/voice/speech-enable`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: "{}",
+          });
+          await applyVoice(loadSpeechVoiceId());
+        } catch {
+          /* preference save best-effort */
+        }
+      })();
+    }
+  };
 
   const fields = (
     <>
       <p className="settings-note">
-        <strong>Talk</strong> (chat bar) is live conversation — billed per minute while connected.
-        <br />
-        <strong>Hold to talk</strong> is short voice notes; replies can be spoken aloud.
+        Off, free device voice, or Conversational (Atom Credits).
       </p>
-      {providerNote ? <p className="settings-note">{providerNote}</p> : null}
-      <SettingsToggle
-        checked={optIn}
-        label="Show Hold to talk in Chat"
-        onChange={(enabled) => {
-          saveVoiceOptIn(enabled);
-          setOptIn(enabled);
-        }}
-      />
+      <fieldset className="settings-fieldset" style={{ border: "none", padding: 0, margin: 0 }}>
+        <legend className="settings-note" style={{ padding: 0 }}>
+          Voice
+        </legend>
+        {(
+          [
+            ["off", "Off"],
+            ["free", "Atom’s Voice (Free)"],
+            ["conversational", "Atom’s Voice – Conversational (Paid)"],
+          ] as const
+        ).map(([value, label]) => (
+          <label
+            key={value}
+            className="settings-note"
+            style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}
+          >
+            <input
+              type="radio"
+              name="atom-voice-mode"
+              checked={mode === value}
+              onChange={() => applyMode(value)}
+            />
+            {label}
+          </label>
+        ))}
+      </fieldset>
+      {mode === "conversational" ? (
+        <>
+          {creditNote ? <p className="settings-note">{creditNote}</p> : null}
+          {catalog.length > 0 ? (
+            <label className="settings-note" style={{ display: "block", marginTop: 8 }}>
+              Conversational voice
+              <select
+                value={voiceId}
+                onChange={(e) => void applyVoice(e.target.value)}
+                style={{ display: "block", width: "100%", marginTop: 4 }}
+              >
+                {catalog.map((v) => (
+                  <option key={v.voiceId} value={v.voiceId}>
+                    {catalogOptionLabel(v)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <p className="settings-note">Voice list loads when Mission Control is reachable.</p>
+          )}
+          {saveError ? <p className="settings-note settings-error">{saveError}</p> : null}
+        </>
+      ) : null}
     </>
   );
 

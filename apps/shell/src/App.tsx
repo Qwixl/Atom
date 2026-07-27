@@ -146,6 +146,7 @@ import {
 } from "./brain/VoicePushToTalk.js";
 import { HostedVoiceSlot } from "./brain/HostedVoiceSlot.js";
 import { VOICE_OPTIN_EVENT } from "./brain/voiceOptIn.js";
+import { loadVoiceMode } from "./brain/voiceMode.js";
 import { speakAgentText } from "./brain/speakAgentText.js";
 import {
   PRESENTATION_BOARD_MODULE_ID,
@@ -858,10 +859,12 @@ export function App() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [chatAbuseReportOpen, setChatAbuseReportOpen] = useState(false);
   const [voicePttOn, setVoicePttOn] = useState(loadVoiceOptIn);
+  const [voiceMode, setVoiceMode] = useState(loadVoiceMode);
 
   useEffect(() => {
     const sync = () => {
       setVoicePttOn(loadVoiceOptIn());
+      setVoiceMode(loadVoiceMode());
     };
     window.addEventListener(VOICE_OPTIN_EVENT, sync);
     window.addEventListener("storage", sync);
@@ -1818,9 +1821,9 @@ export function App() {
 
   const [voiceSpeakError, setVoiceSpeakError] = useState<string | null>(null);
 
-  // When Hold to talk is on, speak new agent replies from typed chat too.
+  // Speak new agent replies when Free or Conversational is on (not Off).
   useEffect(() => {
-    if (!voicePttOn) return;
+    if (voiceMode === "off") return;
     if (!agentConnectionReady || !vaultUnlocked) return;
     const seen = new Set(
       conversation
@@ -1835,15 +1838,19 @@ export function App() {
       if (!lastAgent || lastAgent.kind !== "agent-text") return;
       if (seen.has(lastAgent.id)) return;
       seen.add(lastAgent.id);
-      void speakAgentText(lastAgent.text, loadCommsAgentConfig(), { humanFilter: true }).then(
-        (result) => {
-          if (!result.ok) setVoiceSpeakError(result.error);
-          else setVoiceSpeakError(null);
-        },
-      );
+      void speakAgentText(lastAgent.text, loadCommsAgentConfig(), {
+        humanFilter: true,
+        mode: loadVoiceMode(),
+      }).then((result) => {
+        if (!result.ok) setVoiceSpeakError(result.error);
+        else if (result.fellBackToFree) {
+          setVoiceSpeakError("Credits ran out — switched to free voice.");
+          setVoiceMode(loadVoiceMode());
+        } else setVoiceSpeakError(null);
+      });
     });
     return unsub;
-  }, [voicePttOn, agentConnectionReady, vaultUnlocked, conversation]);
+  }, [voiceMode, agentConnectionReady, vaultUnlocked, conversation]);
 
   const requestBriefingComposition = useCallback(async (message: string) => {
     if (briefingOpenSentRef.current) return false;
@@ -2978,63 +2985,72 @@ export function App() {
             {agentConnectionReady ? (
               <CreditsUsageTray
                 accountId={loadOwnerHandle() || "personal"}
-                onOpenSettings={() => setPanel("profile")}
+                onOpenSettings={(panel) => {
+                  // Never setPanel("profile") — that hides chat with a blank shell.
+                  if (panel === "credits" || panel === "speech" || panel === "tier") {
+                    openSettings("payments");
+                    return;
+                  }
+                  openSettings("payments");
+                }}
               />
             ) : null}
           </>
         }
         composer={
           showMainComposer ? (
-            <>
+            <div className="atom-composer-stack">
               {voiceSpeakError ? (
-                <p className="settings-note settings-error" style={{ textAlign: "center" }}>
-                  {voiceSpeakError}
-                </p>
+                <p className="voice-tray-error voice-tray-error--block">{voiceSpeakError}</p>
               ) : null}
-              <HostedVoiceSlot
-                enabled={Boolean(agentConnectionReady && vaultUnlocked)}
-              />
-              <VoicePushToTalk
-                enabled={
-                  (voicePttOn || (boardAvailable && panel === "board" && !boardVoiceMuted)) &&
-                  Boolean(agentConnectionReady && vaultUnlocked)
-                }
-                humanFilter
-                onTranscript={async (text) => {
-                  conversationRef.current.setBusy(true);
-                  sessionRef.current.sendUserMessage(text);
-                  // Wait for the agent turn to finish, then return last agent text for TTS.
-                  return await new Promise<string | null>((resolve) => {
-                    let sawBusy = conversation.getSnapshot().busy;
-                    const unsub = conversation.subscribe(() => {
-                      const snap = conversation.getSnapshot();
-                      if (snap.busy) {
-                        sawBusy = true;
-                        return;
-                      }
-                      if (!sawBusy) return;
-                      unsub();
-                      const lastAgent = [...snap.feed]
-                        .reverse()
-                        .find((item) => item.kind === "agent-text");
-                      resolve(
-                        lastAgent && lastAgent.kind === "agent-text" ? lastAgent.text : null,
-                      );
+              <div className="voice-tray">
+                <HostedVoiceSlot
+                  enabled={Boolean(
+                    voiceMode === "conversational" && agentConnectionReady && vaultUnlocked,
+                  )}
+                />
+                <VoicePushToTalk
+                  enabled={
+                    (voicePttOn || (boardAvailable && panel === "board" && !boardVoiceMuted)) &&
+                    Boolean(agentConnectionReady && vaultUnlocked)
+                  }
+                  humanFilter
+                  onTranscript={async (text) => {
+                    conversationRef.current.setBusy(true);
+                    sessionRef.current.sendUserMessage(text);
+                    // Wait for the agent turn to finish, then return last agent text for TTS.
+                    return await new Promise<string | null>((resolve) => {
+                      let sawBusy = conversation.getSnapshot().busy;
+                      const unsub = conversation.subscribe(() => {
+                        const snap = conversation.getSnapshot();
+                        if (snap.busy) {
+                          sawBusy = true;
+                          return;
+                        }
+                        if (!sawBusy) return;
+                        unsub();
+                        const lastAgent = [...snap.feed]
+                          .reverse()
+                          .find((item) => item.kind === "agent-text");
+                        resolve(
+                          lastAgent && lastAgent.kind === "agent-text" ? lastAgent.text : null,
+                        );
+                      });
+                      window.setTimeout(() => {
+                        unsub();
+                        resolve(null);
+                      }, 90_000);
                     });
-                    window.setTimeout(() => {
-                      unsub();
-                      resolve(null);
-                    }, 90_000);
-                  });
-                }}
-              />
+                  }}
+                />
+              </div>
               <ShellComposer
                 value={input}
                 busy={busy}
                 onChange={setInput}
                 onSubmit={submitMessage}
               />
-            </>
+            </div>
           ) : undefined
         }
       >
@@ -4012,7 +4028,8 @@ function SettingsDialog({
     if (
       initialSection === "profile" ||
       initialSection === "log" ||
-      initialSection === "modules"
+      initialSection === "modules" ||
+      initialSection === "payments"
     ) {
       return initialSection;
     }
@@ -4022,7 +4039,8 @@ function SettingsDialog({
     () =>
       initialSection === "profile" ||
       initialSection === "log" ||
-      initialSection === "modules",
+      initialSection === "modules" ||
+      initialSection === "payments",
   );
 
   const navItems = useMemo(() => {
@@ -4039,15 +4057,15 @@ function SettingsDialog({
       { id: "connectors", label: "Connectors", hint: "Calendars, news, and apps" },
       { id: "appearance", label: "Appearance", hint: "Look and feel" },
       { id: "modules", label: "Modules", hint: "Add-ons and marketplace" },
+      {
+        id: "payments",
+        label: productionLocked ? "Plan & credits" : "Agent Shopper",
+        hint: productionLocked
+          ? "Hosted plan, speech, and Atom Credits"
+          : "Let your agent shop within limits",
+      },
       { id: "donations", label: "Donations", hint: "Support Atom" },
     ];
-    if (!productionLocked) {
-      items.splice(7, 0, {
-        id: "payments",
-        label: "Agent Shopper",
-        hint: "Let your agent shop within limits",
-      });
-    }
     return items;
   }, [productionLocked]);
 
@@ -4588,28 +4606,32 @@ function SettingsDialog({
   function renderPaymentsPanel() {
     return (
       <div className="settings-panel payments-settings">
-        <h3 className="settings-subtitle">Hosted plan</h3>
+        <h3 className="settings-subtitle">Hosted plan &amp; credits</h3>
         <PlanLaneSettingsPanel embedded />
-        <hr className="settings-divider" />
-        <SettingsToggle
-          checked={agentShopperOn}
-          label="Allow Agent Shopping"
-          onChange={(next) => {
-            setAgentShopperOn(next);
-            saveStringToStorage(AGENT_SHOPPER_KEY, String(next));
-          }}
-        />
-        <p className="settings-note">
-          When on, your agent may set up a confirmation of interest with a merchant within your
-          limits. Payment still happens between you and the merchant (their checkout page). When
-          off, the agent can only share product details for you to visit the merchant yourself.
-        </p>
-        {agentShopperOn ? (
-          <SpendPolicySettingsPanel
-            workspaceId={activeWorkspaceId}
-            vaultUnlocked={vaultUnlocked}
-            embedded
-          />
+        {!productionLocked ? (
+          <>
+            <hr className="settings-divider" />
+            <SettingsToggle
+              checked={agentShopperOn}
+              label="Allow Agent Shopping"
+              onChange={(next) => {
+                setAgentShopperOn(next);
+                saveStringToStorage(AGENT_SHOPPER_KEY, String(next));
+              }}
+            />
+            <p className="settings-note">
+              When on, your agent may set up a confirmation of interest with a merchant within your
+              limits. Payment still happens between you and the merchant (their checkout page). When
+              off, the agent can only share product details for you to visit the merchant yourself.
+            </p>
+            {agentShopperOn ? (
+              <SpendPolicySettingsPanel
+                workspaceId={activeWorkspaceId}
+                vaultUnlocked={vaultUnlocked}
+                embedded
+              />
+            ) : null}
+          </>
         ) : null}
       </div>
     );
