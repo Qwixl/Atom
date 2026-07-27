@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getSupabaseClient } from "../auth/hostedAccount.js";
 import { CONTROL_PLANE_URL, isSupabaseConfigured } from "../hostConfig.js";
+import { controlPlaneAuthHeaders } from "./controlPlaneAuth.js";
 import "./credits-tray.css";
 
 export type CreditsSummary = {
@@ -38,7 +39,9 @@ export function CreditsUsageTray({
           if (data.user?.id) id = data.user.id;
         }
         if (!id) return;
-        const resp = await fetch(`${base}/billing/credits/${encodeURIComponent(id)}`);
+        const headers = await controlPlaneAuthHeaders();
+        if (!headers) return;
+        const resp = await fetch(`${base}/billing/credits/${encodeURIComponent(id)}`, { headers });
         if (!resp.ok) return;
         const data = (await resp.json()) as { summary?: CreditsSummary };
         if (!cancelled && data.summary) {

@@ -35,3 +35,6 @@ credentials.json
 dist/
 id_rsa
 node_modules/
+
+# Python tool caches
+.ruff_cache/

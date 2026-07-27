@@ -1,0 +1,36 @@
+{
+  "id": "023-expiry-earlier-of-both-wins-ttl",
+  "kind": "data-object",
+  "description": "The mirror of 022, and the case that actually catches the common bug. ttlSeconds implies an expiry in the past while expiresAt is far in the future. The earlier instant governs, so this MUST be rejected. An implementation that checks expiresAt first and returns early will wrongly accept, silently extending a short-lived object's lifetime by years.",
+  "requires": [
+    "governance"
+  ],
+  "now": "2026-01-15T12:00:00.000Z",
+  "permittedPurposes": [
+    "comms:message",
+    "comms:receipt",
+    "coordination:proposal"
+  ],
+  "expect": "reject",
+  "reason": "expired",
+  "canonicalForm": "{\"governance\":{\"expiresAt\":\"2027-01-15T11:30:00.000Z\",\"purpose\":\"comms:message\",\"ttlSeconds\":60},\"id\":\"01948f00-0000-7000-8000-000000000023\",\"issuedAt\":\"2026-01-15T11:00:00.000Z\",\"issuerDid\":\"did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG\",\"payload\":{\"text\":\"hello\"},\"semantic\":{\"schema\":\"https://atom.qwixl.dev/schema/CommsMessage\"},\"version\":1}",
+  "object": {
+    "version": 1,
+    "id": "01948f00-0000-7000-8000-000000000023",
+    "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+    "issuedAt": "2026-01-15T11:00:00.000Z",
+    "semantic": {
+      "schema": "https://atom.qwixl.dev/schema/CommsMessage"
+    },
+    "payload": {
+      "text": "hello"
+    },
+    "governance": {
+      "purpose": "comms:message",
+      "ttlSeconds": 60,
+      "expiresAt": "2027-01-15T11:30:00.000Z"
+    },
+    "signatureAlgorithm": "ed25519",
+    "signature": "8+o7W5SGPv2B5BJE4jZDXp+L93yVIGxMNABCrpQKa2qB/0keG44K9Nhy4WKiUWHmRZ9jKLpYIyrjygCNpZJcBw=="
+  }
+}
