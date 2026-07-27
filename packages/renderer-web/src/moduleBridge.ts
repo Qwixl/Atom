@@ -15,21 +15,20 @@ export function createModuleBridge(bundleUrl: string): ModuleBridge {
   const resolvedUrl = resolveModuleBundleUrl(bundleUrl);
   const shellOrigin = window.location.origin;
   const bundleOrigin = resolveModuleBundleOrigin(resolvedUrl, shellOrigin);
-  const crossOrigin = bundleOrigin !== shellOrigin;
 
   return {
     targetOrigin: bundleOrigin,
     sendInit(contentWindow, props) {
-      // Sandboxed iframes without allow-same-origin use an opaque origin; init uses "*"
-      // only for same-site bundle URLs (local dev). Cross-origin targets the bundle origin.
-      const target = crossOrigin ? bundleOrigin : "*";
-      contentWindow.postMessage(
-        { type: "init", props, theme: readAtomThemeTokens() },
-        target,
-      );
+      // MODULE_IFRAME_SANDBOX never grants allow-same-origin, so the frame's origin is
+      // always opaque — whatever host served the bundle. postMessage cannot address an
+      // opaque origin, so "*" is the only target that is ever delivered. Callers must
+      // authenticate with event.source === iframe.contentWindow, and must not put
+      // secrets in props: a module can navigate its own frame.
+      contentWindow.postMessage({ type: "init", props, theme: readAtomThemeTokens() }, "*");
     },
     isAllowedMessageOrigin(origin: string) {
-      if (crossOrigin) return origin === bundleOrigin;
+      // An opaque-origin frame reports "null". bundleOrigin is kept for a same-origin
+      // bundle in a frame that is not sandboxed.
       return origin === "null" || origin === bundleOrigin;
     },
   };
