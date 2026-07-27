@@ -34,6 +34,12 @@ import {
   softConfirmRepairUserContent,
 } from "./softConfirmRepair.js";
 import {
+  isListShapedToolName,
+  resultHasNonEmptyItems,
+  protocolMessagesHaveComposition,
+  listCompositionRepairUserContent,
+} from "./listCompositionRepair.js";
+import {
   callAnthropicMessages,
   openAiToolsToAnthropic,
   parseAnthropicResponse,
@@ -101,6 +107,8 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
   private disposed = false;
   private abortController: AbortController | null = null;
   private jsonModeSupported = true;
+  /** Last list-shaped connector tool (news_search, rss_list_items, …) this turn that returned non-empty items. */
+  private lastListToolName: string | null = null;
 
   private static readonly REQUEST_TIMEOUT_MS = 120_000;
   private static readonly MAX_TOOL_ROUNDS = 8;
@@ -226,6 +234,7 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
 
   private async completeOnce(): Promise<void> {
     let raw: string;
+    this.lastListToolName = null;
     try {
       raw = await this.callModel();
     } catch (error) {
@@ -272,6 +281,19 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
       }
     }
 
+    // Bounded corrective round: a list-shaped tool (news/RSS/etc.) returned real items this
+    // turn, but the final turn has no composition to render them — an intro sentence alone is
+    // an invalid turn. Re-prompt once, forcing a `core/list` composition of the fetched items.
+    if (
+      this.lastListToolName &&
+      !protocolMessagesHaveComposition((parsed as { messages: unknown[] }).messages)
+    ) {
+      const listRepaired = await this.attemptListCompositionRepair(this.lastListToolName);
+      if (listRepaired) {
+        parsed = listRepaired;
+      }
+    }
+
     for (const message of coalesceTurnMessages((parsed as { messages: unknown[] }).messages)) {
       this.emitAgentMessage(message);
     }
@@ -306,6 +328,29 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
     if (!parsed || !Array.isArray((parsed as { messages?: unknown }).messages)) return null;
     const messages = (parsed as { messages: unknown[] }).messages;
     if (!protocolMessagesHaveSettingsProposal(messages)) return null;
+    return parsed as { messages: unknown[] };
+  }
+
+  private async attemptListCompositionRepair(
+    toolName: string,
+  ): Promise<{ messages: unknown[] } | null> {
+    if (this.disposed) return null;
+    this.messages.push({
+      role: "user",
+      content: listCompositionRepairUserContent(toolName),
+    });
+    let raw: string;
+    try {
+      raw = await this.callModel();
+    } catch {
+      return null;
+    }
+    this.messages.push({ role: "assistant", content: raw });
+    this.trimMessageHistory();
+    const parsed = extractJson(raw);
+    if (!parsed || !Array.isArray((parsed as { messages?: unknown }).messages)) return null;
+    const messages = (parsed as { messages: unknown[] }).messages;
+    if (!protocolMessagesHaveComposition(messages)) return null;
     return parsed as { messages: unknown[] };
   }
 
@@ -692,6 +737,9 @@ export class LlmAgentSession extends SessionEmitter implements AgentSession {
     try {
       const args = resolved.call;
       const result = await this.atomToolExecutor(args);
+      if (isListShapedToolName(name) && resultHasNonEmptyItems(result)) {
+        this.lastListToolName = name;
+      }
       return wrapUntrustedContent(JSON.stringify(result, null, 2), {
         source: `connector:${args.connectorId}`,
         purpose: args.operation,

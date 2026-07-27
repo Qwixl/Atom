@@ -81,6 +81,13 @@ export {
   softConfirmRepairUserContent,
   SOFT_CONFIRM_REPAIR_TAG,
 } from "./softConfirmRepair.js";
+export {
+  isListShapedToolName,
+  resultHasNonEmptyItems,
+  protocolMessagesHaveComposition,
+  listCompositionRepairUserContent,
+  LIST_COMPOSITION_REPAIR_TAG,
+} from "./listCompositionRepair.js";
 export { buildSystemPrompt } from "./prompt.js";
 export type { PromptProfile } from "./prompt.js";
 export {
