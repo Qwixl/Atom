@@ -3,6 +3,8 @@
  * When the owner asks to track/alert/brief and the model replies without
  * settingsProposal, inject one correction turn before emitting to the shell.
  */
+import { LIST_COMPOSITION_REPAIR_TAG } from "./listCompositionRepair.js";
+
 export const SOFT_CONFIRM_REPAIR_TAG = "[soft-confirm-repair]";
 
 const SETTINGS_ASSENT = /\[settings-assent/i;
@@ -67,6 +69,7 @@ export function isInternalProtocolUserMessage(content: string): boolean {
   return (
     content.startsWith("[format-error]") ||
     content.startsWith(SOFT_CONFIRM_REPAIR_TAG) ||
-    content.startsWith("[settings-assent-retry]")
+    content.startsWith("[settings-assent-retry]") ||
+    content.startsWith(LIST_COMPOSITION_REPAIR_TAG)
   );
 }
