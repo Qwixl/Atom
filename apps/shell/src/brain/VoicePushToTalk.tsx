@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
 import { SettingsToggle } from "../ui/SettingsToggle.js";
 import { loadCommsAgentConfigSecure } from "../comms/storage.js";
+import { getChatSessionToken } from "../comms/chatSessionToken.js";
 import { notifyVoiceOptInChanged } from "./voiceOptIn.js";
 
 const VOICE_OPT_IN_KEY = "atom.voice.pushToTalk";
@@ -29,6 +30,15 @@ async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(binary);
 }
 
+/** Prefer short-lived chat session, then vault admin token. */
+async function resolveVoiceBearer(adminToken?: string): Promise<string | null> {
+  const session = getChatSessionToken()?.trim();
+  if (session) return session;
+  if (adminToken?.trim()) return adminToken.trim();
+  const secure = await loadCommsAgentConfigSecure();
+  return secure.adminToken?.trim() || null;
+}
+
 export function VoicePushToTalk({
   enabled,
   onTranscript,
@@ -36,10 +46,8 @@ export function VoicePushToTalk({
   humanFilter = true,
 }: {
   enabled: boolean;
-  /** Send transcribed text as a user chat turn; return agent reply text when ready. */
   onTranscript: (text: string) => Promise<string | null>;
   onSpokenReply?: (text: string) => void;
-  /** Apply agent-backend spoken-path human filter before TTS (default on). */
   humanFilter?: boolean;
 }) {
   const { config } = useAgentConfig(true);
@@ -48,17 +56,42 @@ export function VoicePushToTalk({
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const mediaRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  /** True from press until stop finishes — survives async getUserMedia race. */
+  const holdingRef = useRef(false);
+  const recordingRef = useRef(false);
+
+  const releaseMic = useCallback(() => {
+    const stream = streamRef.current;
+    streamRef.current = null;
+    if (stream) {
+      for (const track of stream.getTracks()) track.stop();
+    }
+  }, []);
 
   const stopAndSend = useCallback(async () => {
+    holdingRef.current = false;
     const recorder = mediaRef.current;
-    if (!recorder) return;
+    if (!recorder) {
+      releaseMic();
+      setRecording(false);
+      recordingRef.current = false;
+      return;
+    }
     setRecording(false);
+    recordingRef.current = false;
     await new Promise<void>((resolve) => {
       recorder.onstop = () => resolve();
-      recorder.stop();
+      try {
+        if (recorder.state !== "inactive") recorder.stop();
+        else resolve();
+      } catch {
+        resolve();
+      }
     });
     mediaRef.current = null;
+    releaseMic();
     const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
     chunksRef.current = [];
     if (blob.size < 200) {
@@ -67,9 +100,11 @@ export function VoicePushToTalk({
     }
     setBusy(true);
     setError(null);
-    setStatus("Transcribing…");
+    setStatus("Listening…");
     try {
-      const admin = config.adminToken?.trim()
+      const bearer = await resolveVoiceBearer(config.adminToken);
+      if (!bearer) throw new Error("Unlock your vault / sign in to use voice.");
+      const admin = config.adminUrl?.trim()
         ? config
         : await loadCommsAgentConfigSecure();
       const base = admin.adminUrl.replace(/\/$/, "");
@@ -78,9 +113,7 @@ export function VoicePushToTalk({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(admin.adminToken?.trim()
-            ? { Authorization: `Bearer ${admin.adminToken.trim()}` }
-            : {}),
+          Authorization: `Bearer ${bearer}`,
         },
         body: JSON.stringify({
           audioBase64,
@@ -89,7 +122,7 @@ export function VoicePushToTalk({
         }),
       });
       const trBody = (await tr.json().catch(() => ({}))) as { text?: string; error?: string };
-      if (!tr.ok) throw new Error(trBody.error || `Transcribe failed (${tr.status})`);
+      if (!tr.ok) throw new Error(trBody.error || `Could not hear that (${tr.status})`);
       const text = trBody.text?.trim();
       if (!text) throw new Error("No speech detected.");
       setStatus("Thinking…");
@@ -104,9 +137,7 @@ export function VoicePushToTalk({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(admin.adminToken?.trim()
-            ? { Authorization: `Bearer ${admin.adminToken.trim()}` }
-            : {}),
+          Authorization: `Bearer ${bearer}`,
         },
         body: JSON.stringify({ text: reply.slice(0, 2000), humanFilter }),
       });
@@ -115,11 +146,13 @@ export function VoicePushToTalk({
         mimeType?: string | null;
         error?: string;
       };
-      if (!syn.ok) throw new Error(synBody.error || `Synthesize failed (${syn.status})`);
+      if (!syn.ok) throw new Error(synBody.error || `Voice failed (${syn.status})`);
       if (synBody.audioBase64) {
         const mime = synBody.mimeType || "audio/mpeg";
         const audio = new Audio(`data:${mime};base64,${synBody.audioBase64}`);
         await audio.play();
+      } else {
+        throw new Error("Voice returned no audio.");
       }
       setStatus(null);
     } catch (err) {
@@ -128,12 +161,18 @@ export function VoicePushToTalk({
     } finally {
       setBusy(false);
     }
-  }, [config, onTranscript, onSpokenReply, humanFilter]);
+  }, [config, onTranscript, onSpokenReply, humanFilter, releaseMic]);
 
   const startRecording = useCallback(async () => {
     setError(null);
+    holdingRef.current = true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!holdingRef.current) {
+        for (const track of stream.getTracks()) track.stop();
+        return;
+      }
+      streamRef.current = stream;
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/webm")
@@ -144,17 +183,41 @@ export function VoicePushToTalk({
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
-      recorder.onstop = () => {
-        for (const track of stream.getTracks()) track.stop();
-      };
       mediaRef.current = recorder;
       recorder.start();
+      recordingRef.current = true;
       setRecording(true);
       setStatus("Listening… release to send");
+      if (!holdingRef.current) {
+        void stopAndSend();
+      }
     } catch (err) {
+      holdingRef.current = false;
+      releaseMic();
       setError(err instanceof Error ? err.message : "Microphone permission denied");
     }
-  }, []);
+  }, [releaseMic, stopAndSend]);
+
+  const onRelease = useCallback(() => {
+    holdingRef.current = false;
+    if (recordingRef.current || mediaRef.current) {
+      void stopAndSend();
+    } else {
+      releaseMic();
+    }
+  }, [stopAndSend, releaseMic]);
+
+  useEffect(() => {
+    return () => {
+      holdingRef.current = false;
+      try {
+        mediaRef.current?.stop();
+      } catch {
+        /* ignore */
+      }
+      releaseMic();
+    };
+  }, [releaseMic]);
 
   if (!enabled) return null;
 
@@ -165,11 +228,9 @@ export function VoicePushToTalk({
         className={`chrome-approve voice-ptt-btn${recording ? " voice-ptt-btn--active" : ""}`}
         disabled={busy}
         onMouseDown={() => void startRecording()}
-        onMouseUp={() => {
-          if (recording) void stopAndSend();
-        }}
+        onMouseUp={onRelease}
         onMouseLeave={() => {
-          if (recording) void stopAndSend();
+          if (holdingRef.current || recordingRef.current) onRelease();
         }}
         onTouchStart={(e) => {
           e.preventDefault();
@@ -177,7 +238,7 @@ export function VoicePushToTalk({
         }}
         onTouchEnd={(e) => {
           e.preventDefault();
-          if (recording) void stopAndSend();
+          onRelease();
         }}
       >
         {busy ? "Working…" : recording ? "Release to send" : "Hold to talk"}
@@ -194,15 +255,21 @@ export function VoiceSettingsPanel({ embedded = false }: { embedded?: boolean })
   const [providerNote, setProviderNote] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!config.adminToken?.trim()) return;
+    if (!config.adminUrl?.trim()) return;
     void (async () => {
       try {
+        const bearer = await resolveVoiceBearer(config.adminToken);
+        if (!bearer) return;
         const base = config.adminUrl.replace(/\/$/, "");
         const resp = await fetch(`${base}/voice/status`, {
-          headers: { Authorization: `Bearer ${config.adminToken!.trim()}` },
+          headers: { Authorization: `Bearer ${bearer}` },
         });
         if (!resp.ok) return;
-        const body = (await resp.json()) as { message?: string; configured?: boolean; provider?: string };
+        const body = (await resp.json()) as {
+          message?: string;
+          configured?: boolean;
+          provider?: string;
+        };
         setProviderNote(
           `${body.provider ?? "voice"}: ${body.message ?? (body.configured ? "ready" : "not configured")}`,
         );
@@ -215,14 +282,14 @@ export function VoiceSettingsPanel({ embedded = false }: { embedded?: boolean })
   const fields = (
     <>
       <p className="settings-note">
-        Push-to-talk: hold the mic button in Chat, speak a short request, and hear a spoken reply.
-        Uses your agent&apos;s OpenAI-compatible key (Whisper + TTS). Always-on voice minutes stay on
-        the always-on tier.
+        <strong>Talk</strong> (chat bar) is live conversation — billed per minute while connected.
+        <br />
+        <strong>Hold to talk</strong> is short voice notes; replies can be spoken aloud.
       </p>
       {providerNote ? <p className="settings-note">{providerNote}</p> : null}
       <SettingsToggle
         checked={optIn}
-        label="Show push-to-talk in Chat"
+        label="Show Hold to talk in Chat"
         onChange={(enabled) => {
           saveVoiceOptIn(enabled);
           setOptIn(enabled);
