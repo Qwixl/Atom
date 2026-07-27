@@ -134,11 +134,7 @@ import { BriefingSettingsPanel } from "./briefing/BriefingSettingsPanel.js";
 import { StandingIntentsPanel } from "./brain/StandingIntentsPanel.js";
 import { CreditsUsageTray } from "./billing/CreditsUsageTray.js";
 import { PushSettingsPanel } from "./brain/PushSettingsPanel.js";
-import {
-  ensureCapacitorPush,
-  ensureWebPushSubscription,
-  loadPushOptIn,
-} from "./brain/pushRegistration.js";
+import { ensureWebPushSubscription, loadPushOptIn } from "./brain/pushRegistration.js";
 import {
   VoicePushToTalk,
   VoiceSettingsPanel,
@@ -1996,8 +1992,7 @@ export function App() {
           return;
         }
         await ensureFreshChatSessionToken(config);
-        const native = await ensureCapacitorPush(config);
-        if (cancelled || native === "subscribed") return;
+        if (cancelled) return;
         await ensureWebPushSubscription(config);
       } catch {
         /* soft-fail */
