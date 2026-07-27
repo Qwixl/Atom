@@ -52,10 +52,10 @@ export function reportInferenceUsageToControlPlane(input: {
   });
 }
 
-/** Standard + BYOK speech (char count and/or ConvAI duration; MC prices). */
+/** Standard + BYOK speech facts (chars and/or live-session seconds; MC prices). */
 export function reportSpeechUsageToControlPlane(input: {
   charCount?: number;
-  /** ElevenLabs ConvAI session length — MC prices per minute. */
+  /** Live voice session length when a host reports it — MC prices. */
   durationSeconds?: number;
   idempotencyKey?: string;
 }): void {
