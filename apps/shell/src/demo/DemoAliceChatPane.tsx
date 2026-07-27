@@ -92,7 +92,18 @@ export function DemoAliceChatPane({
   const pickerSeenRef = useRef(false);
 
   useEffect(() => {
-    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
+    const el = feedRef.current;
+    if (!el) return;
+    const scrollToEnd = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+    scrollToEnd();
+    const t1 = window.setTimeout(scrollToEnd, 50);
+    const t2 = window.setTimeout(scrollToEnd, 250);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
   }, [snapshot.feed, snapshot.busy]);
 
   useEffect(() => {
@@ -192,7 +203,9 @@ export function DemoAliceChatPane({
             );
           })
         )}
-        {snapshot.busy ? <div className="feed-busy">Alice’s agent working…</div> : null}
+        {snapshot.busy ? (
+          <div className="feed-busy demo-feed-busy">Alice’s agent is working…</div>
+        ) : null}
       </div>
 
       <footer className="demo-alice-composer" data-demo-target="ask-compose">

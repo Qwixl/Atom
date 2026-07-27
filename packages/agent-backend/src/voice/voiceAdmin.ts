@@ -3,6 +3,7 @@ import { reportSpeechUsageToControlPlane } from "../controlPlaneCredits.js";
 import { applyHumanFilter } from "./humanFilter.js";
 import type { VoiceBackend } from "./types.js";
 
+/** Provider-agnostic voice admin routes (connector seam). */
 export function registerVoiceAdminRoutes(app: Express, voice: VoiceBackend): void {
   app.get("/voice/status", (_req, res) => {
     res.json({ ok: true, ...voice.status() });

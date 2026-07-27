@@ -89,6 +89,7 @@ import {
   type ReadinessSkuId,
 } from "./planLanes.js";
 import { fetchPlanCatalog, type RemotePlanCatalog } from "./fetchPlanCatalog.js";
+import { clearDemoSession } from "../demo/demoSessionStorage.js";
 import "./auth-wizard.css";
 
 type AuthWizardProps = {
@@ -202,6 +203,8 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
   }
 
   function navigateAfterAuthSuccess() {
+    // Don't let a prior demo session in this tab hijack /app/ after real login.
+    clearDemoSession();
     if (embedded) {
       window.parent.postMessage({ source: "atom-auth", type: "done" }, "*");
       return;
@@ -952,7 +955,12 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                 goTo("confirm-email");
                 return;
               }
-              throw err;
+              const raw = err instanceof Error ? err.message : String(err);
+              setBusy(false);
+              setProvisionTasks([]);
+              goTo("credentials");
+              setError(friendlyHostedProvisionError(raw));
+              return;
             }
             await finishHostedSupabaseLogin();
             return;
@@ -1555,7 +1563,8 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                 onClick={() => {
                   releaseProvisioningLock();
                   if (mode === "login") {
-                    void finishHostedSupabaseLogin();
+                    // Re-enter credentials — don't retry agent connect without a session.
+                    goTo("credentials");
                   } else if (usesSupabaseHostedAuth() && hosting === "hosted") {
                     void resumeHostedSupabaseSetup();
                   } else {

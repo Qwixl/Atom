@@ -128,7 +128,19 @@ export const DemoBobChatPane = forwardRef<
   const confirmSeenRef = useRef(false);
 
   useEffect(() => {
-    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
+    const el = feedRef.current;
+    if (!el) return;
+    const scrollToEnd = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+    scrollToEnd();
+    // Layout can settle after module iframes resize — re-pin to bottom.
+    const t1 = window.setTimeout(scrollToEnd, 50);
+    const t2 = window.setTimeout(scrollToEnd, 250);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
   }, [snapshot.feed, snapshot.busy]);
 
   useEffect(() => {
@@ -232,7 +244,7 @@ export const DemoBobChatPane = forwardRef<
           })
         )}
         {snapshot.busy || busyOutbound ? (
-          <div className="feed-busy">Bob’s agent working…</div>
+          <div className="feed-busy demo-feed-busy">Bob’s agent is working…</div>
         ) : null}
       </div>
     </div>

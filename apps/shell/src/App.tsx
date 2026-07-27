@@ -144,6 +144,9 @@ import {
   VoiceSettingsPanel,
   loadVoiceOptIn,
 } from "./brain/VoicePushToTalk.js";
+import { HostedVoiceSlot } from "./brain/HostedVoiceSlot.js";
+import { VOICE_OPTIN_EVENT } from "./brain/voiceOptIn.js";
+import { speakAgentText } from "./brain/speakAgentText.js";
 import {
   PRESENTATION_BOARD_MODULE_ID,
   PresentationBoardPanel,
@@ -854,6 +857,19 @@ export function App() {
   const [settingsSection, setSettingsSection] = useState<SettingsOpenTarget>("default");
   const [accountOpen, setAccountOpen] = useState(false);
   const [chatAbuseReportOpen, setChatAbuseReportOpen] = useState(false);
+  const [voicePttOn, setVoicePttOn] = useState(loadVoiceOptIn);
+
+  useEffect(() => {
+    const sync = () => {
+      setVoicePttOn(loadVoiceOptIn());
+    };
+    window.addEventListener(VOICE_OPTIN_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(VOICE_OPTIN_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
 
   useEffect(() => {
     if (!agentConnectionReady || IS_DEMO_MODE) return;
@@ -1799,6 +1815,29 @@ export function App() {
 
   const conversationRef = useRef(conversation);
   conversationRef.current = conversation;
+
+  // When push-to-talk opt-in is on, speak new agent replies from typed chat.
+  useEffect(() => {
+    if (!voicePttOn) return;
+    if (!agentConnectionReady || !vaultUnlocked) return;
+    let sawBusy = conversation.getSnapshot().busy;
+    let lastSpokenId: string | null = null;
+    const unsub = conversation.subscribe(() => {
+      const snap = conversation.getSnapshot();
+      if (snap.busy) {
+        sawBusy = true;
+        return;
+      }
+      if (!sawBusy) return;
+      sawBusy = false;
+      const lastAgent = [...snap.feed].reverse().find((item) => item.kind === "agent-text");
+      if (!lastAgent || lastAgent.kind !== "agent-text") return;
+      if (lastAgent.id === lastSpokenId) return;
+      lastSpokenId = lastAgent.id;
+      void speakAgentText(lastAgent.text, loadCommsAgentConfig(), { humanFilter: true });
+    });
+    return unsub;
+  }, [voicePttOn, agentConnectionReady, vaultUnlocked, conversation]);
 
   const requestBriefingComposition = useCallback(async (message: string) => {
     if (briefingOpenSentRef.current) return false;
@@ -2941,9 +2980,12 @@ export function App() {
         composer={
           showMainComposer ? (
             <>
+              <HostedVoiceSlot
+                enabled={Boolean(agentConnectionReady && vaultUnlocked)}
+              />
               <VoicePushToTalk
                 enabled={
-                  (loadVoiceOptIn() || (boardAvailable && panel === "board" && !boardVoiceMuted)) &&
+                  (voicePttOn || (boardAvailable && panel === "board" && !boardVoiceMuted)) &&
                   Boolean(agentConnectionReady && vaultUnlocked)
                 }
                 humanFilter
@@ -4192,8 +4234,8 @@ function SettingsDialog({
         <>
           <p className="settings-note">
             {isHostedAgent
-              ? "Chat runs on your Atom agent. Choose OpenAI, OpenRouter (one key, many models), or a custom OpenAI-compatible endpoint."
-              : "Chat runs through your agent on this site. Your API keys stay on the server, not in the browser."}
+              ? "Pick how your agent thinks — OpenAI, OpenRouter, or your own setup."
+              : "Your agent runs on Atom hosting. Keys stay with your agent, not in this browser."}
           </p>
           {isHostedAgent ? (
             <>
@@ -4419,7 +4461,7 @@ function SettingsDialog({
               }}
             />
             <p className="settings-note">
-              Point Chat at a local or self-hosted model endpoint (OpenAI-compatible).
+              Use a model running on your machine or your own server.
             </p>
             <label className="atom-field">
               <span className="atom-field-label">Endpoint base URL</span>
@@ -4503,7 +4545,7 @@ function SettingsDialog({
     return (
       <>
         <p className="settings-note">
-          Calendar and provider credentials stay in your agent vault — never in browser storage.
+          Passwords and calendar logins stay in your vault — not in this browser.
           Consequential approvals require a hardware-backed passkey.
         </p>
         <CustodySecurityPanel embedded />

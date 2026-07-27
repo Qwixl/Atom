@@ -198,31 +198,22 @@ export function StandingIntentsPanel({
   const fields = (
     <>
       <p className="settings-note">
-        Tell your agent what to watch for in the background. The heartbeat runs on your agent
-        backend — always-on on hosted accounts during beta; self-hosted only while the process is
-        up. Daily briefing here is the scheduled fire; Settings → Briefing controls only whether
-        Chat also composes a briefing when you open it.
+        Tell your agent what to keep an eye on in the background.
       </p>
       {!vaultUnlocked || !config.adminToken?.trim() ? (
-        <p className="settings-note">Unlock the vault and connect your agent to manage intents.</p>
+        <p className="settings-note">Unlock your vault to manage these.</p>
       ) : (
         <>
           {status ? (
             <p className="settings-note">
-              Heartbeat: {status.running ? "running" : "stopped"}
-              {status.alwaysOn ? " · always-on" : " · duty-cycled"}
-              {billingTier === "beta" ? " · beta included" : ""}
-              {billingTier === "subscribed" ? " · subscribed" : ""}
-              {billingTier === "duty-cycled" ? " · free tier" : ""}
+              Watching: {status.running ? "on" : "off"}
+              {billingTier === "beta" ? " · included in beta" : ""}
               {displayPrice ? ` · ${displayPrice} after beta` : ""}
-              {status.lastTickAt
-                ? ` · last tick ${new Date(status.lastTickAt).toLocaleString()}`
-                : ""}
-              {status.pendingCount > 0 ? ` · ${status.pendingCount} pending` : ""}
+              {status.pendingCount > 0 ? ` · ${status.pendingCount} waiting` : ""}
             </p>
           ) : null}
           {intents.length === 0 ? (
-            <p className="settings-note">No standing intents yet.</p>
+            <p className="settings-note">Nothing set up yet.</p>
           ) : (
             <ul className="webcal-feeds">
               {intents.map((intent) => {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
 import { SettingsToggle } from "../ui/SettingsToggle.js";
 import { loadCommsAgentConfigSecure } from "../comms/storage.js";
+import { notifyVoiceOptInChanged } from "./voiceOptIn.js";
 
 const VOICE_OPT_IN_KEY = "atom.voice.pushToTalk";
 
@@ -15,6 +16,7 @@ export function loadVoiceOptIn(): boolean {
 
 export function saveVoiceOptIn(enabled: boolean): void {
   localStorage.setItem(VOICE_OPT_IN_KEY, enabled ? "1" : "0");
+  notifyVoiceOptInChanged();
 }
 
 async function blobToBase64(blob: Blob): Promise<string> {

@@ -30,6 +30,10 @@ export class StubVoiceBackend implements VoiceBackend {
   }
 }
 
+/**
+ * Load the public voice connector.
+ * Product voice (ElevenLabs ConvAI / platform TTS) is owned by Atom-MC — not here.
+ */
 export function loadVoiceBackend(env: NodeJS.ProcessEnv = process.env): VoiceBackend {
   const provider = (env.ATOM_VOICE_PROVIDER?.trim().toLowerCase() || "").trim();
   const apiKey = env.LLM_API_KEY?.trim() || env.OPENAI_API_KEY?.trim() || "";
@@ -68,7 +72,7 @@ export function loadVoiceBackend(env: NodeJS.ProcessEnv = process.env): VoiceBac
         configured: false,
         duplex: "none",
         message:
-          'Provider "elevenlabs" selected but not implemented yet. Use openai-realtime for MVP.',
+          'Provider id "elevenlabs" is reserved. Hosted human-voice is provided by Atom-MC, not this OSS image.',
       }),
       synthesize: async (request) => new StubVoiceBackend().synthesize(request),
     };
