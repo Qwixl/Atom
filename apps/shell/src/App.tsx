@@ -1816,25 +1816,31 @@ export function App() {
   const conversationRef = useRef(conversation);
   conversationRef.current = conversation;
 
-  // When push-to-talk opt-in is on, speak new agent replies from typed chat.
+  const [voiceSpeakError, setVoiceSpeakError] = useState<string | null>(null);
+
+  // When Hold to talk is on, speak new agent replies from typed chat too.
   useEffect(() => {
     if (!voicePttOn) return;
     if (!agentConnectionReady || !vaultUnlocked) return;
-    let sawBusy = conversation.getSnapshot().busy;
-    let lastSpokenId: string | null = null;
+    const seen = new Set(
+      conversation
+        .getSnapshot()
+        .feed.filter((item) => item.kind === "agent-text")
+        .map((item) => item.id),
+    );
     const unsub = conversation.subscribe(() => {
       const snap = conversation.getSnapshot();
-      if (snap.busy) {
-        sawBusy = true;
-        return;
-      }
-      if (!sawBusy) return;
-      sawBusy = false;
+      if (snap.busy) return;
       const lastAgent = [...snap.feed].reverse().find((item) => item.kind === "agent-text");
       if (!lastAgent || lastAgent.kind !== "agent-text") return;
-      if (lastAgent.id === lastSpokenId) return;
-      lastSpokenId = lastAgent.id;
-      void speakAgentText(lastAgent.text, loadCommsAgentConfig(), { humanFilter: true });
+      if (seen.has(lastAgent.id)) return;
+      seen.add(lastAgent.id);
+      void speakAgentText(lastAgent.text, loadCommsAgentConfig(), { humanFilter: true }).then(
+        (result) => {
+          if (!result.ok) setVoiceSpeakError(result.error);
+          else setVoiceSpeakError(null);
+        },
+      );
     });
     return unsub;
   }, [voicePttOn, agentConnectionReady, vaultUnlocked, conversation]);
@@ -2980,6 +2986,11 @@ export function App() {
         composer={
           showMainComposer ? (
             <>
+              {voiceSpeakError ? (
+                <p className="settings-note settings-error" style={{ textAlign: "center" }}>
+                  {voiceSpeakError}
+                </p>
+              ) : null}
               <HostedVoiceSlot
                 enabled={Boolean(agentConnectionReady && vaultUnlocked)}
               />
