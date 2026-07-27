@@ -9,6 +9,10 @@ import {
   ownerMessageNeedsSettingsProposal,
   protocolMessagesHaveSettingsProposal,
   softConfirmRepairUserContent,
+  isListShapedToolName,
+  resultHasNonEmptyItems,
+  protocolMessagesHaveComposition,
+  listCompositionRepairUserContent,
   type AtomConnectorId,
   type AtomToolExecutor,
   type PromptProfile,
@@ -328,11 +332,17 @@ async function callChatCompletions(
   }
 }
 
+interface ToolLoopResult {
+  text: string;
+  /** Name of the last list-shaped connector tool this turn that returned non-empty items. */
+  lastListToolName: string | null;
+}
+
 async function runChatWithOptionalTools(
   config: LlmAgUiConfig,
   messages: ChatMessage[],
   maxToolRounds: number = MAX_TOOL_ROUNDS,
-): Promise<string> {
+): Promise<ToolLoopResult> {
   const swarmNpc = isSwarmNpc(config);
   const toolProfile = buildAgentToolProfile(undefined, {
     atomConnectorsAvailable: connectorsEnabled(config),
@@ -356,7 +366,7 @@ async function runChatWithOptionalTools(
     });
     const content = result.message.content;
     if (typeof content !== "string") throw new Error("endpoint returned no message content");
-    return content;
+    return { text: content, lastListToolName: null };
   }
 
   const working = [...messages];
@@ -366,6 +376,7 @@ async function runChatWithOptionalTools(
     Math.min(MAX_TOOL_ROUNDS, swarmNpc ? Math.min(maxToolRounds, swarmCap) : maxToolRounds),
   );
   const toolChoice = toolProfile.toolChoice ?? "auto";
+  let lastListToolName: string | null = null;
   for (let round = 0; round < rounds; round += 1) {
     const result = await callChatCompletions(config, working, tools, toolChoice);
     config.onUsage?.({
@@ -388,6 +399,12 @@ async function runChatWithOptionalTools(
           tool_call_id: call.id,
           content: output,
         });
+        if (isListShapedToolName(call.function.name)) {
+          const parsedResult = extractJson(output);
+          if (parsedResult && resultHasNonEmptyItems(parsedResult)) {
+            lastListToolName = call.function.name;
+          }
+        }
       }
       continue;
     }
@@ -395,7 +412,7 @@ async function runChatWithOptionalTools(
     if (typeof content !== "string" || !content.trim()) {
       throw new Error("endpoint returned empty content after tool loop");
     }
-    return content;
+    return { text: content, lastListToolName };
   }
   throw new Error("tool loop exceeded maximum rounds");
 }
@@ -443,7 +460,12 @@ export async function runLlmTextCompletion(
   const defaultRounds = isSwarmNpc(config)
     ? (config.swarmToolBudget?.maxToolRoundsPerTurn ?? 2)
     : MAX_TOOL_ROUNDS;
-  return runChatWithOptionalTools(config, messages, options?.maxToolRounds ?? defaultRounds);
+  const result = await runChatWithOptionalTools(
+    config,
+    messages,
+    options?.maxToolRounds ?? defaultRounds,
+  );
+  return result.text;
 }
 
 export function loadLlmAgUiConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LlmAgUiConfig | null {
@@ -600,11 +622,14 @@ export async function* runLlmAgUiEvents(
   ];
 
   let raw: string;
+  let lastListToolName: string | null = null;
   try {
     const rounds = swarmNpc
       ? (llmConfig.swarmToolBudget?.maxToolRoundsPerTurn ?? 2)
       : MAX_TOOL_ROUNDS;
-    raw = await runChatWithOptionalTools(llmConfig, messages, rounds);
+    const result = await runChatWithOptionalTools(llmConfig, messages, rounds);
+    raw = result.text;
+    lastListToolName = result.lastListToolName;
   } catch (error) {
     yield* textAgUiEvents(
       uuid(),
@@ -629,12 +654,39 @@ export async function* runLlmAgUiEvents(
     messages.push({ role: "assistant", content: raw });
     messages.push({ role: "user", content: softConfirmRepairUserContent() });
     try {
-      raw = await runChatWithOptionalTools(llmConfig, messages);
+      const result = await runChatWithOptionalTools(llmConfig, messages);
+      raw = result.text;
       const repaired = extractJson(raw);
       if (
         repaired &&
         Array.isArray((repaired as { messages?: unknown }).messages) &&
         protocolMessagesHaveSettingsProposal((repaired as { messages: unknown[] }).messages)
+      ) {
+        parsed = repaired;
+      }
+    } catch {
+      /* keep original parsed turn */
+    }
+  }
+
+  // Bounded corrective round: a list-shaped tool (news/RSS/etc.) returned real items this
+  // turn, but the model's final turn has no composition to render them — an intro sentence
+  // alone is an invalid turn. Re-prompt once, forcing a `core/list` composition of the
+  // already-fetched items.
+  if (
+    !demoScoped &&
+    lastListToolName &&
+    !protocolMessagesHaveComposition((parsed as { messages: unknown[] }).messages)
+  ) {
+    messages.push({ role: "assistant", content: raw });
+    messages.push({ role: "user", content: listCompositionRepairUserContent(lastListToolName) });
+    try {
+      const result = await runChatWithOptionalTools(llmConfig, messages);
+      const repaired = extractJson(result.text);
+      if (
+        repaired &&
+        Array.isArray((repaired as { messages?: unknown }).messages) &&
+        protocolMessagesHaveComposition((repaired as { messages: unknown[] }).messages)
       ) {
         parsed = repaired;
       }

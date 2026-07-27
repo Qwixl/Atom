@@ -146,7 +146,7 @@ export function PlanLaneSettingsPanel({ embedded = false }: { embedded?: boolean
   if (!summary) {
     return (
       <div className={embedded ? undefined : "settings-panel"}>
-        <p className="settings-note">Atom Credits plan settings appear for hosted accounts.</p>
+        <p className="settings-note">Plan settings show when you’re on a hosted account.</p>
       </div>
     );
   }
@@ -157,12 +157,12 @@ export function PlanLaneSettingsPanel({ embedded = false }: { embedded?: boolean
   return (
     <div className={embedded ? undefined : "settings-panel"}>
       <p className="settings-note">
-        Current lane: <strong>{summary.lane}</strong>
+        Plan: <strong>{summary.lane === "byok" ? "Bring your own key" : summary.lane}</strong>
         {summary.balanceDisplay ? ` · ${summary.balanceDisplay}` : ""}
         {summary.pendingLane ? (
           <>
             {" "}
-            · pending at renewal: <strong>{summary.pendingLane}</strong>
+            · changes next bill to <strong>{summary.pendingLane}</strong>
           </>
         ) : null}
       </p>
@@ -176,14 +176,16 @@ export function PlanLaneSettingsPanel({ embedded = false }: { embedded?: boolean
               disabled={busy}
               onChange={(e) => void setSpeech(e.target.checked)}
             />{" "}
-            Agent speech (uses credits when on)
+            Agent speech
+            <br />
+            <strong>Billed item</strong> (credits when used)
           </label>
         </>
       ) : null}
 
       {summary.lane === "standard" ? (
         <div className="settings-note" style={{ marginTop: 12 }}>
-          <p>Model tier (mid-cycle; affects credit burn)</p>
+          <p>How smart should chat feel?</p>
           {(["efficient", "balanced", "maximum"] as const).map((tier) => (
             <label key={tier} style={{ display: "block" }}>
               <input
@@ -202,7 +204,7 @@ export function PlanLaneSettingsPanel({ embedded = false }: { embedded?: boolean
       {otherLane ? (
         <div style={{ marginTop: 16 }}>
           <p className="settings-note">
-            Switching Standard ↔ BYOK applies at <strong>next renewal</strong> (D106).
+            Plan switches apply on your <strong>next bill</strong>.
           </p>
           <button
             type="button"
@@ -210,7 +212,7 @@ export function PlanLaneSettingsPanel({ embedded = false }: { embedded?: boolean
             disabled={busy || summary.pendingLane === otherLane}
             onClick={() => void scheduleLane(otherLane)}
           >
-            Schedule switch to {otherLane === "standard" ? "Standard" : "BYOK"}
+            Switch to {otherLane === "standard" ? "Standard" : "Bring your own key"} next bill
           </button>
         </div>
       ) : null}

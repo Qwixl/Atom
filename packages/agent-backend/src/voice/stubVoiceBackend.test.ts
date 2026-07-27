@@ -28,7 +28,7 @@ describe("loadVoiceBackend", () => {
     expect(backend.status().duplex).toBe("half");
   });
 
-  it("returns placeholder for unimplemented providers", () => {
+  it("returns unconfigured placeholder for reserved elevenlabs id", () => {
     const backend = loadVoiceBackend({ ATOM_VOICE_PROVIDER: "elevenlabs" });
     expect(backend.id).toBe("elevenlabs");
     expect(backend.status().configured).toBe(false);
