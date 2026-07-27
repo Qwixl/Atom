@@ -146,6 +146,7 @@ import {
 } from "./brain/VoicePushToTalk.js";
 import { HostedVoiceSlot } from "./brain/HostedVoiceSlot.js";
 import { VOICE_OPTIN_EVENT } from "./brain/voiceOptIn.js";
+import { loadVoiceMode } from "./brain/voiceMode.js";
 import { speakAgentText } from "./brain/speakAgentText.js";
 import {
   PRESENTATION_BOARD_MODULE_ID,
@@ -858,10 +859,12 @@ export function App() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [chatAbuseReportOpen, setChatAbuseReportOpen] = useState(false);
   const [voicePttOn, setVoicePttOn] = useState(loadVoiceOptIn);
+  const [voiceMode, setVoiceMode] = useState(loadVoiceMode);
 
   useEffect(() => {
     const sync = () => {
       setVoicePttOn(loadVoiceOptIn());
+      setVoiceMode(loadVoiceMode());
     };
     window.addEventListener(VOICE_OPTIN_EVENT, sync);
     window.addEventListener("storage", sync);
@@ -1818,9 +1821,9 @@ export function App() {
 
   const [voiceSpeakError, setVoiceSpeakError] = useState<string | null>(null);
 
-  // When Hold to talk is on, speak new agent replies from typed chat too.
+  // Speak new agent replies when Free or Conversational is on (not Off).
   useEffect(() => {
-    if (!voicePttOn) return;
+    if (voiceMode === "off") return;
     if (!agentConnectionReady || !vaultUnlocked) return;
     const seen = new Set(
       conversation
@@ -1835,15 +1838,19 @@ export function App() {
       if (!lastAgent || lastAgent.kind !== "agent-text") return;
       if (seen.has(lastAgent.id)) return;
       seen.add(lastAgent.id);
-      void speakAgentText(lastAgent.text, loadCommsAgentConfig(), { humanFilter: true }).then(
-        (result) => {
-          if (!result.ok) setVoiceSpeakError(result.error);
-          else setVoiceSpeakError(null);
-        },
-      );
+      void speakAgentText(lastAgent.text, loadCommsAgentConfig(), {
+        humanFilter: true,
+        mode: loadVoiceMode(),
+      }).then((result) => {
+        if (!result.ok) setVoiceSpeakError(result.error);
+        else if (result.fellBackToFree) {
+          setVoiceSpeakError("Credits ran out — switched to free voice.");
+          setVoiceMode(loadVoiceMode());
+        } else setVoiceSpeakError(null);
+      });
     });
     return unsub;
-  }, [voicePttOn, agentConnectionReady, vaultUnlocked, conversation]);
+  }, [voiceMode, agentConnectionReady, vaultUnlocked, conversation]);
 
   const requestBriefingComposition = useCallback(async (message: string) => {
     if (briefingOpenSentRef.current) return false;
@@ -2992,7 +2999,9 @@ export function App() {
                 </p>
               ) : null}
               <HostedVoiceSlot
-                enabled={Boolean(agentConnectionReady && vaultUnlocked)}
+                enabled={Boolean(
+                  voiceMode === "conversational" && agentConnectionReady && vaultUnlocked,
+                )}
               />
               <VoicePushToTalk
                 enabled={
