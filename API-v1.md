@@ -109,8 +109,9 @@ Hosts resolve LLM and other credentials via the `SecretStore` interface. Adapter
 - iframe with `sandbox="allow-scripts"` only — **no** `allow-same-origin` (parent storage isolation).
 - Props via `{ type: "init", props, theme }` postMessage after module `{ type: "ready" }`; shell validates `event.origin`.
 - Module bundles should be served **cross-origin** from the shell in production (registry host).
-- Outbound events: `{ type: "event", name, payload }` — `name` must be declared in manifest.
-- No network, storage, navigation, or sensors from module code.
+- Outbound events: `{ type: "event", name, payload }` — `name` must be declared in manifest. `SurfaceRenderer` drops undeclared names; `CommsModuleEmbed` (Messages/Chat) forwards whatever the frame posts, so treat the manifest list as the contract, not a filter.
+- Sandbox enforces: no storage (`localStorage`/`indexedDB`/cookies), no top-level navigation, no shell DOM or origin access, no permission-gated APIs (geolocation, camera, mic) — all consequences of the opaque origin.
+- **Network is not enforced by the sandbox** — it depends on the CSP of the host serving the bundle. `apps/registry-host/vercel.json` sends `default-src 'none'`; shell-served `/modules/` sends `connect-src 'self'` (`apps/shell/vercel.json`); the Atom Apps store serves module files from its own origin under `default-src 'none'` and additionally rejects network primitives (`fetch`, XHR, WebSocket, `sendBeacon`, `EventSource`, remote `<script>`/`<iframe>`/form actions) at publish time. If you self-host bundles, **this is yours to set**: a host that sends no CSP restricts nothing, and the sandbox will not save you.
 
 ## Registry index (v1)
 
