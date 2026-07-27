@@ -4,6 +4,7 @@ import { loadCommsAgentConfigSecure } from "../comms/storage.js";
 import { getChatSessionToken } from "../comms/chatSessionToken.js";
 import { supabaseAccessToken } from "../auth/hostedAccount.js";
 import { CONTROL_PLANE_URL } from "../hostConfig.js";
+import { SettingsToggle } from "../ui/SettingsToggle.js";
 import { VOICE_OPTIN_EVENT } from "./voiceOptIn.js";
 import {
   loadSpeechVoiceId,
@@ -17,7 +18,32 @@ import {
 
 export { loadVoiceOptIn, saveVoiceOptIn, loadVoiceMode, saveVoiceMode };
 
-type CatalogEntry = { handle: string; voiceId: string; label: string };
+type CatalogEntry = {
+  handle: string;
+  voiceId: string;
+  label: string;
+  displayLabel?: string;
+};
+
+const SILENCE_AUTO_OFF_MS = 60_000;
+const SPEECH_RMS_THRESHOLD = 0.02;
+const END_SILENCE_MS = 1_200;
+const MAX_UTTERANCE_MS = 20_000;
+const MIN_UTTERANCE_MS = 500;
+
+function catalogOptionLabel(entry: CatalogEntry): string {
+  if (entry.displayLabel?.trim()) return entry.displayLabel.trim();
+  const raw = entry.handle.replace(/^#?atom-/, "");
+  const name = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : entry.label;
+  return `${name} — ${entry.label}`;
+}
+
+function formatElapsed(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
 
 async function blobToBase64(blob: Blob): Promise<string> {
   const buf = await blob.arrayBuffer();
@@ -29,13 +55,31 @@ async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(binary);
 }
 
-/** Prefer short-lived chat session, then vault admin token. */
 async function resolveVoiceBearer(adminToken?: string): Promise<string | null> {
   const session = getChatSessionToken()?.trim();
   if (session) return session;
   if (adminToken?.trim()) return adminToken.trim();
   const secure = await loadCommsAgentConfigSecure();
   return secure.adminToken?.trim() || null;
+}
+
+async function chargePaidMinute(sequence: number, sessionId: string): Promise<boolean> {
+  const cp = CONTROL_PLANE_URL.replace(/\/$/, "");
+  const token = await supabaseAccessToken();
+  if (!cp || !token) return false;
+  const resp = await fetch(`${cp}/voice/convai/heartbeat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      sliceSeconds: 60,
+      conversationId: sessionId,
+      sequence,
+    }),
+  });
+  return resp.ok;
 }
 
 export function VoicePushToTalk({
@@ -50,15 +94,28 @@ export function VoicePushToTalk({
   humanFilter?: boolean;
 }) {
   const { config } = useAgentConfig(true);
-  const [recording, setRecording] = useState(false);
+  const [micOn, setMicOn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const mediaRef = useRef<MediaRecorder | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [costPounds, setCostPounds] = useState(0.1);
+  const [voiceMode, setVoiceMode] = useState<VoiceMode>(loadVoiceMode);
+
+  const micOnRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const holdingRef = useRef(false);
-  const recordingRef = useRef(false);
+  const loopAbortRef = useRef<AbortController | null>(null);
+  const lastSpeechAtRef = useRef(0);
+  const sessionStartedAtRef = useRef(0);
+  const paidSessionIdRef = useRef("");
+  const paidMinuteSeqRef = useRef(0);
+  const tickTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const sync = () => setVoiceMode(loadVoiceMode());
+    window.addEventListener(VOICE_OPTIN_EVENT, sync);
+    return () => window.removeEventListener(VOICE_OPTIN_EVENT, sync);
+  }, []);
 
   const releaseMic = useCallback(() => {
     const stream = streamRef.current;
@@ -68,155 +125,295 @@ export function VoicePushToTalk({
     }
   }, []);
 
-  const stopAndSend = useCallback(async () => {
-    holdingRef.current = false;
-    const recorder = mediaRef.current;
-    if (!recorder) {
-      releaseMic();
-      setRecording(false);
-      recordingRef.current = false;
-      return;
+  const clearTick = useCallback(() => {
+    if (tickTimerRef.current) {
+      clearInterval(tickTimerRef.current);
+      tickTimerRef.current = null;
     }
-    setRecording(false);
-    recordingRef.current = false;
-    await new Promise<void>((resolve) => {
-      recorder.onstop = () => resolve();
-      try {
-        if (recorder.state !== "inactive") recorder.stop();
-        else resolve();
-      } catch {
-        resolve();
-      }
-    });
-    mediaRef.current = null;
-    releaseMic();
-    const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
-    chunksRef.current = [];
-    if (blob.size < 200) {
-      setError("Recording too short.");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    setStatus("Listening…");
-    try {
-      const bearer = await resolveVoiceBearer(config.adminToken);
-      if (!bearer) throw new Error("Unlock your vault / sign in to use voice.");
-      const admin = config.adminUrl?.trim() ? config : await loadCommsAgentConfigSecure();
-      const base = admin.adminUrl.replace(/\/$/, "");
-      const audioBase64 = await blobToBase64(blob);
-      const tr = await fetch(`${base}/voice/transcribe`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${bearer}`,
-        },
-        body: JSON.stringify({
-          audioBase64,
-          mimeType: blob.type || "audio/webm",
-          filename: "ptt.webm",
-        }),
-      });
-      const trBody = (await tr.json().catch(() => ({}))) as { text?: string; error?: string };
-      if (!tr.ok) throw new Error(trBody.error || `Could not hear that (${tr.status})`);
-      const text = trBody.text?.trim();
-      if (!text) throw new Error("No speech detected.");
-      setStatus("Thinking…");
-      const reply = await onTranscript(text);
-      if (!reply?.trim()) {
-        setStatus(null);
-        return;
-      }
-      onSpokenReply?.(reply);
-      setStatus(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setStatus(null);
-    } finally {
-      setBusy(false);
-    }
-  }, [config, onTranscript, onSpokenReply, releaseMic]);
+  }, []);
 
-  const startRecording = useCallback(async () => {
-    setError(null);
-    holdingRef.current = true;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!holdingRef.current) {
-        for (const track of stream.getTracks()) track.stop();
-        return;
+  const stopMicSession = useCallback(
+    (opts?: { error?: string; paidOff?: boolean }) => {
+      micOnRef.current = false;
+      setMicOn(false);
+      loopAbortRef.current?.abort();
+      loopAbortRef.current = null;
+      releaseMic();
+      clearTick();
+      setBusy(false);
+      setStatus(null);
+      setElapsedMs(0);
+      setCostPounds(0.1);
+      sessionStartedAtRef.current = 0;
+      if (opts?.error) setError(opts.error);
+      if (opts?.paidOff) {
+        saveVoiceMode("off");
+        setVoiceMode("off");
       }
-      streamRef.current = stream;
+    },
+    [clearTick, releaseMic],
+  );
+
+  const recordUtterance = useCallback(
+    async (stream: MediaStream, signal: AbortSignal): Promise<Blob | null> => {
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/webm")
           ? "audio/webm"
           : undefined;
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      chunksRef.current = [];
+      const chunks: Blob[] = [];
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
+        if (e.data.size > 0) chunks.push(e.data);
       };
-      mediaRef.current = recorder;
-      recorder.start();
-      recordingRef.current = true;
-      setRecording(true);
-      setStatus("Listening… release to send");
-      if (!holdingRef.current) {
-        void stopAndSend();
-      }
-    } catch (err) {
-      holdingRef.current = false;
-      releaseMic();
-      setError(err instanceof Error ? err.message : "Microphone permission denied");
-    }
-  }, [releaseMic, stopAndSend]);
 
-  const onRelease = useCallback(() => {
-    holdingRef.current = false;
-    if (recordingRef.current || mediaRef.current) {
-      void stopAndSend();
-    } else {
-      releaseMic();
-    }
-  }, [stopAndSend, releaseMic]);
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.fftSize);
 
-  useEffect(() => {
-    return () => {
-      holdingRef.current = false;
+      const started = Date.now();
+      let heardSpeech = false;
+      let silenceMs = 0;
+
+      recorder.start(250);
+
+      await new Promise<void>((resolve) => {
+        const tick = () => {
+          if (signal.aborted || !micOnRef.current) {
+            resolve();
+            return;
+          }
+          analyser.getByteTimeDomainData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i++) {
+            const v = (data[i]! - 128) / 128;
+            sum += v * v;
+          }
+          const rms = Math.sqrt(sum / data.length);
+          const elapsed = Date.now() - started;
+          if (rms >= SPEECH_RMS_THRESHOLD) {
+            heardSpeech = true;
+            silenceMs = 0;
+          } else if (heardSpeech) {
+            silenceMs += 100;
+            if (silenceMs >= END_SILENCE_MS && elapsed >= MIN_UTTERANCE_MS) {
+              resolve();
+              return;
+            }
+          }
+          if (elapsed >= MAX_UTTERANCE_MS) {
+            resolve();
+            return;
+          }
+          window.setTimeout(tick, 100);
+        };
+        tick();
+      });
+
+      await new Promise<void>((resolve) => {
+        recorder.onstop = () => resolve();
+        try {
+          if (recorder.state !== "inactive") recorder.stop();
+          else resolve();
+        } catch {
+          resolve();
+        }
+      });
       try {
-        mediaRef.current?.stop();
+        await audioCtx.close();
       } catch {
         /* ignore */
       }
+
+      if (!heardSpeech || chunks.length === 0) return null;
+      return new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+    },
+    [],
+  );
+
+  const processBlob = useCallback(
+    async (blob: Blob): Promise<boolean> => {
+      if (blob.size < 400) return false;
+      setBusy(true);
+      setStatus("Listening…");
+      try {
+        const bearer = await resolveVoiceBearer(config.adminToken);
+        if (!bearer) throw new Error("Unlock your vault / sign in to use voice.");
+        const admin = config.adminUrl?.trim() ? config : await loadCommsAgentConfigSecure();
+        const base = admin.adminUrl.replace(/\/$/, "");
+        const audioBase64 = await blobToBase64(blob);
+        const tr = await fetch(`${base}/voice/transcribe`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${bearer}`,
+          },
+          body: JSON.stringify({
+            audioBase64,
+            mimeType: blob.type || "audio/webm",
+            filename: "mic.webm",
+          }),
+        });
+        const trBody = (await tr.json().catch(() => ({}))) as { text?: string; error?: string };
+        if (!tr.ok) throw new Error(trBody.error || `Could not hear that (${tr.status})`);
+        const text = trBody.text?.trim();
+        if (!text) return false;
+        lastSpeechAtRef.current = Date.now();
+        setStatus("Thinking…");
+        const reply = await onTranscript(text);
+        if (reply?.trim()) onSpokenReply?.(reply);
+        setStatus(micOnRef.current ? "Mic on — speak anytime" : null);
+        setError(null);
+        return true;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [config, onTranscript, onSpokenReply],
+  );
+
+  const runMicLoop = useCallback(async () => {
+    const abort = new AbortController();
+    loopAbortRef.current = abort;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!micOnRef.current || abort.signal.aborted) {
+        for (const track of stream.getTracks()) track.stop();
+        return;
+      }
+      streamRef.current = stream;
+      setStatus("Mic on — speak anytime");
+      setError(null);
+
+      while (micOnRef.current && !abort.signal.aborted) {
+        if (Date.now() - lastSpeechAtRef.current >= SILENCE_AUTO_OFF_MS) {
+          const paid = loadVoiceMode() === "conversational";
+          stopMicSession({
+            error: paid
+              ? "No speech for a minute — mic and Conversational voice turned off."
+              : "No speech for a minute — mic turned off.",
+            paidOff: paid,
+          });
+          return;
+        }
+        const blob = await recordUtterance(stream, abort.signal);
+        if (!micOnRef.current || abort.signal.aborted) break;
+        if (!blob) continue;
+        try {
+          await processBlob(blob);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
+          setStatus(micOnRef.current ? "Mic on — speak anytime" : null);
+        }
+      }
+    } catch (err) {
+      stopMicSession({
+        error: err instanceof Error ? err.message : "Microphone permission denied",
+      });
+    }
+  }, [processBlob, recordUtterance, stopMicSession]);
+
+  const startMicSession = useCallback(async () => {
+    const mode = loadVoiceMode();
+    setVoiceMode(mode);
+    micOnRef.current = true;
+    setMicOn(true);
+    lastSpeechAtRef.current = Date.now();
+    sessionStartedAtRef.current = Date.now();
+    setElapsedMs(0);
+    setCostPounds(0.1);
+    setError(null);
+
+    if (mode === "conversational") {
+      paidSessionIdRef.current = `mic-${Date.now()}`;
+      paidMinuteSeqRef.current = 0;
+      const ok = await chargePaidMinute(0, paidSessionIdRef.current);
+      if (!ok) {
+        stopMicSession({
+          error: "Insufficient Atom Credits — Conversational paused.",
+          paidOff: true,
+        });
+        return;
+      }
+      paidMinuteSeqRef.current = 1;
+    }
+
+    clearTick();
+    tickTimerRef.current = setInterval(() => {
+      if (!micOnRef.current || !sessionStartedAtRef.current) return;
+      const elapsed = Date.now() - sessionStartedAtRef.current;
+      setElapsedMs(elapsed);
+      if (loadVoiceMode() === "conversational") {
+        const minutes = Math.floor(elapsed / 60_000) + 1;
+        setCostPounds(minutes * 0.1);
+        while (paidMinuteSeqRef.current < minutes) {
+          const seq = paidMinuteSeqRef.current;
+          paidMinuteSeqRef.current = seq + 1;
+          void chargePaidMinute(seq, paidSessionIdRef.current).then((ok) => {
+            if (!ok) {
+              stopMicSession({
+                error: "Credits ran out — mic and Conversational voice turned off.",
+                paidOff: true,
+              });
+            }
+          });
+        }
+      }
+      if (Date.now() - lastSpeechAtRef.current >= SILENCE_AUTO_OFF_MS) {
+        const paid = loadVoiceMode() === "conversational";
+        stopMicSession({
+          error: paid
+            ? "No speech for a minute — mic and Conversational voice turned off."
+            : "No speech for a minute — mic turned off.",
+          paidOff: paid,
+        });
+      }
+    }, 1000);
+
+    void runMicLoop();
+  }, [clearTick, runMicLoop, stopMicSession]);
+
+  const onMicToggle = useCallback(
+    (on: boolean) => {
+      if (on) void startMicSession();
+      else stopMicSession();
+    },
+    [startMicSession, stopMicSession],
+  );
+
+  useEffect(() => {
+    return () => {
+      micOnRef.current = false;
+      loopAbortRef.current?.abort();
       releaseMic();
+      clearTick();
     };
-  }, [releaseMic]);
+  }, [clearTick, releaseMic]);
+
+  useEffect(() => {
+    if (!enabled && micOnRef.current) stopMicSession();
+  }, [enabled, stopMicSession]);
 
   if (!enabled) return null;
 
+  const showPaidMeter = voiceMode === "conversational" && micOn;
+
   return (
     <div className="voice-ptt" aria-live="polite">
-      <button
-        type="button"
-        className={`chrome-approve voice-ptt-btn${recording ? " voice-ptt-btn--active" : ""}`}
-        disabled={busy}
-        onMouseDown={() => void startRecording()}
-        onMouseUp={onRelease}
-        onMouseLeave={() => {
-          if (holdingRef.current || recordingRef.current) onRelease();
-        }}
-        onTouchStart={(e) => {
-          e.preventDefault();
-          void startRecording();
-        }}
-        onTouchEnd={(e) => {
-          e.preventDefault();
-          onRelease();
-        }}
-      >
-        {busy ? "Working…" : recording ? "Release to send" : "Hold to talk"}
-      </button>
+      <SettingsToggle
+        checked={micOn}
+        disabled={busy && !micOn}
+        label={micOn ? "Mic on" : "Mic"}
+        onChange={onMicToggle}
+      />
+      {showPaidMeter ? (
+        <span className="settings-note voice-ptt-meter">
+          {formatElapsed(elapsedMs)} · £{costPounds.toFixed(2)}
+        </span>
+      ) : null}
       {status ? <span className="settings-note">{status}</span> : null}
       {error ? <span className="settings-note settings-error">{error}</span> : null}
     </div>
@@ -270,9 +467,9 @@ export function VoiceSettingsPanel({ embedded = false }: { embedded?: boolean })
           if (!body.credits.speechEnabled) {
             setCreditNote("Conversational is off for this account (speech disabled).");
           } else if (!body.credits.canUsePaid) {
-            setCreditNote(`Atom Credits £${pounds} — top up to use Conversational.`);
+            setCreditNote(`Atom Credits £${pounds} — top up to use Conversational (£0.10/min).`);
           } else {
-            setCreditNote(`Atom Credits £${pounds} — Conversational available.`);
+            setCreditNote(`Atom Credits £${pounds} — Conversational £0.10 per minute.`);
           }
         }
       } catch {
@@ -280,6 +477,31 @@ export function VoiceSettingsPanel({ embedded = false }: { embedded?: boolean })
       }
     })();
   }, []);
+
+  const applyVoice = async (nextId: string) => {
+    setVoiceId(nextId);
+    saveSpeechVoiceId(nextId);
+    setSaveError(null);
+    const cp = CONTROL_PLANE_URL.replace(/\/$/, "");
+    const token = await supabaseAccessToken();
+    if (!cp || !token) return;
+    try {
+      const resp = await fetch(`${cp}/voice/preference`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ voiceId: nextId, enableSpeech: true }),
+      });
+      if (!resp.ok) {
+        const body = (await resp.json().catch(() => ({}))) as { error?: string };
+        setSaveError(body.error || "Could not save voice preference.");
+      }
+    } catch {
+      setSaveError("Could not save voice preference.");
+    }
+  };
 
   const applyMode = (next: VoiceMode) => {
     saveVoiceMode(next);
@@ -306,36 +528,11 @@ export function VoiceSettingsPanel({ embedded = false }: { embedded?: boolean })
     }
   };
 
-  const applyVoice = async (nextId: string) => {
-    setVoiceId(nextId);
-    saveSpeechVoiceId(nextId);
-    setSaveError(null);
-    const cp = CONTROL_PLANE_URL.replace(/\/$/, "");
-    const token = await supabaseAccessToken();
-    if (!cp || !token) return;
-    try {
-      const resp = await fetch(`${cp}/voice/preference`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ voiceId: nextId, enableSpeech: true }),
-      });
-      if (!resp.ok) {
-        const body = (await resp.json().catch(() => ({}))) as { error?: string };
-        setSaveError(body.error || "Could not save voice preference.");
-      }
-    } catch {
-      setSaveError("Could not save voice preference.");
-    }
-  };
-
   const fields = (
     <>
       <p className="settings-note">
-        Default is off. Free uses your device voice. Conversational uses Atom Credits (Talk +
-        spoken replies).
+        Default is off. Free uses your device voice. Conversational uses Atom Credits at £0.10 per
+        started minute (Talk + mic).
       </p>
       <fieldset className="settings-fieldset" style={{ border: "none", padding: 0, margin: 0 }}>
         <legend className="settings-note" style={{ padding: 0 }}>
@@ -376,7 +573,7 @@ export function VoiceSettingsPanel({ embedded = false }: { embedded?: boolean })
               >
                 {catalog.map((v) => (
                   <option key={v.voiceId} value={v.voiceId}>
-                    {v.label}
+                    {catalogOptionLabel(v)}
                   </option>
                 ))}
               </select>
