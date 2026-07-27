@@ -1,75 +1,12 @@
 import type { Express } from "express";
 import { reportSpeechUsageToControlPlane } from "../controlPlaneCredits.js";
 import { applyHumanFilter } from "./humanFilter.js";
-import {
-  loadElevenLabsConvAiConfig,
-  mintElevenLabsConversationToken,
-} from "./elevenLabsConvAi.js";
 import type { VoiceBackend } from "./types.js";
 
+/** Provider-agnostic voice admin routes (connector seam). */
 export function registerVoiceAdminRoutes(app: Express, voice: VoiceBackend): void {
   app.get("/voice/status", (_req, res) => {
-    const convai = loadElevenLabsConvAiConfig();
-    res.json({
-      ok: true,
-      ...voice.status(),
-      convai: {
-        configured: Boolean(convai),
-        agentId: convai?.agentId ?? null,
-      },
-    });
-  });
-
-  /**
-   * Mint a short-lived ElevenLabs ConvAI WebRTC token.
-   * Platform API key stays on the agent; browser only gets the token.
-   */
-  app.post("/voice/convai/token", async (req, res) => {
-    const config = loadElevenLabsConvAiConfig();
-    if (!config) {
-      res.status(503).json({
-        error:
-          "ElevenLabs Conversational AI not configured (set ELEVENLABS_API_KEY and ELEVENLABS_AGENT_ID)",
-      });
-      return;
-    }
-    const body = (req.body ?? {}) as { participantName?: string };
-    try {
-      const result = await mintElevenLabsConversationToken(config, {
-        participantName: body.participantName?.trim(),
-      });
-      res.json({
-        ok: true,
-        token: result.token,
-        agentId: result.agentId,
-        connectionType: "webrtc",
-      });
-    } catch (error) {
-      res.status(502).json({
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  });
-
-  /**
-   * After a ConvAI session ends, report billed duration to the control plane.
-   */
-  app.post("/voice/convai/session-ended", (req, res) => {
-    const body = (req.body ?? {}) as {
-      durationSeconds?: number;
-      conversationId?: string;
-    };
-    const durationSeconds = Math.max(0, Math.floor(Number(body.durationSeconds ?? 0)));
-    if (durationSeconds <= 0) {
-      res.status(400).json({ error: "durationSeconds required" });
-      return;
-    }
-    const conversationId = body.conversationId?.trim();
-    reportSpeechUsageToControlPlane({
-      durationSeconds,
-      idempotencyKey: conversationId ? `convai:${conversationId}` : undefined,
-    });
-    res.json({ ok: true, durationSeconds });
+    res.json({ ok: true, ...voice.status() });
   });
 
   app.post("/voice/synthesize", async (req, res) => {

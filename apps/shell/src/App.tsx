@@ -144,7 +144,7 @@ import {
   VoiceSettingsPanel,
   loadVoiceOptIn,
 } from "./brain/VoicePushToTalk.js";
-import { VoiceConvAiButton, loadConvAiOptIn } from "./brain/VoiceConvAi.js";
+import { HostedVoiceSlot } from "./brain/HostedVoiceSlot.js";
 import { VOICE_OPTIN_EVENT } from "./brain/voiceOptIn.js";
 import { speakAgentText } from "./brain/speakAgentText.js";
 import {
@@ -858,12 +858,10 @@ export function App() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [chatAbuseReportOpen, setChatAbuseReportOpen] = useState(false);
   const [voicePttOn, setVoicePttOn] = useState(loadVoiceOptIn);
-  const [voiceConvAiOn, setVoiceConvAiOn] = useState(loadConvAiOptIn);
 
   useEffect(() => {
     const sync = () => {
       setVoicePttOn(loadVoiceOptIn());
-      setVoiceConvAiOn(loadConvAiOptIn());
     };
     window.addEventListener(VOICE_OPTIN_EVENT, sync);
     window.addEventListener("storage", sync);
@@ -1818,9 +1816,9 @@ export function App() {
   const conversationRef = useRef(conversation);
   conversationRef.current = conversation;
 
-  // When voice is on, speak new agent replies from typed chat (not only push-to-talk).
+  // When push-to-talk opt-in is on, speak new agent replies from typed chat.
   useEffect(() => {
-    if (!voicePttOn && !voiceConvAiOn) return;
+    if (!voicePttOn) return;
     if (!agentConnectionReady || !vaultUnlocked) return;
     let sawBusy = conversation.getSnapshot().busy;
     let lastSpokenId: string | null = null;
@@ -1839,7 +1837,7 @@ export function App() {
       void speakAgentText(lastAgent.text, loadCommsAgentConfig(), { humanFilter: true });
     });
     return unsub;
-  }, [voicePttOn, voiceConvAiOn, agentConnectionReady, vaultUnlocked, conversation]);
+  }, [voicePttOn, agentConnectionReady, vaultUnlocked, conversation]);
 
   const requestBriefingComposition = useCallback(async (message: string) => {
     if (briefingOpenSentRef.current) return false;
@@ -2982,10 +2980,8 @@ export function App() {
         composer={
           showMainComposer ? (
             <>
-              <VoiceConvAiButton
-                enabled={
-                  voiceConvAiOn && Boolean(agentConnectionReady && vaultUnlocked)
-                }
+              <HostedVoiceSlot
+                enabled={Boolean(agentConnectionReady && vaultUnlocked)}
               />
               <VoicePushToTalk
                 enabled={

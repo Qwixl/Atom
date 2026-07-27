@@ -28,30 +28,9 @@ describe("loadVoiceBackend", () => {
     expect(backend.status().duplex).toBe("half");
   });
 
-  it("selects elevenlabs when provider set (unconfigured without key)", () => {
+  it("returns unconfigured placeholder for reserved elevenlabs id", () => {
     const backend = loadVoiceBackend({ ATOM_VOICE_PROVIDER: "elevenlabs" });
     expect(backend.id).toBe("elevenlabs");
     expect(backend.status().configured).toBe(false);
-  });
-
-  it("keeps speak/listen on openai when LLM key present even if elevenlabs selected", () => {
-    const backend = loadVoiceBackend({
-      ATOM_VOICE_PROVIDER: "elevenlabs",
-      LLM_API_KEY: "sk-test",
-      ELEVENLABS_API_KEY: "sk_el",
-      ELEVENLABS_AGENT_ID: "agent_x",
-    });
-    expect(backend.id).toBe("openai-realtime");
-    expect(backend.status().configured).toBe(true);
-  });
-
-  it("uses elevenlabs status backend when ConvAI env present without LLM key", () => {
-    const backend = loadVoiceBackend({
-      ELEVENLABS_API_KEY: "sk_el",
-      ELEVENLABS_AGENT_ID: "agent_x",
-    });
-    expect(backend.id).toBe("elevenlabs");
-    expect(backend.status().configured).toBe(true);
-    expect(backend.status().duplex).toBe("full");
   });
 });

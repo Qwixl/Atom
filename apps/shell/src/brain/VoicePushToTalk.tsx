@@ -2,9 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
 import { SettingsToggle } from "../ui/SettingsToggle.js";
 import { loadCommsAgentConfigSecure } from "../comms/storage.js";
-import { loadConvAiOptIn, saveConvAiOptIn } from "./VoiceConvAi.js";
 import { notifyVoiceOptInChanged } from "./voiceOptIn.js";
-import { speakAgentText } from "./speakAgentText.js";
 
 const VOICE_OPT_IN_KEY = "atom.voice.pushToTalk";
 
@@ -69,7 +67,7 @@ export function VoicePushToTalk({
     }
     setBusy(true);
     setError(null);
-    setStatus("Listening…");
+    setStatus("Transcribing…");
     try {
       const admin = config.adminToken?.trim()
         ? config
@@ -91,7 +89,7 @@ export function VoicePushToTalk({
         }),
       });
       const trBody = (await tr.json().catch(() => ({}))) as { text?: string; error?: string };
-      if (!tr.ok) throw new Error(trBody.error || `Could not hear that (${tr.status})`);
+      if (!tr.ok) throw new Error(trBody.error || `Transcribe failed (${tr.status})`);
       const text = trBody.text?.trim();
       if (!text) throw new Error("No speech detected.");
       setStatus("Thinking…");
@@ -102,7 +100,27 @@ export function VoicePushToTalk({
       }
       onSpokenReply?.(reply);
       setStatus("Speaking…");
-      await speakAgentText(reply, admin, { humanFilter });
+      const syn = await fetch(`${base}/voice/synthesize`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(admin.adminToken?.trim()
+            ? { Authorization: `Bearer ${admin.adminToken.trim()}` }
+            : {}),
+        },
+        body: JSON.stringify({ text: reply.slice(0, 2000), humanFilter }),
+      });
+      const synBody = (await syn.json().catch(() => ({}))) as {
+        audioBase64?: string | null;
+        mimeType?: string | null;
+        error?: string;
+      };
+      if (!syn.ok) throw new Error(synBody.error || `Synthesize failed (${syn.status})`);
+      if (synBody.audioBase64) {
+        const mime = synBody.mimeType || "audio/mpeg";
+        const audio = new Audio(`data:${mime};base64,${synBody.audioBase64}`);
+        await audio.play();
+      }
       setStatus(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -171,29 +189,37 @@ export function VoicePushToTalk({
 }
 
 export function VoiceSettingsPanel({ embedded = false }: { embedded?: boolean }) {
+  const { config } = useAgentConfig(true);
   const [optIn, setOptIn] = useState(loadVoiceOptIn);
-  const [convAiOptIn, setConvAiOptIn] = useState(loadConvAiOptIn);
+  const [providerNote, setProviderNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!config.adminToken?.trim()) return;
+    void (async () => {
+      try {
+        const base = config.adminUrl.replace(/\/$/, "");
+        const resp = await fetch(`${base}/voice/status`, {
+          headers: { Authorization: `Bearer ${config.adminToken!.trim()}` },
+        });
+        if (!resp.ok) return;
+        const body = (await resp.json()) as { message?: string; configured?: boolean; provider?: string };
+        setProviderNote(
+          `${body.provider ?? "voice"}: ${body.message ?? (body.configured ? "ready" : "not configured")}`,
+        );
+      } catch {
+        setProviderNote(null);
+      }
+    })();
+  }, [config]);
 
   const fields = (
     <>
       <p className="settings-note">
-        Live voice chat - your agent will talk to you like a real person.
-        <br />
-        <strong>Billed item</strong> (£0.10p per minute)
+        Push-to-talk: hold the mic button in Chat, speak a short request, and hear a spoken reply.
+        Uses your agent&apos;s OpenAI-compatible key (Whisper + TTS). Always-on voice minutes stay on
+        the always-on tier.
       </p>
-      <SettingsToggle
-        checked={convAiOptIn}
-        label="Show live voice chat in Chat"
-        onChange={(enabled) => {
-          saveConvAiOptIn(enabled);
-          setConvAiOptIn(enabled);
-        }}
-      />
-      <p className="settings-note">
-        Push-to-talk - hold the mic, to talk to your agent.
-        <br />
-        <strong>Billed item</strong> (£0.10p per minute)
-      </p>
+      {providerNote ? <p className="settings-note">{providerNote}</p> : null}
       <SettingsToggle
         checked={optIn}
         label="Show push-to-talk in Chat"
