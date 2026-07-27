@@ -17,7 +17,7 @@ import {
   IconSettings,
 } from "./ShellIcons.js";
 
-export type SettingsOpenTarget = "profile" | "log" | "modules" | "default";
+export type SettingsOpenTarget = "profile" | "log" | "modules" | "payments" | "default";
 
 type NavItem = {
   id: ShellNavPanel;
