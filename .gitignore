@@ -2,7 +2,6 @@
 !.env.example
 # ------------------------------------------------------------------
 # Build/tooling artifacts
-# Capacitor / Android local build output (project sources under apps/native/android stay tracked)
 # PRIVATE WORKING MATERIAL — never committed to the public repo.
 # See AGENTS.md (itself private): the public repo carries only what is
 # strictly necessary to build and run the shell.
@@ -26,11 +25,6 @@
 /scratch/
 /secrets/
 /supabase/
-apps/native/android/**/build/
-apps/native/android/.gradle/
-apps/native/android/.idea/
-apps/native/android/captures/
-apps/native/android/local.properties
 credentials.json
 dist/
 id_rsa
