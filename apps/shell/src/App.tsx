@@ -144,7 +144,6 @@ import {
   VoiceSettingsPanel,
   loadVoiceOptIn,
 } from "./brain/VoicePushToTalk.js";
-import { HostedVoiceSlot } from "./brain/HostedVoiceSlot.js";
 import { VOICE_OPTIN_EVENT } from "./brain/voiceOptIn.js";
 import { loadVoiceMode } from "./brain/voiceMode.js";
 import { speakAgentText } from "./brain/speakAgentText.js";
@@ -3004,11 +3003,6 @@ export function App() {
                 <p className="voice-tray-error voice-tray-error--block">{voiceSpeakError}</p>
               ) : null}
               <div className="voice-tray">
-                <HostedVoiceSlot
-                  enabled={Boolean(
-                    voiceMode === "conversational" && agentConnectionReady && vaultUnlocked,
-                  )}
-                />
                 <VoicePushToTalk
                   enabled={
                     (voicePttOn || (boardAvailable && panel === "board" && !boardVoiceMuted)) &&
@@ -3016,9 +3010,17 @@ export function App() {
                   }
                   humanFilter
                   onTranscript={async (text) => {
-                    conversationRef.current.setBusy(true);
+                    const beforeIds = new Set(
+                      conversation
+                        .getSnapshot()
+                        .feed.filter((item) => item.kind === "agent-text")
+                        .map((item) => item.id),
+                    );
+                    // Same path typed input uses: appends the transcript as a real chat
+                    // bubble (not just a busy flag) so dictated speech is never silently lost.
+                    conversationRef.current.appendUser(text);
                     sessionRef.current.sendUserMessage(text);
-                    // Wait for the agent turn to finish, then return last agent text for TTS.
+                    // Wait for the agent turn to finish, then return new agent text for TTS.
                     return await new Promise<string | null>((resolve) => {
                       let sawBusy = conversation.getSnapshot().busy;
                       const unsub = conversation.subscribe(() => {
@@ -3029,12 +3031,14 @@ export function App() {
                         }
                         if (!sawBusy) return;
                         unsub();
-                        const lastAgent = [...snap.feed]
-                          .reverse()
-                          .find((item) => item.kind === "agent-text");
-                        resolve(
-                          lastAgent && lastAgent.kind === "agent-text" ? lastAgent.text : null,
-                        );
+                        const parts = snap.feed
+                          .filter(
+                            (item): item is Extract<typeof item, { kind: "agent-text" }> =>
+                              item.kind === "agent-text" && !beforeIds.has(item.id),
+                          )
+                          .map((item) => item.text.trim())
+                          .filter(Boolean);
+                        resolve(parts.length ? parts.join("\n\n") : null);
                       });
                       window.setTimeout(() => {
                         unsub();
