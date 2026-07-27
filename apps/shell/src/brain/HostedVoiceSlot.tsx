@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { supabaseAccessToken } from "../auth/hostedAccount.js";
 import { CONTROL_PLANE_URL } from "../hostConfig.js";
+import { loadSpeechVoiceId } from "./voiceMode.js";
 
 /**
  * Connector slot for Atom-MC hosted human-voice (Talk).
@@ -25,6 +26,8 @@ export function HostedVoiceSlot({ enabled }: { enabled: boolean }) {
             opts: {
               controlPlaneUrl: string;
               getAccessToken: () => Promise<string | null>;
+              getVoiceId?: () => string | null | Promise<string | null>;
+              onCreditsExhausted?: () => void;
             },
           ) => () => void;
         };
@@ -34,6 +37,10 @@ export function HostedVoiceSlot({ enabled }: { enabled: boolean }) {
         cleanup = mod.mountTalkButton(el, {
           controlPlaneUrl: cp,
           getAccessToken: () => supabaseAccessToken(),
+          getVoiceId: () => loadSpeechVoiceId(),
+          onCreditsExhausted: () => {
+            /* keep Conversational mode so the tray stays; Talk ends itself */
+          },
         });
       } catch {
         /* no hosted module on this origin */

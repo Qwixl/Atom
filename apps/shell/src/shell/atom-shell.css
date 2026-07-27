@@ -529,10 +529,17 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-.atom-app-composer > .shell-composer {
+.atom-app-composer > .shell-composer,
+.atom-app-composer > .atom-composer-stack {
   width: 100%;
   max-width: var(--atom-chat-max);
   box-sizing: border-box;
+  border-top: none;
+}
+
+.atom-app-composer > .atom-composer-stack > .shell-composer {
+  width: 100%;
+  max-width: none;
   border-top: none;
 }
 
