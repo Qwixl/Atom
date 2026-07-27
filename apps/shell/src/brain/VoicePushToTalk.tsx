@@ -4,7 +4,7 @@ import { SettingsToggle } from "../ui/SettingsToggle.js";
 import { loadCommsAgentConfigSecure } from "../comms/storage.js";
 import { loadConvAiOptIn, saveConvAiOptIn } from "./VoiceConvAi.js";
 import { notifyVoiceOptInChanged } from "./voiceOptIn.js";
-import { speakAgentText, unlockAgentAudio } from "./speakAgentText.js";
+import { speakAgentText } from "./speakAgentText.js";
 
 const VOICE_OPT_IN_KEY = "atom.voice.pushToTalk";
 
@@ -18,7 +18,6 @@ export function loadVoiceOptIn(): boolean {
 
 export function saveVoiceOptIn(enabled: boolean): void {
   localStorage.setItem(VOICE_OPT_IN_KEY, enabled ? "1" : "0");
-  if (enabled) void unlockAgentAudio();
   notifyVoiceOptInChanged();
 }
 
@@ -103,8 +102,7 @@ export function VoicePushToTalk({
       }
       onSpokenReply?.(reply);
       setStatus("Speaking…");
-      const spoken = await speakAgentText(reply, admin, { humanFilter });
-      if (!spoken.ok) throw new Error(spoken.error);
+      await speakAgentText(reply, admin, { humanFilter });
       setStatus(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -116,7 +114,6 @@ export function VoicePushToTalk({
 
   const startRecording = useCallback(async () => {
     setError(null);
-    await unlockAgentAudio();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
@@ -180,26 +177,26 @@ export function VoiceSettingsPanel({ embedded = false }: { embedded?: boolean })
   const fields = (
     <>
       <p className="settings-note">
-        Live Talk — you and your agent speak in real time. This is what uses ElevenLabs
-        conversation minutes.
+        Live voice chat - your agent will talk to you like a real person.
         <br />
-        <strong>Billed item</strong> (~£0.10 per minute while Talk is live)
+        <strong>Billed item</strong> (£0.10p per minute)
       </p>
       <SettingsToggle
         checked={convAiOptIn}
-        label="Show Talk button in Chat"
+        label="Show live voice chat in Chat"
         onChange={(enabled) => {
           saveConvAiOptIn(enabled);
           setConvAiOptIn(enabled);
         }}
       />
       <p className="settings-note">
-        Hold to talk / spoken replies — mic to text, then the agent speaks replies aloud.
-        Uses ElevenLabs text-to-speech characters (not conversation minutes).
+        Push-to-talk - hold the mic, to talk to your agent.
+        <br />
+        <strong>Billed item</strong> (£0.10p per minute)
       </p>
       <SettingsToggle
         checked={optIn}
-        label="Show Hold to talk in Chat"
+        label="Show push-to-talk in Chat"
         onChange={(enabled) => {
           saveVoiceOptIn(enabled);
           setOptIn(enabled);

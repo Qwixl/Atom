@@ -1818,31 +1818,25 @@ export function App() {
   const conversationRef = useRef(conversation);
   conversationRef.current = conversation;
 
-  const [voiceSpeakError, setVoiceSpeakError] = useState<string | null>(null);
-
   // When voice is on, speak new agent replies from typed chat (not only push-to-talk).
   useEffect(() => {
     if (!voicePttOn && !voiceConvAiOn) return;
     if (!agentConnectionReady || !vaultUnlocked) return;
-    const seen = new Set(
-      conversation
-        .getSnapshot()
-        .feed.filter((item) => item.kind === "agent-text")
-        .map((item) => item.id),
-    );
+    let sawBusy = conversation.getSnapshot().busy;
+    let lastSpokenId: string | null = null;
     const unsub = conversation.subscribe(() => {
       const snap = conversation.getSnapshot();
-      if (snap.busy) return;
+      if (snap.busy) {
+        sawBusy = true;
+        return;
+      }
+      if (!sawBusy) return;
+      sawBusy = false;
       const lastAgent = [...snap.feed].reverse().find((item) => item.kind === "agent-text");
       if (!lastAgent || lastAgent.kind !== "agent-text") return;
-      if (seen.has(lastAgent.id)) return;
-      seen.add(lastAgent.id);
-      void speakAgentText(lastAgent.text, loadCommsAgentConfig(), { humanFilter: true }).then(
-        (result) => {
-          if (!result.ok) setVoiceSpeakError(result.error);
-          else setVoiceSpeakError(null);
-        },
-      );
+      if (lastAgent.id === lastSpokenId) return;
+      lastSpokenId = lastAgent.id;
+      void speakAgentText(lastAgent.text, loadCommsAgentConfig(), { humanFilter: true });
     });
     return unsub;
   }, [voicePttOn, voiceConvAiOn, agentConnectionReady, vaultUnlocked, conversation]);
@@ -2988,18 +2982,6 @@ export function App() {
         composer={
           showMainComposer ? (
             <>
-              {(voiceConvAiOn || voicePttOn) && agentConnectionReady && vaultUnlocked ? (
-                <p className="settings-note" style={{ textAlign: "center", marginBottom: 4 }}>
-                  {voiceConvAiOn
-                    ? "Tap Talk to speak with your agent."
-                    : "Hold to talk, or type — replies can be spoken."}
-                </p>
-              ) : null}
-              {voiceSpeakError ? (
-                <p className="settings-note settings-error" style={{ textAlign: "center" }}>
-                  {voiceSpeakError}
-                </p>
-              ) : null}
               <VoiceConvAiButton
                 enabled={
                   voiceConvAiOn && Boolean(agentConnectionReady && vaultUnlocked)
