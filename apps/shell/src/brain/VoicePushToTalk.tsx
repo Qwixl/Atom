@@ -133,7 +133,7 @@ export function VoicePushToTalk({
   }, []);
 
   const stopMicSession = useCallback(
-    (opts?: { error?: string; paidOff?: boolean }) => {
+    (opts?: { error?: string }) => {
       micOnRef.current = false;
       setMicOn(false);
       loopAbortRef.current?.abort();
@@ -146,10 +146,7 @@ export function VoicePushToTalk({
       setCostPounds(0.1);
       sessionStartedAtRef.current = 0;
       if (opts?.error) setError(opts.error);
-      if (opts?.paidOff) {
-        saveVoiceMode("off");
-        setVoiceMode("off");
-      }
+      else setError(null);
     },
     [clearTick, releaseMic],
   );
@@ -290,13 +287,7 @@ export function VoicePushToTalk({
 
       while (micOnRef.current && !abort.signal.aborted) {
         if (Date.now() - lastSpeechAtRef.current >= SILENCE_AUTO_OFF_MS) {
-          const paid = loadVoiceMode() === "conversational";
-          stopMicSession({
-            error: paid
-              ? "No speech for a minute — mic and Conversational voice turned off."
-              : "No speech for a minute — mic turned off.",
-            paidOff: paid,
-          });
+          stopMicSession({ error: "Mic off — no speech for a minute." });
           return;
         }
         const blob = await recordUtterance(stream, abort.signal);
@@ -332,10 +323,7 @@ export function VoicePushToTalk({
       paidMinuteSeqRef.current = 0;
       const ok = await chargePaidMinute(0, paidSessionIdRef.current);
       if (!ok) {
-        stopMicSession({
-          error: "Insufficient Atom Credits — Conversational paused.",
-          paidOff: true,
-        });
+        stopMicSession({ error: "Not enough Atom Credits." });
         return;
       }
       paidMinuteSeqRef.current = 1;
@@ -354,22 +342,13 @@ export function VoicePushToTalk({
           paidMinuteSeqRef.current = seq + 1;
           void chargePaidMinute(seq, paidSessionIdRef.current).then((ok) => {
             if (!ok) {
-              stopMicSession({
-                error: "Credits ran out — mic and Conversational voice turned off.",
-                paidOff: true,
-              });
+              stopMicSession({ error: "Not enough Atom Credits." });
             }
           });
         }
       }
       if (Date.now() - lastSpeechAtRef.current >= SILENCE_AUTO_OFF_MS) {
-        const paid = loadVoiceMode() === "conversational";
-        stopMicSession({
-          error: paid
-            ? "No speech for a minute — mic and Conversational voice turned off."
-            : "No speech for a minute — mic turned off.",
-          paidOff: paid,
-        });
+        stopMicSession({ error: "Mic off — no speech for a minute." });
       }
     }, 1000);
 
@@ -402,20 +381,25 @@ export function VoicePushToTalk({
   const showPaidMeter = voiceMode === "conversational" && micOn;
 
   return (
-    <div className="voice-ptt" aria-live="polite">
+    <div className="voice-tray-item voice-ptt" aria-live="polite">
       <SettingsToggle
+        className="settings-switch--inline voice-tray-switch"
         checked={micOn}
         disabled={busy && !micOn}
-        label={micOn ? "Mic on" : "Mic"}
+        label="Mic"
         onChange={onMicToggle}
       />
       {showPaidMeter ? (
-        <span className="settings-note voice-ptt-meter">
-          {formatElapsed(elapsedMs)} · £{costPounds.toFixed(2)}
+        <span className="voice-tray-meter" title="Session time and cost">
+          {formatElapsed(elapsedMs)}
+          <span className="voice-tray-meter-sep" aria-hidden="true">
+            ·
+          </span>
+          £{costPounds.toFixed(2)}
         </span>
       ) : null}
-      {status ? <span className="settings-note">{status}</span> : null}
-      {error ? <span className="settings-note settings-error">{error}</span> : null}
+      {error ? <span className="voice-tray-error">{error}</span> : null}
+      <span className="visually-hidden">{status}</span>
     </div>
   );
 }
@@ -464,12 +448,10 @@ export function VoiceSettingsPanel({ embedded = false }: { embedded?: boolean })
         }
         if (body.credits) {
           const pounds = ((body.credits.balancePence ?? 0) / 100).toFixed(2);
-          if (!body.credits.speechEnabled) {
-            setCreditNote("Conversational is off for this account (speech disabled).");
-          } else if (!body.credits.canUsePaid) {
-            setCreditNote(`Atom Credits £${pounds} — top up to use Conversational (£0.10/min).`);
+          if (!body.credits.canUsePaid) {
+            setCreditNote(`Credits £${pounds}`);
           } else {
-            setCreditNote(`Atom Credits £${pounds} — Conversational £0.10 per minute.`);
+            setCreditNote(`Credits £${pounds}`);
           }
         }
       } catch {
@@ -531,8 +513,7 @@ export function VoiceSettingsPanel({ embedded = false }: { embedded?: boolean })
   const fields = (
     <>
       <p className="settings-note">
-        Default is off. Free uses your device voice. Conversational uses Atom Credits at £0.10 per
-        started minute (Talk + mic).
+        Off, free device voice, or Conversational (Atom Credits).
       </p>
       <fieldset className="settings-fieldset" style={{ border: "none", padding: 0, margin: 0 }}>
         <legend className="settings-note" style={{ padding: 0 }}>

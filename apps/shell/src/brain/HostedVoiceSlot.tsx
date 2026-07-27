@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { supabaseAccessToken } from "../auth/hostedAccount.js";
 import { CONTROL_PLANE_URL } from "../hostConfig.js";
-import { loadSpeechVoiceId, saveVoiceMode } from "./voiceMode.js";
+import { loadSpeechVoiceId } from "./voiceMode.js";
 
 /**
  * Connector slot for Atom-MC hosted human-voice (Talk).
@@ -39,7 +39,7 @@ export function HostedVoiceSlot({ enabled }: { enabled: boolean }) {
           getAccessToken: () => supabaseAccessToken(),
           getVoiceId: () => loadSpeechVoiceId(),
           onCreditsExhausted: () => {
-            saveVoiceMode("free");
+            /* keep Conversational mode so the tray stays; Talk ends itself */
           },
         });
       } catch {

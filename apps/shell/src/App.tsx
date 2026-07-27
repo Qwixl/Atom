@@ -2992,58 +2992,58 @@ export function App() {
         }
         composer={
           showMainComposer ? (
-            <>
+            <div className="atom-composer-stack">
               {voiceSpeakError ? (
-                <p className="settings-note settings-error" style={{ textAlign: "center" }}>
-                  {voiceSpeakError}
-                </p>
+                <p className="voice-tray-error voice-tray-error--block">{voiceSpeakError}</p>
               ) : null}
-              <HostedVoiceSlot
-                enabled={Boolean(
-                  voiceMode === "conversational" && agentConnectionReady && vaultUnlocked,
-                )}
-              />
-              <VoicePushToTalk
-                enabled={
-                  (voicePttOn || (boardAvailable && panel === "board" && !boardVoiceMuted)) &&
-                  Boolean(agentConnectionReady && vaultUnlocked)
-                }
-                humanFilter
-                onTranscript={async (text) => {
-                  conversationRef.current.setBusy(true);
-                  sessionRef.current.sendUserMessage(text);
-                  // Wait for the agent turn to finish, then return last agent text for TTS.
-                  return await new Promise<string | null>((resolve) => {
-                    let sawBusy = conversation.getSnapshot().busy;
-                    const unsub = conversation.subscribe(() => {
-                      const snap = conversation.getSnapshot();
-                      if (snap.busy) {
-                        sawBusy = true;
-                        return;
-                      }
-                      if (!sawBusy) return;
-                      unsub();
-                      const lastAgent = [...snap.feed]
-                        .reverse()
-                        .find((item) => item.kind === "agent-text");
-                      resolve(
-                        lastAgent && lastAgent.kind === "agent-text" ? lastAgent.text : null,
-                      );
+              <div className="voice-tray">
+                <HostedVoiceSlot
+                  enabled={Boolean(
+                    voiceMode === "conversational" && agentConnectionReady && vaultUnlocked,
+                  )}
+                />
+                <VoicePushToTalk
+                  enabled={
+                    (voicePttOn || (boardAvailable && panel === "board" && !boardVoiceMuted)) &&
+                    Boolean(agentConnectionReady && vaultUnlocked)
+                  }
+                  humanFilter
+                  onTranscript={async (text) => {
+                    conversationRef.current.setBusy(true);
+                    sessionRef.current.sendUserMessage(text);
+                    // Wait for the agent turn to finish, then return last agent text for TTS.
+                    return await new Promise<string | null>((resolve) => {
+                      let sawBusy = conversation.getSnapshot().busy;
+                      const unsub = conversation.subscribe(() => {
+                        const snap = conversation.getSnapshot();
+                        if (snap.busy) {
+                          sawBusy = true;
+                          return;
+                        }
+                        if (!sawBusy) return;
+                        unsub();
+                        const lastAgent = [...snap.feed]
+                          .reverse()
+                          .find((item) => item.kind === "agent-text");
+                        resolve(
+                          lastAgent && lastAgent.kind === "agent-text" ? lastAgent.text : null,
+                        );
+                      });
+                      window.setTimeout(() => {
+                        unsub();
+                        resolve(null);
+                      }, 90_000);
                     });
-                    window.setTimeout(() => {
-                      unsub();
-                      resolve(null);
-                    }, 90_000);
-                  });
-                }}
-              />
+                  }}
+                />
+              </div>
               <ShellComposer
                 value={input}
                 busy={busy}
                 onChange={setInput}
                 onSubmit={submitMessage}
               />
-            </>
+            </div>
           ) : undefined
         }
       >
