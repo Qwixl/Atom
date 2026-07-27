@@ -38,13 +38,6 @@ function catalogOptionLabel(entry: CatalogEntry): string {
   return `${name} — ${entry.label}`;
 }
 
-function formatElapsed(ms: number): string {
-  const totalSec = Math.max(0, Math.floor(ms / 1000));
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
 async function blobToBase64(blob: Blob): Promise<string> {
   const buf = await blob.arrayBuffer();
   let binary = "";
@@ -63,25 +56,6 @@ async function resolveVoiceBearer(adminToken?: string): Promise<string | null> {
   return secure.adminToken?.trim() || null;
 }
 
-async function chargePaidMinute(sequence: number, sessionId: string): Promise<boolean> {
-  const cp = CONTROL_PLANE_URL.replace(/\/$/, "");
-  const token = await supabaseAccessToken();
-  if (!cp || !token) return false;
-  const resp = await fetch(`${cp}/voice/convai/heartbeat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      sliceSeconds: 60,
-      conversationId: sessionId,
-      sequence,
-    }),
-  });
-  return resp.ok;
-}
-
 export function VoicePushToTalk({
   enabled,
   onTranscript,
@@ -98,24 +72,12 @@ export function VoicePushToTalk({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const [costPounds, setCostPounds] = useState(0.1);
-  const [voiceMode, setVoiceMode] = useState<VoiceMode>(loadVoiceMode);
 
   const micOnRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
   const loopAbortRef = useRef<AbortController | null>(null);
   const lastSpeechAtRef = useRef(0);
-  const sessionStartedAtRef = useRef(0);
-  const paidSessionIdRef = useRef("");
-  const paidMinuteSeqRef = useRef(0);
   const tickTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    const sync = () => setVoiceMode(loadVoiceMode());
-    window.addEventListener(VOICE_OPTIN_EVENT, sync);
-    return () => window.removeEventListener(VOICE_OPTIN_EVENT, sync);
-  }, []);
 
   const releaseMic = useCallback(() => {
     const stream = streamRef.current;
@@ -142,9 +104,6 @@ export function VoicePushToTalk({
       clearTick();
       setBusy(false);
       setStatus(null);
-      setElapsedMs(0);
-      setCostPounds(0.1);
-      sessionStartedAtRef.current = 0;
       if (opts?.error) setError(opts.error);
       else setError(null);
     },
@@ -262,7 +221,7 @@ export function VoicePushToTalk({
         setStatus("Thinking…");
         const reply = await onTranscript(text);
         if (reply?.trim()) onSpokenReply?.(reply);
-        setStatus(micOnRef.current ? "Mic on — speak anytime" : null);
+        setStatus(micOnRef.current ? "Mic on — speak into Atom chat" : null);
         setError(null);
         return true;
       } finally {
@@ -282,7 +241,7 @@ export function VoicePushToTalk({
         return;
       }
       streamRef.current = stream;
-      setStatus("Mic on — speak anytime");
+      setStatus("Mic on — speak into Atom chat");
       setError(null);
 
       while (micOnRef.current && !abort.signal.aborted) {
@@ -297,7 +256,7 @@ export function VoicePushToTalk({
           await processBlob(blob);
         } catch (err) {
           setError(err instanceof Error ? err.message : String(err));
-          setStatus(micOnRef.current ? "Mic on — speak anytime" : null);
+          setStatus(micOnRef.current ? "Mic on — speak into Atom chat" : null);
         }
       }
     } catch (err) {
@@ -308,45 +267,15 @@ export function VoicePushToTalk({
   }, [processBlob, recordUtterance, stopMicSession]);
 
   const startMicSession = useCallback(async () => {
-    const mode = loadVoiceMode();
-    setVoiceMode(mode);
     micOnRef.current = true;
     setMicOn(true);
     lastSpeechAtRef.current = Date.now();
-    sessionStartedAtRef.current = Date.now();
-    setElapsedMs(0);
-    setCostPounds(0.1);
     setError(null);
-
-    if (mode === "conversational") {
-      paidSessionIdRef.current = `mic-${Date.now()}`;
-      paidMinuteSeqRef.current = 0;
-      const ok = await chargePaidMinute(0, paidSessionIdRef.current);
-      if (!ok) {
-        stopMicSession({ error: "Not enough Atom Credits." });
-        return;
-      }
-      paidMinuteSeqRef.current = 1;
-    }
+    setStatus("Mic on — speak into Atom chat");
 
     clearTick();
     tickTimerRef.current = setInterval(() => {
-      if (!micOnRef.current || !sessionStartedAtRef.current) return;
-      const elapsed = Date.now() - sessionStartedAtRef.current;
-      setElapsedMs(elapsed);
-      if (loadVoiceMode() === "conversational") {
-        const minutes = Math.floor(elapsed / 60_000) + 1;
-        setCostPounds(minutes * 0.1);
-        while (paidMinuteSeqRef.current < minutes) {
-          const seq = paidMinuteSeqRef.current;
-          paidMinuteSeqRef.current = seq + 1;
-          void chargePaidMinute(seq, paidSessionIdRef.current).then((ok) => {
-            if (!ok) {
-              stopMicSession({ error: "Not enough Atom Credits." });
-            }
-          });
-        }
-      }
+      if (!micOnRef.current) return;
       if (Date.now() - lastSpeechAtRef.current >= SILENCE_AUTO_OFF_MS) {
         stopMicSession({ error: "Mic off — no speech for a minute." });
       }
@@ -378,8 +307,6 @@ export function VoicePushToTalk({
 
   if (!enabled) return null;
 
-  const showPaidMeter = voiceMode === "conversational" && micOn;
-
   return (
     <div className="voice-tray-item voice-ptt" aria-live="polite">
       <SettingsToggle
@@ -387,19 +314,12 @@ export function VoicePushToTalk({
         checked={micOn}
         disabled={busy && !micOn}
         label="Mic"
+        title="Speak to Atom — your words appear in the chat, Atom replies (and can speak back)"
+        aria-label="Mic: speak to Atom"
         onChange={onMicToggle}
       />
-      {showPaidMeter ? (
-        <span className="voice-tray-meter" title="Session time and cost">
-          {formatElapsed(elapsedMs)}
-          <span className="voice-tray-meter-sep" aria-hidden="true">
-            ·
-          </span>
-          £{costPounds.toFixed(2)}
-        </span>
-      ) : null}
       {error ? <span className="voice-tray-error">{error}</span> : null}
-      <span className="visually-hidden">{status}</span>
+      {status && !error ? <span className="voice-tray-status">{status}</span> : null}
     </div>
   );
 }
