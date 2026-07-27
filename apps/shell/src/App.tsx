@@ -2985,7 +2985,14 @@ export function App() {
             {agentConnectionReady ? (
               <CreditsUsageTray
                 accountId={loadOwnerHandle() || "personal"}
-                onOpenSettings={() => setPanel("profile")}
+                onOpenSettings={(panel) => {
+                  // Never setPanel("profile") — that hides chat with a blank shell.
+                  if (panel === "credits" || panel === "speech" || panel === "tier") {
+                    openSettings("payments");
+                    return;
+                  }
+                  openSettings("payments");
+                }}
               />
             ) : null}
           </>
@@ -4021,7 +4028,8 @@ function SettingsDialog({
     if (
       initialSection === "profile" ||
       initialSection === "log" ||
-      initialSection === "modules"
+      initialSection === "modules" ||
+      initialSection === "payments"
     ) {
       return initialSection;
     }
@@ -4031,7 +4039,8 @@ function SettingsDialog({
     () =>
       initialSection === "profile" ||
       initialSection === "log" ||
-      initialSection === "modules",
+      initialSection === "modules" ||
+      initialSection === "payments",
   );
 
   const navItems = useMemo(() => {
@@ -4048,15 +4057,15 @@ function SettingsDialog({
       { id: "connectors", label: "Connectors", hint: "Calendars, news, and apps" },
       { id: "appearance", label: "Appearance", hint: "Look and feel" },
       { id: "modules", label: "Modules", hint: "Add-ons and marketplace" },
+      {
+        id: "payments",
+        label: productionLocked ? "Plan & credits" : "Agent Shopper",
+        hint: productionLocked
+          ? "Hosted plan, speech, and Atom Credits"
+          : "Let your agent shop within limits",
+      },
       { id: "donations", label: "Donations", hint: "Support Atom" },
     ];
-    if (!productionLocked) {
-      items.splice(7, 0, {
-        id: "payments",
-        label: "Agent Shopper",
-        hint: "Let your agent shop within limits",
-      });
-    }
     return items;
   }, [productionLocked]);
 
@@ -4597,28 +4606,32 @@ function SettingsDialog({
   function renderPaymentsPanel() {
     return (
       <div className="settings-panel payments-settings">
-        <h3 className="settings-subtitle">Hosted plan</h3>
+        <h3 className="settings-subtitle">Hosted plan &amp; credits</h3>
         <PlanLaneSettingsPanel embedded />
-        <hr className="settings-divider" />
-        <SettingsToggle
-          checked={agentShopperOn}
-          label="Allow Agent Shopping"
-          onChange={(next) => {
-            setAgentShopperOn(next);
-            saveStringToStorage(AGENT_SHOPPER_KEY, String(next));
-          }}
-        />
-        <p className="settings-note">
-          When on, your agent may set up a confirmation of interest with a merchant within your
-          limits. Payment still happens between you and the merchant (their checkout page). When
-          off, the agent can only share product details for you to visit the merchant yourself.
-        </p>
-        {agentShopperOn ? (
-          <SpendPolicySettingsPanel
-            workspaceId={activeWorkspaceId}
-            vaultUnlocked={vaultUnlocked}
-            embedded
-          />
+        {!productionLocked ? (
+          <>
+            <hr className="settings-divider" />
+            <SettingsToggle
+              checked={agentShopperOn}
+              label="Allow Agent Shopping"
+              onChange={(next) => {
+                setAgentShopperOn(next);
+                saveStringToStorage(AGENT_SHOPPER_KEY, String(next));
+              }}
+            />
+            <p className="settings-note">
+              When on, your agent may set up a confirmation of interest with a merchant within your
+              limits. Payment still happens between you and the merchant (their checkout page). When
+              off, the agent can only share product details for you to visit the merchant yourself.
+            </p>
+            {agentShopperOn ? (
+              <SpendPolicySettingsPanel
+                workspaceId={activeWorkspaceId}
+                vaultUnlocked={vaultUnlocked}
+                embedded
+              />
+            ) : null}
+          </>
         ) : null}
       </div>
     );
