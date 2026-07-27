@@ -2,6 +2,7 @@ import { Conversation } from "@elevenlabs/client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
 import { loadCommsAgentConfigSecure } from "../comms/storage.js";
+import { notifyVoiceOptInChanged } from "./voiceOptIn.js";
 
 const VOICE_CONVAI_OPT_IN_KEY = "atom.voice.convai";
 
@@ -15,6 +16,7 @@ export function loadConvAiOptIn(): boolean {
 
 export function saveConvAiOptIn(enabled: boolean): void {
   localStorage.setItem(VOICE_CONVAI_OPT_IN_KEY, enabled ? "1" : "0");
+  notifyVoiceOptInChanged();
 }
 
 type ConvAiStatus = {
@@ -181,7 +183,7 @@ export function VoiceConvAiButton({ enabled }: { enabled: boolean }) {
           else void startLive();
         }}
       >
-        {busy ? "Connecting…" : live ? "End voice chat" : "Start voice chat"}
+        {busy ? "Connecting…" : live ? "End talk" : "Talk"}
       </button>
       {status ? <span className="settings-note">{status}</span> : null}
       {error ? <span className="settings-note settings-error">{error}</span> : null}

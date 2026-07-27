@@ -56,6 +56,8 @@ body {
   justify-content: center;
   padding: 20px;
   overflow-y: auto;
+  /* Toggles focus a clipped input; don't let the overlay scroll-jump. */
+  overflow-anchor: none;
 }
 
 .settings-dialog {
@@ -1875,6 +1877,7 @@ body {
 
 /* Real switch control — use SettingsToggle / .settings-switch everywhere Settings says "toggle". */
 .settings-switch {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -1891,13 +1894,19 @@ body {
   cursor: not-allowed;
 }
 
+/*
+ * Cover the whole control. A 1×1px off-layout checkbox makes the browser
+ * scrollIntoView on click and throws the settings modal off-screen.
+ */
 .settings-switch input {
   position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   margin: 0;
-  pointer-events: none;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
 }
 
 .settings-switch-track {
