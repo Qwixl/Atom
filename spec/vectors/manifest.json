@@ -1,0 +1,219 @@
+{
+  "specification": "draft-chapman-a2a-mls-00",
+  "generated": "deterministic — regenerate with `node spec/vectors/generate.mjs`",
+  "identities": {
+    "alice": {
+      "did": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+      "publicKeyBase64": "TLWr9q15+/WrvMr8wmnYXNJlHtS4hbWGnyQa7fCluik="
+    },
+    "bob": {
+      "did": "did:key:z6MknGc3ocHs3zdPiJbnaaqDi58NGb4pk1Sp9WxWufuXSdxf",
+      "publicKeyBase64": "dCK5iHWYBo4yxESKlJrbKQ0PTjW54BsO5fGh5gD+JnQ="
+    }
+  },
+  "evaluationInstant": "2026-01-15T12:00:00.000Z",
+  "counts": {
+    "total": 22,
+    "accept": 5,
+    "reject": 15,
+    "sequences": 2
+  },
+  "vectors": [
+    {
+      "id": "001-valid-comms-message",
+      "kind": "data-object",
+      "requires": [
+        "governed-object",
+        "processing"
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "002-canonicalisation-nested-unicode",
+      "kind": "data-object",
+      "requires": [
+        "canonical"
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "003-expiry-boundary-not-yet-expired",
+      "kind": "data-object",
+      "requires": [
+        "governance",
+        "processing"
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "004-no-expiry-declared",
+      "kind": "data-object",
+      "requires": [
+        "governance"
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "010-tampered-payload",
+      "kind": "data-object",
+      "requires": [
+        "governed-object"
+      ],
+      "expect": "reject",
+      "reason": "signature-invalid"
+    },
+    {
+      "id": "011-tampered-purpose",
+      "kind": "data-object",
+      "requires": [
+        "canonical",
+        "governance"
+      ],
+      "expect": "reject",
+      "reason": "signature-invalid"
+    },
+    {
+      "id": "012-tampered-expiry-extended",
+      "kind": "data-object",
+      "requires": [
+        "canonical",
+        "governance"
+      ],
+      "expect": "reject",
+      "reason": "signature-invalid"
+    },
+    {
+      "id": "013-issuer-key-mismatch",
+      "kind": "data-object",
+      "requires": [
+        "identity",
+        "governed-object"
+      ],
+      "expect": "reject",
+      "reason": "signature-not-by-issuer"
+    },
+    {
+      "id": "014-signature-not-base64",
+      "kind": "data-object",
+      "requires": [
+        "governed-object"
+      ],
+      "expect": "reject",
+      "reason": "malformed"
+    },
+    {
+      "id": "020-expired-by-ttl",
+      "kind": "data-object",
+      "requires": [
+        "governance",
+        "processing"
+      ],
+      "expect": "reject",
+      "reason": "expired"
+    },
+    {
+      "id": "021-expired-by-absolute",
+      "kind": "data-object",
+      "requires": [
+        "governance",
+        "processing"
+      ],
+      "expect": "reject",
+      "reason": "expired"
+    },
+    {
+      "id": "022-expiry-earlier-of-both-wins",
+      "kind": "data-object",
+      "requires": [
+        "governance"
+      ],
+      "expect": "reject",
+      "reason": "expired"
+    },
+    {
+      "id": "023-expiry-earlier-of-both-wins-ttl",
+      "kind": "data-object",
+      "requires": [
+        "governance"
+      ],
+      "expect": "reject",
+      "reason": "expired"
+    },
+    {
+      "id": "030-purpose-not-permitted",
+      "kind": "data-object",
+      "requires": [
+        "purpose-enforcement"
+      ],
+      "expect": "reject",
+      "reason": "purpose-not-permitted"
+    },
+    {
+      "id": "040-unsupported-version",
+      "kind": "data-object",
+      "requires": [
+        "governed-object"
+      ],
+      "expect": "reject",
+      "reason": "malformed"
+    },
+    {
+      "id": "041-unsupported-signature-algorithm",
+      "kind": "data-object",
+      "requires": [
+        "governed-object"
+      ],
+      "expect": "reject",
+      "reason": "malformed"
+    },
+    {
+      "id": "042-missing-purpose",
+      "kind": "data-object",
+      "requires": [
+        "governance"
+      ],
+      "expect": "reject",
+      "reason": "malformed"
+    },
+    {
+      "id": "043-issuer-not-did-key",
+      "kind": "data-object",
+      "requires": [
+        "identity"
+      ],
+      "expect": "reject",
+      "reason": "malformed"
+    },
+    {
+      "id": "050-replay-same-id",
+      "kind": "data-object-sequence",
+      "requires": [
+        "replay"
+      ]
+    },
+    {
+      "id": "051-distinct-ids-not-replay",
+      "kind": "data-object-sequence",
+      "requires": [
+        "replay"
+      ]
+    },
+    {
+      "id": "060-credential-binding-mismatch",
+      "kind": "credential-binding",
+      "requires": [
+        "credential-binding"
+      ],
+      "expect": "reject",
+      "reason": "credential-key-mismatch"
+    },
+    {
+      "id": "061-credential-binding-match",
+      "kind": "credential-binding",
+      "requires": [
+        "credential-binding"
+      ],
+      "expect": "accept"
+    }
+  ]
+}
