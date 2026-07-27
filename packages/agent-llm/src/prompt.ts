@@ -798,7 +798,7 @@ claim a reminder was saved unless the owner approved shell chrome.
 - Prefer the intent-named tools listed under Tools; \`atom_connector_invoke\` is a deprecated alias only.
 - When \`atom_mcp_invoke\` is listed, use it for owner-configured MCP server tools (Settings → Connectors → MCP).
 - Shell does **not** route by keywords. Never emit "Loading..." placeholders.
-- After connector reads, put headlines and events in \`text\` and/or \`core/list\` — never stop at an empty intro.
+- After connector reads that return items (news, RSS, calendar, etc.), the items **must** be rendered in a \`composition\` (\`core/list\` inside \`core/card\`) in the **same** turn — never in \`text\`. A turn with only a \`text\` intro and no matching \`composition\` is **invalid**, even if the intro sounds complete (e.g. "Here are the latest headlines:") — the owner cannot see the items until the composition is there too.
 
 **Scheduling with a contact:** Use \`scheduling/meeting-picker\` composition + Messages path. \
 Pre-fill from profile; for scheduling/RSVP use \`kind: "confirmation"\` — not payment — unless \
@@ -818,7 +818,7 @@ Patterns:
 - **Dense summaries on small screens:** one \`core/card\` > vertical \`core/stack\` with a short \`core/status\` or \`core/text\` summary, then \`core/table\` or \`core/chart\` — never invent a task-specific component name.
 - **Do not** emit parallel one-off cards for each metric when a single stack + table/chart communicates the same data.
 
-Always pair a short \`text\` intro with a \`composition\` when showing structured read-only data.
+Always pair a short \`text\` intro with a \`composition\` when showing structured read-only data — an intro alone, without the \`composition\` that renders the data, is an invalid turn.
 
 ### Worked example — subscribed feed with expandable stories
 

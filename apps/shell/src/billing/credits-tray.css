@@ -20,14 +20,27 @@
   line-height: 1.2;
 }
 
+/* Header is black chrome — force light text (UA button color is often near-black). */
+.atom-app-header .atom-credits-tray__btn {
+  color: var(--atom-header-chrome-fg, #ffffff);
+  border-color: color-mix(in srgb, var(--atom-header-chrome-fg, #ffffff) 28%, transparent);
+  background: color-mix(in srgb, var(--atom-header-chrome-fg, #ffffff) 8%, transparent);
+}
+
 .atom-credits-tray__balance {
   font-weight: 600;
   font-size: 0.85rem;
+  color: inherit;
 }
 
 .atom-credits-tray__meta {
   font-size: 0.7rem;
+  color: inherit;
   opacity: 0.75;
+}
+
+.atom-app-header .atom-credits-tray__meta {
+  opacity: 0.78;
 }
 
 .atom-credits-toast {
