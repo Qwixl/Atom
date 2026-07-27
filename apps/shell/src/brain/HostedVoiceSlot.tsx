@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
-import { loadCommsAgentConfigSecure } from "../comms/storage.js";
+import { supabaseAccessToken } from "../auth/hostedAccount.js";
 import { CONTROL_PLANE_URL } from "../hostConfig.js";
 
 /**
  * Connector slot for Atom-MC hosted human-voice (Talk).
  * Self-host / OSS clones: /hosted-voice/talk.js is absent → renders nothing.
- * atom.qwixl.com: Mission Control ships the module; this shell never imports vendor SDKs.
+ * Auth to CP must be the Supabase user JWT (not the agent session token).
  */
 export function HostedVoiceSlot({ enabled }: { enabled: boolean }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -24,7 +24,7 @@ export function HostedVoiceSlot({ enabled }: { enabled: boolean }) {
             host: HTMLElement,
             opts: {
               controlPlaneUrl: string;
-              getAdminToken: () => Promise<string | null>;
+              getAccessToken: () => Promise<string | null>;
             },
           ) => () => void;
         };
@@ -33,10 +33,7 @@ export function HostedVoiceSlot({ enabled }: { enabled: boolean }) {
         if (!cp) return;
         cleanup = mod.mountTalkButton(el, {
           controlPlaneUrl: cp,
-          getAdminToken: async () => {
-            const cfg = await loadCommsAgentConfigSecure();
-            return cfg.adminToken?.trim() || null;
-          },
+          getAccessToken: () => supabaseAccessToken(),
         });
       } catch {
         /* no hosted module on this origin */
