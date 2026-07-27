@@ -1,0 +1,57 @@
+{
+  "id": "002-canonicalisation-nested-unicode",
+  "kind": "data-object",
+  "description": "Exercises canonicalisation: members deliberately authored out of order, nested objects, arrays whose order must be preserved, non-ASCII keys and values, and an empty object. An implementation that sorts incorrectly, reorders arrays, or mishandles UTF-16 ordering will produce a different canonical form and fail signature verification.",
+  "requires": [
+    "canonical"
+  ],
+  "now": "2026-01-15T12:00:00.000Z",
+  "permittedPurposes": [
+    "coordination:proposal"
+  ],
+  "expect": "accept",
+  "canonicalForm": "{\"governance\":{\"purpose\":\"coordination:proposal\",\"ttlSeconds\":1209600},\"id\":\"01948f00-0000-7000-8000-000000000002\",\"issuedAt\":\"2026-01-15T11:59:00.000Z\",\"issuerDid\":\"did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG\",\"payload\":{\"Alpha\":\"uppercase sorts before lowercase in UTF-16\",\"café\":\"non-ASCII key\",\"count\":42,\"empty\":{},\"emptyList\":[],\"negative\":-17,\"nested\":{\"a\":1,\"b\":2,\"c\":{\"deep\":[3,1,2]}},\"nil\":null,\"slots\":[\"2026-02-01T09:00:00Z\",\"2026-02-01T08:00:00Z\"],\"truthy\":true,\"zulu\":\"last key alphabetically\",\"éclair\":\"combining vs precomposed matters\"},\"semantic\":{\"schema\":\"https://atom.qwixl.dev/schema/SchedulingProposal\",\"version\":\"1.2\"},\"version\":1}",
+  "object": {
+    "version": 1,
+    "id": "01948f00-0000-7000-8000-000000000002",
+    "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+    "issuedAt": "2026-01-15T11:59:00.000Z",
+    "semantic": {
+      "version": "1.2",
+      "schema": "https://atom.qwixl.dev/schema/SchedulingProposal"
+    },
+    "payload": {
+      "zulu": "last key alphabetically",
+      "Alpha": "uppercase sorts before lowercase in UTF-16",
+      "café": "non-ASCII key",
+      "éclair": "combining vs precomposed matters",
+      "nested": {
+        "b": 2,
+        "a": 1,
+        "c": {
+          "deep": [
+            3,
+            1,
+            2
+          ]
+        }
+      },
+      "slots": [
+        "2026-02-01T09:00:00Z",
+        "2026-02-01T08:00:00Z"
+      ],
+      "empty": {},
+      "emptyList": [],
+      "nil": null,
+      "truthy": true,
+      "count": 42,
+      "negative": -17
+    },
+    "governance": {
+      "purpose": "coordination:proposal",
+      "ttlSeconds": 1209600
+    },
+    "signatureAlgorithm": "ed25519",
+    "signature": "p3tFYXFEeeSBIWcwyPo1Bs2vsXB+fWt7GtNL9Q8zQGkjaPyZYdB+Wu49N3b/Iyy03/r5kdwRaoBbcD9WeTilDg=="
+  }
+}

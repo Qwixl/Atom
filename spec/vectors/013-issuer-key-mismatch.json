@@ -1,0 +1,36 @@
+{
+  "id": "013-issuer-key-mismatch",
+  "kind": "data-object",
+  "description": "Validly signed by Bob's key but claims Alice as issuer. The signature is well-formed; it is simply not Alice's. A verifier that checks signature validity without binding it to issuerDid will wrongly accept.",
+  "requires": [
+    "identity",
+    "governed-object"
+  ],
+  "now": "2026-01-15T12:00:00.000Z",
+  "permittedPurposes": [
+    "comms:message",
+    "comms:receipt",
+    "coordination:proposal"
+  ],
+  "expect": "reject",
+  "reason": "signature-not-by-issuer",
+  "canonicalForm": "{\"governance\":{\"purpose\":\"comms:message\",\"ttlSeconds\":3600},\"id\":\"01948f00-0000-7000-8000-000000000013\",\"issuedAt\":\"2026-01-15T11:59:00.000Z\",\"issuerDid\":\"did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG\",\"payload\":{\"text\":\"hello\"},\"semantic\":{\"schema\":\"https://atom.qwixl.dev/schema/CommsMessage\"},\"version\":1}",
+  "object": {
+    "version": 1,
+    "id": "01948f00-0000-7000-8000-000000000013",
+    "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+    "issuedAt": "2026-01-15T11:59:00.000Z",
+    "semantic": {
+      "schema": "https://atom.qwixl.dev/schema/CommsMessage"
+    },
+    "payload": {
+      "text": "hello"
+    },
+    "governance": {
+      "purpose": "comms:message",
+      "ttlSeconds": 3600
+    },
+    "signatureAlgorithm": "ed25519",
+    "signature": "2jzrx3EwwtD0cslRHCdYoCrqfU1kkRjsewq2MXet+JGHEcbolfledjjB/LUVb7Wd7i+4HVcDSL1zyU0rEBw7Bg=="
+  }
+}

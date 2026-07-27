@@ -1,0 +1,33 @@
+{
+  "id": "042-missing-purpose",
+  "kind": "data-object",
+  "description": "governance.purpose absent. Purpose is mandatory.",
+  "requires": [
+    "governance"
+  ],
+  "now": "2026-01-15T12:00:00.000Z",
+  "permittedPurposes": [
+    "comms:message",
+    "comms:receipt",
+    "coordination:proposal"
+  ],
+  "expect": "reject",
+  "reason": "malformed",
+  "object": {
+    "version": 1,
+    "id": "01948f00-0000-7000-8000-000000000042",
+    "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+    "issuedAt": "2026-01-15T11:59:00.000Z",
+    "semantic": {
+      "schema": "https://atom.qwixl.dev/schema/CommsMessage"
+    },
+    "payload": {
+      "text": "hello"
+    },
+    "governance": {
+      "ttlSeconds": 3600
+    },
+    "signatureAlgorithm": "ed25519",
+    "signature": "DfrbECJFF7/Gw8u8IVDTH8U9Yq5f7/lxMa3g+pcLbIDY21p72/kOW/95B1AF+UlsjdsrYeTprawG5dVUWFmGBQ=="
+  }
+}

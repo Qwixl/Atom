@@ -1,0 +1,57 @@
+{
+  "id": "050-replay-same-id",
+  "kind": "data-object-sequence",
+  "description": "The identical object is presented twice. The first MUST be accepted and the second MUST be rejected. Where an object conveys an instruction with side effects — a capture, a booking, a consent grant — replay is directly exploitable, and a valid signature is no defence because the object genuinely was signed by its issuer.",
+  "requires": [
+    "replay"
+  ],
+  "now": "2026-01-15T12:00:00.000Z",
+  "permittedPurposes": [
+    "action:capture"
+  ],
+  "sequence": [
+    {
+      "expect": "accept",
+      "object": {
+        "version": 1,
+        "id": "01948f00-0000-7000-8000-000000000050",
+        "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+        "issuedAt": "2026-01-15T11:59:00.000Z",
+        "semantic": {
+          "schema": "https://atom.qwixl.dev/schema/CommsMessage"
+        },
+        "payload": {
+          "text": "hello"
+        },
+        "governance": {
+          "purpose": "action:capture",
+          "ttlSeconds": 3600
+        },
+        "signatureAlgorithm": "ed25519",
+        "signature": "HQ+Gpsha9ZIe6CBwcR/hsqTl8wL9QB30uqubAK/8ud57CYLrtUnI9mTHH4pJm7QlqUwVd7+HaMBXuG+TdQGmCQ=="
+      }
+    },
+    {
+      "expect": "reject",
+      "reason": "replay",
+      "object": {
+        "version": 1,
+        "id": "01948f00-0000-7000-8000-000000000050",
+        "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+        "issuedAt": "2026-01-15T11:59:00.000Z",
+        "semantic": {
+          "schema": "https://atom.qwixl.dev/schema/CommsMessage"
+        },
+        "payload": {
+          "text": "hello"
+        },
+        "governance": {
+          "purpose": "action:capture",
+          "ttlSeconds": 3600
+        },
+        "signatureAlgorithm": "ed25519",
+        "signature": "HQ+Gpsha9ZIe6CBwcR/hsqTl8wL9QB30uqubAK/8ud57CYLrtUnI9mTHH4pJm7QlqUwVd7+HaMBXuG+TdQGmCQ=="
+      }
+    }
+  ]
+}
