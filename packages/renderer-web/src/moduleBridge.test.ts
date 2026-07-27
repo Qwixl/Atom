@@ -16,10 +16,17 @@ function fakeWindow() {
   return { postMessage: vi.fn() } as unknown as Window & { postMessage: ReturnType<typeof vi.fn> };
 }
 
+/** First postMessage call, as [message, targetOrigin]. Throws if init never fired. */
+function initCall(win: ReturnType<typeof fakeWindow>): [Record<string, unknown>, string] {
+  const call = win.postMessage.mock.calls[0];
+  if (!call) throw new Error("sendInit did not post a message");
+  return call as [Record<string, unknown>, string];
+}
+
 function initTarget(bundleUrl: string): string {
   const win = fakeWindow();
   createModuleBridge(bundleUrl).sendInit(win, { a: 1 });
-  return win.postMessage.mock.calls[0][1] as string;
+  return initCall(win)[1];
 }
 
 describe("createModuleBridge", () => {
@@ -65,7 +72,7 @@ describe("createModuleBridge", () => {
   it("sends the init envelope the module API expects", () => {
     const win = fakeWindow();
     createModuleBridge(SHELL_BUNDLE).sendInit(win, { greeting: "hi" });
-    const [message] = win.postMessage.mock.calls[0];
+    const [message] = initCall(win);
     expect(message).toMatchObject({ type: "init", props: { greeting: "hi" } });
     expect(message).toHaveProperty("theme");
   });
