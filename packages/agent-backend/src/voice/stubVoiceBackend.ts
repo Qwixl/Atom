@@ -51,14 +51,18 @@ function withElevenLabsSpeak(
   const apiBaseUrl = env.ELEVENLABS_API_BASE_URL?.trim() || undefined;
   const convai = loadElevenLabsConvAiConfig(env);
   return {
-    id: base.id,
+    // Prefer elevenlabs id so /voice/synthesize reports the billed speak path.
+    id: "elevenlabs" as const,
     status: () => {
       const s = base.status();
       return {
         ...s,
+        provider: "elevenlabs",
         configured: true,
         duplex: convai ? "full" : s.duplex,
-        message: "Voice ready.",
+        message: convai
+          ? "Voice ready (ElevenLabs speak + live Talk)."
+          : "Voice ready (ElevenLabs speak).",
       };
     },
     synthesize: async (request) =>
