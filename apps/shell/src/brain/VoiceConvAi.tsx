@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
 import { loadCommsAgentConfigSecure } from "../comms/storage.js";
 import { notifyVoiceOptInChanged } from "./voiceOptIn.js";
+import { unlockAgentAudio } from "./speakAgentText.js";
 
 const VOICE_CONVAI_OPT_IN_KEY = "atom.voice.convai";
 
@@ -16,13 +17,9 @@ export function loadConvAiOptIn(): boolean {
 
 export function saveConvAiOptIn(enabled: boolean): void {
   localStorage.setItem(VOICE_CONVAI_OPT_IN_KEY, enabled ? "1" : "0");
+  if (enabled) void unlockAgentAudio();
   notifyVoiceOptInChanged();
 }
-
-type ConvAiStatus = {
-  configured: boolean;
-  agentId: string | null;
-};
 
 async function adminFetch(
   path: string,
@@ -46,30 +43,8 @@ export function VoiceConvAiButton({ enabled }: { enabled: boolean }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [convaiReady, setConvaiReady] = useState(false);
   const sessionRef = useRef<Awaited<ReturnType<typeof Conversation.startSession>> | null>(null);
   const startedAtRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (!enabled || !config.adminToken?.trim()) {
-      setConvaiReady(false);
-      return;
-    }
-    void (async () => {
-      try {
-        const resp = await adminFetch("/voice/status", {
-          method: "GET",
-          adminUrl: config.adminUrl,
-          adminToken: config.adminToken,
-        });
-        if (!resp.ok) return;
-        const body = (await resp.json()) as { convai?: ConvAiStatus };
-        setConvaiReady(Boolean(body.convai?.configured));
-      } catch {
-        setConvaiReady(false);
-      }
-    })();
-  }, [enabled, config]);
 
   const reportSessionEnded = useCallback(
     async (durationSeconds: number, conversationId?: string) => {
@@ -120,9 +95,13 @@ export function VoiceConvAiButton({ enabled }: { enabled: boolean }) {
     setBusy(true);
     setStatus("Connecting…");
     try {
+      await unlockAgentAudio();
       const admin = config.adminToken?.trim()
         ? config
         : await loadCommsAgentConfigSecure();
+      if (!admin.adminUrl?.trim() || !admin.adminToken?.trim()) {
+        throw new Error("Unlock your vault to use voice.");
+      }
       const tokenResp = await adminFetch("/voice/convai/token", {
         method: "POST",
         adminUrl: admin.adminUrl,
@@ -134,7 +113,7 @@ export function VoiceConvAiButton({ enabled }: { enabled: boolean }) {
         error?: string;
       };
       if (!tokenResp.ok || !tokenBody.token) {
-        throw new Error(tokenBody.error || `ConvAI token failed (${tokenResp.status})`);
+        throw new Error(tokenBody.error || `Could not start voice (${tokenResp.status})`);
       }
 
       const session = await Conversation.startSession({
@@ -170,7 +149,7 @@ export function VoiceConvAiButton({ enabled }: { enabled: boolean }) {
     };
   }, []);
 
-  if (!enabled || !convaiReady) return null;
+  if (!enabled) return null;
 
   return (
     <div className="voice-ptt voice-convai" aria-live="polite">
