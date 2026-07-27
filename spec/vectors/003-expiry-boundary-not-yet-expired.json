@@ -1,0 +1,35 @@
+{
+  "id": "003-expiry-boundary-not-yet-expired",
+  "kind": "data-object",
+  "description": "Expires one second after `now`. MUST be accepted. Guards against an off-by-one that rejects still-valid objects.",
+  "requires": [
+    "governance",
+    "processing"
+  ],
+  "now": "2026-01-15T12:00:00.000Z",
+  "permittedPurposes": [
+    "comms:message",
+    "comms:receipt",
+    "coordination:proposal"
+  ],
+  "expect": "accept",
+  "canonicalForm": "{\"governance\":{\"expiresAt\":\"2026-01-15T12:00:01.000Z\",\"purpose\":\"comms:message\"},\"id\":\"01948f00-0000-7000-8000-000000000003\",\"issuedAt\":\"2026-01-15T12:00:00.000Z\",\"issuerDid\":\"did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG\",\"payload\":{\"text\":\"hello\"},\"semantic\":{\"schema\":\"https://atom.qwixl.dev/schema/CommsMessage\"},\"version\":1}",
+  "object": {
+    "version": 1,
+    "id": "01948f00-0000-7000-8000-000000000003",
+    "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+    "issuedAt": "2026-01-15T12:00:00.000Z",
+    "semantic": {
+      "schema": "https://atom.qwixl.dev/schema/CommsMessage"
+    },
+    "payload": {
+      "text": "hello"
+    },
+    "governance": {
+      "purpose": "comms:message",
+      "expiresAt": "2026-01-15T12:00:01.000Z"
+    },
+    "signatureAlgorithm": "ed25519",
+    "signature": "Yn1uMUV5CX3SCEsGe5Vw6WVGElRbibQ4esszWMRf+naboUS7JFnFk7+lRASq4L+w0mHkTlORNRvRrjsFNh01Dw=="
+  }
+}

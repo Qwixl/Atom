@@ -1,0 +1,36 @@
+{
+  "id": "022-expiry-earlier-of-both-wins",
+  "kind": "data-object",
+  "description": "ttlSeconds implies an expiry far in the future, expiresAt is in the past. The earlier instant governs, so this MUST be rejected. An implementation that only reads whichever field it finds first will wrongly accept.",
+  "requires": [
+    "governance"
+  ],
+  "now": "2026-01-15T12:00:00.000Z",
+  "permittedPurposes": [
+    "comms:message",
+    "comms:receipt",
+    "coordination:proposal"
+  ],
+  "expect": "reject",
+  "reason": "expired",
+  "canonicalForm": "{\"governance\":{\"expiresAt\":\"2026-01-15T11:30:00.000Z\",\"purpose\":\"comms:message\",\"ttlSeconds\":31536000},\"id\":\"01948f00-0000-7000-8000-000000000022\",\"issuedAt\":\"2026-01-15T11:00:00.000Z\",\"issuerDid\":\"did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG\",\"payload\":{\"text\":\"hello\"},\"semantic\":{\"schema\":\"https://atom.qwixl.dev/schema/CommsMessage\"},\"version\":1}",
+  "object": {
+    "version": 1,
+    "id": "01948f00-0000-7000-8000-000000000022",
+    "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+    "issuedAt": "2026-01-15T11:00:00.000Z",
+    "semantic": {
+      "schema": "https://atom.qwixl.dev/schema/CommsMessage"
+    },
+    "payload": {
+      "text": "hello"
+    },
+    "governance": {
+      "purpose": "comms:message",
+      "ttlSeconds": 31536000,
+      "expiresAt": "2026-01-15T11:30:00.000Z"
+    },
+    "signatureAlgorithm": "ed25519",
+    "signature": "c+5v7gyYSwnHEb9wC8GBoXgRh4tBE3MEAZNXyy0V6GEr91K0d5zZB+O6ksEdyy31SIkOGHViLNs/ukeKaWaZAw=="
+  }
+}

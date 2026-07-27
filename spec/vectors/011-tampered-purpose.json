@@ -1,0 +1,34 @@
+{
+  "id": "011-tampered-purpose",
+  "kind": "data-object",
+  "description": "Declared purpose altered after signing. Proves the governance block is inside the signature: a relay cannot broaden the purpose under which data was disclosed.",
+  "requires": [
+    "canonical",
+    "governance"
+  ],
+  "now": "2026-01-15T12:00:00.000Z",
+  "permittedPurposes": [
+    "comms:message",
+    "commerce:intent"
+  ],
+  "expect": "reject",
+  "reason": "signature-invalid",
+  "object": {
+    "version": 1,
+    "id": "01948f00-0000-7000-8000-000000000011",
+    "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+    "issuedAt": "2026-01-15T11:59:00.000Z",
+    "semantic": {
+      "schema": "https://atom.qwixl.dev/schema/CommsMessage"
+    },
+    "payload": {
+      "text": "hello"
+    },
+    "governance": {
+      "purpose": "commerce:intent",
+      "ttlSeconds": 3600
+    },
+    "signatureAlgorithm": "ed25519",
+    "signature": "RrXZi5uYnReVsP9elvX0d6JSwmvHU97b35kleYmyHXuZT6Gs9lFbrifqr7mbDsNY86/BbDq4FlLoAADg2JORBw=="
+  }
+}
