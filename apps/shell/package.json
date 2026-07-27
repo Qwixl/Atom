@@ -11,10 +11,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@capacitor/app": "^7.1.2",
-    "@capacitor/core": "^7.4.2",
-    "@capacitor/push-notifications": "^7.0.1",
-    "@capacitor/status-bar": "^7.0.1",
     "@qwixl/a2a-transport": "workspace:*",
     "@qwixl/a2ui-adapter": "workspace:*",
     "@qwixl/ag-ui-adapter": "workspace:*",
