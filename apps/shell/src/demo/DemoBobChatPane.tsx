@@ -15,6 +15,9 @@ import {
   ModuleRegistry,
   registerCorePrimitives,
   registerEcosystemModules,
+  type Composition,
+  type CompositionNode,
+  type JsonObject,
   type UiEvent,
 } from "@qwixl/shell-core";
 import { agUiAuthHeaders, agUiUrlFromAgentAdminUrl } from "../agUiConfig.js";
@@ -27,6 +30,22 @@ export type DemoBobProposalNotice = {
   title: string;
   slots: SchedulingSlot[];
 };
+
+/** Keep meeting-confirm props grounded in the A2A proposal (models may drift labels/times). */
+function groundMeetingConfirmProps(composition: Composition, proposal: DemoBobProposalNotice): void {
+  const walk = (node: CompositionNode) => {
+    if (node.component === "scheduling/meeting-confirm") {
+      const props: JsonObject = {
+        ...(node.props ?? {}),
+        title: proposal.title,
+        slots: JSON.parse(JSON.stringify(proposal.slots)) as JsonObject["slots"],
+      };
+      node.props = props;
+    }
+    for (const child of node.children ?? []) walk(child);
+  };
+  walk(composition.root);
+}
 
 export type DemoBobChatPaneHandle = {
   notifyProposal: (proposal: DemoBobProposalNotice) => void;
@@ -74,12 +93,16 @@ export const DemoBobChatPane = forwardRef<
     [bobAdminToken, bobAdminUrl],
   );
 
+  const inboundProposalRef = useRef<DemoBobProposalNotice | null>(null);
+
   const conversation = useMemo(
     () =>
       new ConversationRuntime({
         catalog,
         beforeResolveComposition: async (composition) => {
           await registry.ensureModules(catalog, composition);
+          const proposal = inboundProposalRef.current;
+          if (proposal) groundMeetingConfirmProps(composition, proposal);
         },
       }),
     [catalog, registry],
@@ -105,7 +128,19 @@ export const DemoBobChatPane = forwardRef<
   const confirmSeenRef = useRef(false);
 
   useEffect(() => {
-    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
+    const el = feedRef.current;
+    if (!el) return;
+    const scrollToEnd = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+    scrollToEnd();
+    // Layout can settle after module iframes resize — re-pin to bottom.
+    const t1 = window.setTimeout(scrollToEnd, 50);
+    const t2 = window.setTimeout(scrollToEnd, 250);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
   }, [snapshot.feed, snapshot.busy]);
 
   useEffect(() => {
@@ -125,6 +160,7 @@ export const DemoBobChatPane = forwardRef<
       if (notifiedRef.current === proposal.proposalId) return;
       notifiedRef.current = proposal.proposalId;
       activeProposalIdRef.current = proposal.proposalId;
+      inboundProposalRef.current = proposal;
       const slotLines = proposal.slots
         .map(
           (slot, index) =>
@@ -136,7 +172,7 @@ export const DemoBobChatPane = forwardRef<
         `proposalId=${proposal.proposalId}\n` +
         `title=${proposal.title}\n` +
         `slots:\n${slotLines}\n` +
-        `Compose scheduling/meeting-confirm so I can accept or decline.`;
+        `Compose scheduling/meeting-confirm with these exact title and slots so I can accept or decline.`;
       conversation.appendUser("New meeting proposal from Alice");
       session.sendUserMessage(text);
     },
@@ -208,7 +244,7 @@ export const DemoBobChatPane = forwardRef<
           })
         )}
         {snapshot.busy || busyOutbound ? (
-          <div className="feed-busy">Bob’s agent working…</div>
+          <div className="feed-busy demo-feed-busy">Bob’s agent is working…</div>
         ) : null}
       </div>
     </div>

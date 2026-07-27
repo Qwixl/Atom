@@ -12,8 +12,8 @@ import { renderRichTextWithLinks } from "./renderRichText.js";
 function minHeightForModule(moduleId: string): number {
   const shortViewport =
     typeof window !== "undefined" && window.matchMedia("(max-width: 640px), (max-height: 700px)").matches;
-  if (moduleId === "scheduling/meeting-picker") return shortViewport ? 240 : 300;
-  if (moduleId === "scheduling/meeting-confirm") return shortViewport ? 180 : 220;
+  if (moduleId === "scheduling/meeting-picker") return shortViewport ? 168 : 196;
+  if (moduleId === "scheduling/meeting-confirm") return shortViewport ? 140 : 168;
   if (moduleId === "games/battleships") return shortViewport ? 260 : 320;
   return shortViewport ? 120 : 160;
 }

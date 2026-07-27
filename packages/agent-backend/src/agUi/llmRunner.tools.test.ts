@@ -55,6 +55,48 @@ describe("runLlmAgUiEvents connector tool loop", () => {
           ],
           usage: { prompt_tokens: 20, completion_tokens: 8 },
         }),
+      })
+      // First reply had no composition for a list-shaped tool with real items — the
+      // list-composition repair (llmRunner.ts) re-prompts once for a rendered list.
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                role: "assistant",
+                content: JSON.stringify({
+                  messages: [
+                    { type: "text", text: "You have standup at 9." },
+                    {
+                      type: "composition",
+                      composition: {
+                        version: 1,
+                        surfaceId: "schedule-today",
+                        intent: "Today's calendar events",
+                        root: {
+                          id: "schedule-card",
+                          component: "core/card",
+                          semanticRole: "container/card",
+                          props: { title: "Today" },
+                          children: [
+                            {
+                              id: "schedule-list",
+                              component: "core/list",
+                              semanticRole: "collection/list",
+                              props: { items: ["Standup: 2026-07-09T09:00:00Z"] },
+                            },
+                          ],
+                        },
+                      },
+                    },
+                  ],
+                }),
+              },
+            },
+          ],
+          usage: { prompt_tokens: 15, completion_tokens: 8 },
+        }),
       });
 
     const connectorExecutor = vi.fn(async () => ({
@@ -85,14 +127,23 @@ describe("runLlmAgUiEvents connector tool loop", () => {
       operation: "listEvents",
       input: undefined,
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     const secondBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body ?? "{}")) as {
       messages: Array<{ role: string; tool_call_id?: string }>;
     };
     expect(secondBody.messages.some((m) => m.role === "tool" && m.tool_call_id === "call_1")).toBe(
       true,
     );
+    const thirdBody = JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body ?? "{}")) as {
+      messages: Array<{ role: string; content?: string }>;
+    };
+    expect(
+      thirdBody.messages.some(
+        (m) => m.role === "user" && m.content?.includes("[list-composition-repair]"),
+      ),
+    ).toBe(true);
     expect(JSON.stringify(events)).toContain("You have standup at 9.");
+    expect(JSON.stringify(events)).toContain("schedule-today");
 
     vi.unstubAllGlobals();
   });

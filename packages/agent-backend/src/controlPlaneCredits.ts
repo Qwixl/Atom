@@ -52,18 +52,22 @@ export function reportInferenceUsageToControlPlane(input: {
   });
 }
 
-/** Standard + BYOK speech (char count; MC prices). */
+/** Standard + BYOK speech facts (chars and/or live-session seconds; MC prices). */
 export function reportSpeechUsageToControlPlane(input: {
-  charCount: number;
+  charCount?: number;
+  /** Live voice session length when a host reports it — MC prices. */
+  durationSeconds?: number;
   idempotencyKey?: string;
 }): void {
   const lane = billingLane();
   if (lane !== "standard" && lane !== "byok") return;
-  const charCount = Math.max(0, Math.floor(input.charCount));
-  if (charCount <= 0) return;
+  const charCount = Math.max(0, Math.floor(input.charCount ?? 0));
+  const durationSeconds = Math.max(0, Math.floor(input.durationSeconds ?? 0));
+  if (charCount <= 0 && durationSeconds <= 0) return;
   postUsage({
     meter: "speech",
-    charCount,
+    ...(charCount > 0 ? { charCount } : {}),
+    ...(durationSeconds > 0 ? { durationSeconds } : {}),
     idempotencyKey: input.idempotencyKey,
   });
 }

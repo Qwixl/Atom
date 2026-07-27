@@ -1,9 +1,92 @@
 /* Guided live demo — chat-first Alice, Bob-only mission, coach overlays */
 
+.demo-pair--guided {
+  flex: none;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  gap: 32px;
+}
+
+/* Live Alice/Bob UI — fixed first-screen block; must not collapse. */
+.demo-pair-workspace {
+  flex: none;
+  width: 100%;
+  height: calc(100dvh - var(--atom-header-h, 44px) - 48px);
+  min-height: 560px;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .demo-pair--guided .atom-pair-columns {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   gap: 16px;
   align-items: stretch;
+}
+
+.demo-explore {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 24px 4px 80px;
+  max-width: 40rem;
+}
+
+.demo-explore-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.demo-explore-kicker {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--shell-status-active, #e87722);
+}
+
+.demo-explore-title {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+  color: var(--shell-text);
+}
+
+.demo-explore-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.demo-explore-body p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--shell-text-muted);
+}
+
+.demo-explore-body code {
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--shell-inset-bg);
+  color: var(--shell-text);
+}
+
+.demo-explore-block--tech .demo-explore-title {
+  font-size: 1.25rem;
 }
 
 .demo-bob-column {
@@ -117,21 +200,26 @@
 
 .demo-pane-body--chat {
   overflow: hidden;
+  min-height: 0;
 }
 
 .demo-pane-chat {
-  flex: 1 1 58%;
-  min-height: 220px;
+  flex: 1 1 55%;
+  min-height: 0;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  overflow: hidden;
   border-bottom: none;
 }
 
-.atom-app--demo .demo-pane--alice .demo-pane-thread {
+.atom-app--demo .demo-pane--alice .demo-pane-thread,
+.atom-app--demo .demo-pane--bob .demo-pane-thread {
   flex: 0 1 38%;
   min-height: 120px;
   max-height: 42%;
+  overflow: hidden;
   border-top: 1px solid var(--shell-border);
   background: color-mix(in srgb, var(--shell-inset-bg) 65%, var(--shell-raised-bg));
 }
@@ -176,12 +264,14 @@
   font-size: 11px;
 }
 
-/* Alice chat pane */
-.demo-alice-chat {
+/* Alice / Bob chat panes — must clip so Activity stays a separate region */
+.demo-alice-chat,
+.demo-bob-chat {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .demo-alice-chat-feed {
@@ -194,6 +284,16 @@
   flex-direction: column;
   gap: 10px;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Busy status: readable color, same pulse as shared .feed-busy. */
+.demo-alice-chat-feed .demo-feed-busy,
+.demo-bob-chat .demo-feed-busy {
+  color: var(--shell-text);
+  font-size: 13px;
+  font-weight: 650;
+  padding: 6px 0 2px;
+  animation: pulse 1.4s infinite;
 }
 
 .demo-alice-chat-empty {
@@ -249,10 +349,15 @@
   line-height: 1.4;
 }
 
-.demo-feed-agent {
+/* Beat styles.css `.feed-agent` (loaded later) — readable agent turns in demo chat. */
+.demo-alice-chat-feed .feed-agent.demo-feed-agent,
+.demo-bob-chat .feed-agent.demo-feed-agent {
   align-self: flex-start;
   max-width: 95%;
-  padding: 2px 0;
+  padding: 8px 12px;
+  border-radius: 14px 14px 14px 4px;
+  border: 1px solid var(--shell-border);
+  background: var(--shell-raised-bg);
   font-size: 13px;
   line-height: 1.45;
   color: var(--shell-text);
@@ -301,6 +406,10 @@
 }
 
 .atom-app--demo .demo-pane-thread-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 8px 12px 12px;
 }
 
@@ -450,13 +559,22 @@
   animation: demo-pulse-soft 1.4s ease-in-out infinite;
 }
 
-/* Elevate only the interactive hotspot above the scrim — never above the tip card. */
+/* Elevate only the interactive hotspot above the scrim — never above the tip card.
+   Do NOT elevate ask-compose / bob-pane (Activity) — those stay greyed under the scrim. */
 html[data-demo-coach="ask"] [data-demo-target="ask"],
-html[data-demo-coach="pick"] [data-demo-target="picker"],
-html[data-demo-coach="watch"] [data-demo-target="bob-pane"],
-html[data-demo-coach="accept"] [data-demo-target="bob-pane"] {
+html[data-demo-coach="build"] [data-demo-target="alice-feed"],
+html[data-demo-coach="build"] [data-demo-target="picker"],
+html[data-demo-coach="bob"] [data-demo-target="bob-chat"],
+html[data-demo-coach="bob"] [data-demo-target="bob-confirm"] {
   position: relative;
   z-index: 83;
+}
+
+/* Elevated chat must still clip inside its flex slot (don’t paint over Activity). */
+html[data-demo-coach="bob"] [data-demo-target="bob-chat"],
+html[data-demo-coach="build"] [data-demo-target="alice-feed"] {
+  overflow: hidden;
+  max-height: 100%;
 }
 
 @media (max-width: 900px) {
@@ -471,7 +589,9 @@ html[data-demo-coach="accept"] [data-demo-target="bob-pane"] {
   .demo-coach-hole,
   .demo-mission-steps li[data-active="true"],
   .demo-coach-wait,
-  .demo-ask-chip {
+  .demo-ask-chip,
+  .demo-alice-chat-feed .demo-feed-busy,
+  .demo-bob-chat .demo-feed-busy {
     animation: none;
     transition: none;
   }

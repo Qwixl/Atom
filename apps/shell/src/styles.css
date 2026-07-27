@@ -56,6 +56,8 @@ body {
   justify-content: center;
   padding: 20px;
   overflow-y: auto;
+  /* Toggles focus a clipped input; don't let the overlay scroll-jump. */
+  overflow-anchor: none;
 }
 
 .settings-dialog {
@@ -1808,6 +1810,100 @@ body {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--shell-accent, #888) 35%, transparent);
 }
 
+.atom-composer-stack {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: var(--atom-chat-max, 720px);
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+.voice-tray {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  min-height: 1.75rem;
+  padding: 8px 24px 0;
+  box-sizing: border-box;
+}
+
+.voice-tray:empty {
+  display: none;
+}
+
+.voice-tray-item,
+.voice-ptt.voice-tray-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  width: auto;
+  max-width: none;
+  justify-content: flex-start;
+}
+
+.voice-tray-switch.settings-switch,
+.voice-tray .settings-switch {
+  margin: 0;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.voice-tray-switch .settings-switch-track {
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+}
+
+.voice-tray-switch .settings-switch-thumb {
+  width: 14px;
+  height: 14px;
+}
+
+.voice-tray-switch input:checked + .settings-switch-track .settings-switch-thumb {
+  transform: translateX(14px);
+}
+
+.voice-tray-status {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: color-mix(in srgb, var(--shell-text, currentColor) 65%, transparent);
+  white-space: nowrap;
+}
+
+.voice-tray-error {
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--shell-danger, #b42318);
+}
+
+.voice-tray-error--block {
+  margin: 6px 24px 0;
+  text-align: left;
+}
+
+.atom-composer-stack > .shell-composer {
+  padding-top: 8px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* Composition primitives: @qwixl/skin-default/primitives.css */
 
 .settings-model-row {
@@ -1875,6 +1971,7 @@ body {
 
 /* Real switch control — use SettingsToggle / .settings-switch everywhere Settings says "toggle". */
 .settings-switch {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -1891,13 +1988,19 @@ body {
   cursor: not-allowed;
 }
 
+/*
+ * Cover the whole control. A 1×1px off-layout checkbox makes the browser
+ * scrollIntoView on click and throws the settings modal off-screen.
+ */
 .settings-switch input {
   position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   margin: 0;
-  pointer-events: none;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
 }
 
 .settings-switch-track {

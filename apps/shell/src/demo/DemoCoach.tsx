@@ -9,6 +9,7 @@ export type DemoCoachStep =
 
 type Tip = {
   id: DemoCoachStep;
+  /** First matching element is the spotlight hole. */
   target: string | null;
   kicker: string;
   title: string;
@@ -22,26 +23,29 @@ const TIPS: Tip[] = [
     target: null,
     kicker: "Agent web demo",
     title: "Ask your agent to set up the meeting",
-    body: "For this demo you are Alice talking to her agent. Ask it to set up a meeting with Bob — Bob’s agent will accept or decline. It’s a simple look at an agent completing a task and rendering dynamic, in-chat components.",
+    body: "For this demo you are Alice talking to her agent. Ask it to set up a meeting with Bob — Bob’s agent will receive the request and build an in-chat component for Bob to quickly accept or decline. It’s a simple look at an agent completing a task and rendering dynamic, in-chat components (Level 1 of an agent's potential in Atom).",
     actionLabel: "Show me",
   },
   {
     id: "ask",
-    target: "[data-demo-target='ask'], [data-demo-target='ask-compose']",
+    // Chip only — keep the composer under the scrim.
+    target: "[data-demo-target='ask']",
     kicker: "Step 1 of 3",
     title: "Ask Alice to schedule",
     body: "Tap the suggestion chip (or type your own ask). Alice’s agent runs on a real model — if something’s missing (like a day or time), it will ask before building UI.",
   },
   {
     id: "build",
-    target: "[data-demo-target='alice-chat'], [data-demo-target='picker']",
+    // Prefer the agent-composed picker; fall back to the chat feed.
+    target: "[data-demo-target='picker'], [data-demo-target='alice-feed']",
     kicker: "Step 2 of 3",
     title: "Alice’s agent builds the UI",
     body: "Watch the chat: clarifying questions first if needed, then an interactive meeting picker composed in the conversation. Edit the title/time if you like, then send the proposal.",
   },
   {
     id: "bob",
-    target: "[data-demo-target='bob-chat'], [data-demo-target='bob-pane']",
+    // Confirm module in Bob’s chat — not the whole pane / Activity list.
+    target: "[data-demo-target='bob-confirm'], [data-demo-target='bob-chat']",
     kicker: "Step 3 of 3",
     title: "Bob’s agent confirms",
     body: "Bob’s agent receives the proposal and builds its own confirmation component. Accept or decline — both Activity feeds update.",
@@ -116,19 +120,32 @@ export function DemoCoach({
   }, [step]);
 
   const pad = 8;
-  const tipEstimate = 210;
+  const tipW = 340;
+  const tipEstimate = 220;
   const tipStyle =
     rect && tip.target
       ? (() => {
-          const belowTop = rect.top + rect.height + pad + 4;
+          const rightLeft = rect.left + rect.width + pad + 8;
+          const placeRight = rightLeft + tipW < window.innerWidth - 12;
+          if (placeRight) {
+            return {
+              top: Math.min(
+                window.innerHeight - tipEstimate - 12,
+                Math.max(12, rect.top),
+              ),
+              left: Math.min(window.innerWidth - tipW - 12, rightLeft),
+            } as const;
+          }
           const aboveTop = rect.top - tipEstimate - pad;
-          const placeAbove =
-            belowTop + tipEstimate > window.innerHeight - 16 && aboveTop >= 12;
+          const placeAbove = aboveTop >= 12;
           return {
             top: placeAbove
               ? Math.max(12, aboveTop)
-              : Math.min(window.innerHeight - tipEstimate, Math.max(12, belowTop)),
-            left: Math.min(window.innerWidth - 320, Math.max(12, rect.left)),
+              : Math.min(
+                  window.innerHeight - tipEstimate - 12,
+                  Math.max(12, rect.top + rect.height + pad + 4),
+                ),
+            left: Math.min(window.innerWidth - tipW - 12, Math.max(12, rect.left)),
           } as const;
         })()
       : undefined;
