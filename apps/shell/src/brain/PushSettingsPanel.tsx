@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
-import { ensureFreshChatSessionToken, getChatSessionToken } from "../comms/chatSessionToken.js";
+import { useState } from "react";
+import { ensureFreshChatSessionToken } from "../comms/chatSessionToken.js";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
-import { usesSupabaseHostedAuth } from "../hostConfig.js";
 import { SettingsToggle } from "../ui/SettingsToggle.js";
 import {
   ensureCapacitorPush,
   ensureWebPushSubscription,
-  fetchPushStatus,
   loadPushOptIn,
   savePushOptIn,
   unsubscribeWebPush,
@@ -24,30 +22,6 @@ export function PushSettingsPanel({
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [configured, setConfigured] = useState<{ web: boolean; fcm: boolean } | null>(null);
-
-  const refresh = useCallback(async () => {
-    if (!vaultUnlocked) {
-      setConfigured(null);
-      return;
-    }
-    if (!config.adminToken?.trim() && !usesSupabaseHostedAuth() && !getChatSessionToken()) {
-      setConfigured(null);
-      return;
-    }
-    try {
-      await ensureFreshChatSessionToken(config);
-      const status = await fetchPushStatus(config);
-      setConfigured({ web: status.webPushConfigured, fcm: status.fcmConfigured });
-    } catch {
-      setConfigured(null);
-    }
-  }, [config, vaultUnlocked]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
   async function setEnabled(enabled: boolean) {
     setBusy(true);
     setError(null);
@@ -69,7 +43,7 @@ export function PushSettingsPanel({
       const web = await ensureWebPushSubscription(config);
       if (web === "subscribed") setNote("Browser push registered.");
       else if (web === "not-configured")
-        setNote("Push opted in — agent needs VAPID keys (ATOM_VAPID_*) to deliver.");
+        setNote("Push is on, but this agent can’t send alerts yet.");
       else if (web === "denied") setError("Notification permission denied.");
       else if (web === "unsupported") setError("This browser does not support Web Push.");
       else setError("Could not register for push.");
@@ -84,20 +58,12 @@ export function PushSettingsPanel({
   const fields = (
     <>
       <p className="settings-note">
-        Receive Agent Brain alerts when Chat is closed. Desktop uses Web Push; Android uses FCM via
-        the Capacitor wrapper. Chat polling remains the foreground fallback.
+        Get alerts from your agent when Atom is closed.
       </p>
       {!vaultUnlocked || !config.adminToken?.trim() ? (
-        <p className="settings-note">Unlock the vault and connect your agent to manage push.</p>
+        <p className="settings-note">Unlock your vault to turn this on.</p>
       ) : (
         <>
-          {configured ? (
-            <p className="settings-note">
-              Agent: Web Push {configured.web ? "ready" : "not configured"}
-              {" · "}
-              FCM {configured.fcm ? "ready" : "not configured"}
-            </p>
-          ) : null}
           <SettingsToggle
             checked={optIn}
             label="Enable push notifications"
