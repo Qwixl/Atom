@@ -7,16 +7,16 @@ IETF Internet-Draft, and the conformance test vectors it references.
 
 | Path | What it is |
 |---|---|
-| `draft-chapman-a2a-mls-01.{md,txt,xml}` | **Current revision.** Source, rendered text, rendered XML |
-| `draft-chapman-a2a-mls-00.{md,txt,xml}` | Previous revision, retained as the published record |
-| `build.sh` | Renders and validates a revision: `./build.sh draft-chapman-a2a-mls-01` |
+| `draft-chapman-a2a-mls-00.md` | **Current first-submission source**, kramdown-rfc markdown |
+| `draft-chapman-a2a-mls-00.txt` | Rendered human-readable draft |
+| `draft-chapman-a2a-mls-00.xml` | Rendered XML — upload this one file to Datatracker |
+| `build.sh` | Renders and validates the draft: `./build.sh` |
 | `vectors/` | 31 conformance test vectors — see `vectors/README.md` |
 
-`-01` revises the A2A binding only: it restates the three part encodings against A2A
-v1.0, adds the media-type placement rules, Agent Card signatures, and version
-compatibility. The Governed Object and every rule about processing it are unchanged, so
-an implementation conforming to `-00` at those layers still conforms. The draft's own
-"Changes from -00" appendix is the authoritative list.
+An Internet-Draft's first public submission must be numbered `-00`. The current file
+contains the complete A2A v1.0 binding, including media-type placement, Agent Card
+signatures, version compatibility, and the Governed Object processing rules. There is no
+published earlier revision.
 
 ## Why the draft is vendor-neutral
 
@@ -42,7 +42,7 @@ code.
 No local toolchain is required. The IETF's own renderer validates and builds it:
 
 ```bash
-./build.sh draft-chapman-a2a-mls-01
+./build.sh
 ```
 
 This posts the markdown to `author-tools.ietf.org`, reports any errors or
@@ -55,8 +55,8 @@ To work offline instead:
 ```bash
 uv tool install xml2rfc
 gem install kramdown-rfc2629   # requires Ruby
-kramdown-rfc2629 draft-chapman-a2a-mls-01.md > draft-chapman-a2a-mls-01.xml
-xml2rfc --text draft-chapman-a2a-mls-01.xml
+kramdown-rfc2629 draft-chapman-a2a-mls-00.md > draft-chapman-a2a-mls-00.xml
+xml2rfc --text draft-chapman-a2a-mls-00.xml
 ```
 
 ## Submitting
@@ -66,13 +66,16 @@ Cost: nothing. There is no fee to publish an Internet-Draft.
 1. Create an IETF Datatracker account at <https://datatracker.ietf.org/accounts/create/>.
    Free, needs an email address only. No membership or organisation required.
 2. Run `./build.sh` and confirm zero errors.
-3. Submit the `.xml` (preferred) or `.txt` at <https://datatracker.ietf.org/submit/>.
+3. Upload **only** `draft-chapman-a2a-mls-00.xml` at
+   <https://datatracker.ietf.org/submit/>. The source, text, and vectors stay in
+   this repository; they are not additional submission files.
 4. Confirm via the emailed link. The draft appears publicly within minutes at
    `https://datatracker.ietf.org/doc/draft-chapman-a2a-mls/`.
 
 Two operational notes:
 
-- Drafts expire after six months. Submitting `-01` before expiry keeps the
+- Drafts expire after six months. Submitting a new revision (`-01`, then `-02`, and
+  so on) before expiry keeps the
   document alive; letting it lapse does not erase it, but a lapsed draft reads
   as abandoned.
 - Submissions are closed for a period around each IETF meeting. Check

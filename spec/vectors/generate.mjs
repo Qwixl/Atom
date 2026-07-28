@@ -644,7 +644,7 @@ for (const vector of vectors) {
 }
 
 const manifest = {
-  specification: "draft-chapman-a2a-mls-01",
+  specification: "draft-chapman-a2a-mls-00",
   generated: "deterministic — regenerate with `node spec/vectors/generate.mjs`",
   identities: {
     alice: { did: ALICE_DID, publicKeyBase64: ALICE.publicKey.toString("base64") },
