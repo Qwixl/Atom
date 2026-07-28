@@ -1,10 +1,10 @@
 import type { AgentCard, Message } from "@a2a-js/sdk";
-import type {
-  AgentExecutor,
-  ExecutionEventBus,
-  RequestContext,
+import {
+  AgentEvent,
+  type AgentExecutor,
+  type ExecutionEventBus,
+  type RequestContext,
 } from "@a2a-js/sdk/server";
-import { v4 as uuidv4 } from "uuid";
 import {
   signDataObject,
   type AgentKeyPair,
@@ -16,6 +16,7 @@ import { verifyMessageDataObjects } from "./parts.js";
 import { dataObjectToPart } from "./parts.js";
 import { parseMlsWireFromPart } from "./mlsWire.js";
 import { parseMlsHandshakeFromPart } from "./mlsHandshake.js";
+import { atomMessage, textPart } from "./message.js";
 import type { MlsWireMessage } from "@qwixl/mls-session";
 import type { AtomMlsHandshakeEnvelope } from "./mlsHandshake.js";
 
@@ -133,15 +134,13 @@ export class AtomDataObjectExecutor implements AgentExecutor {
       }
     }
 
-    const response: Message = {
-      kind: "message",
-      messageId: uuidv4(),
+    const response: Message = atomMessage({
       role: "agent",
       contextId: userMessage.contextId,
-      parts: parts.length > 0 ? parts : [{ kind: "text", text: "Received." }],
-    };
+      parts: parts.length > 0 ? parts : [textPart("Received.")],
+    });
 
-    eventBus.publish(response);
+    eventBus.publish(AgentEvent.message(response));
     eventBus.finished();
   }
 

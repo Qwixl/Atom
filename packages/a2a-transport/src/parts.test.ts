@@ -20,7 +20,8 @@ describe("A2A data object parts", () => {
     );
 
     const part = dataObjectToPart(object);
-    expect(part.kind).toBe("data");
+    expect(part.content?.$case).toBe("data");
+    expect(part.mediaType).toBe(ATOM_DATA_OBJECT_MEDIA_TYPE);
 
     const wire = parseWireFromPart(part);
     expect(wire?.mediaType).toBe(ATOM_DATA_OBJECT_MEDIA_TYPE);

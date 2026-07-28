@@ -12,6 +12,7 @@ import {
   ROOM_INVITE_PURPOSE,
   createContactInvite,
   decodeEncryptedObjectPayload,
+  signAtomAgentCard,
   ACTION_PURPOSES,
   TRANSACTION_PURPOSES,
   QUALIFY_PURPOSES,
@@ -315,6 +316,11 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
         : undefined,
   });
 
+  // Sign the card with the agent's own did:key. Without this the card is only as
+  // trustworthy as the transport that delivered it, which lets any host publish a
+  // card claiming any agent's DID (see `verifyWellKnownDomainControl`).
+  const signedAgentCard = await signAtomAgentCard(agentCard, identity);
+
   const inboxPurposes = [
     COMMS_MESSAGE_PURPOSE,
     COMMS_RECEIPT_PURPOSE,
@@ -463,7 +469,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     },
   });
 
-  const a2aApp = createAtomA2aExpressApp({ agentCard, executor });
+  const a2aApp = createAtomA2aExpressApp({ agentCard: signedAgentCard, executor });
   const app = express();
 
   app.use(

@@ -45,7 +45,7 @@
   },
   "dependencies": {
     "@noble/hashes": "^1.8.0",
-    "@a2a-js/sdk": "^0.3.13",
+    "@a2a-js/sdk": "^1.0.0",
     "@qwixl/mls-session": "workspace:*",
     "@qwixl/protocol": "workspace:*",
     "uuid": "^11.1.0"
@@ -63,6 +63,7 @@
     "@types/node": "^22.0.0",
     "express": "^5.1.0",
     "typescript": "^5.6.0",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "@a2a-js/sdk-v03": "npm:@a2a-js/sdk@0.3.14"
   }
 }

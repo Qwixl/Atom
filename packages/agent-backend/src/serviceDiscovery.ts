@@ -1,3 +1,4 @@
+import { agentCardUrl, fetchAtomAgentCard } from "@qwixl/a2a-transport";
 import type { BusinessIndexEntry } from "@qwixl/business-index";
 import type { AgentBackendConfig } from "./config.js";
 import { COFFEE_SHOP_ROOM_ID } from "./communityCoffeeShop.js";
@@ -135,18 +136,19 @@ async function resolveViaWellKnown(businessDomain: string): Promise<ResolvedDisc
   const domain = businessDomain.trim();
   if (!domain) return null;
   try {
-    const resp = await fetch(`https://${domain}/.well-known/agent-card.json`);
-    if (!resp.ok) return null;
-    const card = (await resp.json()) as { url?: string };
-    if (!card.url?.trim()) return null;
-    const adminBase = adminBaseFromPeerUrl(card.url);
+    // Resolved rather than fetched: a peer still on A2A v0.3 serves a differently
+    // shaped card, and the resolver is what normalises it to one shape we can read.
+    const card = await fetchAtomAgentCard(`https://${domain}`);
+    const endpoint = agentCardUrl(card)?.trim();
+    if (!endpoint) return null;
+    const adminBase = adminBaseFromPeerUrl(endpoint);
     const kpResp = await fetch(`${adminBase}/mls/key-package`);
     if (!kpResp.ok) return null;
     const kp = (await kpResp.json()) as { did?: string };
     if (!kp.did?.trim()) return null;
     return {
       adminBase,
-      agentCardUrl: card.url.trim(),
+      agentCardUrl: endpoint,
       did: kp.did.trim(),
       resolvedVia: "well-known",
     };

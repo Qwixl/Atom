@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createServer, type Server } from "node:http";
 import { AddressInfo } from "node:net";
-import { ClientFactory } from "@a2a-js/sdk/client";
 import {
   generateAgentKeyPair,
   signDataObject,
@@ -11,6 +10,8 @@ import {
   AtomDataObjectExecutor,
   buildAtomAgentCard,
   COMMS_MESSAGE_PURPOSE,
+  createAtomPeerClient,
+  rebindAtomAgentCard,
   sendDataObject,
 } from "./index.js";
 import { createAtomA2aExpressApp } from "./server-entry.js";
@@ -46,8 +47,7 @@ describe("A2A integration", () => {
 
     const addr = server.address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${addr.port}`;
-    agentCard.url = `${baseUrl}/a2a/jsonrpc`;
-    agentCard.additionalInterfaces = [{ url: agentCard.url, transport: "JSONRPC" }];
+    rebindAtomAgentCard(agentCard, baseUrl);
 
     const object = await signDataObject(
       {
@@ -58,8 +58,7 @@ describe("A2A integration", () => {
       senderIdentity as AgentKeyPair,
     );
 
-    const factory = new ClientFactory();
-    const client = await factory.createFromUrl(baseUrl);
+    const client = await createAtomPeerClient(baseUrl);
     const response = await sendDataObject(client, { object, role: "user" });
 
     expect(received).toEqual(["integration ping"]);

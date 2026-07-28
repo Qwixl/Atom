@@ -1,50 +1,49 @@
-import { v4 as uuidv4 } from "uuid";
-import type { Message, MessageSendParams, Part } from "@a2a-js/sdk";
+import type { Message, Part, SendMessageRequest } from "@a2a-js/sdk";
 import type { Client } from "@a2a-js/sdk/client";
 import type { DataObject } from "@qwixl/protocol";
 import { dataObjectToPart } from "./parts.js";
 import { mlsWireToPart } from "./mlsWire.js";
 import type { MlsWireMessage } from "@qwixl/mls-session";
 import { mlsHandshakeToPart, type AtomMlsHandshakeEnvelope } from "./mlsHandshake.js";
+import { atomMessage, type AtomRole } from "./message.js";
 
 export interface SendDataObjectParams {
   object: DataObject;
   contextId?: string;
-  role?: "user" | "agent";
+  role?: AtomRole;
 }
 
 export interface SendMlsWireParams {
   wire: MlsWireMessage;
   contextId?: string;
-  role?: "user" | "agent";
+  role?: AtomRole;
   senderDid?: string;
 }
 
 export interface SendMlsHandshakeParams {
   handshake: AtomMlsHandshakeEnvelope;
   contextId?: string;
-  role?: "user" | "agent";
+  role?: AtomRole;
 }
 
 async function sendParts(
   client: Client,
   parts: Part[],
-  params: { contextId?: string; role?: "user" | "agent" },
+  params: { contextId?: string; role?: AtomRole },
 ): Promise<Message> {
-  const sendParams: MessageSendParams = {
-    message: {
-      kind: "message",
-      messageId: uuidv4(),
-      role: params.role ?? "user",
-      contextId: params.contextId,
-      parts,
-    },
+  const request: SendMessageRequest = {
+    message: atomMessage({ parts, role: params.role, contextId: params.contextId }),
+    tenant: "",
+    configuration: undefined,
+    metadata: undefined,
   };
-  const response = await client.sendMessage(sendParams);
+  // v1.0 returns `Message | Task`; Atom peers answer inline, so a task means the
+  // peer is not speaking the Atom extension even if the transport succeeded.
+  const response = await client.sendMessage(request);
   if (!response || typeof response !== "object" || !("parts" in response)) {
     throw new Error("Peer agent did not return a message");
   }
-  return response as Message;
+  return response;
 }
 
 /** Send a verified data object to a peer agent via A2A. */
