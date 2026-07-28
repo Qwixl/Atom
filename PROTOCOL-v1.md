@@ -70,22 +70,20 @@ When `semantic.schema` is unknown, hosts MAY use vector similarity against `embe
 
 ### Part encoding (A2A v1.0)
 
-A `Part` is no longer discriminated by `kind`. It is protobuf-generated: `{ content: { $case: "text" | "data" | "raw" | "url", value }, mediaType, filename, metadata }`. `mediaType` is now a **first-class field on the part**; under v0.3 there was nowhere to put it, so Atom carried it as a key inside the payload envelope.
+Atom payloads travel in A2A `data` parts. On the wire:
 
 ```json
 {
-  "content": {
-    "$case": "data",
-    "value": { "mediaType": "application/vnd.atom.data-object+json;version=1", "object": { "…": "DataObject" } }
-  },
-  "mediaType": "application/vnd.atom.data-object+json;version=1",
-  "filename": ""
+  "data": { "mediaType": "application/vnd.atom.data-object+json;version=1", "object": { "…": "DataObject" } },
+  "mediaType": "application/vnd.atom.data-object+json;version=1"
 }
 ```
 
-**Decision:** Atom writes the media type in **both** places and reads it from **either**, preferring the native field. Routes rejected: the **native field only** — cleanest wire, but breaks peers and modules that read the envelope key; the **envelope key only** — leaves Atom parts opaque to generic A2A tooling. The duplication is deliberate and temporary; the envelope key can be dropped in a later release once no peer reads it. Codec: `toAtomDataPart()` / `readAtomDataPart()`.
+**Decision:** the media type is written in **both** positions and read from **either**, and a part whose two declarations *disagree* is rejected rather than resolved in favour of one. Routes rejected: the **part member only** — cleanest wire, but breaks peers and modules reading the envelope key; the **envelope key only** — leaves Atom parts opaque to generic A2A tooling; **preferring one member on conflict** — makes a message mean different things to receivers that read different members, which a sender can exploit to choose which peer acts (conformance vector `073`). The duplication is transitional; the envelope key can be dropped once no peer reads it. Codec: `toAtomDataPart()` / `readAtomDataPart()`.
 
-Messages: `Message` lost its `kind` discriminator; `role` is the `Role` enum (`ROLE_USER` / `ROLE_AGENT`) rather than `"user"` / `"agent"`; `contextId` and `taskId` are plain strings (empty string, not `undefined`, when absent); `extensions: string[]` and `referenceTaskIds: string[]` are new. Every outgoing Atom message declares `https://atom.qwixl.dev/a2a/data-object/v1` in `extensions` — the v1.0 mechanism for signalling which protocol extensions a message relies on (`atomMessage()`).
+Note the wire JSON is not the generated type: the SDK presents part content as a tagged union and `role` as a numeric enum, and neither is observable by a peer. Full wire reference: [A2A-v1.md](./A2A-v1.md).
+
+Messages: `role` is the enum name `ROLE_USER` / `ROLE_AGENT`; empty members are omitted rather than sent; `extensions` and `referenceTaskIds` are new. Every outgoing Atom message declares `https://atom.qwixl.dev/a2a/data-object/v1` in `extensions` — the v1.0 mechanism for signalling which protocol extensions a message relies on (`atomMessage()`) — and no receiver requires it.
 
 ### Agent card (A2A v1.0)
 

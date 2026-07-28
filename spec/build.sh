@@ -4,7 +4,7 @@
 set -uo pipefail
 
 cd "$(dirname "$0")"
-DRAFT="${1:-draft-chapman-a2a-mls-00}"
+DRAFT="${1:-draft-chapman-a2a-mls-01}"
 SRC="${DRAFT}.md"
 
 if [[ ! -f "$SRC" ]]; then
