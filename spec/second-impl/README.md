@@ -1,30 +1,27 @@
-# Python second implementation (encapsulation)
+# Python second implementation
 
 A deliberately small codec in another language that consumes the same wire-JSON
 vectors as the TypeScript reference. Its job is not feature parity — it is to
-prove that `A2A-v1.md` and the encapsulation vectors describe the wire well
-enough that a second engineer can interoperate without reading our TypeScript.
+prove that the draft and vectors describe the protocol well enough that a second
+engineer can interoperate without reading our TypeScript.
 
 ## What it covers
 
-Media-type placement for Atom `data` parts (draft § Encapsulation / vectors
-`070`–`078`):
+1. **Encapsulation** (`atom_encap/`) — media-type placement for Atom `data`
+   parts (vectors `070`–`078`). Stdlib only.
+2. **Governed Objects** (`atom_gov/`) — structural validation, Ed25519 signature
+   under `issuerDid`, expiry, purpose allowlist, replay, and credential binding
+   (vectors `001`–`061`). Needs `cryptography` for Ed25519 verify.
 
-- send both positions (`to_atom_data_part`)
-- accept part-member-only or envelope-only
-- reject conflict, absent, wrong content kind, wrong media type
-
-It does **not** verify Governed Object signatures, MLS, or replay. Those stay
-with `@qwixl/protocol` / `run.mjs` until a fuller second implementation exists.
+It does **not** implement MLS sessions.
 
 ## Run
 
 ```bash
-# from repo root
-python3 spec/second-impl/run_vectors.py
+python3 -m pip install -r spec/second-impl/requirements.txt
+python3 spec/second-impl/run_vectors.py   # 31/31
+python3 spec/hostile/run_hostile.py       # encapsulation hostile cases
 ```
-
-No third-party packages. Exit code non-zero on any disagreement with the corpus.
 
 Decision context (local corpus): D110 / D119 / D121 — fixed vectors for third parties;
 hostile harness for adversarial shapes.

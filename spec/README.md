@@ -116,14 +116,15 @@ runner implements what the library does not.
 
 ## Second implementation (Python)
 
-Encapsulation only — enough to prove the wire docs are implementable without
-TypeScript:
+Encapsulation **and** Governed Object processing — enough to prove the vectors
+are implementable without TypeScript:
 
 ```bash
-python3 spec/second-impl/run_vectors.py
+python3 -m pip install -r spec/second-impl/requirements.txt
+python3 spec/second-impl/run_vectors.py   # 31/31
 ```
 
-See `second-impl/README.md`. Hostile mutations (must all reject):
+See `second-impl/README.md`. Hostile encapsulation mutations (must all reject):
 
 ```bash
 python3 spec/hostile/run_hostile.py
