@@ -5,7 +5,7 @@ import {
   sendDataObject,
   sendMlsWire,
 } from "@qwixl/a2a-transport";
-import type { DataObject } from "@qwixl/protocol";
+import type { AgentKeyPair, DataObject } from "@qwixl/protocol";
 import { mlsContextId, type MlsSessionStore } from "./mlsSessions.js";
 
 export interface DeliverObjectParams {
@@ -15,6 +15,8 @@ export interface DeliverObjectParams {
   object: DataObject;
   encrypt?: boolean;
   contextId?: string;
+  /** Local identity for Atom DID Bearer transport auth; defaults to mlsStore. */
+  identity?: AgentKeyPair;
 }
 
 export interface DeliverObjectResult {
@@ -27,7 +29,9 @@ export const normalizePeerBaseUrl = normalizeTransportPeerBaseUrl;
 
 /** Send a signed data object to a peer (plain or MLS-encrypted). */
 export async function deliverSignedObject(params: DeliverObjectParams): Promise<DeliverObjectResult> {
-  const client = await createAtomPeerClient(params.peerUrl);
+  const client = await createAtomPeerClient(params.peerUrl, {
+    identity: params.identity ?? params.mlsStore.localIdentity,
+  });
 
   if (params.encrypt) {
     const peerDid = params.peerDid?.trim();

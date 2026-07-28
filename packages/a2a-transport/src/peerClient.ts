@@ -13,6 +13,9 @@
  * The upshot for the network: an upgraded agent talks v1.0 to upgraded peers and
  * v0.3 to everyone else, per peer, decided by that peer's own card. No
  * coordinated cutover, and no flag day.
+ *
+ * When `identity` is supplied, every JSON-RPC call carries an Atom DID Bearer
+ * token (`Authorization: Bearer atom.…`) minted for the peer's public base URL.
  */
 
 import type { AgentCard } from "@a2a-js/sdk";
@@ -20,8 +23,15 @@ import {
   ClientFactory,
   DefaultAgentCardResolver,
   JsonRpcTransportFactory,
+  createAuthenticatingFetchWithRetry,
+  type AuthenticationHandler,
   type Client,
 } from "@a2a-js/sdk/client";
+import type { AgentKeyPair } from "@qwixl/protocol";
+import {
+  authorizationHeaderFromToken,
+  mintAtomTransportToken,
+} from "./transportAuth.js";
 
 const legacyCompat = { enabled: true };
 
@@ -30,10 +40,43 @@ export function normalizePeerBaseUrl(peerUrl: string): string {
   return peerUrl.replace(/\/a2a\/jsonrpc\/?$/i, "").replace(/\/$/, "");
 }
 
-function atomClientFactory(): ClientFactory {
+export interface CreateAtomPeerClientOptions {
+  /** Local agent identity — required when the peer enforces transport auth. */
+  identity?: AgentKeyPair;
+  /** Token audience; defaults to the normalised peer base URL. */
+  audience?: string;
+  fetchImpl?: typeof fetch;
+}
+
+function atomAuthFetch(opts: {
+  identity: AgentKeyPair;
+  audience: string;
+  fetchImpl: typeof fetch;
+}): typeof fetch {
+  const authHandler: AuthenticationHandler = {
+    headers: async () => {
+      const token = await mintAtomTransportToken({
+        identity: opts.identity,
+        audience: opts.audience,
+      });
+      return { Authorization: authorizationHeaderFromToken(token) };
+    },
+    shouldRetryWithHeaders: async (_req, res) => {
+      if (res.status !== 401) return undefined;
+      const token = await mintAtomTransportToken({
+        identity: opts.identity,
+        audience: opts.audience,
+      });
+      return { Authorization: authorizationHeaderFromToken(token) };
+    },
+  };
+  return createAuthenticatingFetchWithRetry(opts.fetchImpl, authHandler);
+}
+
+function atomClientFactory(fetchImpl?: typeof fetch): ClientFactory {
   return new ClientFactory({
-    transports: [new JsonRpcTransportFactory({ legacyCompat })],
-    cardResolver: new DefaultAgentCardResolver({ legacyCompat }),
+    transports: [new JsonRpcTransportFactory({ legacyCompat, fetchImpl })],
+    cardResolver: new DefaultAgentCardResolver({ legacyCompat, fetchImpl }),
   });
 }
 
@@ -41,8 +84,21 @@ function atomClientFactory(): ClientFactory {
  * Create a client for an Atom peer, given either its host root or its
  * `/a2a/jsonrpc` endpoint. Negotiates the protocol version from the peer's card.
  */
-export async function createAtomPeerClient(peerUrl: string): Promise<Client> {
-  return atomClientFactory().createFromUrl(normalizePeerBaseUrl(peerUrl));
+export async function createAtomPeerClient(
+  peerUrl: string,
+  options?: CreateAtomPeerClientOptions,
+): Promise<Client> {
+  const base = normalizePeerBaseUrl(peerUrl);
+  const audience = options?.audience ?? base;
+  let fetchImpl = options?.fetchImpl ?? globalThis.fetch.bind(globalThis);
+  if (options?.identity) {
+    fetchImpl = atomAuthFetch({
+      identity: options.identity,
+      audience,
+      fetchImpl,
+    });
+  }
+  return atomClientFactory(fetchImpl).createFromUrl(base);
 }
 
 /**

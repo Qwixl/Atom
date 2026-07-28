@@ -792,11 +792,11 @@ HTTP:
 * Purpose enforcement by receiver-configured allowlist, and expiry rejection.
 * Out-of-band invitation with identity assertion, and abort on identity
   mismatch.
-
-Specified here but NOT yet implemented at the time of writing:
-
 * Transport authentication on the message-submission endpoint
-  ({{encapsulation}}), which is presently unauthenticated.
+  ({{encapsulation}}): Agent Cards declare an HTTP Bearer scheme
+  (`atomDidBearer`), and `/a2a/jsonrpc` requires an Atom DID Bearer token
+  (`Authorization: Bearer atom.<payload>.<sig>`) signed by the caller's
+  `did:key`, with audience bound to the peer's public base URL.
 
 Previously deferred and now implemented in the reference libraries:
 
@@ -811,7 +811,7 @@ Previously deferred and now implemented in the reference libraries:
   ({{security}}): `dequeueAsleepMessages` applies {{processing}} when the
   agent wakes; the queue remains size-bounded at enqueue.
 
-The author notes that several of the remaining items were identified by the exercise
+The author notes that several of these items were identified by the exercise
 of writing this specification, having not been apparent from the working
 implementation. This is offered as evidence for the general proposition that
 specification and implementation are not redundant activities.

@@ -19,7 +19,10 @@ import {
   CHANNEL_PURPOSES,
   COMMERCE_PURPOSES,
 } from "@qwixl/a2a-transport";
-import { createAtomA2aExpressApp } from "@qwixl/a2a-transport/server";
+import {
+  createAtomA2aExpressApp,
+  createAtomTransportAuthMiddleware,
+} from "@qwixl/a2a-transport/server";
 import {
   base64ToBytes,
   ReplayGuard,
@@ -483,8 +486,23 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     },
   });
 
-  const a2aApp = createAtomA2aExpressApp({ agentCard: signedAgentCard, executor });
+  const requireTransportAuth = process.env.ATOM_A2A_REQUIRE_TRANSPORT_AUTH !== "0";
+  const a2aApp = createAtomA2aExpressApp({
+    agentCard: signedAgentCard,
+    executor,
+    transportAuthAudience: config.publicBaseUrl,
+    requireTransportAuth,
+  });
   const app = express();
+
+  // Authenticate before asleep enqueue so unauthenticated traffic cannot fill the queue.
+  app.use(
+    "/a2a/jsonrpc",
+    createAtomTransportAuthMiddleware({
+      audience: config.publicBaseUrl,
+      required: requireTransportAuth,
+    }),
+  );
 
   app.use(
     "/a2a/jsonrpc",

@@ -64,7 +64,9 @@ describe("coordination A2A integration", () => {
     });
     await verifySchedulingProposal(proposal);
 
-    const client = await createAtomPeerClient(baseUrl);
+    const client = await createAtomPeerClient(baseUrl, {
+      identity: organizerIdentity as AgentKeyPair,
+    });
     await sendDataObject(client, { object: proposal, role: "user" });
     expect(received).toEqual([COORDINATION_PROPOSAL_PURPOSE]);
 

@@ -759,7 +759,9 @@ async function fanOutRoomWire(opts: {
     if (!member.endpoint?.trim()) continue;
     if (!opts.mlsStore.hasSession(member.did)) continue;
     try {
-      const client = await createAtomPeerClient(member.endpoint);
+      const client = await createAtomPeerClient(member.endpoint, {
+        identity: opts.mlsStore.localIdentity,
+      });
       await sendMlsWire(client, {
         wire: opts.wire,
         contextId: roomContextId(opts.roomId),

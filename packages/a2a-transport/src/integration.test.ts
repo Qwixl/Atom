@@ -58,7 +58,7 @@ describe("A2A integration", () => {
       senderIdentity as AgentKeyPair,
     );
 
-    const client = await createAtomPeerClient(baseUrl);
+    const client = await createAtomPeerClient(baseUrl, { identity: senderIdentity });
     const response = await sendDataObject(client, { object, role: "user" });
 
     expect(received).toEqual(["integration ping"]);
@@ -66,6 +66,10 @@ describe("A2A integration", () => {
       allowedPurposes: ["comms:receipt"],
     });
     expect(receipts.length).toBeGreaterThan(0);
+
+    // Unauthenticated callers are rejected when transport auth is required.
+    const bare = await createAtomPeerClient(baseUrl);
+    await expect(sendDataObject(bare, { object, role: "user" })).rejects.toThrow();
 
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
