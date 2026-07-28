@@ -4,8 +4,8 @@
 
 Independent Submission                                     L. D. Chapman
 Internet-Draft                                                     Qwixl
-Intended status: Experimental                               27 July 2026
-Expires: 28 January 2027
+Intended status: Experimental                               28 July 2026
+Expires: 29 January 2027
 
 
  End-to-End Encryption and Purpose-Bound Governance for Agent-to-Agent
@@ -53,12 +53,12 @@ Status of This Memo
 
 
 
-Chapman                  Expires 28 January 2027                [Page 1]
+Chapman                  Expires 29 January 2027                [Page 1]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
 
-   This Internet-Draft will expire on 28 January 2027.
+   This Internet-Draft will expire on 29 January 2027.
 
 Copyright Notice
 
@@ -80,55 +80,59 @@ Table of Contents
      1.4.  Relationship to Existing Work . . . . . . . . . . . . . .   5
    2.  Conventions and Terminology . . . . . . . . . . . . . . . . .   5
    3.  Architecture Overview . . . . . . . . . . . . . . . . . . . .   6
-   4.  Agent Identity  . . . . . . . . . . . . . . . . . . . . . . .   6
+   4.  Agent Identity  . . . . . . . . . . . . . . . . . . . . . . .   7
      4.1.  Identifier Construction . . . . . . . . . . . . . . . . .   7
      4.2.  MLS Ciphersuite . . . . . . . . . . . . . . . . . . . . .   7
      4.3.  Credential Binding  . . . . . . . . . . . . . . . . . . .   7
    5.  The Governed Object . . . . . . . . . . . . . . . . . . . . .   8
      5.1.  Structure . . . . . . . . . . . . . . . . . . . . . . . .   8
      5.2.  Governance  . . . . . . . . . . . . . . . . . . . . . . .   9
-     5.3.  Canonical Serialisation . . . . . . . . . . . . . . . . .   9
-     5.4.  Signing . . . . . . . . . . . . . . . . . . . . . . . . .  10
-     5.5.  Verification  . . . . . . . . . . . . . . . . . . . . . .  10
-   6.  Session Establishment . . . . . . . . . . . . . . . . . . . .  10
+     5.3.  Canonical Serialisation . . . . . . . . . . . . . . . . .  10
+     5.4.  Signing . . . . . . . . . . . . . . . . . . . . . . . . .  11
+     5.5.  Verification  . . . . . . . . . . . . . . . . . . . . . .  11
+   6.  Session Establishment . . . . . . . . . . . . . . . . . . . .  11
      6.1.  KeyPackage Publication  . . . . . . . . . . . . . . . . .  11
-     6.2.  Establishing a Pair Session . . . . . . . . . . . . . . .  11
-     6.3.  Group Sessions  . . . . . . . . . . . . . . . . . . . . .  11
-     6.4.  Session Persistence . . . . . . . . . . . . . . . . . . .  11
+     6.2.  Establishing a Pair Session . . . . . . . . . . . . . . .  12
+     6.3.  Group Sessions  . . . . . . . . . . . . . . . . . . . . .  12
+     6.4.  Session Persistence . . . . . . . . . . . . . . . . . . .  12
    7.  Encapsulation . . . . . . . . . . . . . . . . . . . . . . . .  12
-     7.1.  Extension Declaration . . . . . . . . . . . . . . . . . .  12
-     7.2.  Governed Object Part  . . . . . . . . . . . . . . . . . .  12
-     7.3.  MLS Wire Part . . . . . . . . . . . . . . . . . . . . . .  12
-     7.4.  Handshake Part  . . . . . . . . . . . . . . . . . . . . .  12
-     7.5.  Transport Authentication  . . . . . . . . . . . . . . . .  13
-   8.  Receiver Processing Rules . . . . . . . . . . . . . . . . . .  13
-     8.1.  Mandatory Ordered Checks  . . . . . . . . . . . . . . . .  13
-     8.2.  Replay Rejection  . . . . . . . . . . . . . . . . . . . .  14
-     8.3.  Purpose Enforcement . . . . . . . . . . . . . . . . . . .  14
-     8.4.  Rejection Behaviour . . . . . . . . . . . . . . . . . . .  14
+     7.1.  Protocol Version  . . . . . . . . . . . . . . . . . . . .  12
+     7.2.  Extension Declaration . . . . . . . . . . . . . . . . . .  13
+     7.3.  Media Type Placement  . . . . . . . . . . . . . . . . . .  13
+     7.4.  Governed Object Part  . . . . . . . . . . . . . . . . . .  14
+     7.5.  MLS Wire Part . . . . . . . . . . . . . . . . . . . . . .  14
+     7.6.  Handshake Part  . . . . . . . . . . . . . . . . . . . . .  15
+     7.7.  Agent Card  . . . . . . . . . . . . . . . . . . . . . . .  15
+     7.8.  Version Compatibility . . . . . . . . . . . . . . . . . .  15
+     7.9.  Transport Authentication  . . . . . . . . . . . . . . . .  16
+   8.  Receiver Processing Rules . . . . . . . . . . . . . . . . . .  16
 
 
 
-Chapman                  Expires 28 January 2027                [Page 2]
+Chapman                  Expires 29 January 2027                [Page 2]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
 
-   9.  Regulatory Alignment  . . . . . . . . . . . . . . . . . . . .  14
-   10. Security Considerations . . . . . . . . . . . . . . . . . . .  15
-     10.1.  What This Specification Provides . . . . . . . . . . . .  15
-     10.2.  What It Does Not Provide . . . . . . . . . . . . . . . .  15
-     10.3.  Availability . . . . . . . . . . . . . . . . . . . . . .  16
-   11. IANA Considerations . . . . . . . . . . . . . . . . . . . . .  16
-     11.1.  Media Types  . . . . . . . . . . . . . . . . . . . . . .  16
-     11.2.  Purpose Value Registry . . . . . . . . . . . . . . . . .  17
-   12. Implementation Status . . . . . . . . . . . . . . . . . . . .  17
-   13. References  . . . . . . . . . . . . . . . . . . . . . . . . .  18
-     13.1.  Normative References . . . . . . . . . . . . . . . . . .  18
-     13.2.  Informative References . . . . . . . . . . . . . . . . .  19
-   Appendix A.  Test Vectors . . . . . . . . . . . . . . . . . . . .  20
-   Acknowledgements  . . . . . . . . . . . . . . . . . . . . . . . .  20
-   Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .  20
+     8.1.  Mandatory Ordered Checks  . . . . . . . . . . . . . . . .  16
+     8.2.  Replay Rejection  . . . . . . . . . . . . . . . . . . . .  17
+     8.3.  Purpose Enforcement . . . . . . . . . . . . . . . . . . .  17
+     8.4.  Rejection Behaviour . . . . . . . . . . . . . . . . . . .  18
+   9.  Regulatory Alignment  . . . . . . . . . . . . . . . . . . . .  18
+   10. Security Considerations . . . . . . . . . . . . . . . . . . .  18
+     10.1.  What This Specification Provides . . . . . . . . . . . .  18
+     10.2.  What It Does Not Provide . . . . . . . . . . . . . . . .  19
+     10.3.  Availability . . . . . . . . . . . . . . . . . . . . . .  19
+   11. IANA Considerations . . . . . . . . . . . . . . . . . . . . .  19
+     11.1.  Media Types  . . . . . . . . . . . . . . . . . . . . . .  19
+     11.2.  Purpose Value Registry . . . . . . . . . . . . . . . . .  20
+   12. Implementation Status . . . . . . . . . . . . . . . . . . . .  20
+   13. References  . . . . . . . . . . . . . . . . . . . . . . . . .  22
+     13.1.  Normative References . . . . . . . . . . . . . . . . . .  22
+     13.2.  Informative References . . . . . . . . . . . . . . . . .  23
+   Appendix A.  Test Vectors . . . . . . . . . . . . . . . . . . . .  23
+   Acknowledgements  . . . . . . . . . . . . . . . . . . . . . . . .  24
+   Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .  24
 
 1.  Introduction
 
@@ -144,8 +148,8 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    Confidentiality against intermediaries.  Current practice secures the
       transport hop, typically with TLS, and authenticates the caller,
       typically with OAuth 2.0, OpenID Connect, or mutual TLS.  Any
-      intermediary that terminates TLS — a gateway, a broker, a hosting
-      provider, or the platform operating either agent — can read the
+      intermediary that terminates TLS -- a gateway, a broker, a hosting
+      provider, or the platform operating either agent -- can read the
       full message content.  Where the two principals are mutually
       independent and the message content is confidential, commercially
       sensitive, or personal data, transport security is insufficient.
@@ -161,11 +165,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-
-
-
-
-Chapman                  Expires 28 January 2027                [Page 3]
+Chapman                  Expires 29 January 2027                [Page 3]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -221,7 +221,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 28 January 2027                [Page 4]
+Chapman                  Expires 29 January 2027                [Page 4]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -249,8 +249,9 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
    A2A [A2A] provides agent discovery, capability description, and
    message transport.  A2A version 1.0 supports declared protocol
-   extensions, and this document is specified as such an extension.
-   Nothing here requires changes to A2A itself.
+   extensions, and this document is specified as such an extension;
+   Section 7.1 states the version this binding targets.  Nothing here
+   requires changes to A2A itself.
 
    The mechanism is transport-agnostic in principle.  A2A is used as the
    reference binding because it is widely deployed and because its
@@ -272,15 +273,17 @@ Internet-Draft        Confidential Agent Messaging             July 2026
       whose behalf an agent acts.
 
    Agent Identity:  A did:key identifier [DIDKEY] encoding an Ed25519
-      public key, used to identify an agent and to verify its
-      signatures.
 
 
 
-Chapman                  Expires 28 January 2027                [Page 5]
+
+Chapman                  Expires 29 January 2027                [Page 5]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
+
+      public key, used to identify an agent and to verify its
+      signatures.
 
    Governed Object:  The signed message envelope specified in Section 5.
 
@@ -326,17 +329,16 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
                    Figure 1: Confidential agent messaging
 
-4.  Agent Identity
 
 
 
 
-
-
-Chapman                  Expires 28 January 2027                [Page 6]
+Chapman                  Expires 29 January 2027                [Page 6]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
+
+4.  Agent Identity
 
 4.1.  Identifier Construction
 
@@ -381,18 +383,22 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    originate from the holder of the corresponding DID.  With it, MLS
    membership and Governed Object authorship are bound to a single key.
 
+
+
+
+
+
+
+Chapman                  Expires 29 January 2027                [Page 7]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
+
    On receiving a KeyPackage or LeafNode, an implementation MUST verify
    that the credential identity parses as a did:key Ed25519 identifier
    and that the public key so derived is octet-for-octet equal to the
    LeafNode signature_key.  If the check fails, the implementation MUST
    reject the KeyPackage and MUST NOT add the member to a group.
-
-
-
-Chapman                  Expires 28 January 2027                [Page 7]
-
-Internet-Draft        Confidential Agent Messaging             July 2026
-
 
    Where a ciphersuite whose signature scheme is not Ed25519 is
    negotiated, the binding of Section 4.3 cannot be expressed by key
@@ -409,6 +415,40 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
    A Governed Object is a JSON object [RFC8259] with the following
    members.  All listed members are mandatory unless stated otherwise.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Chapman                  Expires 29 January 2027                [Page 8]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
 
        +====================+========+============================+
        | Member             | Type   | Description                |
@@ -441,15 +481,6 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
                                  Table 1
 
-
-
-
-
-Chapman                  Expires 28 January 2027                [Page 8]
-
-Internet-Draft        Confidential Agent Messaging             July 2026
-
-
    The semantic member has a mandatory schema member containing an
    absolute URI identifying the payload type, and OPTIONAL version and
    embeddingHint members.
@@ -461,6 +492,19 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 5.2.  Governance
 
    The governance member carries:
+
+
+
+
+
+
+
+
+
+Chapman                  Expires 29 January 2027                [Page 9]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
 
     +============+========+===========================================+
     | Member     | Type   | Description                               |
@@ -499,13 +543,6 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    1.  object members are ordered lexicographically by their UTF-16 code
        unit sequence;
 
-
-
-Chapman                  Expires 28 January 2027                [Page 9]
-
-Internet-Draft        Confidential Agent Messaging             July 2026
-
-
    2.  members whose value is undefined or absent are omitted;
 
    3.  array element order is preserved;
@@ -517,6 +554,13 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    Implementations SHOULD use JSON Canonicalization Scheme [RFC8785]
    where available; it satisfies the requirements above for the value
    space used by this specification.
+
+
+
+Chapman                  Expires 29 January 2027               [Page 10]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
 
    Nested objects within semantic, payload, and governance are
    canonicalised recursively by the same rules.
@@ -551,17 +595,6 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 6.  Session Establishment
 
-
-
-
-
-
-
-Chapman                  Expires 28 January 2027               [Page 10]
-
-Internet-Draft        Confidential Agent Messaging             July 2026
-
-
 6.1.  KeyPackage Publication
 
    An agent that accepts incoming sessions publishes MLS KeyPackages.
@@ -577,13 +610,21 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    Retrievers MUST perform the credential binding check of Section 4.3
    on the retrieved KeyPackage before use.
 
+
+
+
+Chapman                  Expires 29 January 2027               [Page 11]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
+
 6.2.  Establishing a Pair Session
 
    The initiating agent creates an MLS group containing itself, then
    commits an Add proposal for the responding agent using the retrieved
    KeyPackage, and delivers the resulting Welcome message and ratchet
    tree to the responder using the handshake encapsulation of
-   Section 7.4.
+   Section 7.6.
 
    Where the responder's identity was learned from an out-of-band
    invitation that asserted a specific Agent Identity, the initiator
@@ -609,36 +650,100 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    Group state contains the secrets necessary to decrypt past and future
    epochs.
 
-
-
-
-
-Chapman                  Expires 28 January 2027               [Page 11]
-
-Internet-Draft        Confidential Agent Messaging             July 2026
-
-
 7.  Encapsulation
 
    This section specifies the A2A [A2A] binding.
 
-7.1.  Extension Declaration
+7.1.  Protocol Version
+
+   This binding is specified against A2A version 1.0.  Two properties of
+   that version are relied upon: a message part carries a mediaType
+   member of its own, and a message may enumerate the extensions it
+   depends upon.
+
+   A2A version 0.3 provided neither.  Implementations MAY interoperate
+   with peers speaking version 0.3 by applying Section 7.8, and the
+   reference implementation does so, but a conforming implementation of
+   this document transmits version 1.0.
+
+
+
+
+Chapman                  Expires 29 January 2027               [Page 12]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
+
+   Throughout this section, part and message members are named as they
+   appear in the JSON serialisation on the wire.  An implementation
+   generated from the A2A protocol buffer schema will present the part
+   content as a language-level tagged union; that representation is an
+   artefact of code generation and is not observable by a peer.
+
+7.2.  Extension Declaration
 
    An agent supporting this specification MUST declare the extension URI
    https://atom.qwixl.dev/a2a/data-object/v1 in the
    capabilities.extensions member of its Agent Card.
+
+   A message carrying any part specified in this section SHOULD
+   additionally list that URI in the message's extensions member.  A
+   receiver MUST NOT require the member to be present, since a peer
+   speaking A2A version 0.3 has no such member to populate, and MUST NOT
+   rely upon it to identify a part: the media type is authoritative.
 
    Editor's note: this URI reflects the deployed reference
    implementation.  Should this document be adopted by a standards body,
    the URI is expected to be reassigned under that body's namespace.
    Implementations SHOULD treat the URI as an opaque identifier.
 
-7.2.  Governed Object Part
+7.3.  Media Type Placement
+
+   Each part specified below is identified by one of the media types in
+   Section 11.  A sender MUST set the media type in the part's mediaType
+   member, and SHOULD also set a mediaType member within the part's data
+   object with the identical value.
+
+   A receiver MUST determine the media type from the part's mediaType
+   member when that member is present and non-empty, and MUST fall back
+   to the mediaType member within the data object otherwise.  Where both
+   are present and they disagree, the receiver MUST reject the part.
+
+   The duplication exists because version 0.3 of A2A had no mediaType
+   member on a part, obliging deployments written against A2A version
+   0.3 to carry the media type inside the payload.  A receiver that
+   reads only the inner member therefore continues to interoperate.  A
+   sender MAY omit the inner member once no such receiver remains
+   reachable; this document retains it as a SHOULD rather than a MUST
+   for that reason.
+
+
+
+
+
+
+
+
+
+Chapman                  Expires 29 January 2027               [Page 13]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
+
+7.4.  Governed Object Part
 
    A Governed Object MAY be carried unencrypted in an A2A message part
-   of kind data, whose value is a JSON object with members mediaType,
-   set to application/vnd.atom.data-object+json;version=1, and object,
-   set to the Governed Object.
+   whose data member is a JSON object with members mediaType, set to
+   application/vnd.atom.data-object+json;version=1 per Section 7.3, and
+   object, set to the Governed Object.
+
+   {
+     "data": {
+       "mediaType": "application/vnd.atom.data-object+json;version=1",
+       "object": { ... Governed Object ... }
+     },
+     "mediaType": "application/vnd.atom.data-object+json;version=1"
+   }
 
    Unencrypted carriage provides authenticity and governance metadata
    but not confidentiality.  Implementations MUST NOT use unencrypted
@@ -646,35 +751,112 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    an MLS session can be established.  Implementations SHOULD default to
    encrypted carriage.
 
-7.3.  MLS Wire Part
+7.5.  MLS Wire Part
 
-   MLS wire messages are carried in an A2A message part of kind data,
-   whose value is a JSON object with members mediaType, set to
-   application/vnd.atom.mls-wire+cbor;version=1, and wire, set to the
-   base64 encoding [RFC4648] of the MLSMessage as serialised per
+   MLS wire messages are carried in an A2A message part whose data
+   member is a JSON object with members mediaType, set to application/
+   vnd.atom.mls-wire+cbor;version=1 per Section 7.3, and wire, set to
+   the base64 encoding [RFC4648] of the MLSMessage as serialised per
    [RFC9420].
+
+   {
+     "data": {
+       "mediaType": "application/vnd.atom.mls-wire+cbor;version=1",
+       "wire": "<base64 MLSMessage>"
+     },
+     "mediaType": "application/vnd.atom.mls-wire+cbor;version=1"
+   }
 
    The decrypted application message plaintext is the UTF-8 encoding of
    a JSON object with a member object containing a Governed Object.
    Implementations MAY define additional members; receivers MUST ignore
    members they do not recognise.
 
-7.4.  Handshake Part
-
-   MLS Welcome messages and the accompanying ratchet tree are carried in
-   an A2A message part of kind data, whose value is a JSON object with
-   member mediaType set to application/vnd.atom.mls-
-   handshake+json;version=1 and members conveying the base64-encoded
-   Welcome and ratchet tree.
 
 
 
-Chapman                  Expires 28 January 2027               [Page 12]
+
+
+
+
+
+
+Chapman                  Expires 29 January 2027               [Page 14]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
 
-7.5.  Transport Authentication
+7.6.  Handshake Part
+
+   MLS Welcome messages and the accompanying ratchet tree are carried in
+   an A2A message part whose data member is a JSON object with member
+   mediaType set to application/vnd.atom.mls-handshake+json;version=1
+   per Section 7.3, and members conveying the base64-encoded Welcome and
+   ratchet tree.
+
+7.7.  Agent Card
+
+   An agent's endpoints are declared in the supportedInterfaces member
+   of its Agent Card, an ordered list in which the first entry is the
+   sender's preferred interface and each entry states the A2A protocol
+   version that interface speaks.  A2A version 0.3 instead declared a
+   single endpoint in a top-level url member; an implementation reading
+   a card MUST NOT depend on that member.
+
+   An agent MAY declare more than one interface at the same URL in order
+   to serve more than one protocol version, and the reference
+   implementation does so.
+
+   An Agent Card MAY carry one or more JWS signatures in its signatures
+   member.  Where an agent's identity is a did:key as specified in
+   Section 4, the signature's kid header parameter SHOULD be that
+   identifier, because the verifying key is then recoverable from the
+   identifier itself and card verification requires no key distribution
+   mechanism and no further network retrieval.
+
+   A relying party that verifies a card signature MUST treat the
+   identifier in kid as the identity that produced the card, and MUST
+   NOT infer from a valid signature that the card's contents are
+   endorsed by any other identity named within it.  Transport security
+   establishes control of the origin serving a card; it establishes
+   nothing about the agent the card describes.  An unsigned card
+   therefore permits any party controlling an origin to publish a card
+   asserting any agent identity, and a relying party that acts on such
+   an assertion -- for instance, to associate a domain with an agent --
+   SHOULD require a signature whose kid matches the asserted identity.
+
+7.8.  Version Compatibility
+
+   An implementation MAY accept and originate A2A version 0.3 messages
+   in addition to version 1.0.  Where it does:
+
+   *  The version of a received message is determined by the A2A-Version
+      header field.  Its absence denotes version 0.3.
+
+
+
+
+
+Chapman                  Expires 29 January 2027               [Page 15]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
+
+   *  The version to use towards a given peer is determined by that
+      peer's Agent Card, per Section 7.7.
+
+   *  A part received from a version 0.3 peer carries the media type
+      only within the data object, which Section 7.3 accommodates.
+
+   Deployment order is not symmetric, and this has operational
+   consequence.  A receiver that accepts both versions is compatible
+   with senders of either, but a sender that has begun transmitting
+   version 1.0 is not compatible with a receiver that accepts only
+   version 0.3.  In a network upgraded incrementally, every receiver
+   MUST therefore be capable of the newer version before any sender
+   originates it.
+
+7.9.  Transport Authentication
 
    The transport carrying these parts MUST authenticate the calling
    party using a mechanism defined by the underlying protocol, such as
@@ -708,6 +890,14 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
    5.  Replay rejection per Section 8.2.  Reject if already seen.
 
+
+
+
+Chapman                  Expires 29 January 2027               [Page 16]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
+
    6.  Purpose enforcement per Section 8.3.  Reject if not permitted.
 
    Only after all six checks succeed may the receiver act upon payload.
@@ -715,20 +905,9 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    Check 3 is essential and is easily omitted.  Without it, any member
    of a group can emit an object bearing another member's issuerDid; the
    signature check alone does not detect this, because the signature is
-   valid — it is simply not made by the party that sent it.
+   valid -- it is simply not made by the party that sent it.
    Implementations MUST NOT treat a valid signature as evidence of who
    transmitted the message.
-
-
-
-
-
-
-
-Chapman                  Expires 28 January 2027               [Page 13]
-
-Internet-Draft        Confidential Agent Messaging             July 2026
-
 
 8.2.  Replay Rejection
 
@@ -742,8 +921,8 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
    Absent this requirement, a passive observer of unencrypted carriage,
    or any member of an MLS group, can re-present a previously valid
-   object.  Where objects convey instructions with side effects — a
-   payment authorisation, a booking confirmation, a consent grant —
+   object.  Where objects convey instructions with side effects -- a
+   payment authorisation, a booking confirmation, a consent grant --
    replay is directly exploitable.
 
 8.3.  Purpose Enforcement
@@ -761,6 +940,20 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    declared, and MUST NOT retain it beyond its expiry, save where an
    independent legal obligation requires retention.
 
+
+
+
+
+
+
+
+
+
+Chapman                  Expires 29 January 2027               [Page 17]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
+
 8.4.  Rejection Behaviour
 
    A receiver rejecting an object SHOULD emit a diagnostic
@@ -768,7 +961,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    return to the sender information that distinguishes between rejection
    causes beyond what is necessary for interoperability, because fine-
    grained rejection reasons assist an attacker in probing receiver
-   configuration — in particular in enumerating the permitted purpose
+   configuration -- in particular in enumerating the permitted purpose
    set.
 
 9.  Regulatory Alignment
@@ -778,14 +971,6 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    The constructs specified here correspond to obligations that exist
    independently of this document in several jurisdictions.  In the
    European Union, [GDPR] Article 5(1)(b) requires that personal data be
-
-
-
-Chapman                  Expires 28 January 2027               [Page 14]
-
-Internet-Draft        Confidential Agent Messaging             July 2026
-
-
    collected for specified purposes and not further processed
    incompatibly with them; Article 5(1)(c) requires data minimisation;
    and Article 5(1)(e) requires that data be kept no longer than
@@ -816,6 +1001,15 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    Section 4.3 ties MLS membership to the same key, so that transmission
    and authorship cannot be separated.
 
+
+
+
+
+Chapman                  Expires 29 January 2027               [Page 18]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
+
 10.2.  What It Does Not Provide
 
    Purpose limitation is not cryptographically enforced.  A receiver
@@ -831,16 +1025,6 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    A DID is not an identity.  It denotes control of a key.  Binding a
    DID to a legal or natural person requires a credential presentation
    layer above this specification.
-
-
-
-
-
-
-Chapman                  Expires 28 January 2027               [Page 15]
-
-Internet-Draft        Confidential Agent Messaging             July 2026
-
 
    Compromise of an agent's Ed25519 private key compromises both its MLS
    membership and its ability to sign Governed Objects, precisely
@@ -874,29 +1058,17 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    the standards nor the vendor tree.  The deployed reference
    implementation uses vendor-tree names.
 
-   If this document advances, the author requests registration of the
-   following in the standards tree, with the vendor-tree names retained
-   as deprecated aliases:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-Chapman                  Expires 28 January 2027               [Page 16]
+Chapman                  Expires 29 January 2027               [Page 19]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
+
+   If this document advances, the author requests registration of the
+   following in the standards tree, with the vendor-tree names retained
+   as deprecated aliases:
 
    +======================+=============================+==============+
    | Proposed             | Deployed                    | Purpose      |
@@ -925,8 +1097,8 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    inform any eventual registry.
 
    The author solicits input on whether a registry of a small number of
-   cross-domain purposes — for instance a value denoting an
-   authorisation to effect a payment — would be of sufficient value to
+   cross-domain purposes -- for instance a value denoting an
+   authorisation to effect a payment -- would be of sufficient value to
    warrant the coordination cost, given that such values are the ones
    for which cross-implementation misinterpretation is most
    consequential.
@@ -943,16 +1115,15 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    Implemented and interoperability-tested between two independent
    processes over HTTP:
 
-   *  Governed Object construction, canonical serialisation, Ed25519
-      signing, and verification, including tamper and expiry rejection.
 
 
-
-
-Chapman                  Expires 28 January 2027               [Page 17]
+Chapman                  Expires 29 January 2027               [Page 20]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
+
+   *  Governed Object construction, canonical serialisation, Ed25519
+      signing, and verification, including tamper and expiry rejection.
 
    *  did:key Ed25519 identity derivation without network resolution.
 
@@ -961,8 +1132,22 @@ Internet-Draft        Confidential Agent Messaging             July 2026
       Welcome and ratchet tree delivery, application message encryption
       and decryption, and group state persistence.
 
-   *  The A2A binding of Section 7, including extension declaration in
-      the Agent Card, and all three part encodings.
+   *  The A2A binding of Section 7 at protocol version 1.0, including
+      extension declaration in the Agent Card and per message, all three
+      part encodings, and media type placement in both positions per
+      Section 7.3.
+
+   *  Version compatibility with A2A version 0.3 per Section 7.8, in
+      both directions, tested against the published version 0.3
+      implementation rather than against a substitute: a version 1.0
+      sender delivering to a version 0.3 receiver, and a version 0.3
+      sender delivering to a version 1.0 receiver.
+
+   *  Agent Card signing and verification per Section 7.7, with kid set
+      to the agent's did:key and the verifying key recovered from that
+      identifier without network retrieval.  The relying check described
+      there -- requiring the signing identity to match an asserted
+      identity before associating a domain with an agent -- is applied.
 
    *  Purpose enforcement by receiver-configured allowlist, and expiry
       rejection.
@@ -986,6 +1171,13 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    *  Transport authentication on the message-submission endpoint
       (Section 7), which is presently unauthenticated.
 
+
+
+Chapman                  Expires 29 January 2027               [Page 21]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
+
    *  Validation on dequeue for messages queued to offline recipients
       (Section 10), which presently occurs only on enqueue.
 
@@ -995,20 +1187,20 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    general proposition that specification and implementation are not
    redundant activities.
 
+   A further instance arose in preparing this document.  The reference
+   implementation's own documentation described a part using the tagged-
+   union form produced by its code generator, rather than the JSON
+   actually transmitted.  The discrepancy was invisible to that
+   implementation, which both produced and consumed the same internal
+   representation, and would have been discovered only by a second
+   implementation in another language attempting to interoperate from
+   the description.  The requirement in Section 7.1 that members be
+   named as they appear on the wire, and the encapsulation vectors of
+   Appendix A, exist to prevent a recurrence.
+
 13.  References
 
 13.1.  Normative References
-
-
-
-
-
-
-
-Chapman                  Expires 28 January 2027               [Page 18]
-
-Internet-Draft        Confidential Agent Messaging             July 2026
-
 
    [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
               Requirement Levels", BCP 14, RFC 2119,
@@ -1032,6 +1224,15 @@ Internet-Draft        Confidential Agent Messaging             July 2026
               Interchange Format", STD 90, RFC 8259,
               DOI 10.17487/RFC8259, December 2017,
               <https://www.rfc-editor.org/rfc/rfc8259>.
+
+
+
+
+
+Chapman                  Expires 29 January 2027               [Page 22]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
 
    [RFC9420]  Barnes, R., Beurdouche, B., Robert, R., Millican, J.,
               Omara, E., and K. Cohn-Gordon, "The Messaging Layer
@@ -1059,13 +1260,6 @@ Internet-Draft        Confidential Agent Messaging             July 2026
               RFC 7942, DOI 10.17487/RFC7942, July 2016,
               <https://www.rfc-editor.org/rfc/rfc7942>.
 
-
-
-Chapman                  Expires 28 January 2027               [Page 19]
-
-Internet-Draft        Confidential Agent Messaging             July 2026
-
-
    [RFC8785]  Rundgren, A., Jordan, B., and S. Erdtman, "JSON
               Canonicalization Scheme (JCS)", RFC 8785,
               DOI 10.17487/RFC8785, June 2020,
@@ -1080,6 +1274,31 @@ Appendix A.  Test Vectors
    outside a stated permitted set; a replayed object pair; and a
    KeyPackage whose credential identity does not match its signature
    key, which MUST be rejected per Section 4.3.
+
+
+
+
+
+
+
+
+
+
+
+Chapman                  Expires 29 January 2027               [Page 23]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
+
+   A second group of vectors covers the encapsulation of Section 7 as
+   serialised JSON, independently of any Governed Object contained
+   within: parts carrying the media type in the part member, in the data
+   member, and in both; a part whose two media type members disagree,
+   which MUST be rejected per Section 7.3; and a part bearing no media
+   type in either position.  These vectors exist because the
+   encapsulation is the layer at which two implementations in different
+   languages first fail to interoperate, and it is the layer least well
+   served by reading either implementation's source.
 
    Vectors are published at https://github.com/Qwixl/Atom under spec/
    vectors/. An implementation claiming conformance to this document
@@ -1108,7 +1327,7 @@ Author's Address
 
    Luke Daniel Chapman
    Qwixl
-   Email: lukedanielchapman@gmail.com
+   Email: luke.chapman@qwixl.com
 
 
 
@@ -1117,4 +1336,9 @@ Author's Address
 
 
 
-Chapman                  Expires 28 January 2027               [Page 20]
+
+
+
+
+
+Chapman                  Expires 29 January 2027               [Page 24]

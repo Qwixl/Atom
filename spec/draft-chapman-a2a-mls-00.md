@@ -24,7 +24,7 @@ author:
     ins: L. D. Chapman
     name: Luke Daniel Chapman
     organization: Qwixl
-    email: lukedanielchapman@gmail.com
+    email: luke.chapman@qwixl.com
 
 normative:
   RFC2119:
@@ -96,8 +96,8 @@ provided by the agent-to-agent protocols currently in use.
 Confidentiality against intermediaries.
 : Current practice secures the transport hop, typically with TLS, and
   authenticates the caller, typically with OAuth 2.0, OpenID Connect, or mutual
-  TLS. Any intermediary that terminates TLS — a gateway, a broker, a hosting
-  provider, or the platform operating either agent — can read the full message
+  TLS. Any intermediary that terminates TLS -- a gateway, a broker, a hosting
+  provider, or the platform operating either agent -- can read the full message
   content. Where the two principals are mutually independent and the message
   content is confidential, commercially sensitive, or personal data, transport
   security is insufficient.
@@ -163,8 +163,8 @@ constraint, a credential-binding requirement, and a transport encapsulation.
 
 A2A {{A2A}} provides agent discovery, capability description, and message
 transport. A2A version 1.0 supports declared protocol extensions, and this
-document is specified as such an extension. Nothing here requires changes to
-A2A itself.
+document is specified as such an extension; {{protocol-version}} states the
+version this binding targets. Nothing here requires changes to A2A itself.
 
 The mechanism is transport-agnostic in principle. A2A is used as the reference
 binding because it is widely deployed and because its extension mechanism makes
@@ -431,23 +431,75 @@ necessary to decrypt past and future epochs.
 
 This section specifies the A2A {{A2A}} binding.
 
+## Protocol Version {#protocol-version}
+
+This binding is specified against A2A version 1.0. Two properties of that
+version are relied upon: a message part carries a `mediaType` member of its own,
+and a message may enumerate the extensions it depends upon.
+
+A2A version 0.3 provided neither. Implementations MAY interoperate with peers
+speaking version 0.3 by applying {{version-compat}}, and the reference
+implementation does so, but a conforming implementation of this document
+transmits version 1.0.
+
+Throughout this section, part and message members are named as they appear in
+the JSON serialisation on the wire. An implementation generated from the A2A
+protocol buffer schema will present the part content as a language-level tagged
+union; that representation is an artefact of code generation and is not
+observable by a peer.
+
 ## Extension Declaration
 
 An agent supporting this specification MUST declare the extension URI
 `https://atom.qwixl.dev/a2a/data-object/v1` in the `capabilities.extensions`
 member of its Agent Card.
 
+A message carrying any part specified in this section SHOULD additionally list
+that URI in the message's `extensions` member. A receiver MUST NOT require the
+member to be present, since a peer speaking A2A version 0.3 has no such member
+to populate, and MUST NOT rely upon it to identify a part: the media type is
+authoritative.
+
 Editor's note: this URI reflects the deployed reference implementation. Should
 this document be adopted by a standards body, the URI is expected to be
 reassigned under that body's namespace. Implementations SHOULD treat the URI as
 an opaque identifier.
 
+## Media Type Placement {#media-type-placement}
+
+Each part specified below is identified by one of the media types in {{iana}}.
+A sender MUST set the media type in the part's `mediaType` member, and SHOULD
+also set a `mediaType` member within the part's `data` object with the identical
+value.
+
+A receiver MUST determine the media type from the part's `mediaType` member when
+that member is present and non-empty, and MUST fall back to the `mediaType`
+member within the `data` object otherwise. Where both are present and they
+disagree, the receiver MUST reject the part.
+
+The duplication exists because version 0.3 of A2A had no `mediaType` member on a
+part, obliging deployments written against A2A version 0.3 to carry the
+media type inside the payload. A receiver that reads only the inner member
+therefore continues to interoperate. A sender MAY omit the inner member once no
+such receiver remains reachable; this document retains it as a SHOULD rather
+than a MUST for that reason.
+
 ## Governed Object Part
 
-A Governed Object MAY be carried unencrypted in an A2A message part of kind
-`data`, whose value is a JSON object with members `mediaType`, set to
-`application/vnd.atom.data-object+json;version=1`, and `object`, set to the
-Governed Object.
+A Governed Object MAY be carried unencrypted in an A2A message part whose `data`
+member is a JSON object with members `mediaType`, set to
+`application/vnd.atom.data-object+json;version=1` per
+{{media-type-placement}}, and `object`, set to the Governed Object.
+
+~~~
+{
+  "data": {
+    "mediaType": "application/vnd.atom.data-object+json;version=1",
+    "object": { ... Governed Object ... }
+  },
+  "mediaType": "application/vnd.atom.data-object+json;version=1"
+}
+~~~
 
 Unencrypted carriage provides authenticity and governance metadata but not
 confidentiality. Implementations MUST NOT use unencrypted carriage for personal
@@ -456,10 +508,21 @@ established. Implementations SHOULD default to encrypted carriage.
 
 ## MLS Wire Part
 
-MLS wire messages are carried in an A2A message part of kind `data`, whose value
-is a JSON object with members `mediaType`, set to
-`application/vnd.atom.mls-wire+cbor;version=1`, and `wire`, set to the base64
-encoding {{RFC4648}} of the MLSMessage as serialised per {{RFC9420}}.
+MLS wire messages are carried in an A2A message part whose `data` member is a
+JSON object with members `mediaType`, set to
+`application/vnd.atom.mls-wire+cbor;version=1` per {{media-type-placement}},
+and `wire`, set to the base64 encoding {{RFC4648}} of the MLSMessage as
+serialised per {{RFC9420}}.
+
+~~~
+{
+  "data": {
+    "mediaType": "application/vnd.atom.mls-wire+cbor;version=1",
+    "wire": "<base64 MLSMessage>"
+  },
+  "mediaType": "application/vnd.atom.mls-wire+cbor;version=1"
+}
+~~~
 
 The decrypted application message plaintext is the UTF-8 encoding of a JSON
 object with a member `object` containing a Governed Object. Implementations MAY
@@ -469,9 +532,57 @@ recognise.
 ## Handshake Part {#handshake-part}
 
 MLS Welcome messages and the accompanying ratchet tree are carried in an A2A
-message part of kind `data`, whose value is a JSON object with member
-`mediaType` set to `application/vnd.atom.mls-handshake+json;version=1` and
-members conveying the base64-encoded Welcome and ratchet tree.
+message part whose `data` member is a JSON object with member `mediaType` set to
+`application/vnd.atom.mls-handshake+json;version=1` per
+{{media-type-placement}}, and members conveying the base64-encoded Welcome and
+ratchet tree.
+
+## Agent Card {#agent-card}
+
+An agent's endpoints are declared in the `supportedInterfaces` member of its
+Agent Card, an ordered list in which the first entry is the sender's preferred
+interface and each entry states the A2A protocol version that interface speaks.
+A2A version 0.3 instead declared a single endpoint in a top-level `url` member;
+an implementation reading a card MUST NOT depend on that member.
+
+An agent MAY declare more than one interface at the same URL in order to serve
+more than one protocol version, and the reference implementation does so.
+
+An Agent Card MAY carry one or more JWS signatures in its `signatures` member.
+Where an agent's identity is a `did:key` as specified in {{identity}}, the
+signature's `kid` header parameter SHOULD be that identifier, because the
+verifying key is then recoverable from the identifier itself and card
+verification requires no key distribution mechanism and no further network
+retrieval.
+
+A relying party that verifies a card signature MUST treat the identifier in
+`kid` as the identity that produced the card, and MUST NOT infer from a valid
+signature that the card's contents are endorsed by any other identity named
+within it. Transport security establishes control of the origin serving a card;
+it establishes nothing about the agent the card describes. An unsigned card
+therefore permits any party controlling an origin to publish a card asserting
+any agent identity, and a relying party that acts on such an assertion -- for
+instance, to associate a domain with an agent -- SHOULD require a signature whose
+`kid` matches the asserted identity.
+
+## Version Compatibility {#version-compat}
+
+An implementation MAY accept and originate A2A version 0.3 messages in addition
+to version 1.0. Where it does:
+
+* The version of a received message is determined by the `A2A-Version` header
+  field. Its absence denotes version 0.3.
+* The version to use towards a given peer is determined by that peer's Agent
+  Card, per {{agent-card}}.
+* A part received from a version 0.3 peer carries the media type only within
+  the `data` object, which {{media-type-placement}} accommodates.
+
+Deployment order is not symmetric, and this has operational consequence. A
+receiver that accepts both versions is compatible with senders of either, but a
+sender that has begun transmitting version 1.0 is not compatible with a receiver
+that accepts only version 0.3. In a network upgraded incrementally, every
+receiver MUST therefore be capable of the newer version before any sender
+originates it.
 
 ## Transport Authentication
 
@@ -506,7 +617,7 @@ Only after all six checks succeed may the receiver act upon `payload`.
 
 Check 3 is essential and is easily omitted. Without it, any member of a group
 can emit an object bearing another member's `issuerDid`; the signature check
-alone does not detect this, because the signature is valid — it is simply not
+alone does not detect this, because the signature is valid -- it is simply not
 made by the party that sent it. Implementations MUST NOT treat a valid signature
 as evidence of who transmitted the message.
 
@@ -522,8 +633,8 @@ rejected by check 4 regardless.
 
 Absent this requirement, a passive observer of unencrypted carriage, or any
 member of an MLS group, can re-present a previously valid object. Where objects
-convey instructions with side effects — a payment authorisation, a booking
-confirmation, a consent grant — replay is directly exploitable.
+convey instructions with side effects -- a payment authorisation, a booking
+confirmation, a consent grant -- replay is directly exploitable.
 
 ## Purpose Enforcement {#purpose-enforcement}
 
@@ -545,7 +656,7 @@ A receiver rejecting an object SHOULD emit a diagnostic distinguishable by
 cause, for operator use. A receiver SHOULD NOT return to the sender information
 that distinguishes between rejection causes beyond what is necessary for
 interoperability, because fine-grained rejection reasons assist an attacker in
-probing receiver configuration — in particular in enumerating the permitted
+probing receiver configuration -- in particular in enumerating the permitted
 purpose set.
 
 # Regulatory Alignment {#regulatory}
@@ -643,8 +754,8 @@ vocabulary is application domain specific, and premature centralisation would
 impede the domain experimentation that ought to inform any eventual registry.
 
 The author solicits input on whether a registry of a small number of
-cross-domain purposes — for instance a value denoting an authorisation to
-effect a payment — would be of sufficient value to warrant the coordination
+cross-domain purposes -- for instance a value denoting an authorisation to
+effect a payment -- would be of sufficient value to warrant the coordination
 cost, given that such values are the ones for which cross-implementation
 misinterpretation is most consequential.
 
@@ -665,8 +776,19 @@ HTTP:
   library, including KeyPackage publication and retrieval, Welcome and ratchet
   tree delivery, application message encryption and decryption, and group state
   persistence.
-* The A2A binding of {{encapsulation}}, including extension declaration in the
-  Agent Card, and all three part encodings.
+* The A2A binding of {{encapsulation}} at protocol version 1.0, including
+  extension declaration in the Agent Card and per message, all three part
+  encodings, and media type placement in both positions per
+  {{media-type-placement}}.
+* Version compatibility with A2A version 0.3 per {{version-compat}}, in both
+  directions, tested against the published version 0.3 implementation rather
+  than against a substitute: a version 1.0 sender delivering to a version 0.3
+  receiver, and a version 0.3 sender delivering to a version 1.0 receiver.
+* Agent Card signing and verification per {{agent-card}}, with `kid` set to the
+  agent's `did:key` and the verifying key recovered from that identifier without
+  network retrieval. The relying check described there -- requiring the signing
+  identity to match an asserted identity before associating a domain with an
+  agent -- is applied.
 * Purpose enforcement by receiver-configured allowlist, and expiry rejection.
 * Out-of-band invitation with identity assertion, and abort on identity
   mismatch.
@@ -690,9 +812,19 @@ of writing this specification, having not been apparent from the working
 implementation. This is offered as evidence for the general proposition that
 specification and implementation are not redundant activities.
 
+A further instance arose in preparing this document. The reference
+implementation's own documentation described a part using the tagged-union form
+produced by its code generator, rather than the JSON actually transmitted. The
+discrepancy was invisible to that implementation, which both produced and
+consumed the same internal representation, and would have been discovered only
+by a second implementation in another language attempting to interoperate from
+the description. The requirement in {{protocol-version}} that members be named
+as they appear on the wire, and the encapsulation vectors of {{vectors}}, exist
+to prevent a recurrence.
+
 --- back
 
-# Test Vectors
+# Test Vectors {#vectors}
 
 Machine-readable test vectors accompany this document, comprising: signed
 Governed Objects with known Ed25519 key pairs and their canonical
@@ -700,6 +832,15 @@ serialisations; objects with mutated payloads that MUST fail verification;
 expired objects; objects whose declared purpose is outside a stated permitted
 set; a replayed object pair; and a KeyPackage whose credential identity does not
 match its signature key, which MUST be rejected per {{credential-binding}}.
+
+A second group of vectors covers the encapsulation of {{encapsulation}} as
+serialised JSON, independently of any Governed Object contained within: parts
+carrying the media type in the part member, in the `data` member, and in both;
+a part whose two media type members disagree, which MUST be rejected per
+{{media-type-placement}}; and a part bearing no media type in either position.
+These vectors exist because the encapsulation is the layer at which two
+implementations in different languages first fail to interoperate, and it is the
+layer least well served by reading either implementation's source.
 
 Vectors are published at `https://github.com/Qwixl/Atom` under `spec/vectors/`.
 An implementation claiming conformance to this document SHOULD produce the
