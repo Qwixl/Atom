@@ -81,34 +81,23 @@ Reading a card: `agentCardUrl(card)` returns the preferred interface URL — it 
 
 ## Data parts
 
-A v1.0 `Part` is no longer discriminated by `kind`. It is protobuf-generated: `{ content: { $case: "text" | "data" | "raw" | "url", value }, mediaType, filename, metadata }`. Critically, **`mediaType` is now a first-class field on the part**; v0.3 had nowhere to put it, so Atom carried it as a key inside the payload envelope.
-
-Atom writes the media type in **both** places and reads it from **either**, preferring the native field:
+Atom payloads travel in A2A `data` parts, identified by media type. A part carries the media type **twice** — in the part's own `mediaType` member and as a key inside the `data` object — and a receiver accepts either, because a generic v1.0 tool sends only the first and a v0.3 peer can only send the second. Where the two disagree, reject the part.
 
 ```json
 {
-  "content": {
-    "$case": "data",
-    "value": {
-      "mediaType": "application/vnd.atom.data-object+json;version=1",
-      "object": { "…": "signed DataObject" }
-    }
+  "data": {
+    "mediaType": "application/vnd.atom.data-object+json;version=1",
+    "object": { "…": "signed DataObject" }
   },
-  "mediaType": "application/vnd.atom.data-object+json;version=1",
-  "filename": ""
+  "mediaType": "application/vnd.atom.data-object+json;version=1"
 }
 ```
 
-`filename` is empty because an Atom envelope is not a file, and `metadata` is unset. Send both media-type keys; accept either. Codec: `toAtomDataPart` / `readAtomDataPart` in `@qwixl/a2a-transport`.
+That is the JSON on the wire. If you work in the A2A SDK, its generated types present part content as a tagged union and roles as a numeric enum; neither appears in what a peer receives, so implement against the JSON. Codec: `toAtomDataPart` / `readAtomDataPart` in `@qwixl/a2a-transport`.
 
-Two routes were considered and rejected, so you can judge whether to follow the same rule:
+Messages: `role` is the enum **name** `ROLE_USER` / `ROLE_AGENT` rather than `"user"` / `"agent"`; empty members such as `contextId` and `taskId` are omitted rather than sent; and `extensions` is new. Declare the Atom extension URI `https://atom.qwixl.dev/a2a/data-object/v1` in `extensions` on every outgoing message, but do not require it on receipt — the media type identifies a part. `atomMessage()` does this for you.
 
-- **Native field only** — the cleanest wire, but it breaks peers and modules that read the envelope key.
-- **Envelope key only** — leaves Atom parts opaque to generic A2A tooling that knows nothing about Atom envelopes.
-
-The duplication is deliberate and temporary. The envelope key can be dropped in a later release once no peer reads it.
-
-Messages changed too: `Message` lost its `kind` discriminator; `role` is the `Role` enum (`ROLE_USER` / `ROLE_AGENT`) rather than the strings `"user"` / `"agent"`; `contextId` and `taskId` are plain strings (empty string, not `undefined`, when absent); and `extensions: string[]` and `referenceTaskIds: string[]` are new. Declare the Atom extension URI `https://atom.qwixl.dev/a2a/data-object/v1` in `extensions` on every outgoing message — that field is how v1.0 signals which protocol extensions a message relies on. `atomMessage()` does this for you.
+**Full wire reference, with a complete request and the reasoning behind the media-type rules: [A2A-v1.md](./A2A-v1.md).** Conformance vectors for the part encoding are in [`spec/vectors/`](./spec/vectors/) (`070`–`078`).
 
 ## Signing your agent card
 

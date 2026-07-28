@@ -7,11 +7,16 @@ IETF Internet-Draft, and the conformance test vectors it references.
 
 | Path | What it is |
 |---|---|
-| `draft-chapman-a2a-mls-00.md` | Internet-Draft source, kramdown-rfc markdown |
-| `draft-chapman-a2a-mls-00.txt` | Rendered draft, as submitted |
-| `draft-chapman-a2a-mls-00.xml` | Rendered XML, the preferred submission format |
-| `build.sh` | Renders and validates the draft |
-| `vectors/` | 22 conformance test vectors — see `vectors/README.md` |
+| `draft-chapman-a2a-mls-01.{md,txt,xml}` | **Current revision.** Source, rendered text, rendered XML |
+| `draft-chapman-a2a-mls-00.{md,txt,xml}` | Previous revision, retained as the published record |
+| `build.sh` | Renders and validates a revision: `./build.sh draft-chapman-a2a-mls-01` |
+| `vectors/` | 31 conformance test vectors — see `vectors/README.md` |
+
+`-01` revises the A2A binding only: it restates the three part encodings against A2A
+v1.0, adds the media-type placement rules, Agent Card signatures, and version
+compatibility. The Governed Object and every rule about processing it are unchanged, so
+an implementation conforming to `-00` at those layers still conforms. The draft's own
+"Changes from -00" appendix is the authoritative list.
 
 ## Why the draft is vendor-neutral
 
@@ -37,20 +42,21 @@ code.
 No local toolchain is required. The IETF's own renderer validates and builds it:
 
 ```bash
-./build.sh
+./build.sh draft-chapman-a2a-mls-01
 ```
 
 This posts the markdown to `author-tools.ietf.org`, reports any errors or
 warnings, and writes the rendered `.txt` and `.xml`. It must report zero errors
-before submission.
+before submission. Omitting the argument builds the revision named as the default
+in `build.sh`.
 
 To work offline instead:
 
 ```bash
 uv tool install xml2rfc
 gem install kramdown-rfc2629   # requires Ruby
-kramdown-rfc2629 draft-chapman-a2a-mls-00.md > draft-chapman-a2a-mls-00.xml
-xml2rfc --text draft-chapman-a2a-mls-00.xml
+kramdown-rfc2629 draft-chapman-a2a-mls-01.md > draft-chapman-a2a-mls-01.xml
+xml2rfc --text draft-chapman-a2a-mls-01.xml
 ```
 
 ## Submitting
@@ -73,7 +79,7 @@ Two operational notes:
   <https://datatracker.ietf.org/meeting/important-dates/> before relying on a
   specific date.
 
-Once `-00` is public, announce it on the `mls@ietf.org` mailing list. That is a
+Announce a revision on the `mls@ietf.org` mailing list once it is public. That is a
 short, plain message describing what the draft addresses and asking for review
 of the credential-binding construction specifically — a narrow, answerable
 technical question gets replies, a general request for feedback does not.
@@ -100,5 +106,5 @@ Their purpose is threefold:
    sounds, and almost nobody in the agent protocol space currently meets it.
 
 Full detail is in `vectors/README.md`. Read it before claiming conformance
-anywhere public: two of the twenty-two vectors currently pass only because the
+anywhere public: two of the thirty-one vectors currently pass only because the
 runner implements what the library does not.

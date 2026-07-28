@@ -36,13 +36,21 @@ export function toAtomDataPart(mediaType: string, envelope: object): Part {
  * Read the payload of an Atom `data` part, or `undefined` if this part is not
  * one. Matches on the part's own `mediaType` first and falls back to the
  * envelope key, so parts from a v0.3 peer are still recognised.
+ *
+ * A part declaring two different media types is refused outright rather than
+ * resolved in favour of either. It is not one kind of message or the other, and
+ * accepting it would make the meaning of a message depend on which of the two
+ * fields the receiver happened to consult — so a sender could have the same
+ * bytes processed as a data object by one peer and as MLS wire by another. This
+ * is conformance vector 073.
  */
 export function readAtomDataPart(part: Part, mediaType: string): unknown {
   if (part.content?.$case !== "data") return undefined;
   const value = part.content.value;
-  if (part.mediaType && part.mediaType !== mediaType) return undefined;
-  if (!part.mediaType && envelopeMediaType(value) !== mediaType) return undefined;
-  return value;
+  const declared = part.mediaType || undefined;
+  const envelope = envelopeMediaType(value);
+  if (declared && envelope && declared !== envelope) return undefined;
+  return (declared ?? envelope) === mediaType ? value : undefined;
 }
 
 function envelopeMediaType(value: unknown): string | undefined {

@@ -20,6 +20,7 @@ MCP Apps and vendor app SDKs put your widget inside an AI vendor's chat product 
 | Playground | `pnpm dev:embed` → http://localhost:5203/?playground=1 |
 | Docs site | `pnpm dev:docs` → http://localhost:5206 |
 | Wire protocol | [PROTOCOL-v1.md](./PROTOCOL-v1.md) |
+| A2A v1.0 on the wire | [A2A-v1.md](./A2A-v1.md) — parts, messages, cards, negotiation, conformance vectors |
 | Security posture | [SECURITY.md](./SECURITY.md) |
 | Model behavior admin (ops) | [MODEL-BEHAVIOR-ADMIN.md](./MODEL-BEHAVIOR-ADMIN.md) — classes + cron script; not a Settings feature |
 | M16 launch gates | [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md) |
