@@ -9,7 +9,6 @@ import {
   encodeGroupState,
   encodeMlsMessage,
   joinGroup,
-  processPrivateMessage,
   type ClientState,
   type GroupState,
   type KeyPackage,
@@ -19,6 +18,7 @@ import {
 } from "ts-mls";
 import { defaultCiphersuite } from "./ciphersuite.js";
 import { assertKeyPackageCredentialBinding, generateBoundKeyPackage } from "./credential.js";
+import { decryptApplicationMessage, type DecryptedMlsApplication } from "./decrypt.js";
 import { hydrateClientState } from "./clientStateRestore.js";
 import type { MlsPairSnapshot } from "./snapshot.js";
 import type { MlsWireMessage } from "./types.js";
@@ -163,24 +163,13 @@ export class MlsPairSession {
     });
   }
 
-  async decrypt(wire: MlsWireMessage): Promise<Uint8Array> {
-    const impl = await defaultCiphersuite();
-    const decoded = decodeMlsMessage(wire, 0)?.[0];
-    if (!decoded || decoded.wireformat !== "mls_private_message") {
-      throw new Error("Expected MLS private message");
-    }
-    const result = await processPrivateMessage(
-      this.groupState,
-      decoded.privateMessage,
-      emptyPskIndex,
-      impl,
-    );
-    this.groupState = result.newState;
-    result.consumed.forEach(zeroOutUint8Array);
-    if (result.kind !== "applicationMessage") {
-      throw new Error(`Unexpected MLS message kind: ${String(result.kind)}`);
-    }
-    return result.message;
+  async decrypt(wire: MlsWireMessage): Promise<DecryptedMlsApplication> {
+    const { result, newState } = await decryptApplicationMessage({
+      groupState: this.groupState,
+      wire,
+    });
+    this.groupState = newState;
+    return result;
   }
 
   exportSnapshot(): MlsPairSnapshot {

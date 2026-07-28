@@ -39,8 +39,11 @@ describe("MlsGroupSession snapshots", () => {
     const wire = await restored.encrypt(
       new TextEncoder().encode(JSON.stringify({ kind: "message", text: "hi" })),
     );
-    const plaintext = await memberSession.decrypt(wire);
-    const parsed = JSON.parse(new TextDecoder().decode(plaintext)) as { text?: string };
+    const decrypted = await memberSession.decrypt(wire);
+    expect(decrypted.senderDid).toBe(host.did);
+    const parsed = JSON.parse(new TextDecoder().decode(decrypted.plaintext)) as {
+      text?: string;
+    };
     expect(parsed.text).toBe("hi");
   });
 });

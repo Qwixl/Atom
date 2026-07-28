@@ -434,11 +434,15 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       if (!peerDid) {
         throw new Error("Cannot resolve peer DID for MLS message (set contextId to mls:<did>)");
       }
-      const plaintext = await mlsStore.decryptFrom(peerDid, event.wire);
+      const { plaintext, senderDid: mlsSenderDid } = await mlsStore.decryptFrom(
+        peerDid,
+        event.wire,
+      );
       const object = decodeEncryptedObjectPayload(plaintext);
       const verified = await verifyDataObject(object, {
         allowedPurposes: mlsPurposes,
         replay: replayGuard,
+        expectedMlsSenderDid: mlsSenderDid,
       });
       if (!trustedAgents.shouldAcceptInbound(verified.issuerDid)) {
         console.log(`[contacts] dropped MLS inbound from ${verified.issuerDid} (block/mute policy)`);
