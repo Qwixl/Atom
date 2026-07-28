@@ -165,6 +165,11 @@ export {
   ASLEEP_QUEUE_MAX_PENDING_PER_PEER,
 } from "./asleepQueue.js";
 export {
+  collectGovernedObjectsFromRawBody,
+  dequeueAsleepMessages,
+  type AsleepDequeueOutcome,
+} from "./asleepDequeue.js";
+export {
   normalizeAgentHandle,
   resolvePublicBaseUrl,
   isTransitionalPortHostname,

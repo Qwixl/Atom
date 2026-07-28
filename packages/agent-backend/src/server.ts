@@ -98,9 +98,11 @@ import {
   roomIdFromContext,
 } from "./mlsSessions.js";
 import { AsleepQueueStore } from "./asleepQueue.js";
+import { dequeueAsleepMessages } from "./asleepDequeue.js";
 import {
   createInboundReachabilityMiddleware,
   effectiveReachabilityMode,
+  evaluateInboundReachability,
   isBrainReachable,
   runAsleepInboxWakeNotification,
   type ReachabilityConfig,
@@ -683,10 +685,49 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     vault: connectorVault,
     alwaysOn: () => isBrainReachable(reachabilityConfig),
     onReachabilityWake: () => {
-      runAsleepInboxWakeNotification(
-        () => asleepQueue.list(),
-        () => asleepQueue.purgeExpired(),
-      );
+      const pendingBefore = asleepQueue.list().length;
+      asleepQueue.purgeExpired();
+      const verdict = evaluateInboundReachability(reachabilityConfig, new Date());
+      if (!verdict.accept) {
+        if (pendingBefore > 0) {
+          runAsleepInboxWakeNotification(
+            () => asleepQueue.list(),
+            () => 0,
+          );
+        }
+        return;
+      }
+      void dequeueAsleepMessages({
+        queue: asleepQueue,
+        verifyOptions: {
+          allowedPurposes: inboxPurposes,
+          replay: replayGuard,
+        },
+        onAccept: async (event) => {
+          if (!trustedAgents.shouldAcceptInbound(event.object.issuerDid)) {
+            console.log(
+              `[contacts] dropped asleep-dequeue from ${event.object.issuerDid} (block/mute policy)`,
+            );
+            return;
+          }
+          inbox.push(event);
+          handleCalendarFeedInboxObject(calendarFeed, event.object);
+          void transactionStore.handleInboxObject(event.object).catch(() => undefined);
+          void qualifyStore.handleInboxObject(event.object).catch(() => undefined);
+          void channelStore.handleInboxObject(event.object).catch(() => undefined);
+          void businessStore.handleInboxObject(event.object).catch(() => undefined);
+          handleSwarmInboxObject(event.object);
+          console.log(
+            `[asleep-dequeue] accepted ${event.object.governance.purpose} from ${event.object.issuerDid} id=${event.object.id}`,
+          );
+        },
+      }).then((outcome) => {
+        if (outcome.processed > 0 || outcome.deferred > 0) {
+          console.log(
+            `[asleep-dequeue] processed=${outcome.processed} accepted=${outcome.accepted} rejected=${outcome.rejected} deferred=${outcome.deferred}`,
+          );
+        }
+      });
     },
     killSwitch: config.killSwitch,
     intervalMs: config.brainIntervalMs,
