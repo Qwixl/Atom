@@ -222,11 +222,33 @@ export {
   type SplitProposalPayload,
 } from "./commerce.js";
 export {
+  agentCardUrl,
+  atomJsonRpcUrl,
   buildAtomAgentCard,
+  rebindAtomAgentCard,
   type AtomAgentCardOptions,
   type AtomBusinessProfile,
   type AtomSwarmAgentKind,
 } from "./agentCard.js";
+export {
+  createAtomPeerClient,
+  fetchAtomAgentCard,
+  normalizePeerBaseUrl,
+} from "./peerClient.js";
+export {
+  atomMessage,
+  fromRole,
+  textPart,
+  toRole,
+  type AtomMessageParams,
+  type AtomRole,
+} from "./message.js";
+export { readAtomDataPart, toAtomDataPart } from "./dataPart.js";
+export {
+  advertisedAgentDid,
+  signAtomAgentCard,
+  verifyAtomAgentCard,
+} from "./cardSignature.js";
 
 export {
   sendDataObject,

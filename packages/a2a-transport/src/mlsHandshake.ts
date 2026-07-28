@@ -1,6 +1,7 @@
 import type { Part } from "@a2a-js/sdk";
 import type { DataObject } from "@qwixl/protocol";
 import { ATOM_MLS_HANDSHAKE_MEDIA_TYPE } from "./constants.js";
+import { readAtomDataPart, toAtomDataPart } from "./dataPart.js";
 import { bytesToBase64, base64ToBytes, type MlsWireMessage } from "@qwixl/mls-session";
 
 export interface AtomMlsHandshakeEnvelope {
@@ -12,11 +13,11 @@ export interface AtomMlsHandshakeEnvelope {
   initiatorEndpoint?: string;
 }
 
-export function isAtomMlsHandshakeEnvelope(value: unknown): value is AtomMlsHandshakeEnvelope {
+/** Structural check only; the media type is matched by the part codec. */
+function hasMlsHandshakeShape(value: unknown): value is AtomMlsHandshakeEnvelope {
   if (typeof value !== "object" || value === null) return false;
   const record = value as AtomMlsHandshakeEnvelope;
   return (
-    record.mediaType === ATOM_MLS_HANDSHAKE_MEDIA_TYPE &&
     typeof record.initiatorDid === "string" &&
     typeof record.welcome === "string" &&
     typeof record.ratchetTree === "string" &&
@@ -24,17 +25,19 @@ export function isAtomMlsHandshakeEnvelope(value: unknown): value is AtomMlsHand
   );
 }
 
+/** True for a complete Atom MLS handshake envelope, media-type key included. */
+export function isAtomMlsHandshakeEnvelope(value: unknown): value is AtomMlsHandshakeEnvelope {
+  if (!hasMlsHandshakeShape(value)) return false;
+  return (value as AtomMlsHandshakeEnvelope).mediaType === ATOM_MLS_HANDSHAKE_MEDIA_TYPE;
+}
+
 export function mlsHandshakeToPart(envelope: AtomMlsHandshakeEnvelope): Part {
-  return {
-    kind: "data",
-    data: envelope as unknown as Record<string, unknown>,
-  };
+  return toAtomDataPart(ATOM_MLS_HANDSHAKE_MEDIA_TYPE, envelope);
 }
 
 export function parseMlsHandshakeFromPart(part: Part): AtomMlsHandshakeEnvelope | undefined {
-  if (part.kind !== "data") return undefined;
-  const data = part.data;
-  if (!isAtomMlsHandshakeEnvelope(data)) return undefined;
+  const data = readAtomDataPart(part, ATOM_MLS_HANDSHAKE_MEDIA_TYPE);
+  if (!hasMlsHandshakeShape(data)) return undefined;
   return data;
 }
 

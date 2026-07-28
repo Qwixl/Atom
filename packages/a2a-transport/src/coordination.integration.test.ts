@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { createServer, type Server } from "node:http";
 import { AddressInfo } from "node:net";
-import { ClientFactory } from "@a2a-js/sdk/client";
 import { generateAgentKeyPair, type AgentKeyPair } from "@qwixl/protocol";
 import {
   AtomDataObjectExecutor,
   buildAtomAgentCard,
   COORDINATION_PROPOSAL_PURPOSE,
   COORDINATION_RESPONSE_PURPOSE,
+  createAtomPeerClient,
   createSchedulingProposal,
   createSchedulingResponse,
+  rebindAtomAgentCard,
   sendDataObject,
   verifySchedulingProposal,
   verifySchedulingResponse,
@@ -45,8 +46,7 @@ describe("coordination A2A integration", () => {
 
     const addr = server.address() as AddressInfo;
     const baseUrl = `http://127.0.0.1:${addr.port}`;
-    agentCard.url = `${baseUrl}/a2a/jsonrpc`;
-    agentCard.additionalInterfaces = [{ url: agentCard.url, transport: "JSONRPC" }];
+    rebindAtomAgentCard(agentCard, baseUrl);
 
     const proposal = await createSchedulingProposal({
       identity: organizerIdentity as AgentKeyPair,
@@ -64,8 +64,7 @@ describe("coordination A2A integration", () => {
     });
     await verifySchedulingProposal(proposal);
 
-    const factory = new ClientFactory();
-    const client = await factory.createFromUrl(baseUrl);
+    const client = await createAtomPeerClient(baseUrl);
     await sendDataObject(client, { object: proposal, role: "user" });
     expect(received).toEqual([COORDINATION_PROPOSAL_PURPOSE]);
 

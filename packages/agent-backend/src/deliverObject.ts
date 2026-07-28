@@ -1,6 +1,7 @@
-import { ClientFactory } from "@a2a-js/sdk/client";
 import {
+  createAtomPeerClient,
   encodeEncryptedObjectPayload,
+  normalizePeerBaseUrl as normalizeTransportPeerBaseUrl,
   sendDataObject,
   sendMlsWire,
 } from "@qwixl/a2a-transport";
@@ -21,16 +22,12 @@ export interface DeliverObjectResult {
   encrypted: boolean;
 }
 
-/** Strip A2A JSON-RPC suffix so ClientFactory resolves the agent card at the host root. */
-export function normalizePeerBaseUrl(peerUrl: string): string {
-  return peerUrl.replace(/\/a2a\/jsonrpc\/?$/i, "").replace(/\/$/, "");
-}
+/** Strip A2A JSON-RPC suffix so the agent card resolves at the host root. */
+export const normalizePeerBaseUrl = normalizeTransportPeerBaseUrl;
 
 /** Send a signed data object to a peer (plain or MLS-encrypted). */
 export async function deliverSignedObject(params: DeliverObjectParams): Promise<DeliverObjectResult> {
-  const peerUrl = normalizePeerBaseUrl(params.peerUrl);
-  const factory = new ClientFactory();
-  const client = await factory.createFromUrl(peerUrl);
+  const client = await createAtomPeerClient(params.peerUrl);
 
   if (params.encrypt) {
     const peerDid = params.peerDid?.trim();
