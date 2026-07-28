@@ -1,5 +1,5 @@
 {
-  "specification": "draft-chapman-a2a-mls-00",
+  "specification": "draft-chapman-a2a-mls-01",
   "generated": "deterministic — regenerate with `node spec/vectors/generate.mjs`",
   "identities": {
     "alice": {
@@ -13,10 +13,11 @@
   },
   "evaluationInstant": "2026-01-15T12:00:00.000Z",
   "counts": {
-    "total": 22,
-    "accept": 5,
-    "reject": 15,
-    "sequences": 2
+    "total": 31,
+    "accept": 10,
+    "reject": 19,
+    "sequences": 2,
+    "encapsulation": 9
   },
   "vectors": [
     {
@@ -212,6 +213,91 @@
       "kind": "credential-binding",
       "requires": [
         "credential-binding"
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "070-part-media-type-both-positions",
+      "kind": "encapsulation-part",
+      "requires": [
+        "encapsulation",
+        "media-type-placement"
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "071-part-media-type-part-member-only",
+      "kind": "encapsulation-part",
+      "requires": [
+        "encapsulation",
+        "media-type-placement"
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "072-part-media-type-data-member-only",
+      "kind": "encapsulation-part",
+      "requires": [
+        "encapsulation",
+        "media-type-placement"
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "073-part-media-type-conflict",
+      "kind": "encapsulation-part",
+      "requires": [
+        "encapsulation",
+        "media-type-placement"
+      ],
+      "expect": "reject",
+      "reason": "media-type-conflict"
+    },
+    {
+      "id": "074-part-media-type-absent",
+      "kind": "encapsulation-part",
+      "requires": [
+        "encapsulation",
+        "media-type-placement"
+      ],
+      "expect": "reject",
+      "reason": "malformed"
+    },
+    {
+      "id": "075-part-content-not-data",
+      "kind": "encapsulation-part",
+      "requires": [
+        "encapsulation",
+        "media-type-placement"
+      ],
+      "expect": "reject",
+      "reason": "malformed"
+    },
+    {
+      "id": "076-part-media-type-not-the-one-sought",
+      "kind": "encapsulation-part",
+      "requires": [
+        "encapsulation",
+        "media-type-placement"
+      ],
+      "expect": "reject",
+      "reason": "media-type-not-matched"
+    },
+    {
+      "id": "077-mls-wire-part",
+      "kind": "encapsulation-part",
+      "requires": [
+        "encapsulation",
+        "media-type-placement"
+      ],
+      "expect": "accept"
+    },
+    {
+      "id": "078-mls-handshake-part",
+      "kind": "encapsulation-part",
+      "requires": [
+        "encapsulation",
+        "media-type-placement"
       ],
       "expect": "accept"
     }

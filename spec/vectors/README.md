@@ -1,8 +1,9 @@
 # Conformance test vectors
 
 Machine-readable vectors for every normative MUST in
-[`draft-chapman-a2a-mls-00`](../draft-chapman-a2a-mls-00.md). 22 vectors, 8 accept
-and 14 reject.
+[`draft-chapman-a2a-mls-01`](../draft-chapman-a2a-mls-01.md). 31 vectors, 10 accept
+and 19 reject, in two groups: 22 covering the Governed Object and its processing
+rules, and 9 covering the A2A v1.0 encapsulation.
 
 ```bash
 node spec/vectors/generate.mjs   # regenerate (deterministic)
@@ -33,13 +34,15 @@ One JSON file per vector. Every vector has `id`, `kind`, `description`, and
 | `data-object` | One `object`, one `expect` |
 | `data-object-sequence` | A `sequence` of steps, each with its own `expect`; state carries across steps |
 | `credential-binding` | A `credentialIdentity` and a `leafSignatureKey` to compare |
+| `encapsulation-part` | A `part` as wire JSON and a `readAs` media type the receiver seeks |
 
 Other fields:
 
 - `expect` — `accept` or `reject`
 - `reason` — on rejection, which check must catch it: `signature-invalid`,
   `signature-not-by-issuer`, `expired`, `replay`, `purpose-not-permitted`,
-  `credential-key-mismatch`, `malformed`
+  `credential-key-mismatch`, `media-type-conflict`, `media-type-not-matched`,
+  `malformed`
 - `now` — the instant at which to evaluate, so expiry tests are deterministic
 - `permittedPurposes` — the receiver's configured allowlist for this context
 - `canonicalForm` — for untampered vectors, the exact string that was signed
@@ -62,9 +65,35 @@ in the committed vectors means a real semantic change.
 Private seeds are in `generate.mjs`. They are test keys with no value; never use them
 for anything.
 
+## The encapsulation vectors are wire JSON
+
+Vectors `070`–`078` hold the JSON a peer actually transmits, not any implementation's
+internal representation of it. The A2A v1.0 types are generated from a protocol buffer
+schema, so a generated implementation presents part content as a tagged union — and
+that form never appears on the wire.
+
+The distinction is not pedantry. It is invisible to a single implementation, which
+writes and reads its own internal shape and always agrees with itself, and it surfaces
+only when a second implementation in another language tries to interoperate from a
+description. Atom's own public documentation described the internal shape as though it
+were the wire format for the whole of the v1.0 migration, and nothing in the test suite
+could have caught it.
+
+These vectors are consumed twice, deliberately:
+
+- `run.mjs` maps the wire JSON to the internal form with **its own** hand-written
+  mapping, so a runner cannot fail to notice the implementation misreading the wire.
+- `packages/a2a-transport/src/encapsulation.vectors.test.ts` runs the same files
+  through the **real** SDK deserialiser, which is what handles every live inbound
+  message.
+
+Neither alone is sufficient: the first would not catch the SDK diverging from the spec,
+and the second could not catch our codec and our understanding of the wire being wrong
+in the same direction.
+
 ## What passing currently means, precisely
 
-All 22 vectors pass, but they do not all exercise the same amount of shipped code, and
+All 31 vectors pass, but they do not all exercise the same amount of shipped code, and
 the difference matters.
 
 **Verified in `@qwixl/protocol`.** Canonicalisation including key ordering, non-ASCII
@@ -91,7 +120,29 @@ stay stated until it is false.
 
 ## What the vectors caught
 
-Vector `023-expiry-earlier-of-both-wins-ttl` failed on first run.
+Twice now, a vector written from the specification has disagreed with the
+implementation and been right.
+
+### `073-part-media-type-conflict`
+
+A part declaring one media type in its `mediaType` member and a *different* one inside
+its `data` object was **accepted**. `readAtomDataPart` matched on the part member and
+never compared it to the envelope key.
+
+The consequence is worse than a parsing nicety. A receiver reading the part member and
+a receiver reading the envelope key resolve identical bytes to different media types, so
+the same message is a data object to one peer and MLS wire to another. Both behaviours
+were reachable on the network at once — the envelope key exists precisely because peers
+and modules read it — which means a sender could decide which of two receivers acted on
+a payload by disagreeing with itself about what the payload was.
+
+The fix rejects the part outright rather than preferring either member, in
+`packages/a2a-transport/src/dataPart.ts`. The draft now requires that rejection
+explicitly, in the Media Type Placement section.
+
+### `023-expiry-earlier-of-both-wins-ttl`
+
+Failed on first run of the original suite.
 
 `resolveExpiry` returned `expiresAt` whenever it was present and never compared it to
 the TTL. So an object with `ttlSeconds: 60` and an `expiresAt` a year out was treated
