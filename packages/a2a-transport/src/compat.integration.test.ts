@@ -34,6 +34,7 @@ import { ClientFactory as LegacyClientFactory } from "@a2a-js/sdk-v03/client";
 import { generateAgentKeyPair, signDataObject, type AgentKeyPair } from "@qwixl/protocol";
 import { ATOM_A2A_EXTENSION, ATOM_DATA_OBJECT_MEDIA_TYPE, COMMS_MESSAGE_PURPOSE } from "./constants.js";
 import { buildAtomAgentCard, rebindAtomAgentCard } from "./agentCard.js";
+import { signAtomAgentCard } from "./cardSignature.js";
 import { AtomDataObjectExecutor } from "./executor.js";
 import { createAtomPeerClient } from "./peerClient.js";
 import { createAtomA2aExpressApp } from "./server-entry.js";
@@ -186,6 +187,59 @@ describe("A2A v0.3 interop", () => {
 
       expect(received).toEqual(["hello from the past"]);
       expect(result && typeof result === "object" && "parts" in result).toBe(true);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it("serves a signed card to peers that omit A2A-Version (legacy well-known)", async () => {
+    const identity = (await generateAgentKeyPair()) as AgentKeyPair;
+    const executor = new AtomDataObjectExecutor({
+      identity,
+      allowedPurposes: [COMMS_MESSAGE_PURPOSE],
+      sendReceipt: false,
+      onReceive: () => {},
+    });
+    let agentCard = buildAtomAgentCard({
+      name: "Signed upgraded agent",
+      description: "Signed card must still answer the v0.3 translator",
+      baseUrl: "http://127.0.0.1:0",
+      publisherDid: identity.did,
+      business: {
+        verificationTier: 2,
+        businessDomain: "example.test",
+        tierLabel: "Verified",
+      },
+    });
+    agentCard = await signAtomAgentCard(agentCard, identity);
+
+    const app = createAtomA2aExpressApp({ agentCard, executor });
+    const server: Server = await new Promise((resolve) => {
+      const s = createServer(app);
+      s.listen(0, "127.0.0.1", () => resolve(s));
+    });
+
+    try {
+      const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      rebindAtomAgentCard(agentCard, baseUrl);
+
+      const legacy = await fetch(`${baseUrl}/.well-known/agent-card.json`);
+      expect(legacy.status).toBe(200);
+      const body = (await legacy.json()) as {
+        protocolVersion?: string;
+        error?: string;
+        signatures?: unknown[];
+      };
+      expect(body.error).toBeUndefined();
+      expect(body.protocolVersion).toMatch(/^0\.3/);
+      expect(body.signatures?.length).toBe(1);
+
+      const v1 = await fetch(`${baseUrl}/.well-known/agent-card.json`, {
+        headers: { "A2A-Version": "1.0" },
+      });
+      expect(v1.status).toBe(200);
+      const v1Body = (await v1.json()) as { supportedInterfaces?: { protocolVersion: string }[] };
+      expect(v1Body.supportedInterfaces?.map((i) => i.protocolVersion)).toEqual(["1.0", "0.3"]);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
