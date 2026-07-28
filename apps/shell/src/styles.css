@@ -535,6 +535,50 @@ body {
   color: var(--accent);
 }
 
+.llm-model-picker {
+  position: relative;
+}
+
+.llm-model-picker-control {
+  position: relative;
+}
+
+.llm-model-picker-menu {
+  position: absolute;
+  z-index: 40;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.llm-model-picker-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: inherit;
+}
+
+.llm-model-picker-option:hover,
+.llm-model-picker-option.is-active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
 .settings-section-first {
   border-top: none;
   padding-top: 0;

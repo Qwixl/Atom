@@ -1,12 +1,31 @@
-/** Tiny provider check after hosted LLM key rotate. */
+﻿/** Tiny provider check after hosted LLM key rotate. */
 
 export type LlmProbeResult =
   | { ok: true; model: string }
   | { ok: false; error: string };
 
+const ANTHROPIC_VERSION = "2023-06-01";
+
+export function isAnthropicBaseUrl(baseUrl: string): boolean {
+  try {
+    const host = new URL(
+      baseUrl.trim().startsWith("http") ? baseUrl : `https://${baseUrl}`,
+    ).hostname.toLowerCase();
+    return host === "api.anthropic.com" || host.endsWith(".anthropic.com");
+  } catch {
+    return /anthropic\.com/i.test(baseUrl);
+  }
+}
+
+function anthropicMessagesUrl(baseUrl: string): string {
+  const trimmed = baseUrl.replace(/\/+$/, "");
+  if (trimmed.endsWith("/v1")) return `${trimmed}/messages`;
+  return `${trimmed}/v1/messages`;
+}
+
 /**
- * POST /chat/completions with max_tokens=1 — proves key + base URL + model
- * before the owner returns to Chat.
+ * Proves key + base URL + model before the owner returns to Chat.
+ * OpenAI-compatible: POST /chat/completions. Anthropic: POST /v1/messages.
  */
 export async function probeLlmConnection(input: {
   apiKey: string;
@@ -22,19 +41,34 @@ export async function probeLlmConnection(input: {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), input.timeoutMs ?? 20_000);
   try {
-    const resp = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: "ping" }],
-        max_tokens: 1,
-      }),
-      signal: controller.signal,
-    });
+    const resp = isAnthropicBaseUrl(baseUrl)
+      ? await fetch(anthropicMessagesUrl(baseUrl), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": ANTHROPIC_VERSION,
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 1,
+            messages: [{ role: "user", content: "ping" }],
+          }),
+          signal: controller.signal,
+        })
+      : await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "user", content: "ping" }],
+            max_tokens: 1,
+          }),
+          signal: controller.signal,
+        });
     if (!resp.ok) {
       const body = await resp.text().catch(() => "");
       const snippet = body.replace(/\s+/g, " ").slice(0, 160);
