@@ -25,3 +25,6 @@ python3 spec/second-impl/run_vectors.py
 ```
 
 No third-party packages. Exit code non-zero on any disagreement with the corpus.
+
+Decision context (local corpus): D110 / D119 / D121 — fixed vectors for third parties;
+hostile harness for adversarial shapes.
