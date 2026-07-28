@@ -10,11 +10,10 @@ import {
   serializeKeyPackages,
   deserializeKeyPackages,
   type GeneratedKeyPackage,
-  type MlsGroupSnapshot,
-  type MlsPairSnapshot,
   type MlsWireMessage,
 } from "@qwixl/mls-session";
 import { ATOM_MLS_HANDSHAKE_MEDIA_TYPE, type AtomMlsHandshakeEnvelope } from "@qwixl/a2a-transport";
+import type { AgentKeyPair } from "@qwixl/protocol";
 import type { KeyPackage, PrivateKeyPackage } from "ts-mls";
 import type { MlsSessionRecordStore } from "./mlsSessionRecords.js";
 
@@ -51,6 +50,8 @@ export class MlsSessionStore {
   private readonly groupPackages = new Map<string, StoredPairPackages>();
   private pending: PendingKeyPackage | null = null;
   private records: MlsSessionRecordStore | null = null;
+
+  constructor(private readonly identity: AgentKeyPair) {}
 
   attachRecords(records: MlsSessionRecordStore): void {
     this.records = records;
@@ -140,18 +141,18 @@ export class MlsSessionStore {
     });
   }
 
-  async keyPackageForHandshake(localDid: string): Promise<{ did: string; wire: string }> {
+  async keyPackageForHandshake(): Promise<{ did: string; wire: string }> {
     if (!this.pending) {
-      this.pending = await generatePairKeyPackage(localDid);
+      this.pending = await generatePairKeyPackage(this.identity);
     }
-    return { did: localDid, wire: bytesToBase64(this.pending.keyPackageWire) };
+    return { did: this.identity.did, wire: bytesToBase64(this.pending.keyPackageWire) };
   }
 
-  async memberKeyPackage(localDid: string): Promise<{
+  async memberKeyPackage(): Promise<{
     wire: MlsWireMessage;
     packages: StoredPairPackages;
   }> {
-    const generated = await generateGroupMemberKeyPackage(localDid);
+    const generated = await generateGroupMemberKeyPackage(this.identity);
     return {
       wire: generated.keyPackageWire,
       packages: {
@@ -162,7 +163,6 @@ export class MlsSessionStore {
   }
 
   async connectAsInitiator(opts: {
-    localDid: string;
     peerDid: string;
     peerKeyPackageWire: MlsWireMessage;
     initiatorEndpoint?: string;
@@ -170,7 +170,7 @@ export class MlsSessionStore {
     if (this.sessions.has(opts.peerDid)) {
       throw new Error(`MLS session already exists for ${opts.peerDid}`);
     }
-    const { session, bundle } = await MlsPairSession.createInitiator(opts.localDid);
+    const { session, bundle } = await MlsPairSession.createInitiator(this.identity);
     const welcomeWire = await session.addPeerFromKeyPackage({
       peerDid: opts.peerDid,
       keyPackageWire: opts.peerKeyPackageWire,
@@ -183,7 +183,7 @@ export class MlsSessionStore {
     this.persistPair(opts.peerDid, session);
     return {
       mediaType: ATOM_MLS_HANDSHAKE_MEDIA_TYPE,
-      initiatorDid: opts.localDid,
+      initiatorDid: this.identity.did,
       welcome: bytesToBase64(welcomeWire),
       ratchetTree: serializeRatchetTree(session.ratchetTree()),
       ...(opts.initiatorEndpoint?.trim()
@@ -193,7 +193,6 @@ export class MlsSessionStore {
   }
 
   async acceptHandshake(opts: {
-    localDid: string;
     handshake: AtomMlsHandshakeEnvelope;
   }): Promise<void> {
     if (this.sessions.has(opts.handshake.initiatorDid)) {
@@ -203,7 +202,7 @@ export class MlsSessionStore {
       throw new Error("No pending key package — fetch /mls/key-package first");
     }
     const session = await MlsPairSession.joinFromWelcome({
-      localDid: opts.localDid,
+      localDid: this.identity.did,
       welcomeWire: base64ToBytes(opts.handshake.welcome),
       ratchetTree: deserializeRatchetTree(opts.handshake.ratchetTree),
       publicPackage: this.pending.publicPackage,
@@ -219,11 +218,14 @@ export class MlsSessionStore {
     this.pending = null;
   }
 
-  async createRoomHost(opts: { localDid: string; roomId: string }): Promise<MlsGroupSession> {
+  async createRoomHost(opts: { roomId: string }): Promise<MlsGroupSession> {
     if (this.groupSessions.has(opts.roomId)) {
       return this.groupSessions.get(opts.roomId)!;
     }
-    const { session, publicPackage, privatePackage } = await MlsGroupSession.createHost(opts);
+    const { session, publicPackage, privatePackage } = await MlsGroupSession.createHost({
+      identity: this.identity,
+      roomId: opts.roomId,
+    });
     const packages = { publicPackage, privatePackage };
     this.groupSessions.set(opts.roomId, session);
     this.groupPackages.set(opts.roomId, packages);
@@ -255,7 +257,6 @@ export class MlsSessionStore {
   }
 
   async joinRoom(opts: {
-    localDid: string;
     roomId: string;
     handshake: AtomMlsHandshakeEnvelope & { memberDids?: string[] };
     memberPackages: StoredPairPackages;
@@ -264,13 +265,14 @@ export class MlsSessionStore {
       return;
     }
     const session = await MlsGroupSession.joinFromWelcome({
-      localDid: opts.localDid,
+      localDid: this.identity.did,
       roomId: opts.roomId,
       welcomeWire: base64ToBytes(opts.handshake.welcome),
       ratchetTree: deserializeRatchetTree(opts.handshake.ratchetTree),
       publicPackage: opts.memberPackages.publicPackage,
       privatePackage: opts.memberPackages.privatePackage,
-      memberDids: opts.handshake.memberDids ?? [opts.handshake.initiatorDid, opts.localDid],
+      memberDids:
+        opts.handshake.memberDids ?? [opts.handshake.initiatorDid, this.identity.did],
     });
     this.groupSessions.set(opts.roomId, session);
     this.groupPackages.set(opts.roomId, opts.memberPackages);

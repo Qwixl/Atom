@@ -129,7 +129,7 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
         roomId: body.roomId,
         activities: normalizeActivities(body.activities),
       });
-      await mlsStore.createRoomHost({ localDid: identity.did, roomId: descriptor.roomId });
+      await mlsStore.createRoomHost({ roomId: descriptor.roomId });
       res.json({ room: descriptor });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : String(error) });

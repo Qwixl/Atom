@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertCredentialBinding,
+  credentialBindingHolds,
   generateAgentKeyPair,
   isExpired,
   isPurposeAllowed,
   publicKeyToDid,
+  ReplayGuard,
   resolveExpiry,
   signDataObject,
   verifyDataObject,
@@ -136,5 +139,57 @@ describe("data object envelope", () => {
     expect(earlierIsTtl?.toISOString()).toBe("2026-01-15T11:01:00.000Z");
 
     expect(resolveExpiry({ purpose: "comms:message" }, issuedAt)).toBeUndefined();
+  });
+});
+
+describe("replay rejection", () => {
+  it("admits the first presentation and rejects the second", async () => {
+    const keyPair = await generateAgentKeyPair();
+    const object = await signDataObject(
+      {
+        semantic: { schema: "https://schema.org/Message" },
+        payload: { text: "once" },
+        governance: { purpose: "action:capture", ttlSeconds: 3600 },
+      },
+      keyPair,
+    );
+    const replay = new ReplayGuard();
+    await expect(verifyDataObject(object, { replay })).resolves.toMatchObject({
+      id: object.id,
+    });
+    await expect(verifyDataObject(object, { replay })).rejects.toThrow(/replay/);
+  });
+
+  it("does not treat distinct ids as replay", async () => {
+    const keyPair = await generateAgentKeyPair();
+    const body = {
+      semantic: { schema: "https://schema.org/Message" },
+      payload: { text: "repeatable" },
+      governance: { purpose: "action:capture", ttlSeconds: 3600 },
+    };
+    const first = await signDataObject(body, keyPair);
+    const second = await signDataObject(body, keyPair);
+    const replay = new ReplayGuard();
+    await verifyDataObject(first, { replay });
+    await expect(verifyDataObject(second, { replay })).resolves.toMatchObject({
+      id: second.id,
+    });
+  });
+});
+
+describe("credential binding", () => {
+  it("holds when leaf key matches did:key", async () => {
+    const alice = await generateAgentKeyPair();
+    expect(credentialBindingHolds(alice.did, alice.publicKey)).toBe(true);
+    assertCredentialBinding(alice.did, alice.publicKey);
+  });
+
+  it("rejects a mismatched leaf key", async () => {
+    const alice = await generateAgentKeyPair();
+    const bob = await generateAgentKeyPair();
+    expect(credentialBindingHolds(alice.did, bob.publicKey)).toBe(false);
+    expect(() => assertCredentialBinding(alice.did, bob.publicKey)).toThrow(
+      /leaf signature key/,
+    );
   });
 });

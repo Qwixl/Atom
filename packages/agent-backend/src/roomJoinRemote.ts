@@ -67,7 +67,7 @@ export async function joinRemoteRoom(
       return { joined: roomId, descriptor: joinedLocal.descriptor, alreadyMember: true };
     }
   }
-  const memberKp = await mlsStore.memberKeyPackage(identity.did);
+  const memberKp = await mlsStore.memberKeyPackage();
   const joinResp = await fetch(`${adminBase}/rooms/${encodeURIComponent(roomId)}/join`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -106,7 +106,6 @@ export async function joinRemoteRoom(
     }
   } else if (joined.handshake) {
     await mlsStore.joinRoom({
-      localDid: identity.did,
       roomId,
       handshake: {
         mediaType: "application/vnd.atom.mls-handshake+json;version=1",

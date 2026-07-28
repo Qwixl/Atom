@@ -507,6 +507,9 @@ importers:
 
   packages/mls-session:
     dependencies:
+      '@qwixl/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       ts-mls:
         specifier: ^1.6.2
         version: 1.6.2(@noble/ciphers@2.1.1)

@@ -20,3 +20,8 @@ export {
 } from "./governance.js";
 export { signDataObject, verifyDataObject, verifyDataObjectSignature } from "./envelope.js";
 export { validateDataObject, validateUnsignedDataObject } from "./validate.js";
+export { ReplayGuard } from "./replay.js";
+export {
+  assertCredentialBinding,
+  credentialBindingHolds,
+} from "./credentialBinding.js";

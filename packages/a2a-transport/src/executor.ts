@@ -47,6 +47,8 @@ export interface AtomDataObjectExecutorOptions {
   onMlsHandshake?: (event: ReceivedMlsHandshakeEvent) => void | Promise<void>;
   /** When true, respond with a signed comms:receipt data object. Default true. */
   sendReceipt?: boolean;
+  /** Replay history for inbound Governed Objects (draft {{replay}}). */
+  replay?: VerifyDataObjectOptions["replay"];
 }
 
 /** A2A AgentExecutor that verifies inbound data objects and optionally sends receipts. */
@@ -57,6 +59,7 @@ export class AtomDataObjectExecutor implements AgentExecutor {
   private readonly onMlsWire: AtomDataObjectExecutorOptions["onMlsWire"];
   private readonly onMlsHandshake: AtomDataObjectExecutorOptions["onMlsHandshake"];
   private readonly sendReceipt: boolean;
+  private readonly replay: AtomDataObjectExecutorOptions["replay"];
 
   constructor(options: AtomDataObjectExecutorOptions) {
     this.identity = options.identity;
@@ -65,6 +68,7 @@ export class AtomDataObjectExecutor implements AgentExecutor {
     this.onMlsWire = options.onMlsWire;
     this.onMlsHandshake = options.onMlsHandshake;
     this.sendReceipt = options.sendReceipt ?? true;
+    this.replay = options.replay;
   }
 
   async execute(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
@@ -75,6 +79,7 @@ export class AtomDataObjectExecutor implements AgentExecutor {
 
     const verifyOptions: VerifyDataObjectOptions = {
       allowedPurposes: this.allowedPurposes,
+      ...(this.replay ? { replay: this.replay } : {}),
     };
     const objects = await verifyMessageDataObjects(userMessage, verifyOptions);
 

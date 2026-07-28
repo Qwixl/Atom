@@ -19,3 +19,9 @@ export {
   deserializeKeyPackages,
   type SerializedKeyPackages,
 } from "./packageWire.js";
+export {
+  assertKeyPackageCredentialBinding,
+  credentialIdentityDid,
+  didCredential,
+  generateBoundKeyPackage,
+} from "./credential.js";
