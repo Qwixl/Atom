@@ -53,7 +53,7 @@ import {
   HostedLlmConnectionFields,
   type HostedLlmConnectionFieldsValue,
 } from "../settings/HostedLlmConnectionFields.js";
-import { resolveHostedLlmConnection } from "../settings/llmProviderPresets.js";
+import { resolveHostedLlmConnection, isHostedLlmProviderId } from "../settings/llmProviderPresets.js";
 import {
   claimEmailConfirmation,
   subscribeToEmailConfirmed,
@@ -391,9 +391,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
             ...prev,
             apiKey: p.llmApiKey ?? prev.apiKey,
             providerId:
-              p.llmProvider === "openrouter" ||
-              p.llmProvider === "custom" ||
-              p.llmProvider === "openai"
+              p.llmProvider && isHostedLlmProviderId(p.llmProvider)
                 ? p.llmProvider
                 : prev.providerId,
             baseUrl: p.llmBaseUrl ?? prev.baseUrl,

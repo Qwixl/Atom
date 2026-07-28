@@ -6,18 +6,57 @@ import { DEFAULT_OLLAMA_BASE_URL } from "../hostConfig.js";
 
 export type LlmProviderPresetId =
   | "openai"
-  | "openrouter"
   | "anthropic"
+  | "google"
+  | "openrouter"
+  | "groq"
+  | "mistral"
+  | "deepseek"
+  | "together"
   | "ollama"
   | "custom";
 
-/** Hosted agents use OpenAI-compatible chat completions only (no Anthropic-native adapter). */
-export type HostedLlmProviderId = "openai" | "openrouter" | "custom";
+/** Hosted agents: OpenAI-compatible providers + Anthropic Messages. Ollama is local-only. */
+export type HostedLlmProviderId =
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "openrouter"
+  | "groq"
+  | "mistral"
+  | "deepseek"
+  | "together"
+  | "custom";
 
 export const HOSTED_LLM_PROVIDER_IDS: readonly HostedLlmProviderId[] = [
   "openai",
+  "anthropic",
+  "google",
   "openrouter",
+  "groq",
+  "mistral",
+  "deepseek",
+  "together",
   "custom",
+] as const;
+
+/** Select optgroups for the hosted provider dropdown. */
+export const HOSTED_LLM_PROVIDER_GROUPS: readonly {
+  label: string;
+  ids: readonly HostedLlmProviderId[];
+}[] = [
+  {
+    label: "Popular",
+    ids: ["openai", "anthropic", "google", "openrouter"],
+  },
+  {
+    label: "More providers",
+    ids: ["groq", "mistral", "deepseek", "together"],
+  },
+  {
+    label: "Other",
+    ids: ["custom"],
+  },
 ] as const;
 
 export interface LlmProviderPreset {
@@ -38,6 +77,24 @@ export const LLM_PROVIDER_PRESETS: readonly LlmProviderPreset[] = [
     suggestedModels: ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"],
   },
   {
+    id: "anthropic",
+    label: "Anthropic (Claude)",
+    baseUrl: "https://api.anthropic.com",
+    suggestedModels: [
+      "claude-sonnet-4-20250514",
+      "claude-3-5-haiku-latest",
+      "claude-opus-4-20250514",
+    ],
+    note: "Uses your Anthropic API key directly.",
+  },
+  {
+    id: "google",
+    label: "Google (Gemini)",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+    suggestedModels: ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-pro"],
+    note: "Uses Google AI Studio / Gemini API keys.",
+  },
+  {
     id: "openrouter",
     label: "OpenRouter",
     baseUrl: "https://openrouter.ai/api/v1",
@@ -48,14 +105,35 @@ export const LLM_PROVIDER_PRESETS: readonly LlmProviderPreset[] = [
       "google/gemini-2.0-flash",
       "deepseek/deepseek-chat",
     ],
-    note: "One key for many models. Use provider/model ids (e.g. openai/gpt-4o-mini).",
+    note: "One key for Claude, Gemini, and many others. Model ids look like openai/gpt-4o-mini.",
   },
   {
-    id: "anthropic",
-    label: "Anthropic",
-    baseUrl: "https://api.anthropic.com",
-    suggestedModels: ["claude-sonnet-4-20250514", "claude-3-5-haiku-latest"],
-    note: "Uses Anthropic Messages API (not OpenAI /chat/completions).",
+    id: "groq",
+    label: "Groq",
+    baseUrl: "https://api.groq.com/openai/v1",
+    suggestedModels: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
+    note: "Very fast open models.",
+  },
+  {
+    id: "mistral",
+    label: "Mistral",
+    baseUrl: "https://api.mistral.ai/v1",
+    suggestedModels: ["mistral-small-latest", "mistral-large-latest", "codestral-latest"],
+  },
+  {
+    id: "deepseek",
+    label: "DeepSeek",
+    baseUrl: "https://api.deepseek.com/v1",
+    suggestedModels: ["deepseek-chat", "deepseek-reasoner"],
+  },
+  {
+    id: "together",
+    label: "Together",
+    baseUrl: "https://api.together.xyz/v1",
+    suggestedModels: [
+      "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+      "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+    ],
   },
   {
     id: "ollama",
@@ -66,15 +144,15 @@ export const LLM_PROVIDER_PRESETS: readonly LlmProviderPreset[] = [
   },
   {
     id: "custom",
-    label: "Custom",
+    label: "Other",
     baseUrl: "",
     suggestedModels: [],
-    note: "Any OpenAI-compatible base URL (Groq, Together, LM Studio, …).",
+    note: "Paste any OpenAI-compatible endpoint URL (Fireworks, LM Studio, Azure, …).",
   },
 ] as const;
 
 export function getLlmProviderPreset(id: LlmProviderPresetId): LlmProviderPreset {
-  return LLM_PROVIDER_PRESETS.find((p) => p.id === id) ?? LLM_PROVIDER_PRESETS[4]!;
+  return LLM_PROVIDER_PRESETS.find((p) => p.id === id) ?? LLM_PROVIDER_PRESETS[LLM_PROVIDER_PRESETS.length - 1]!;
 }
 
 export function isHostedLlmProviderId(id: string): id is HostedLlmProviderId {
@@ -111,19 +189,31 @@ export function matchLlmProviderPresetId(baseUrl: string): LlmProviderPresetId {
   if (normalized.includes("openrouter.ai")) return "openrouter";
   if (normalized.includes("api.openai.com")) return "openai";
   if (normalized.includes("anthropic.com")) return "anthropic";
+  if (normalized.includes("generativelanguage.googleapis.com") || normalized.includes("googleapis.com"))
+    return "google";
+  if (normalized.includes("groq.com")) return "groq";
+  if (normalized.includes("mistral.ai")) return "mistral";
+  if (normalized.includes("deepseek.com")) return "deepseek";
+  if (normalized.includes("together.xyz") || normalized.includes("together.ai")) return "together";
   if (normalized.includes("11434") || normalized.includes("ollama")) return "ollama";
   return "custom";
 }
 
-export function matchHostedLlmProviderId(baseUrl: string): HostedLlmProviderId {
+export function matchHostedLlmProviderId(
+  baseUrl: string,
+  provider?: string | null,
+): HostedLlmProviderId {
+  const fromProvider = provider?.trim().toLowerCase() ?? "";
+  if (fromProvider && isHostedLlmProviderId(fromProvider)) return fromProvider;
   const matched = matchLlmProviderPresetId(baseUrl);
-  if (matched === "openrouter" || matched === "openai" || matched === "custom") return matched;
+  if (isHostedLlmProviderId(matched)) return matched;
   return "custom";
 }
 
 /**
- * Model ids to show in the Settings select.
+ * Model ids to show when a short static list is preferred.
  * Prefer provider /models when the list is small; otherwise curated shortlist + current.
+ * Searchable pickers should pass the full API list and filter client-side instead.
  */
 export function modelSelectOptions(input: {
   presetId: LlmProviderPresetId;
@@ -149,4 +239,32 @@ export function modelSelectOptions(input: {
     }
   }
   return [...set];
+}
+
+/** Rank models for an empty search: curated first, then alphabetical API hits. */
+export function rankModelsForPicker(input: {
+  presetId: LlmProviderPresetId;
+  apiModels: string[];
+  currentModel: string;
+  query: string;
+}): string[] {
+  const q = input.query.trim().toLowerCase();
+  const suggested = getLlmProviderPreset(input.presetId).suggestedModels;
+  const current = input.currentModel.trim();
+  const pool = new Set<string>([...input.apiModels, ...suggested]);
+  if (current) pool.add(current);
+  let list = [...pool];
+  if (q) {
+    list = list.filter((id) => id.toLowerCase().includes(q));
+  } else {
+    const pinned = suggested.filter((id) => pool.has(id));
+    const rest = list
+      .filter((id) => !pinned.includes(id))
+      .sort((a, b) => a.localeCompare(b));
+    list = [...pinned, ...rest];
+  }
+  if (current && list.includes(current)) {
+    list = [current, ...list.filter((id) => id !== current)];
+  }
+  return list;
 }
