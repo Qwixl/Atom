@@ -1,0 +1,3 @@
+# Minimal second implementation — encapsulation only (stdlib).
+# Run: python3 run_vectors.py
+# Hostile: python3 ../hostile/run_hostile.py

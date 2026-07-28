@@ -47,6 +47,8 @@ export function toAtomDataPart(mediaType: string, envelope: object): Part {
 export function readAtomDataPart(part: Part, mediaType: string): unknown {
   if (part.content?.$case !== "data") return undefined;
   const value = part.content.value;
+  // Envelope must be a JSON object. Arrays and primitives are not Atom encodings.
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
   const declared = part.mediaType || undefined;
   const envelope = envelopeMediaType(value);
   if (declared && envelope && declared !== envelope) return undefined;

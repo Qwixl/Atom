@@ -155,7 +155,8 @@ The encapsulation rules above have machine-readable vectors, so you can check an
 node spec/vectors/run.mjs
 ```
 
-Vectors `070`–`078` cover the part serialisation specifically: media type in either position, in both, in neither, the conflict case, a text part masquerading as a data part, and a well-formed part of the wrong media type. They are JSON, so an implementation in any language can consume them; the runner is the one part that is JavaScript.
+Vectors `070`–`078` cover the part serialisation specifically: media type in either position, in both, in neither, the conflict case, a text part masquerading as a data part, and a well-formed part of the wrong media type. They are JSON, so an implementation in any language can consume them; the reference runner is JavaScript (`spec/vectors/run.mjs`), and a minimal **Python** second implementation lives at `spec/second-impl/` (hostile mutations at `spec/hostile/`).
+
 
 The vectors are written from the specification text rather than generated from this implementation, which is what lets them disagree with it — and they have twice, each time correctly. See [`spec/vectors/README.md`](./spec/vectors/README.md).
 
