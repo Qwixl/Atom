@@ -82,9 +82,9 @@ const CONNECTORS: ConnectorEntry[] = [
   {
     id: "mcp",
     label: "Extra tools (MCP)",
-    hint: "Add tools that run on your agent or a remote server.",
+    hint: "Model Context Protocol — attach local or remote tool servers so your agent can call them with your approval.",
     category: "developer",
-    keywords: "mcp model context protocol tools stdio http",
+    keywords: "mcp model context protocol tools stdio http cursor claude",
   },
 ];
 
