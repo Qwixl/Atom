@@ -1,0 +1,35 @@
+{
+  "id": "070-part-media-type-both-positions",
+  "kind": "encapsulation-part",
+  "description": "The form a conforming sender produces: the media type in the part's own mediaType member and in the data member, identical. MUST be accepted.",
+  "requires": [
+    "encapsulation",
+    "media-type-placement"
+  ],
+  "expect": "accept",
+  "readAs": "application/vnd.atom.data-object+json;version=1",
+  "part": {
+    "data": {
+      "mediaType": "application/vnd.atom.data-object+json;version=1",
+      "object": {
+        "version": 1,
+        "id": "01948f00-0000-7000-8000-000000000070",
+        "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+        "issuedAt": "2026-01-15T11:59:00.000Z",
+        "semantic": {
+          "schema": "https://atom.qwixl.dev/schema/CommsMessage"
+        },
+        "payload": {
+          "text": "hello"
+        },
+        "governance": {
+          "purpose": "comms:message",
+          "ttlSeconds": 3600
+        },
+        "signatureAlgorithm": "ed25519",
+        "signature": "ti4vkUKcn84E0YovTj/9SNh2She+rPCwcwYvCMUWfN84/xee7hgm3xEEdbqAeK9DzafrovQWG2FXhjVmpq7WCw=="
+      }
+    },
+    "mediaType": "application/vnd.atom.data-object+json;version=1"
+  }
+}

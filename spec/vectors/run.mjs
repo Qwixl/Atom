@@ -21,6 +21,7 @@ import {
   verifyDataObject,
   verifyDataObjectSignature,
 } from "../../packages/protocol/dist/index.js";
+import { readAtomDataPart } from "../../packages/a2a-transport/dist/index.js";
 
 const VECTOR_DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -74,6 +75,49 @@ function evaluateCredentialBinding(vector) {
   return { outcome: "accept", detail: "" };
 }
 
+/** Content members of an A2A part, one of which a part carries. */
+const PART_CONTENT_MEMBERS = ["text", "data", "raw", "url"];
+
+/**
+ * Map a part from its wire JSON to the tagged-union form this implementation
+ * works in.
+ *
+ * Deliberately hand-written from the specification rather than delegated to the
+ * A2A SDK, for the same reason the vectors do not import `@qwixl/protocol`: a
+ * runner that used the implementation's own deserialiser could not detect the
+ * implementation misreading the wire form. `Part.fromJSON` is exercised against
+ * these same vectors by `packages/a2a-transport/src/encapsulation.vectors.test.ts`,
+ * so the SDK's mapping and this one are checked against each other.
+ */
+function partFromWireJson(json) {
+  if (typeof json !== "object" || json === null) throw new Error("part is not an object");
+  const present = PART_CONTENT_MEMBERS.filter((member) => json[member] !== undefined);
+  if (present.length !== 1) {
+    throw new Error(`part must carry exactly one content member, found ${present.length}`);
+  }
+  const [member] = present;
+  return { content: { $case: member, value: json[member] }, mediaType: json.mediaType ?? "" };
+}
+
+/**
+ * Resolve a part supplied as wire JSON to the media type the receiver seeks.
+ *
+ * A part that cannot be deserialised counts as rejected: a receiver that cannot
+ * parse a part cannot act on it, which is the outcome the vector asserts anyway.
+ */
+function evaluateEncapsulation(vector) {
+  let part;
+  try {
+    part = partFromWireJson(vector.part);
+  } catch (error) {
+    return { outcome: "reject", detail: `undeserialisable part: ${error.message}` };
+  }
+  if (readAtomDataPart(part, vector.readAs) === undefined) {
+    return { outcome: "reject", detail: `part did not resolve to ${vector.readAs}` };
+  }
+  return { outcome: "accept", detail: "" };
+}
+
 const files = readdirSync(VECTOR_DIR)
   .filter((f) => f.endsWith(".json") && f !== "manifest.json")
   .sort();
@@ -87,6 +131,8 @@ for (const file of files) {
 
   if (vector.kind === "credential-binding") {
     results.push({ expected: vector.expect, ...evaluateCredentialBinding(vector) });
+  } else if (vector.kind === "encapsulation-part") {
+    results.push({ expected: vector.expect, ...evaluateEncapsulation(vector) });
   } else if (vector.kind === "data-object-sequence") {
     const replay = new ReplayGuard();
     for (const step of vector.sequence) {

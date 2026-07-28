@@ -93,6 +93,7 @@ Build your app with any bundler that resolves the package `development` export c
 | [DEMO-PEER.md](./DEMO-PEER.md) | Live demo counterpart agent (M14.6) |
 | [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md) | M16 public push gates |
 | [PROTOCOL-v1.md](./PROTOCOL-v1.md) | Frozen v1 data-object + did:key contracts |
+| [A2A-v1.md](./A2A-v1.md) | A2A v1.0 on the wire: parts, messages, cards, version negotiation |
 | [SECURITY.md](./SECURITY.md) | Threat model for shipped surface |
 | [SECRET-STORE.md](./SECRET-STORE.md) | Credential adapter priority for embedders |
 

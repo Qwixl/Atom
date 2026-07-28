@@ -480,6 +480,161 @@ vectors.push({
   leafSignatureKey: ALICE.publicKey.toString("base64"),
 });
 
+/* --- encapsulation (A2A v1.0 part serialisation) --- */
+
+/*
+ * These vectors are the JSON a peer actually transmits, not any implementation's
+ * internal representation of it. An implementation generated from the A2A
+ * protocol buffer schema presents part content as a tagged union, and describing
+ * that form as though it were the wire format is precisely the mistake the
+ * encapsulation section of -01 exists to prevent: it is invisible to a single
+ * implementation, which both writes and reads its own internal shape, and only
+ * surfaces when a second implementation in another language tries to interoperate
+ * from the description.
+ *
+ * `readAs` is the media type the receiver is looking for. Acceptance means the
+ * receiver resolved this part to that media type and can hand the `data` member
+ * to the layer above.
+ */
+
+const DATA_OBJECT_MEDIA_TYPE = "application/vnd.atom.data-object+json;version=1";
+const MLS_WIRE_MEDIA_TYPE = "application/vnd.atom.mls-wire+cbor;version=1";
+const MLS_HANDSHAKE_MEDIA_TYPE = "application/vnd.atom.mls-handshake+json;version=1";
+
+const ENCAPSULATED_OBJECT = sign(
+  base({
+    id: "01948f00-0000-7000-8000-000000000070",
+    governance: { purpose: "comms:message", ttlSeconds: 3600 },
+  }),
+  ALICE.privateKey,
+).object;
+
+function addPartVector({ id, description, expect, reason, readAs, part }) {
+  vectors.push({
+    id,
+    kind: "encapsulation-part",
+    description,
+    requires: ["encapsulation", "media-type-placement"],
+    expect,
+    ...(reason ? { reason } : {}),
+    readAs,
+    part,
+  });
+}
+
+addPartVector({
+  id: "070-part-media-type-both-positions",
+  description:
+    "The form a conforming sender produces: the media type in the part's own mediaType member and in the data member, identical. MUST be accepted.",
+  expect: "accept",
+  readAs: DATA_OBJECT_MEDIA_TYPE,
+  part: {
+    data: { mediaType: DATA_OBJECT_MEDIA_TYPE, object: ENCAPSULATED_OBJECT },
+    mediaType: DATA_OBJECT_MEDIA_TYPE,
+  },
+});
+
+addPartVector({
+  id: "071-part-media-type-part-member-only",
+  description:
+    "Media type declared only in the part member, as a generic A2A v1.0 tool with no knowledge of this specification's envelope would produce. MUST be accepted.",
+  expect: "accept",
+  readAs: DATA_OBJECT_MEDIA_TYPE,
+  part: {
+    data: { object: ENCAPSULATED_OBJECT },
+    mediaType: DATA_OBJECT_MEDIA_TYPE,
+  },
+});
+
+addPartVector({
+  id: "072-part-media-type-data-member-only",
+  description:
+    "Media type declared only inside the data member, as a peer speaking A2A v0.3 produces — that version had no mediaType member on a part. MUST be accepted, and this is the requirement that keeps an incrementally upgraded network working.",
+  expect: "accept",
+  readAs: DATA_OBJECT_MEDIA_TYPE,
+  part: {
+    data: { mediaType: DATA_OBJECT_MEDIA_TYPE, object: ENCAPSULATED_OBJECT },
+  },
+});
+
+addPartVector({
+  id: "073-part-media-type-conflict",
+  description:
+    "The two media type declarations disagree. MUST be rejected. A receiver that trusts one member and ignores the other processes this part as a different message from a receiver that trusts the other, so accepting it makes the meaning of a message depend on which member the receiver happens to read. Where the two implementations sit on the same network, a sender chooses which of them acts.",
+  expect: "reject",
+  reason: "media-type-conflict",
+  readAs: DATA_OBJECT_MEDIA_TYPE,
+  part: {
+    data: { mediaType: MLS_WIRE_MEDIA_TYPE, object: ENCAPSULATED_OBJECT },
+    mediaType: DATA_OBJECT_MEDIA_TYPE,
+  },
+});
+
+addPartVector({
+  id: "074-part-media-type-absent",
+  description:
+    "No media type in either position. MUST be rejected rather than inferred from the shape of the data member, which would let a sender have a payload interpreted under a media type it never declared.",
+  expect: "reject",
+  reason: "malformed",
+  readAs: DATA_OBJECT_MEDIA_TYPE,
+  part: {
+    data: { object: ENCAPSULATED_OBJECT },
+  },
+});
+
+addPartVector({
+  id: "075-part-content-not-data",
+  description:
+    "A text part whose mediaType claims this specification's media type. MUST be rejected: the encodings require the content to be a data part, and a receiver that parses text content as an envelope accepts payloads the specification does not admit.",
+  expect: "reject",
+  reason: "malformed",
+  readAs: DATA_OBJECT_MEDIA_TYPE,
+  part: {
+    text: JSON.stringify({ mediaType: DATA_OBJECT_MEDIA_TYPE, object: ENCAPSULATED_OBJECT }),
+    mediaType: DATA_OBJECT_MEDIA_TYPE,
+  },
+});
+
+addPartVector({
+  id: "076-part-media-type-not-the-one-sought",
+  description:
+    "A well-formed MLS wire part offered to a receiver looking for a Governed Object part. MUST be rejected. Guards against a receiver that dispatches on the shape of the data member and treats the media type as decoration.",
+  expect: "reject",
+  reason: "media-type-not-matched",
+  readAs: DATA_OBJECT_MEDIA_TYPE,
+  part: {
+    data: { mediaType: MLS_WIRE_MEDIA_TYPE, wire: "AAECAwQFBgcICQoLDA0ODw==" },
+    mediaType: MLS_WIRE_MEDIA_TYPE,
+  },
+});
+
+addPartVector({
+  id: "077-mls-wire-part",
+  description: "An MLS wire part in the form a conforming sender produces. MUST be accepted.",
+  expect: "accept",
+  readAs: MLS_WIRE_MEDIA_TYPE,
+  part: {
+    data: { mediaType: MLS_WIRE_MEDIA_TYPE, wire: "AAECAwQFBgcICQoLDA0ODw==" },
+    mediaType: MLS_WIRE_MEDIA_TYPE,
+  },
+});
+
+addPartVector({
+  id: "078-mls-handshake-part",
+  description: "An MLS handshake part in the form a conforming sender produces. MUST be accepted.",
+  expect: "accept",
+  readAs: MLS_HANDSHAKE_MEDIA_TYPE,
+  part: {
+    data: {
+      mediaType: MLS_HANDSHAKE_MEDIA_TYPE,
+      initiatorDid: ALICE_DID,
+      welcome: "AAECAwQFBgcICQoLDA0ODw==",
+      ratchetTree: "EBESExQVFhcYGRobHB0eHw==",
+    },
+    mediaType: MLS_HANDSHAKE_MEDIA_TYPE,
+  },
+});
+
 /* -------------------------------------------------------------------- emit --- */
 
 mkdirSync(OUT_DIR, { recursive: true });
@@ -489,7 +644,7 @@ for (const vector of vectors) {
 }
 
 const manifest = {
-  specification: "draft-chapman-a2a-mls-00",
+  specification: "draft-chapman-a2a-mls-01",
   generated: "deterministic — regenerate with `node spec/vectors/generate.mjs`",
   identities: {
     alice: { did: ALICE_DID, publicKeyBase64: ALICE.publicKey.toString("base64") },
@@ -501,6 +656,7 @@ const manifest = {
     accept: vectors.filter((v) => v.expect === "accept").length,
     reject: vectors.filter((v) => v.expect === "reject").length,
     sequences: vectors.filter((v) => v.kind === "data-object-sequence").length,
+    encapsulation: vectors.filter((v) => v.kind === "encapsulation-part").length,
   },
   vectors: vectors.map((v) => ({
     id: v.id,
