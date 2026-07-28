@@ -268,6 +268,7 @@ import {
 import {
   LLM_PROVIDER_PRESETS,
   getLlmProviderPreset,
+  matchHostedLlmProviderId,
   matchLlmProviderPresetId,
   modelSelectOptions,
   resolveHostedLlmConnection,
@@ -278,6 +279,7 @@ import {
   HostedLlmConnectionFields,
   type HostedLlmConnectionFieldsValue,
 } from "./settings/HostedLlmConnectionFields.js";
+import { LlmModelPicker } from "./settings/LlmModelPicker.js";
 import { loadCommsAgentConfig, loadCommsAgentConfigSecure, saveCommsAgentConfigSecure, clearCommsAdminToken, clearCommsAgentConfig, loadOwnerAgentKind, refreshCommsConfigCache, purgeStaleLocalAgentConfig, isLocalAgentUrl } from "./comms/storage.js";
 import { probeAgentConnection, reconcileAgentConnection } from "./comms/agentConnection.js";
 import { presentUserError } from "./comms/agentErrors.js";
@@ -313,6 +315,7 @@ import { validateProductionAgUiUrl } from "./productionGuard.js";
 import { applyAtomSkin, ATOM_SKINS, isAtomSkinId, type AtomSkinId } from "@qwixl/skin-default/tokens";
 import {
   updateHostedLlmConnection,
+  fetchHostedLlmConnectionMeta,
   signOutSupabase,
   fetchHostedAccountStatus,
   fetchHostedAgentConnection,
@@ -4008,9 +4011,39 @@ function SettingsDialog({
   const [hostedLlm, setHostedLlm] = useState<HostedLlmConnectionFieldsValue>(() =>
     defaultHostedLlmConnectionFields("openai"),
   );
+  const [hostedLlmHasKey, setHostedLlmHasKey] = useState(false);
   const [hostedLlmBusy, setHostedLlmBusy] = useState(false);
   const [hostedLlmNote, setHostedLlmNote] = useState<string | null>(null);
   const [hostedLlmError, setHostedLlmError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isHostedAgent) return;
+    let cancelled = false;
+    void fetchHostedLlmConnectionMeta()
+      .then((meta) => {
+        if (cancelled) return;
+        setHostedLlmHasKey(meta.hasApiKey);
+        if (!meta.provider && !meta.baseUrl && !meta.model) return;
+        const providerId = matchHostedLlmProviderId(meta.baseUrl ?? "", meta.provider);
+        const resolved = resolveHostedLlmConnection({
+          providerId,
+          baseUrl: meta.baseUrl ?? undefined,
+          model: meta.model ?? undefined,
+        });
+        setHostedLlm({
+          providerId: resolved.provider,
+          baseUrl: meta.baseUrl?.trim() || resolved.baseUrl,
+          model: meta.model?.trim() || resolved.model,
+          apiKey: "",
+        });
+      })
+      .catch(() => {
+        /* Keep defaults if meta is unavailable (offline / CP down). */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isHostedAgent]);
+
   const [moduleCatalogNote, setModuleCatalogNote] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<
     | "profile"
@@ -4075,7 +4108,7 @@ function SettingsDialog({
       model: hostedLlm.model,
     });
     const key = hostedLlm.apiKey.trim();
-    if (!key) {
+    if (!key && !hostedLlmHasKey) {
       setHostedLlmError("Enter your LLM API key.");
       return;
     }
@@ -4092,13 +4125,14 @@ function SettingsDialog({
     setHostedLlmNote(null);
     try {
       const updateResult = await updateHostedLlmConnection({
-        llmApiKey: key,
+        llmApiKey: key || undefined,
         llmProvider: resolved.provider,
         llmBaseUrl: resolved.baseUrl,
         llmModel: resolved.model,
       });
       // Clear the password field only — key lives on the agent, not in the browser.
       setHostedLlm((prev) => ({ ...prev, apiKey: "" }));
+      setHostedLlmHasKey(true);
       if (MANAGED_HOSTING) {
         onSwitchChatProvider("ag-ui");
       }
@@ -4262,12 +4296,17 @@ function SettingsDialog({
         <>
           <p className="settings-note">
             {isHostedAgent
-              ? "Pick how your agent thinks — OpenAI, OpenRouter, or your own setup."
+              ? "Pick where your agent thinks — OpenAI, Claude, Gemini, OpenRouter, and more."
               : "Your agent runs on Atom hosting. Keys stay with your agent, not in this browser."}
           </p>
           {isHostedAgent ? (
             <>
-              <HostedLlmConnectionFields value={hostedLlm} onChange={setHostedLlm} />
+              <HostedLlmConnectionFields
+                value={hostedLlm}
+                onChange={setHostedLlm}
+                hasSavedKey={hostedLlmHasKey}
+                apiKeyOptional={hostedLlmHasKey}
+              />
               {hostedLlmError ? (
                 <p className="settings-note settings-error">{hostedLlmError}</p>
               ) : null}
@@ -4276,10 +4315,14 @@ function SettingsDialog({
                 <button
                   type="button"
                   className="chrome-approve"
-                  disabled={hostedLlmBusy || !hostedLlm.apiKey.trim()}
+                  disabled={
+                    hostedLlmBusy ||
+                    (!hostedLlm.apiKey.trim() && !hostedLlmHasKey) ||
+                    !hostedLlm.model.trim()
+                  }
                   onClick={() => void saveHostedLlmKey()}
                 >
-                  {hostedLlmBusy ? "Updating…" : "Update LLM connection"}
+                  {hostedLlmBusy ? "Saving…" : "Save chat connection"}
                 </button>
               </div>
             </>
@@ -4409,36 +4452,21 @@ function SettingsDialog({
                 />
               </label>
             )}
-            <label className="atom-field">
-              <span className="atom-field-label">Model</span>
-              {!hasApiKey ? (
-                <p className="settings-note">Please add your API Key</p>
-              ) : modelOptionsLoading ? (
-                <p className="settings-note">Loading models…</p>
-              ) : (
-                <div className="settings-inline-add">
-                  {modelSelectIds.length > 0 &&
-                  (providerPresetId !== "custom" ||
-                    (modelsFromApi === true && modelOptions.length > 0 && modelOptions.length <= 40)) ? (
-                    <select value={model} onChange={(e) => setModel(e.target.value)}>
-                      {!model.trim() ? (
-                        <option value="" disabled>
-                          Please select a model
-                        </option>
-                      ) : null}
-                      {modelSelectIds.map((id) => (
-                        <option key={id} value={id}>
-                          {id}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      value={model}
-                      placeholder="e.g. gpt-4o-mini or openai/gpt-4o-mini"
-                      onChange={(e) => setModel(e.target.value)}
-                    />
-                  )}
+            <div className="atom-field">
+              <LlmModelPicker
+                presetId={providerPresetId}
+                value={model}
+                onChange={setModel}
+                apiModels={
+                  modelsFromApi === true && modelOptions.length > 0 ? modelOptions : modelSelectIds
+                }
+                loading={modelOptionsLoading}
+                canLoadModels={hasApiKey}
+                listFailed={modelsFromApi === false}
+                fieldClassName="atom-field llm-model-picker-embedded"
+              />
+              {hasApiKey ? (
+                <div className="chrome-actions settings-section-actions">
                   <button
                     type="button"
                     className="chrome-approve"
@@ -4451,15 +4479,6 @@ function SettingsDialog({
                     Add
                   </button>
                 </div>
-              )}
-              {hasApiKey && modelsFromApi && modelOptions.length > 40 && providerPresetId !== "custom" ? (
-                <p className="settings-note">
-                  Showing a curated shortlist (this provider returns a large catalog). Switch Provider to
-                  Custom to type any model id.
-                </p>
-              ) : null}
-              {hasApiKey && !modelOptionsLoading && modelsFromApi && !model.trim() ? (
-                <p className="settings-note">Please select a model</p>
               ) : null}
               {hasApiKey && model.trim() ? (
                 capabilitiesLoading ? (
@@ -4476,7 +4495,7 @@ function SettingsDialog({
                   </p>
                 ) : null
               ) : null}
-            </label>
+            </div>
           </div>
         ) : (
           <div className="settings-agent-tab-panel" role="tabpanel">

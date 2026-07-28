@@ -1,4 +1,9 @@
 import { loadPendingHostedAuth } from "./pendingHostedAuth.js";
+import {
+  isHostedLlmProviderId,
+  resolveHostedLlmConnection,
+  type HostedLlmProviderId,
+} from "../settings/llmProviderPresets.js";
 
 const LOCK_KEY = "atom:hosted-provisioning";
 const LOCK_TTL_MS = 3 * 60 * 1000;
@@ -53,20 +58,18 @@ export function resolveHostedSignupFields(state: {
   const handle = state.handle.trim() || pending?.handle?.trim() || "";
   const billingLane = state.billingLane ?? "byok";
   const llmApiKey = state.llmApiKey.trim() || pending?.llmApiKey?.trim() || "";
-  const llmProvider =
+  const rawProvider =
     state.llmProvider?.trim() || pending?.llmProvider?.trim() || "openai";
-  const llmBaseUrl =
-    state.llmBaseUrl?.trim() ||
-    pending?.llmBaseUrl?.trim() ||
-    (llmProvider === "openrouter"
-      ? "https://openrouter.ai/api/v1"
-      : llmProvider === "custom"
-        ? ""
-        : "https://api.openai.com/v1");
-  const llmModel =
-    state.llmModel?.trim() ||
-    pending?.llmModel?.trim() ||
-    (llmProvider === "openrouter" ? "openai/gpt-4o-mini" : "gpt-4o-mini");
+  const llmProvider: HostedLlmProviderId = isHostedLlmProviderId(rawProvider)
+    ? rawProvider
+    : "openai";
+  const resolved = resolveHostedLlmConnection({
+    providerId: llmProvider,
+    baseUrl: state.llmBaseUrl?.trim() || pending?.llmBaseUrl?.trim() || undefined,
+    model: state.llmModel?.trim() || pending?.llmModel?.trim() || undefined,
+  });
+  const llmBaseUrl = resolved.baseUrl;
+  const llmModel = resolved.model;
   if (!handle) return null;
   if (billingLane === "standard") {
     return {
