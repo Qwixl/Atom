@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createServer, type Server } from "node:http";
 import { AddressInfo } from "node:net";
-import { ClientFactory } from "@a2a-js/sdk/client";
 import {
   generateAgentKeyPair,
   signDataObject,
@@ -12,8 +11,10 @@ import {
   AtomDataObjectExecutor,
   buildAtomAgentCard,
   COMMS_MESSAGE_PURPOSE,
+  createAtomPeerClient,
   decodeEncryptedObjectPayload,
   encodeEncryptedObjectPayload,
+  rebindAtomAgentCard,
   sendMlsHandshake,
   sendMlsWire,
 } from "./index.js";
@@ -82,8 +83,7 @@ describe("MLS over A2A", () => {
     });
     const bobAddr = bobServer.address() as AddressInfo;
     const bobBase = `http://127.0.0.1:${bobAddr.port}`;
-    bobCard.url = `${bobBase}/a2a/jsonrpc`;
-    bobCard.additionalInterfaces = [{ url: bobCard.url, transport: "JSONRPC" }];
+    rebindAtomAgentCard(bobCard, bobBase);
 
     const { session: initiator } = await MlsPairSession.createInitiator(aliceIdentity.did);
     const welcomeWire = await initiator.addPeerFromKeyPackage({
@@ -92,8 +92,7 @@ describe("MLS over A2A", () => {
     });
     aliceSession = initiator;
 
-    const factory = new ClientFactory();
-    const client = await factory.createFromUrl(bobBase);
+    const client = await createAtomPeerClient(bobBase);
     await sendMlsHandshake(client, {
       handshake: {
         mediaType: ATOM_MLS_HANDSHAKE_MEDIA_TYPE,

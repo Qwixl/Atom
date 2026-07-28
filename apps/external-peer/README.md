@@ -46,6 +46,12 @@ Or in the shell **Comms** panel: connect with the peer’s agent card / A2A URL,
 
 Public routes (no bearer): `/.well-known/agent-card.json`, `/a2a/jsonrpc`, `GET /mls/key-package`.
 
+## Protocol
+
+**A2A v1.0** (`@a2a-js/sdk@1.0.0`). Peers still on v0.3 are accepted: `/a2a/jsonrpc` serves both versions on the one path, dispatching on the `A2A-Version` header, and the card handler returns a v0.3-shaped card to legacy requests. The card this sample publishes declares both interfaces — v1.0 first, then v0.3.
+
+Upgrade order across a deployment: **server first**, then clients. Servers accept both versions; clients negotiate down per peer from that peer's card. Part encoding, card shape and card signatures: [PROTOCOL-v1.md](../../PROTOCOL-v1.md).
+
 ## Production
 
 1. Deploy with a stable HTTPS `PUBLIC_BASE_URL`.

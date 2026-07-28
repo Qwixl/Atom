@@ -1,6 +1,7 @@
 import type { Part } from "@a2a-js/sdk";
 import { bytesToBase64, base64ToBytes, type MlsWireMessage } from "@qwixl/mls-session";
 import { ATOM_MLS_WIRE_MEDIA_TYPE } from "./constants.js";
+import { readAtomDataPart, toAtomDataPart } from "./dataPart.js";
 
 export interface AtomMlsWireEnvelope {
   mediaType: typeof ATOM_MLS_WIRE_MEDIA_TYPE;
@@ -10,10 +11,16 @@ export interface AtomMlsWireEnvelope {
   senderDid?: string;
 }
 
-export function isAtomMlsWireEnvelope(value: unknown): value is AtomMlsWireEnvelope {
+/** Structural check only; the media type is matched by the part codec. */
+function hasMlsWireShape(value: unknown): value is AtomMlsWireEnvelope {
   if (typeof value !== "object" || value === null) return false;
-  const record = value as AtomMlsWireEnvelope;
-  return record.mediaType === ATOM_MLS_WIRE_MEDIA_TYPE && typeof record.wire === "string";
+  return typeof (value as AtomMlsWireEnvelope).wire === "string";
+}
+
+/** True for a complete Atom MLS wire envelope, media-type key included. */
+export function isAtomMlsWireEnvelope(value: unknown): value is AtomMlsWireEnvelope {
+  if (!hasMlsWireShape(value)) return false;
+  return (value as AtomMlsWireEnvelope).mediaType === ATOM_MLS_WIRE_MEDIA_TYPE;
 }
 
 export function mlsWireToPart(wire: MlsWireMessage, senderDid?: string): Part {
@@ -22,18 +29,14 @@ export function mlsWireToPart(wire: MlsWireMessage, senderDid?: string): Part {
     wire: bytesToBase64(wire),
     ...(senderDid?.trim() ? { senderDid: senderDid.trim() } : {}),
   };
-  return {
-    kind: "data",
-    data: envelope as unknown as Record<string, unknown>,
-  };
+  return toAtomDataPart(ATOM_MLS_WIRE_MEDIA_TYPE, envelope);
 }
 
 export function parseMlsWireFromPart(
   part: Part,
 ): { wire: MlsWireMessage; senderDid?: string } | undefined {
-  if (part.kind !== "data") return undefined;
-  const data = part.data;
-  if (!isAtomMlsWireEnvelope(data)) return undefined;
+  const data = readAtomDataPart(part, ATOM_MLS_WIRE_MEDIA_TYPE);
+  if (!hasMlsWireShape(data)) return undefined;
   return {
     wire: base64ToBytes(data.wire),
     senderDid: data.senderDid?.trim() || undefined,
