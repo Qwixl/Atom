@@ -1,5 +1,6 @@
 import { promises as dns } from "node:dns";
-import { ATOM_BUSINESS_EXTENSION } from "@qwixl/a2a-transport";
+import type { AgentCard } from "@a2a-js/sdk";
+import { ATOM_BUSINESS_EXTENSION, verifyAtomAgentCard } from "@qwixl/a2a-transport";
 
 export type DomainVerificationMethod = "dns" | "well-known";
 
@@ -48,8 +49,31 @@ export async function verifyWellKnownDomainControl(
     }
     const card = (await resp.json()) as {
       url?: string;
+      signatures?: unknown[];
       capabilities?: { extensions?: Array<{ uri?: string; params?: Record<string, unknown> }> };
     };
+
+    // A2A v1.0 cards can be signed. When one is, the signature decides who the
+    // card belongs to: HTTPS proves control of the domain, not possession of the
+    // DID, so an unsigned card advertising someone else's `agentDid` is exactly
+    // what a signature check is for. Cards without signatures keep the old
+    // behaviour rather than being rejected — peers on v0.3 cannot sign at all.
+    if (Array.isArray(card.signatures) && card.signatures.length > 0) {
+      try {
+        const signerDid = await verifyAtomAgentCard(card as unknown as AgentCard);
+        if (signerDid !== agentDid) {
+          return { verified: false, error: "Agent card is signed by a different agent" };
+        }
+      } catch (error) {
+        return {
+          verified: false,
+          error: `Agent card signature invalid: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        };
+      }
+    }
+
     const extensions = card.capabilities?.extensions ?? [];
     const businessExt = extensions.find((ext) => ext.uri === ATOM_BUSINESS_EXTENSION);
     const params = businessExt?.params;

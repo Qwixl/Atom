@@ -25,8 +25,8 @@ Owner-controlled agent backend for Phase 1 private comms: **did:key** identity, 
 | `POST /payments/capture` | Capture hold + mint `action:capture` + `action:receipt` |
 | `POST /payments/release` | Cancel hold + mint `action:release` |
 | `POST /agent` | AG-UI SSE endpoint (LLM when `LLM_API_KEY` set). Shell forwards owner profile via `forwardedProps.atomProfile`. |
-| `/.well-known/agent-card.json` | A2A agent card |
-| `/a2a/jsonrpc` | A2A JSON-RPC transport |
+| `/.well-known/agent-card.json` | A2A agent card (v1.0; v0.3-shaped card served to legacy requests) |
+| `/a2a/jsonrpc` | A2A JSON-RPC transport — one path for both v1.0 and v0.3, dispatched on the `A2A-Version` header |
 
 Wire contracts: [PROTOCOL-v1.md](./PROTOCOL-v1.md).
 
@@ -253,6 +253,8 @@ Hosted vs self-hosted agents both use the same backend package; only **where the
 With business mode enabled, inbound `commerce:intent` objects are matched against the catalog; the agent replies with signed `commerce:offer` or `commerce:decline` to the buyer's `replyUrl`.
 
 Domain verification (tier 1, D039): publish DNS TXT at `_atom.<domain>` with `atom-did=<agent-did>`, or serve a matching agent card at `https://<domain>/.well-known/agent-card.json`. For local dev, set `ATOM_BUSINESS_DOMAIN=example.com` to grant tier 1 without DNS.
+
+Well-known verification also checks the **agent card signature** (A2A v1.0). When a fetched card carries `signatures`, the signature must verify **and** the signer DID must equal the agent DID being verified — otherwise verification fails. Previously HTTPS proved control of the domain but nothing about the agent, so any host could publish a card claiming any agent's DID. Unsigned cards keep the previous behaviour rather than being rejected, because peers on A2A v0.3 cannot sign a card at all. Atom signs its own card with the agent's `did:key`, so the verifying key is resolved from the DID itself — no key server or JWKS endpoint. See [PROTOCOL-v1.md](./PROTOCOL-v1.md).
 
 | Variable | Default | Description |
 |---|---|---|

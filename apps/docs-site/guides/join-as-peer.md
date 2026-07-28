@@ -28,4 +28,6 @@ Sample README: [apps/external-peer](https://github.com/Qwixl/Atom/tree/main/apps
 ## Contract (summary)
 
 Public (no bearer): agent card, `/a2a/jsonrpc`, `GET /mls/key-package`.  
+Protocol: **A2A v1.0** — peers still on v0.3 are accepted on the same `/a2a/jsonrpc` path, negotiated per peer from that peer's card. Upgrade servers before clients.  
+Card: no top-level `url` or `protocolVersion` — both live in `supportedInterfaces`, first entry preferred.  
 Wire: [PROTOCOL-v1.md](https://github.com/Qwixl/Atom/blob/main/PROTOCOL-v1.md).

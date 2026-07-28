@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { ClientFactory } from "@a2a-js/sdk/client";
+import { createAtomPeerClient } from "@qwixl/a2a-transport";
 import { sendMlsWire, verifyRoomInvite } from "@qwixl/a2a-transport";
 import { base64ToBytes, type DataObject } from "@qwixl/protocol";
 import type { AgentKeyPair } from "@qwixl/protocol";
@@ -745,14 +745,13 @@ async function fanOutRoomWire(opts: {
   localDid: string;
   mlsStore: MlsSessionStore;
 }): Promise<void> {
-  const factory = new ClientFactory();
   for (const member of opts.members) {
     if (member.banned || member.did === opts.senderDid) continue;
     if (member.did === opts.localDid) continue;
     if (!member.endpoint?.trim()) continue;
     if (!opts.mlsStore.hasSession(member.did)) continue;
     try {
-      const client = await factory.createFromUrl(normalizePeerBaseUrl(member.endpoint));
+      const client = await createAtomPeerClient(member.endpoint);
       await sendMlsWire(client, {
         wire: opts.wire,
         contextId: roomContextId(opts.roomId),
