@@ -279,14 +279,17 @@ export class MlsSessionStore {
     this.persistGroup(opts.roomId, session);
   }
 
-  async decryptFrom(peerDid: string, wire: MlsWireMessage): Promise<Uint8Array> {
+  async decryptFrom(
+    peerDid: string,
+    wire: MlsWireMessage,
+  ): Promise<{ plaintext: Uint8Array; senderDid: string }> {
     const session = this.sessions.get(peerDid);
     if (!session) {
       throw new Error(`No MLS session for ${peerDid}`);
     }
-    const plaintext = await session.decrypt(wire);
+    const decrypted = await session.decrypt(wire);
     this.persistPair(peerDid, session);
-    return plaintext;
+    return decrypted;
   }
 
   async encryptFor(peerDid: string, plaintext: Uint8Array): Promise<MlsWireMessage> {
@@ -299,14 +302,17 @@ export class MlsSessionStore {
     return wire;
   }
 
-  async decryptRoom(roomId: string, wire: MlsWireMessage): Promise<Uint8Array> {
+  async decryptRoom(
+    roomId: string,
+    wire: MlsWireMessage,
+  ): Promise<{ plaintext: Uint8Array; senderDid: string }> {
     const session = this.groupSessions.get(roomId);
     if (!session) {
       throw new Error(`No MLS group session for room ${roomId}`);
     }
-    const plaintext = await session.decrypt(wire);
+    const decrypted = await session.decrypt(wire);
     this.persistGroup(roomId, session);
-    return plaintext;
+    return decrypted;
   }
 
   async encryptRoom(roomId: string, plaintext: Uint8Array): Promise<MlsWireMessage> {

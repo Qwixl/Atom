@@ -25,3 +25,7 @@ export {
   didCredential,
   generateBoundKeyPackage,
 } from "./credential.js";
+export {
+  decryptApplicationMessage,
+  type DecryptedMlsApplication,
+} from "./decrypt.js";

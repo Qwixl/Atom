@@ -25,3 +25,4 @@ export {
   assertCredentialBinding,
   credentialBindingHolds,
 } from "./credentialBinding.js";
+export { assertMlsSenderMatchesIssuer } from "./mlsSender.js";

@@ -2,6 +2,7 @@ import { base64ToBytes, bytesToBase64, signingPayload } from "./canonical.js";
 import { didToPublicKey } from "./did.js";
 import { signBytes, verifyBytes } from "./identity.js";
 import { assertUsableObject } from "./governance.js";
+import { assertMlsSenderMatchesIssuer } from "./mlsSender.js";
 import { validateDataObject } from "./validate.js";
 import type {
   AgentKeyPair,
@@ -57,7 +58,10 @@ export async function verifyDataObjectSignature(object: DataObject): Promise<boo
   return verifyBytes(publicKey, message, signature);
 }
 
-/** Validate shape, Ed25519 signature, expiry, and purpose policy (D024). */
+/**
+ * Validate shape, Ed25519 signature, MLS sender binding (when applicable),
+ * expiry, purpose policy, and replay (draft {{processing}}).
+ */
 export async function verifyDataObject(
   input: unknown,
   options: VerifyDataObjectOptions = {},
@@ -70,6 +74,9 @@ export async function verifyDataObject(
   const validSig = await verifyDataObjectSignature(object);
   if (!validSig) {
     throw new Error(`Data object ${object.id} signature verification failed`);
+  }
+  if (options.expectedMlsSenderDid !== undefined) {
+    assertMlsSenderMatchesIssuer(object.issuerDid, options.expectedMlsSenderDid);
   }
   assertUsableObject(object, options);
   if (options.replay && !options.replay.admit(object)) {

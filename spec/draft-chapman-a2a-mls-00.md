@@ -795,8 +795,6 @@ HTTP:
 
 Specified here but NOT yet implemented at the time of writing:
 
-* Check 3 of {{processing}}, confirming `issuerDid` against the sending MLS
-  member's credential.
 * Transport authentication on the message-submission endpoint
   ({{encapsulation}}), which is presently unauthenticated.
 * Validation on dequeue for messages queued to offline recipients
@@ -808,6 +806,9 @@ Previously deferred and now implemented in the reference libraries:
   (`@qwixl/protocol` + `@qwixl/mls-session` KeyPackage generation and admission).
 * Replay rejection ({{replay}}) via `ReplayGuard` in `@qwixl/protocol`, wired
   through the agent backend receive paths.
+* Check 3 of {{processing}}, confirming `issuerDid` against the sending MLS
+  member's LeafNode credential (`decrypt` returns `senderDid`;
+  `verifyDataObject({ expectedMlsSenderDid })`).
 
 The author notes that several of the remaining items were identified by the exercise
 of writing this specification, having not been apparent from the working
