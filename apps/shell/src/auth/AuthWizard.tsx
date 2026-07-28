@@ -1142,7 +1142,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                 />
                 <span>
                   <strong>Personal</strong>
-                  <span>Everyday use — chat, messages, rooms</span>
+                  <span>Everyday use — chat, messages, rooms, and connectors (including MCP tools)</span>
                 </span>
               </label>
               <label className={`atom-radio-card${developer ? " is-selected" : ""}`}>
@@ -1154,7 +1154,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                 />
                 <span>
                   <strong>Developer</strong>
-                  <span>Build modules and connectors</span>
+                  <span>Build modules, connectors, and MCP tool servers</span>
                 </span>
               </label>
               <label className={`atom-radio-card${business ? " is-selected" : ""}`}>

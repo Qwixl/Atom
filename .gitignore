@@ -32,3 +32,6 @@ node_modules/
 
 # Python tool caches
 .ruff_cache/
+
+__pycache__/
+*.py[cod]

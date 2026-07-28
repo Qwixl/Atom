@@ -34,4 +34,7 @@ jobs:
       - run: pnpm registry:verify
       - run: pnpm typecheck
       - run: pnpm test
+      - run: node spec/vectors/run.mjs
+      - run: python3 spec/second-impl/run_vectors.py
+      - run: python3 spec/hostile/run_hostile.py
       - run: pnpm build:apps
