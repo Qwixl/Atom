@@ -12,6 +12,8 @@ IETF Internet-Draft, and the conformance test vectors it references.
 | `draft-chapman-a2a-mls-00.xml` | Rendered XML — upload this one file to Datatracker |
 | `build.sh` | Renders and validates the draft: `./build.sh` |
 | `vectors/` | 31 conformance test vectors — see `vectors/README.md` |
+| `second-impl/` | Minimal **Python** second implementation of encapsulation (`070`–`078`) |
+| `hostile/` | Adversarial encapsulation mutations (D110 complement to the fixed corpus) |
 
 An Internet-Draft's first public submission must be numbered `-00`. The current file
 contains the complete A2A v1.0 binding, including media-type placement, Agent Card
@@ -111,3 +113,19 @@ Their purpose is threefold:
 Full detail is in `vectors/README.md`. Read it before claiming conformance
 anywhere public: two of the thirty-one vectors currently pass only because the
 runner implements what the library does not.
+
+## Second implementation (Python)
+
+Encapsulation only — enough to prove the wire docs are implementable without
+TypeScript:
+
+```bash
+python3 spec/second-impl/run_vectors.py
+```
+
+See `second-impl/README.md`. Hostile mutations (must all reject):
+
+```bash
+python3 spec/hostile/run_hostile.py
+```
+

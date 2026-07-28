@@ -156,3 +156,10 @@ the fix does not depend on the vectors to stay fixed.
 
 The mirror vector `022` passed before the fix, which is what made the bug survive: the
 obvious test case was the one the code happened to get right.
+
+## Second implementation
+
+A minimal Python codec that consumes the same wire JSON lives in
+[`../second-impl/`](../second-impl/). Run `python3 spec/second-impl/run_vectors.py`
+after regenerating or editing encapsulation vectors. Adversarial mutations that
+must reject are in [`../hostile/`](../hostile/).
