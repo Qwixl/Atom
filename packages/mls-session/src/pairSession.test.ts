@@ -19,7 +19,8 @@ describe("MlsPairSession snapshots", () => {
 
     const wire = await initSession.encrypt(new TextEncoder().encode("live session"));
     const decrypted = await respSession.decrypt(wire);
-    expect(new TextDecoder().decode(decrypted)).toBe("live session");
+    expect(decrypted.senderDid).toBe(initiator.did);
+    expect(new TextDecoder().decode(decrypted.plaintext)).toBe("live session");
 
     expect(() =>
       MlsPairSession.restoreFromSnapshot(

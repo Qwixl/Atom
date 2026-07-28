@@ -58,9 +58,10 @@ describe("MLS over A2A", () => {
       onMlsWire: async (event) => {
         if (!bobSession) throw new Error("missing bob session");
         const plain = await bobSession.decrypt(event.wire);
-        const object = decodeEncryptedObjectPayload(plain);
+        const object = decodeEncryptedObjectPayload(plain.plaintext);
         const verified = await verifyDataObject(object, {
           allowedPurposes: [COMMS_MESSAGE_PURPOSE],
+          expectedMlsSenderDid: plain.senderDid,
         });
         received.push(String(verified.payload.text));
       },

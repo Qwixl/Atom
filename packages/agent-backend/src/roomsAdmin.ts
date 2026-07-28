@@ -694,7 +694,15 @@ export async function handleInboundRoomWire(opts: {
   }
   const isHost = room.descriptor.hostDid === opts.localDid;
   if (!isHost) return;
-  const plaintext = await opts.mlsStore.decryptRoom(opts.roomId, opts.wire);
+  const { plaintext, senderDid: mlsSenderDid } = await opts.mlsStore.decryptRoom(
+    opts.roomId,
+    opts.wire,
+  );
+  if (mlsSenderDid !== opts.senderDid) {
+    throw new Error(
+      `Room MLS sender ${mlsSenderDid} does not match claimed sender ${opts.senderDid}`,
+    );
+  }
   const parsed = parseRoomPayload(plaintext);
   if (parsed.kind === "activity" && (parsed.activityKind === "message_edit" || parsed.activityKind === "message_delete")) {
     const targetSeq = Number(parsed.payload?.targetSeq);

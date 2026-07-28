@@ -193,3 +193,36 @@ describe("credential binding", () => {
     );
   });
 });
+
+describe("MLS sender / issuer binding", () => {
+  it("rejects when issuerDid does not match the MLS sender", async () => {
+    const alice = await generateAgentKeyPair();
+    const bob = await generateAgentKeyPair();
+    const object = await signDataObject(
+      {
+        semantic: { schema: "https://schema.org/Message" },
+        payload: { text: "relayed" },
+        governance: { purpose: "comms:message" },
+      },
+      alice,
+    );
+    await expect(
+      verifyDataObject(object, { expectedMlsSenderDid: bob.did }),
+    ).rejects.toThrow(/does not match MLS sender/);
+  });
+
+  it("accepts when issuerDid equals the MLS sender", async () => {
+    const alice = await generateAgentKeyPair();
+    const object = await signDataObject(
+      {
+        semantic: { schema: "https://schema.org/Message" },
+        payload: { text: "ok" },
+        governance: { purpose: "comms:message" },
+      },
+      alice,
+    );
+    await expect(
+      verifyDataObject(object, { expectedMlsSenderDid: alice.did }),
+    ).resolves.toMatchObject({ issuerDid: alice.did });
+  });
+});
