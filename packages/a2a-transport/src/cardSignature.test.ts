@@ -59,14 +59,15 @@ describe("agent card signatures", () => {
     await expect(verifyAtomAgentCard(card(agent.did))).rejects.toThrow(/not signed/);
   });
 
-  it("keeps empty containers so the SDK's v0.3 card translator does not throw", async () => {
+  it("keeps skill containers so the SDK's v0.3 card translator does not throw", async () => {
     const agent = await identity();
     const signed = await signAtomAgentCard(card(agent.did), agent);
 
     // Protobuf JSON omits empty arrays/objects; without them the legacy
     // well-known handler crashes (production: 500 "Failed to retrieve agent card").
-    expect(signed.securitySchemes).toEqual({});
-    expect(signed.securityRequirements).toEqual([]);
+    expect(signed.securitySchemes).toBeTruthy();
+    expect(Object.keys(signed.securitySchemes).length).toBeGreaterThan(0);
+    expect(signed.securityRequirements.length).toBeGreaterThan(0);
     expect(signed.signatures.length).toBe(1);
     for (const skill of signed.skills) {
       expect(Array.isArray(skill.examples)).toBe(true);

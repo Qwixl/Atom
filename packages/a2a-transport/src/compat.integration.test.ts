@@ -122,7 +122,7 @@ describe("A2A v0.3 interop", () => {
         senderIdentity,
       );
 
-      const client = await createAtomPeerClient(baseUrl);
+      const client = await createAtomPeerClient(baseUrl, { identity: senderIdentity });
       const response = await sendDataObject(client, { object, role: "user" });
 
       expect(receivedTexts).toEqual(["hello across versions"]);
@@ -133,7 +133,7 @@ describe("A2A v0.3 interop", () => {
     }
   });
 
-  it("accepts an Atom data object sent by a v0.3 peer to a v1.0 agent", async () => {
+  it("rejects an unauthenticated v0.3 sender when transport auth is required", async () => {
     const receiverIdentity = (await generateAgentKeyPair()) as AgentKeyPair;
     const senderIdentity = (await generateAgentKeyPair()) as AgentKeyPair;
     const received: string[] = [];
@@ -171,22 +171,69 @@ describe("A2A v0.3 interop", () => {
         senderIdentity,
       );
 
-      // A genuine v0.3 client: it reads the v0.3 card the compat handler serves it,
-      // and posts a v0.3 `message/send` with a `kind: "data"` part.
+      // Genuine v0.3 clients have no Atom DID Bearer; production endpoints reject them.
       const legacyClient = await new LegacyClientFactory().createFromUrl(baseUrl);
-      const result = await legacyClient.sendMessage({
-        message: {
-          kind: "message",
-          messageId: "legacy-send",
-          role: "user",
-          parts: [
-            { kind: "data", data: { mediaType: ATOM_DATA_OBJECT_MEDIA_TYPE, object } },
-          ] as LegacyPart[],
-        },
-      });
+      await expect(
+        legacyClient.sendMessage({
+          message: {
+            kind: "message",
+            messageId: "legacy-send",
+            role: "user",
+            parts: [
+              { kind: "data", data: { mediaType: ATOM_DATA_OBJECT_MEDIA_TYPE, object } },
+            ] as LegacyPart[],
+          },
+        }),
+      ).rejects.toThrow();
+      expect(received).toEqual([]);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
 
-      expect(received).toEqual(["hello from the past"]);
-      expect(result && typeof result === "object" && "parts" in result).toBe(true);
+  it("accepts a v0.3-shaped message from an Atom client that presents transport auth", async () => {
+    const receiverIdentity = (await generateAgentKeyPair()) as AgentKeyPair;
+    const senderIdentity = (await generateAgentKeyPair()) as AgentKeyPair;
+    const received: string[] = [];
+
+    const executor = new AtomDataObjectExecutor({
+      identity: receiverIdentity,
+      allowedPurposes: [COMMS_MESSAGE_PURPOSE, "comms:receipt"],
+      sendReceipt: true,
+      onReceive: (event) => {
+        received.push(String(event.object.payload.text));
+      },
+    });
+
+    const agentCard = buildAtomAgentCard({
+      name: "Upgraded agent",
+      description: "An Atom agent on A2A v1.0",
+      baseUrl: "http://127.0.0.1:0",
+    });
+    const app = createAtomA2aExpressApp({ agentCard, executor });
+    const server: Server = await new Promise((resolve) => {
+      const s = createServer(app);
+      s.listen(0, "127.0.0.1", () => resolve(s));
+    });
+
+    try {
+      const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      rebindAtomAgentCard(agentCard, baseUrl);
+
+      const object = await signDataObject(
+        {
+          semantic: { schema: "https://schema.org/Message" },
+          payload: { text: "hello with auth across versions" },
+          governance: { purpose: COMMS_MESSAGE_PURPOSE },
+        },
+        senderIdentity,
+      );
+
+      // Atom client negotiates v0.3 from the card while minting a DID Bearer.
+      const client = await createAtomPeerClient(baseUrl, { identity: senderIdentity });
+      const result = await sendDataObject(client, { object, role: "user" });
+      expect(received).toEqual(["hello with auth across versions"]);
+      expect(result.parts.length).toBeGreaterThan(0);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }

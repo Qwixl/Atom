@@ -186,7 +186,9 @@ export async function connectMlsPeer(opts: {
 
   try {
 
-    const client = await createAtomPeerClient(peerUrl);
+    const client = await createAtomPeerClient(peerUrl, {
+      identity: opts.mlsStore.localIdentity,
+    });
 
     await sendMlsHandshake(client, {
 

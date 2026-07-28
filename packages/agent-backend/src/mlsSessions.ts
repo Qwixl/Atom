@@ -53,6 +53,11 @@ export class MlsSessionStore {
 
   constructor(private readonly identity: AgentKeyPair) {}
 
+  /** Local agent keypair — used for MLS and outbound A2A transport auth. */
+  get localIdentity(): AgentKeyPair {
+    return this.identity;
+  }
+
   attachRecords(records: MlsSessionRecordStore): void {
     this.records = records;
   }

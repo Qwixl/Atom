@@ -9,6 +9,7 @@ import {
   ATOM_BUSINESS_EXTENSION,
   ATOM_SWARM_EXTENSION,
 } from "./constants.js";
+import { ATOM_TRANSPORT_AUTH_SCHEME } from "./transportAuth.js";
 
 /** Build an A2A agent card for Atom comms agents. */
 export interface AtomBusinessProfile {
@@ -167,8 +168,27 @@ export function buildAtomAgentCard(options: AtomAgentCardOptions): AgentCard {
     },
     defaultInputModes: ["application/json"],
     defaultOutputModes: ["application/json"],
-    securitySchemes: {},
-    securityRequirements: [],
+    // In-memory SDK shape (`$case`) so the v0.3 card translator can map schemes.
+    securitySchemes: {
+      [ATOM_TRANSPORT_AUTH_SCHEME]: {
+        scheme: {
+          $case: "httpAuthSecurityScheme",
+          value: {
+            description:
+              "Atom DID Bearer: Authorization Bearer atom.<payload>.<sig> signed by the caller's did:key",
+            scheme: "Bearer",
+            bearerFormat: "AtomDID",
+          },
+        },
+      },
+    },
+    securityRequirements: [
+      {
+        schemes: {
+          [ATOM_TRANSPORT_AUTH_SCHEME]: { list: [] },
+        },
+      },
+    ],
     signatures: [],
     provider: options.publisherDid
       ? { organization: "Atom", url: options.baseUrl }
