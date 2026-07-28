@@ -15,6 +15,11 @@ engineer can interoperate without reading our TypeScript.
 
 It does **not** implement MLS sessions.
 
+Decision note (D122): after the TypeScript libraries closed the draft
+Implementation Status gaps, the second language exercises the same Governed
+Object MUST rules — otherwise “implementable without TypeScript” would only
+hold for encapsulation.
+
 ## Run
 
 ```bash
