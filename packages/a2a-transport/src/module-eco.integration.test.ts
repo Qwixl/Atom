@@ -103,7 +103,7 @@ describe("M-ECO module A2A round-trips", () => {
         });
         await verifyPollRequest(poll);
 
-        const client = await createAtomPeerClient(peerBaseUrl);
+        const client = await createAtomPeerClient(peerBaseUrl, { identity: sender });
         await sendDataObject(client, { object: poll, role: "user" });
 
         const vote = await createPollVote({
@@ -133,7 +133,7 @@ describe("M-ECO module A2A round-trips", () => {
         });
         await verifyTttState(state);
 
-        const client = await createAtomPeerClient(peerBaseUrl);
+        const client = await createAtomPeerClient(peerBaseUrl, { identity: sender });
         await sendDataObject(client, { object: state, role: "user" });
 
         const move = await createTttMove({
@@ -162,7 +162,7 @@ describe("M-ECO module A2A round-trips", () => {
         });
         await verifySharedList(list);
 
-        const client = await createAtomPeerClient(peerBaseUrl);
+        const client = await createAtomPeerClient(peerBaseUrl, { identity: sender });
         await sendDataObject(client, { object: list, role: "user" });
 
         const update = await createSharedListUpdate({
@@ -197,7 +197,7 @@ describe("M-ECO module A2A round-trips", () => {
       });
       await verifyLocationPin(pin);
 
-      const client = await createAtomPeerClient(peerBaseUrl);
+      const client = await createAtomPeerClient(peerBaseUrl, { identity: sender });
       await sendDataObject(client, { object: pin, role: "user" });
 
       expect(received).toEqual([COORDINATION_LOCATION_PIN_PURPOSE]);
@@ -219,7 +219,7 @@ describe("M-ECO module A2A round-trips", () => {
       });
       await verifySplitProposal(split);
 
-      const client = await createAtomPeerClient(peerBaseUrl);
+      const client = await createAtomPeerClient(peerBaseUrl, { identity: sender });
       await sendDataObject(client, { object: split, role: "user" });
 
       expect(received).toEqual([COMMERCE_SPLIT_PROPOSAL_PURPOSE]);

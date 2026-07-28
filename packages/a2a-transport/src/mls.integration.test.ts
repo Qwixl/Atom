@@ -93,7 +93,7 @@ describe("MLS over A2A", () => {
     });
     aliceSession = initiator;
 
-    const client = await createAtomPeerClient(bobBase);
+    const client = await createAtomPeerClient(bobBase, { identity: aliceIdentity });
     await sendMlsHandshake(client, {
       handshake: {
         mediaType: ATOM_MLS_HANDSHAKE_MEDIA_TYPE,

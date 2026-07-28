@@ -234,7 +234,19 @@ export {
   createAtomPeerClient,
   fetchAtomAgentCard,
   normalizePeerBaseUrl,
+  type CreateAtomPeerClientOptions,
 } from "./peerClient.js";
+export {
+  ATOM_TRANSPORT_AUTH_SCHEME,
+  ATOM_TRANSPORT_TOKEN_PREFIX,
+  ATOM_TRANSPORT_TOKEN_TTL_MS,
+  authorizationHeaderFromToken,
+  extractBearerToken,
+  mintAtomTransportToken,
+  normalizeTransportAudience,
+  verifyAtomTransportToken,
+  type AtomTransportTokenPayload,
+} from "./transportAuth.js";
 export {
   atomMessage,
   fromRole,
