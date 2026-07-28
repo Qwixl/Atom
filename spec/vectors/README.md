@@ -93,30 +93,24 @@ in the same direction.
 
 ## What passing currently means, precisely
 
-All 31 vectors pass, but they do not all exercise the same amount of shipped code, and
-the difference matters.
+All 31 vectors pass against shipped library code.
 
 **Verified in `@qwixl/protocol`.** Canonicalisation including key ordering, non-ASCII
 keys, nested objects and array order; Ed25519 signing and verification; detection of
 tampered payload, purpose and expiry; `did:key` derivation without network resolution;
 expiry by TTL, by absolute timestamp, and by the earlier of the two; purpose
-allowlisting; and structural rejection of bad version, bad algorithm, missing purpose
-and non-`did:key` issuers.
+allowlisting; structural rejection of bad version, bad algorithm, missing purpose
+and non-`did:key` issuers; **replay rejection** via `ReplayGuard` on
+`(issuerDid, id)`; and **credential binding** via `assertCredentialBinding` /
+`credentialBindingHolds`.
 
-**Supplied by `run.mjs`, absent from the library.** Two requirements are implemented
-in the runner because the implementation does not yet have them, so their vectors
-passing says the *specification* is coherent, not that Atom conforms:
+**Verified in `@qwixl/mls-session`.** KeyPackages are generated with
+`generateKeyPackageWithKey` so the LeafNode signature key is the Agent Identity
+key, and inbound KeyPackages are rejected unless the credential identity matches
+that leaf key (and the expected peer DID when one is supplied).
 
-- **Replay rejection** (`050`, `051`). The runner keeps an in-memory
-  `(issuerDid, id)` set. `@qwixl/protocol` has no replay history at all, and neither
-  does the agent backend's receive path.
-- **Credential binding** (`060`, `061`). The runner compares the DID-derived key to
-  the leaf signature key. `packages/mls-session` writes the DID into a basic
-  credential and never checks it against the MLS key.
-
-Until those move into the library, Atom does not conform to its own draft on those two
-points. That is stated in the draft's Implementation Status section too, and it should
-stay stated until it is false.
+**Verified in `@qwixl/a2a-transport`.** Encapsulation part media-type placement,
+including rejection of conflicting `mediaType` members.
 
 ## What the vectors caught
 

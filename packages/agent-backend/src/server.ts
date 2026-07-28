@@ -20,7 +20,13 @@ import {
   COMMERCE_PURPOSES,
 } from "@qwixl/a2a-transport";
 import { createAtomA2aExpressApp } from "@qwixl/a2a-transport/server";
-import { base64ToBytes, signDataObject, verifyDataObject, type UnsignedDataObject } from "@qwixl/protocol";
+import {
+  base64ToBytes,
+  ReplayGuard,
+  signDataObject,
+  verifyDataObject,
+  type UnsignedDataObject,
+} from "@qwixl/protocol";
 import { createRateLimiter } from "./rateLimit.js";
 import { loadAgentBackendConfig, type AgentBackendConfig } from "./config.js";
 import { publicBaseUrlForPort, resolvePortWithPrompt } from "./portConflict.js";
@@ -142,7 +148,8 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     (process.env.ATOM_DATA_DIR ? path.basename(process.env.ATOM_DATA_DIR) : undefined);
   const inbox = new DataObjectInbox();
   await inbox.load();
-  const mlsStore = new MlsSessionStore();
+  const mlsStore = new MlsSessionStore(identity);
+  const replayGuard = new ReplayGuard();
   const sessionRecords = new MlsSessionRecordStore();
   await mlsStore.loadFromRecords(sessionRecords);
   const peerRecords = new MlsPeerRecordStore();
@@ -350,6 +357,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   const executor = new AtomDataObjectExecutor({
     identity,
     allowedPurposes: inboxPurposes,
+    replay: replayGuard,
     onReceive: (event) => {
       if (!trustedAgents.shouldAcceptInbound(event.object.issuerDid)) {
         console.log(`[contacts] dropped inbound from ${event.object.issuerDid} (block/mute policy)`);
@@ -384,7 +392,6 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     },
     onMlsHandshake: async (event) => {
       await mlsStore.acceptHandshake({
-        localDid: identity.did,
         handshake: event.handshake,
       });
       peerRecords.remember(event.handshake.initiatorDid, event.handshake.initiatorEndpoint);
@@ -431,6 +438,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       const object = decodeEncryptedObjectPayload(plaintext);
       const verified = await verifyDataObject(object, {
         allowedPurposes: mlsPurposes,
+        replay: replayGuard,
       });
       if (!trustedAgents.shouldAcceptInbound(verified.issuerDid)) {
         console.log(`[contacts] dropped MLS inbound from ${verified.issuerDid} (block/mute policy)`);
@@ -762,7 +770,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
 
   adminApp.get("/mls/key-package", keyPackageRateLimit, async (_req, res) => {
     try {
-      const payload = await mlsStore.keyPackageForHandshake(identity.did);
+      const payload = await mlsStore.keyPackageForHandshake();
       res.json(payload);
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
