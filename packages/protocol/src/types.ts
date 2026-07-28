@@ -54,6 +54,11 @@ export interface VerifyDataObjectOptions {
    * checks succeed. A duplicate presentation throws (draft {{replay}}).
    */
   replay?: { admit(object: { issuerDid: string; id: string }): boolean };
+  /**
+   * When the object arrived inside an MLS session, the Agent Identity from the
+   * sending member's MLS credential (draft {{processing}} check 3).
+   */
+  expectedMlsSenderDid?: string;
 }
 
 export type ValidationResult =
