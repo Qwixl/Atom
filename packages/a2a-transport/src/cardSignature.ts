@@ -52,6 +52,35 @@ function publicJwkForDid(did: string) {
   return { kty: "OKP", crv: "Ed25519", alg: ALG, x: base64url(didToPublicKey(did)) };
 }
 
+/**
+ * Fields the SDK's v0.3 card translator reads with bare property access
+ * (`.length`, `Object.keys`, spreads).
+ *
+ * Signing must hash the protobuf-normal form — empty containers omitted — or
+ * verification fails (see `normalizeCard`). Serving that same stripped object
+ * then crashes the legacy well-known handler (`Object.keys(undefined)`,
+ * `examples.length` on undefined), so every peer that omits `A2A-Version`
+ * gets HTTP 500. Keep the caller-supplied shape for serving and only attach the
+ * signatures produced over the normalised form; verification re-normalises
+ * before hashing, so the signature still checks.
+ */
+function withSignatures(card: AgentCard, signatures: AgentCard["signatures"]): AgentCard {
+  return {
+    ...card,
+    securitySchemes: card.securitySchemes ?? {},
+    securityRequirements: card.securityRequirements ?? [],
+    signatures: signatures ?? [],
+    skills: (card.skills ?? []).map((skill) => ({
+      ...skill,
+      tags: skill.tags ?? [],
+      examples: skill.examples ?? [],
+      inputModes: skill.inputModes ?? [],
+      outputModes: skill.outputModes ?? [],
+      securityRequirements: skill.securityRequirements ?? [],
+    })),
+  };
+}
+
 /** Sign a card with the agent's `did:key` identity, returning the signed card. */
 export async function signAtomAgentCard(
   card: AgentCard,
@@ -62,7 +91,8 @@ export async function signAtomAgentCard(
     kid: identity.did,
     typ: "JOSE",
   });
-  return sign(normalizeCard(card));
+  const signed = await sign(normalizeCard(card));
+  return withSignatures(card, signed.signatures);
 }
 
 /**
