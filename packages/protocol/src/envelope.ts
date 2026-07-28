@@ -72,5 +72,10 @@ export async function verifyDataObject(
     throw new Error(`Data object ${object.id} signature verification failed`);
   }
   assertUsableObject(object, options);
+  if (options.replay && !options.replay.admit(object)) {
+    throw new Error(
+      `Data object ${object.id} rejected as replay of (issuerDid, id)`,
+    );
+  }
   return object;
 }

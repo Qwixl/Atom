@@ -1,18 +1,15 @@
+import type { AgentKeyPair } from "@qwixl/protocol";
 import {
   createApplicationMessage,
   createCommit,
   createGroup,
   decodeGroupState,
   decodeMlsMessage,
-  defaultCapabilities,
-  defaultLifetime,
   emptyPskIndex,
   encodeGroupState,
   encodeMlsMessage,
-  generateKeyPackage,
   joinGroup,
   processPrivateMessage,
-  type Credential,
   type ClientState,
   type GroupState,
   type KeyPackage,
@@ -21,13 +18,10 @@ import {
   zeroOutUint8Array,
 } from "ts-mls";
 import { defaultCiphersuite } from "./ciphersuite.js";
+import { assertKeyPackageCredentialBinding, generateBoundKeyPackage } from "./credential.js";
 import { hydrateClientState } from "./clientStateRestore.js";
 import type { MlsPairSnapshot } from "./snapshot.js";
 import type { MlsWireMessage } from "./types.js";
-
-function didCredential(did: string): Credential {
-  return { credentialType: "basic", identity: new TextEncoder().encode(did) };
-}
 
 function randomGroupId(): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(16));
@@ -61,18 +55,12 @@ export class MlsPairSession {
   }
 
   /** Create a new 1:1 MLS group and export the initiator key package for the peer. */
-  static async createInitiator(localDid: string): Promise<{
+  static async createInitiator(identity: AgentKeyPair): Promise<{
     session: MlsPairSession;
     bundle: InitiatorBundle;
   }> {
+    const kp = await generateBoundKeyPackage(identity);
     const impl = await defaultCiphersuite();
-    const kp = await generateKeyPackage(
-      didCredential(localDid),
-      defaultCapabilities(),
-      defaultLifetime,
-      [],
-      impl,
-    );
     const groupId = randomGroupId();
     const groupState = await createGroup(
       groupId,
@@ -81,21 +69,16 @@ export class MlsPairSession {
       [],
       impl,
     );
-    const keyPackageWire = encodeMlsMessage({
-      keyPackage: kp.publicPackage,
-      wireformat: "mls_key_package",
-      version: "mls10",
-    });
     return {
       session: new MlsPairSession({
         groupState,
         publicPackage: kp.publicPackage,
         privatePackage: kp.privatePackage,
-        localDid,
+        localDid: identity.did,
         peerDid: null,
       }),
       bundle: {
-        keyPackageWire,
+        keyPackageWire: kp.keyPackageWire,
         publicPackage: kp.publicPackage,
         privatePackage: kp.privatePackage,
       },
@@ -142,6 +125,7 @@ export class MlsPairSession {
     if (!decoded || decoded.wireformat !== "mls_key_package") {
       throw new Error("Expected MLS KeyPackage message");
     }
+    assertKeyPackageCredentialBinding(decoded.keyPackage, opts.peerDid);
     const addProposal: Proposal = {
       proposalType: "add",
       add: { keyPackage: decoded.keyPackage },
@@ -232,42 +216,30 @@ export class MlsPairSession {
 
 /** Full 1:1 handshake: initiator + responder sessions and welcome wire. */
 export async function establishPairSession(opts: {
-  initiatorDid: string;
-  responderDid: string;
+  initiator: AgentKeyPair;
+  responder: AgentKeyPair;
 }): Promise<{
   initiator: MlsPairSession;
   responder: MlsPairSession;
 }> {
   const { session: initiator, bundle: initiatorBundle } =
-    await MlsPairSession.createInitiator(opts.initiatorDid);
+    await MlsPairSession.createInitiator(opts.initiator);
 
-  const impl = await defaultCiphersuite();
-  const responderKp = await generateKeyPackage(
-    didCredential(opts.responderDid),
-    defaultCapabilities(),
-    defaultLifetime,
-    [],
-    impl,
-  );
-  const responderKeyPackageWire = encodeMlsMessage({
-    keyPackage: responderKp.publicPackage,
-    wireformat: "mls_key_package",
-    version: "mls10",
-  });
+  const responderKp = await generateBoundKeyPackage(opts.responder);
 
   const welcomeWire = await initiator.addPeerFromKeyPackage({
-    peerDid: opts.responderDid,
-    keyPackageWire: responderKeyPackageWire,
+    peerDid: opts.responder.did,
+    keyPackageWire: responderKp.keyPackageWire,
   });
 
   const responder = await MlsPairSession.joinFromWelcome({
-    localDid: opts.responderDid,
+    localDid: opts.responder.did,
     welcomeWire,
     publicPackage: responderKp.publicPackage,
     privatePackage: responderKp.privatePackage,
     ratchetTree: initiator.ratchetTree(),
   });
-  responder.peerDid = opts.initiatorDid;
+  responder.peerDid = opts.initiator.did;
 
   return { initiator, responder };
 }

@@ -158,8 +158,6 @@ export async function connectMlsPeer(opts: {
 
     handshake = await opts.mlsStore.connectAsInitiator({
 
-      localDid: opts.localDid,
-
       peerDid: kp.did,
 
       peerKeyPackageWire: base64ToBytes(kp.wire),

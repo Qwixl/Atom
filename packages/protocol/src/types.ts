@@ -49,6 +49,11 @@ export interface AgentKeyPair {
 export interface VerifyDataObjectOptions {
   now?: Date;
   allowedPurposes?: string[];
+  /**
+   * When set, admit `(issuerDid, id)` after structural/signature/governance
+   * checks succeed. A duplicate presentation throws (draft {{replay}}).
+   */
+  replay?: { admit(object: { issuerDid: string; id: string }): boolean };
 }
 
 export type ValidationResult =

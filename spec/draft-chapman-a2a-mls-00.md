@@ -795,11 +795,6 @@ HTTP:
 
 Specified here but NOT yet implemented at the time of writing:
 
-* The credential binding key-equality check of {{credential-binding}}. The
-  implementation places the DID in the MLS credential but does not verify that
-  the LeafNode signature key matches it. This requirement was identified while
-  preparing this document.
-* Replay rejection ({{replay}}). No `(issuerDid, id)` history is retained.
 * Check 3 of {{processing}}, confirming `issuerDid` against the sending MLS
   member's credential.
 * Transport authentication on the message-submission endpoint
@@ -807,7 +802,14 @@ Specified here but NOT yet implemented at the time of writing:
 * Validation on dequeue for messages queued to offline recipients
   ({{security}}), which presently occurs only on enqueue.
 
-The author notes that the last five items were each identified by the exercise
+Previously deferred and now implemented in the reference libraries:
+
+* The credential binding key-equality check of {{credential-binding}}
+  (`@qwixl/protocol` + `@qwixl/mls-session` KeyPackage generation and admission).
+* Replay rejection ({{replay}}) via `ReplayGuard` in `@qwixl/protocol`, wired
+  through the agent backend receive paths.
+
+The author notes that several of the remaining items were identified by the exercise
 of writing this specification, having not been apparent from the working
 implementation. This is offered as evidence for the general proposition that
 specification and implementation are not redundant activities.
