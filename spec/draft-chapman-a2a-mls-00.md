@@ -797,8 +797,6 @@ Specified here but NOT yet implemented at the time of writing:
 
 * Transport authentication on the message-submission endpoint
   ({{encapsulation}}), which is presently unauthenticated.
-* Validation on dequeue for messages queued to offline recipients
-  ({{security}}), which presently occurs only on enqueue.
 
 Previously deferred and now implemented in the reference libraries:
 
@@ -809,6 +807,9 @@ Previously deferred and now implemented in the reference libraries:
 * Check 3 of {{processing}}, confirming `issuerDid` against the sending MLS
   member's LeafNode credential (`decrypt` returns `senderDid`;
   `verifyDataObject({ expectedMlsSenderDid })`).
+* Validation on dequeue for messages queued to offline recipients
+  ({{security}}): `dequeueAsleepMessages` applies {{processing}} when the
+  agent wakes; the queue remains size-bounded at enqueue.
 
 The author notes that several of the remaining items were identified by the exercise
 of writing this specification, having not been apparent from the working
