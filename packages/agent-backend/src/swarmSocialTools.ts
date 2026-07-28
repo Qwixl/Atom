@@ -215,7 +215,6 @@ export async function executeInviteFriendToRoom(
         maxMembers: 16,
       });
       await deps.mlsStore.createRoomHost({
-        localDid: deps.identity.did,
         roomId: descriptor.roomId,
       });
       roomId = descriptor.roomId;
@@ -229,7 +228,6 @@ export async function executeInviteFriendToRoom(
       maxMembers: 16,
     });
     await deps.mlsStore.createRoomHost({
-      localDid: deps.identity.did,
       roomId: descriptor.roomId,
     });
     roomId = descriptor.roomId;

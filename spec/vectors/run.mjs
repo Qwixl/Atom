@@ -16,8 +16,9 @@ import { fileURLToPath } from "node:url";
 // and a third party can point this runner at any implementation. Requires
 // `pnpm --filter @qwixl/protocol build` first.
 import {
-  didToPublicKey,
-  isDidKey,
+  ReplayGuard,
+  assertCredentialBinding,
+  credentialBindingHolds,
   verifyDataObject,
   verifyDataObjectSignature,
 } from "../../packages/protocol/dist/index.js";
@@ -25,52 +26,34 @@ import { readAtomDataPart } from "../../packages/a2a-transport/dist/index.js";
 
 const VECTOR_DIR = dirname(fileURLToPath(import.meta.url));
 
-/** Replay history, keyed `issuerDid\u0000id`. The draft mandates this; the library has none. */
-class ReplayGuard {
-  #seen = new Set();
-
-  /** True when the object has not been seen before. */
-  admit(object) {
-    const key = `${object.issuerDid}\u0000${object.id}`;
-    if (this.#seen.has(key)) return false;
-    this.#seen.add(key);
-    return true;
-  }
-}
-
 /**
- * Apply the draft's mandatory ordered receiver checks using the library where it
- * provides them, and locally where it does not.
+ * Apply the draft's mandatory ordered receiver checks using the library.
  */
 async function evaluate(object, { now, permittedPurposes, replay }) {
   try {
     await verifyDataObject(object, {
       now: new Date(now),
       ...(permittedPurposes ? { allowedPurposes: permittedPurposes } : {}),
+      ...(replay ? { replay } : {}),
     });
   } catch (error) {
     return { outcome: "reject", detail: error instanceof Error ? error.message : String(error) };
-  }
-  if (replay && !replay.admit(object)) {
-    return { outcome: "reject", detail: "replay: (issuerDid, id) already accepted" };
   }
   return { outcome: "accept", detail: "" };
 }
 
 function evaluateCredentialBinding(vector) {
   const { credentialIdentity, leafSignatureKey } = vector;
-  if (!isDidKey(credentialIdentity)) {
-    return { outcome: "reject", detail: "credential identity is not a did:key" };
-  }
-  let derived;
-  try {
-    derived = Buffer.from(didToPublicKey(credentialIdentity));
-  } catch (error) {
-    return { outcome: "reject", detail: `undecodable did:key: ${error}` };
-  }
   const leaf = Buffer.from(leafSignatureKey, "base64");
-  if (derived.length !== leaf.length || !derived.equals(leaf)) {
-    return { outcome: "reject", detail: "credential identity key != leaf signature key" };
+  if (!credentialBindingHolds(credentialIdentity, leaf)) {
+    try {
+      assertCredentialBinding(credentialIdentity, leaf);
+    } catch (error) {
+      return {
+        outcome: "reject",
+        detail: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
   return { outcome: "accept", detail: "" };
 }

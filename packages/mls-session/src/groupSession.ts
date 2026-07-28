@@ -1,19 +1,16 @@
+import type { AgentKeyPair } from "@qwixl/protocol";
 import {
   createApplicationMessage,
   createCommit,
   createGroup,
   decodeGroupState,
   decodeMlsMessage,
-  defaultCapabilities,
-  defaultLifetime,
   emptyPskIndex,
   encodeGroupState,
   encodeMlsMessage,
-  generateKeyPackage,
   joinGroup,
   processPrivateMessage,
   type ClientState,
-  type Credential,
   type GroupState,
   type KeyPackage,
   type PrivateKeyPackage,
@@ -21,14 +18,11 @@ import {
   zeroOutUint8Array,
 } from "ts-mls";
 import { defaultCiphersuite } from "./ciphersuite.js";
+import { assertKeyPackageCredentialBinding, generateBoundKeyPackage } from "./credential.js";
 import { hydrateClientState } from "./clientStateRestore.js";
 import { bytesToBase64, base64ToBytes } from "./pairSession.js";
 import type { MlsGroupSnapshot } from "./snapshot.js";
 import type { MlsWireMessage } from "./types.js";
-
-function didCredential(did: string): Credential {
-  return { credentialType: "basic", identity: new TextEncoder().encode(did) };
-}
 
 function randomGroupId(): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(16));
@@ -60,7 +54,7 @@ export class MlsGroupSession {
 
   /** Host: create a new MLS group for a room (host is the first member). */
   static async createHost(opts: {
-    localDid: string;
+    identity: AgentKeyPair;
     roomId: string;
   }): Promise<{
     session: MlsGroupSession;
@@ -68,14 +62,8 @@ export class MlsGroupSession {
     publicPackage: KeyPackage;
     privatePackage: PrivateKeyPackage;
   }> {
+    const kp = await generateBoundKeyPackage(opts.identity);
     const impl = await defaultCiphersuite();
-    const kp = await generateKeyPackage(
-      didCredential(opts.localDid),
-      defaultCapabilities(),
-      defaultLifetime,
-      [],
-      impl,
-    );
     const groupState = await createGroup(
       randomGroupId(),
       kp.publicPackage,
@@ -83,21 +71,16 @@ export class MlsGroupSession {
       [],
       impl,
     );
-    const hostKeyPackageWire = encodeMlsMessage({
-      keyPackage: kp.publicPackage,
-      wireformat: "mls_key_package",
-      version: "mls10",
-    });
     return {
       session: new MlsGroupSession({
         groupState,
         publicPackage: kp.publicPackage,
         privatePackage: kp.privatePackage,
-        localDid: opts.localDid,
+        localDid: opts.identity.did,
         roomId: opts.roomId,
-        memberDids: [opts.localDid],
+        memberDids: [opts.identity.did],
       }),
-      hostKeyPackageWire,
+      hostKeyPackageWire: kp.keyPackageWire,
       publicPackage: kp.publicPackage,
       privatePackage: kp.privatePackage,
     };
@@ -117,6 +100,7 @@ export class MlsGroupSession {
     if (!decoded || decoded.wireformat !== "mls_key_package") {
       throw new Error("Expected MLS KeyPackage message");
     }
+    assertKeyPackageCredentialBinding(decoded.keyPackage, opts.memberDid);
     const addProposal: Proposal = {
       proposalType: "add",
       add: { keyPackage: decoded.keyPackage },
@@ -239,26 +223,10 @@ export class MlsGroupSession {
   }
 }
 
-export async function generateGroupMemberKeyPackage(localDid: string): Promise<{
+export async function generateGroupMemberKeyPackage(identity: AgentKeyPair): Promise<{
   publicPackage: KeyPackage;
   privatePackage: PrivateKeyPackage;
   keyPackageWire: MlsWireMessage;
 }> {
-  const impl = await defaultCiphersuite();
-  const kp = await generateKeyPackage(
-    didCredential(localDid),
-    defaultCapabilities(),
-    defaultLifetime,
-    [],
-    impl,
-  );
-  return {
-    publicPackage: kp.publicPackage,
-    privatePackage: kp.privatePackage,
-    keyPackageWire: encodeMlsMessage({
-      keyPackage: kp.publicPackage,
-      wireformat: "mls_key_package",
-      version: "mls10",
-    }),
-  };
+  return generateBoundKeyPackage(identity);
 }

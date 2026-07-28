@@ -83,7 +83,6 @@ export async function seedCoffeeShopRoom(opts: {
   if (existing) {
     if (!opts.mlsStore.hasRoomSession(COFFEE_SHOP_ROOM_ID)) {
       await opts.mlsStore.createRoomHost({
-        localDid: opts.identity.did,
         roomId: COFFEE_SHOP_ROOM_ID,
       });
     }
@@ -107,7 +106,6 @@ export async function seedCoffeeShopRoom(opts: {
     maxMembers: 128,
   });
   await opts.mlsStore.createRoomHost({
-    localDid: opts.identity.did,
     roomId: descriptor.roomId,
   });
   return { roomId: descriptor.roomId, created: true };

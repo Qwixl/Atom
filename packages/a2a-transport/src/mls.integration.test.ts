@@ -38,7 +38,7 @@ describe("MLS over A2A", () => {
 
     let aliceSession: MlsPairSession | undefined;
     let bobSession: MlsPairSession | undefined;
-    let bobPending = await generatePairKeyPackage(bobIdentity.did);
+    let bobPending = await generatePairKeyPackage(bobIdentity);
 
     const bobExecutor = new AtomDataObjectExecutor({
       identity: bobIdentity as AgentKeyPair,
@@ -85,7 +85,7 @@ describe("MLS over A2A", () => {
     const bobBase = `http://127.0.0.1:${bobAddr.port}`;
     rebindAtomAgentCard(bobCard, bobBase);
 
-    const { session: initiator } = await MlsPairSession.createInitiator(aliceIdentity.did);
+    const { session: initiator } = await MlsPairSession.createInitiator(aliceIdentity);
     const welcomeWire = await initiator.addPeerFromKeyPackage({
       peerDid: bobIdentity.did,
       keyPackageWire: bobPending.keyPackageWire,

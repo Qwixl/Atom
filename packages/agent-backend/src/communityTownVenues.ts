@@ -124,7 +124,6 @@ async function ensureVenueRoom(
   if (existing) {
     if (!opts.mlsStore.hasRoomSession(venue.roomId)) {
       await opts.mlsStore.createRoomHost({
-        localDid: opts.identity.did,
         roomId: venue.roomId,
       });
     }
@@ -156,7 +155,6 @@ async function ensureVenueRoom(
     activities: VENUE_ACTIVITY_PRESETS[venue.roomId] ?? [],
   });
   await opts.mlsStore.createRoomHost({
-    localDid: opts.identity.did,
     roomId: descriptor.roomId,
   });
   return { roomId: descriptor.roomId, created: true };
