@@ -1,7 +1,7 @@
 # Conformance test vectors
 
 Machine-readable vectors for every normative MUST in
-[`draft-chapman-a2a-mls-01`](../draft-chapman-a2a-mls-01.md). 31 vectors, 10 accept
+[`draft-chapman-a2a-mls-00`](../draft-chapman-a2a-mls-00.md). 31 vectors, 10 accept
 and 19 reject, in two groups: 22 covering the Governed Object and its processing
 rules, and 9 covering the A2A v1.0 encapsulation.
 
