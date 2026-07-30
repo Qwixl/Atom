@@ -1,5 +1,7 @@
 /** Standing intents — owner-declared goals the Agent Brain heartbeat evaluates (D077 / BK-42). */
 
+import { isIntervalOrDailyDue } from "./refreshSchedule.js";
+
 export const STANDING_INTENT_KINDS = ["daily-briefing", "reminder", "watch"] as const;
 export type StandingIntentKind = (typeof STANDING_INTENT_KINDS)[number];
 
@@ -138,27 +140,14 @@ export function isIntentDue(intent: StandingIntent, now: Date = new Date()): boo
   const lastValid = Number.isFinite(last) ? last : null;
 
   switch (intent.trigger.type) {
-    case "daily-time": {
-      const target = parseHhMm(intent.trigger.time);
-      if (!target) return false;
-      const nowMins = now.getHours() * 60 + now.getMinutes();
-      const targetMins = target.hours * 60 + target.minutes;
-      if (nowMins < targetMins) return false;
-      if (lastValid !== null && localDateKey(new Date(lastValid)) === localDateKey(now)) {
-        return false;
-      }
-      return true;
-    }
+    case "daily-time":
+    case "interval":
+      return isIntervalOrDailyDue(intent.trigger, lastValid, now);
     case "at": {
       const at = Date.parse(intent.trigger.at);
       if (!Number.isFinite(at) || now.getTime() < at) return false;
       if (lastValid !== null && lastValid >= at) return false;
       return true;
-    }
-    case "interval": {
-      const everyMs = intent.trigger.everyMinutes * 60_000;
-      if (lastValid === null) return true;
-      return now.getTime() - lastValid >= everyMs;
     }
     default:
       return false;
