@@ -53,23 +53,40 @@ function bindingKey(binding: SurfaceBinding): string {
   return `${binding.nodeId}:${binding.prop}`;
 }
 
-/** Oldest per-binding attempt time; null when any binding has never been attempted. */
-function surfaceLastAttemptMs(surface: PersistedSurface): number | null {
-  if (surface.bindings.length === 0) return null;
-  let min = Infinity;
-  for (const binding of surface.bindings) {
-    const at = surface.lastAttemptedAt?.[bindingKey(binding)];
-    if (at === undefined) return null;
-    if (at < min) min = at;
-  }
-  return min === Infinity ? null : min;
-}
-
 function isBindingAtFailureThreshold(
   failureCounts: Record<string, number> | undefined,
   key: string,
 ): boolean {
   return (failureCounts?.[key] ?? 0) >= FAILURE_THRESHOLD;
+}
+
+function isParticipatingBinding(
+  surface: PersistedSurface,
+  binding: SurfaceBinding,
+): boolean {
+  return !isBindingAtFailureThreshold(surface.failureCounts, bindingKey(binding));
+}
+
+function hasParticipatingBindings(surface: PersistedSurface): boolean {
+  return surface.bindings.some((binding) => isParticipatingBinding(surface, binding));
+}
+
+/**
+ * Oldest attempt time across participating bindings only (degraded bindings excluded).
+ * Returns null when any participating binding has never been attempted.
+ */
+function surfaceLastAttemptMs(surface: PersistedSurface): number | null {
+  let min = Infinity;
+  let participating = 0;
+  for (const binding of surface.bindings) {
+    if (!isParticipatingBinding(surface, binding)) continue;
+    participating += 1;
+    const at = surface.lastAttemptedAt?.[bindingKey(binding)];
+    if (at === undefined) return null;
+    if (at < min) min = at;
+  }
+  if (participating === 0) return null;
+  return min === Infinity ? null : min;
 }
 
 export function isSurfaceRefreshDue(
@@ -101,6 +118,7 @@ export function listDueSurfaces(
   return surfaces.filter((surface) => {
     const trigger = surface.refresh?.trigger;
     if (!trigger) return false;
+    if (!hasParticipatingBindings(surface)) return false;
     return isSurfaceRefreshDue(trigger, surfaceLastAttemptMs(surface), when, context);
   });
 }

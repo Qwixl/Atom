@@ -227,6 +227,37 @@ describe("refreshDueSurfaces", () => {
     expect(result.surfaces[0]).toEqual(surface);
   });
 
+  it("does not call the executor for a binding at the failure threshold", async () => {
+    const executor = vi.fn(async () => {
+      throw new Error("still failing");
+    });
+    const minute = 60_000;
+    const base = 6_000_000;
+    let surface = testSurface();
+
+    for (let step = 0; step < 3; step += 1) {
+      const result = await refreshDueSurfaces({
+        surfaces: [surface],
+        executor,
+        entitledConnectors: ["weather"],
+        now: base + step * (minute + 1_000),
+      });
+      surface = result.surfaces[0]!;
+    }
+    expect(surface.failureCounts).toEqual({ "n1:text": 3 });
+    const callsBefore = executor.mock.calls.length;
+
+    const afterThreshold = await refreshDueSurfaces({
+      surfaces: [surface],
+      executor,
+      entitledConnectors: ["weather"],
+      now: base + 3 * (minute + 1_000),
+    });
+    expect(executor.mock.calls.length).toBe(callsBefore);
+    expect(afterThreshold.stateChanged).toBe(false);
+    expect(afterThreshold.surfaces[0]).toEqual(surface);
+  });
+
   it("a permanently failing binding does not make the surface due more often than its trigger allows", async () => {
     const executor = vi.fn(async () => {
       throw new Error("permanent failure");
@@ -268,12 +299,85 @@ describe("refreshDueSurfaces", () => {
     expect(executor).toHaveBeenCalledTimes(2);
   });
 
-  it("does not call the executor for a binding at the failure threshold", async () => {
+  it("a surface with one degraded binding and one healthy binding respects the healthy binding interval (not every tick)", async () => {
+    const executor = vi.fn(async (call) => {
+      if (call.connectorId === "weather") throw new Error("weather down");
+      return { headline: "Latest" };
+    });
+    const minute = 60_000;
+    const base = 10_000_000;
+    const intervalMs = 15 * 60_000;
+    let surface = testSurface({
+      composition: {
+        version: 1,
+        surfaceId: "tile-1",
+        root: {
+          id: "n1",
+          component: "core/text",
+          props: { text: "Stale", subtitle: "Old" },
+        },
+      },
+      bindings: [
+        {
+          nodeId: "n1",
+          prop: "text",
+          source: { connector: "weather", tool: "current" },
+          select: "/summary",
+          format: "text",
+        },
+        {
+          nodeId: "n1",
+          prop: "subtitle",
+          source: { connector: "news", tool: "headlines" },
+          select: "/headline",
+          format: "text",
+        },
+      ],
+      refresh: {
+        trigger: { type: "interval", everyMinutes: 15 },
+        staleAfterSeconds: 900,
+      },
+    });
+
+    for (let step = 0; step < 3; step += 1) {
+      const result = await refreshDueSurfaces({
+        surfaces: [surface],
+        executor,
+        entitledConnectors: ["weather", "news"],
+        now: base + step * (intervalMs + 1_000),
+      });
+      surface = result.surfaces[0]!;
+    }
+    expect(surface.failureCounts?.["n1:text"]).toBe(3);
+    expect(surface.lastRefreshedAt["n1:subtitle"]).toBeDefined();
+    const callsAfterDegrade = executor.mock.calls.length;
+    const lastDegradeAt = base + 2 * (intervalMs + 1_000);
+
+    await refreshDueSurfaces({
+      surfaces: [surface],
+      executor,
+      entitledConnectors: ["weather", "news"],
+      now: lastDegradeAt + minute,
+    });
+    expect(executor.mock.calls.length).toBe(callsAfterDegrade);
+
+    const newsLastAttempt = surface.lastAttemptedAt?.["n1:subtitle"] ?? 0;
+    await refreshDueSurfaces({
+      surfaces: [surface],
+      executor,
+      entitledConnectors: ["weather", "news"],
+      now: newsLastAttempt + intervalMs,
+    });
+    expect(executor.mock.calls.length).toBe(callsAfterDegrade + 1);
+    expect(executor.mock.calls.at(-1)?.[0]?.connectorId).toBe("news");
+  });
+
+  it("a surface whose bindings are all at the failure threshold is not due and performs no executor call or write", async () => {
     const executor = vi.fn(async () => {
       throw new Error("still failing");
     });
     const minute = 60_000;
-    const base = 6_000_000;
+    const base = 11_000_000;
     let surface = testSurface();
 
     for (let step = 0; step < 3; step += 1) {
@@ -288,15 +392,15 @@ describe("refreshDueSurfaces", () => {
     expect(surface.failureCounts).toEqual({ "n1:text": 3 });
     const callsBefore = executor.mock.calls.length;
 
-    const afterThreshold = await refreshDueSurfaces({
+    const afterAllDegraded = await refreshDueSurfaces({
       surfaces: [surface],
       executor,
       entitledConnectors: ["weather"],
-      now: base + 3 * (minute + 1_000),
+      now: base + 10 * (minute + 1_000),
     });
     expect(executor.mock.calls.length).toBe(callsBefore);
-    expect(afterThreshold.stateChanged).toBe(false);
-    expect(afterThreshold.surfaces[0]).toEqual(surface);
+    expect(afterAllDegraded.stateChanged).toBe(false);
+    expect(afterAllDegraded.surfaces[0]).toEqual(surface);
   });
 
   it("a never-successful binding still reports never-refreshed for as-of (lastRefreshedAt remains successes-only)", async () => {
