@@ -749,6 +749,12 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     },
     killSwitch: config.killSwitch,
     intervalMs: config.brainIntervalMs,
+    boardExecutor: (call) =>
+      readOnlyConnectorExecutor({
+        connectorId: call.connectorId as import("@qwixl/agent-llm").AtomConnectorInvokeInput["connectorId"],
+        operation: call.operation,
+        input: call.input,
+      }),
     resolveNotification: async (intent, firedAt) => {
       const { loadLlmAgUiConfigFromEnv } = await import("./agUi/llmRunner.js");
       const { runBrainTurn } = await import("./brainTurn.js");

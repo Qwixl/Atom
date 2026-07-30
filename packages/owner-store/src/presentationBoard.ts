@@ -36,8 +36,12 @@ export interface PersistedSurface {
   placement: SurfacePlacement;
   /** Fields the owner has overridden; agent arrangement must not touch these. */
   ownerOverrides: Array<"pinned" | "size" | "order" | "screen">;
-  /** Per-binding freshness, keyed by `${nodeId}:${prop}`. */
+  /** Per-binding freshness, keyed by `${nodeId}:${prop}`. Successes only — never written on failure. */
   lastRefreshedAt: Record<string, number>;
+  /** Per-binding refresh attempts, keyed `${nodeId}:${prop}`. Written on every attempt regardless of outcome. */
+  lastAttemptedAt?: Record<string, number>;
+  /** Consecutive refresh failures per binding, keyed `${nodeId}:${prop}`. Cleared on success. */
+  failureCounts?: Record<string, number>;
   lastError?: { at: number; message: string };
   createdAt: number;
   updatedAt: number;
@@ -224,6 +228,36 @@ function parseOwnerOverrides(value: unknown): Array<"pinned" | "size" | "order" 
   return overrides;
 }
 
+function parseFailureCounts(
+  value: unknown,
+  bindingKeys: ReadonlySet<string>,
+): Record<string, number> | undefined {
+  if (value === undefined) return undefined;
+  if (!isPlainObject(value)) return undefined;
+  const result: Record<string, number> = {};
+  for (const [key, count] of Object.entries(value)) {
+    if (!bindingKeys.has(key)) continue;
+    if (typeof count !== "number" || !Number.isInteger(count) || count < 0) continue;
+    result[key] = count;
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function parseLastAttemptedAt(
+  value: unknown,
+  bindingKeys: ReadonlySet<string>,
+): Record<string, number> | undefined {
+  if (value === undefined) return undefined;
+  if (!isPlainObject(value)) return undefined;
+  const result: Record<string, number> = {};
+  for (const [key, at] of Object.entries(value)) {
+    if (!bindingKeys.has(key)) continue;
+    if (typeof at !== "number" || !Number.isFinite(at)) continue;
+    result[key] = at;
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 function parseLastRefreshedAt(
   value: unknown,
   bindingKeys: ReadonlySet<string>,
@@ -295,6 +329,8 @@ function parsePersistedSurface(value: unknown): PersistedSurface | null {
 
   const bindingKeys = new Set(bindings.map(bindingKey));
   const lastRefreshedAt = parseLastRefreshedAt(value.lastRefreshedAt, bindingKeys);
+  const lastAttemptedAt = parseLastAttemptedAt(value.lastAttemptedAt, bindingKeys);
+  const failureCounts = parseFailureCounts(value.failureCounts, bindingKeys);
 
   const surface: PersistedSurface = {
     surfaceId,
@@ -308,6 +344,8 @@ function parsePersistedSurface(value: unknown): PersistedSurface | null {
   };
   if (refresh) surface.refresh = refresh;
   if (lastError) surface.lastError = lastError;
+  if (lastAttemptedAt) surface.lastAttemptedAt = lastAttemptedAt;
+  if (failureCounts) surface.failureCounts = failureCounts;
   return surface;
 }
 
