@@ -67,8 +67,35 @@ export function maxPersistedScreen(surfaces: readonly PersistedSurface[]): numbe
   return max;
 }
 
-export function clampScreen(screen: number, maxPersistedScreenIndex: number): number {
-  return Math.min(Math.max(0, screen), Math.max(0, maxPersistedScreenIndex));
+/** Agent arrangement may append one new screen beyond the current highest. */
+export function maxAllowedAgentScreen(maxOccupiedScreenIndex: number): number {
+  return Math.max(0, maxOccupiedScreenIndex) + 1;
+}
+
+export function clampAgentScreen(screen: number, maxOccupiedScreenIndex: number): number {
+  return Math.min(Math.max(0, screen), maxAllowedAgentScreen(maxOccupiedScreenIndex));
+}
+
+export const BOARD_TILE_TITLE_MAX_LENGTH = 80;
+
+/** Agent-authored title chrome: plain text, single line, length-capped (invariant 7). */
+export function formatBoardTileTitle(intent: string | undefined, surfaceId: string): string {
+  const raw = (intent?.trim() || surfaceId).replace(/\s+/g, " ").trim();
+  if (raw.length <= BOARD_TILE_TITLE_MAX_LENGTH) return raw;
+  return `${raw.slice(0, BOARD_TILE_TITLE_MAX_LENGTH - 1)}…`;
+}
+
+export function boardPanelSections(options: {
+  v1RegionCount: number;
+  v2SurfaceCount: number;
+}): { showV2Board: boolean; showV1Module: boolean; showEmpty: boolean } {
+  const showV2Board = options.v2SurfaceCount > 0;
+  const showV1Module = options.v1RegionCount > 0;
+  return {
+    showV2Board,
+    showV1Module,
+    showEmpty: !showV2Board && !showV1Module,
+  };
 }
 
 /**
@@ -122,12 +149,12 @@ export function layoutBoardScreens(
   surfaces: readonly PersistedSurface[],
   agentPlacements: Record<string, SurfacePlacement> = {},
 ): LayoutBoardScreen[] {
-  const persistedMax = maxPersistedScreen(surfaces);
+  const maxOccupied = maxPersistedScreen(surfaces);
   const tiles: LayoutBoardTile[] = surfaces.map((surface) => {
     const agent = agentPlacements[surface.surfaceId];
     let placement = effectivePlacement(surface, agent);
     if (!surface.ownerOverrides.includes("screen")) {
-      placement = { ...placement, screen: clampScreen(placement.screen, persistedMax) };
+      placement = { ...placement, screen: clampAgentScreen(placement.screen, maxOccupied) };
     }
     return { surface, placement };
   });

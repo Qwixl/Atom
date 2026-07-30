@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { PersistedSurface } from "@qwixl/owner-store";
 import {
-  clampScreen,
+  boardPanelSections,
+  clampAgentScreen,
   effectivePlacement,
+  formatBoardTileTitle,
   isTileStale,
   layoutBoardScreens,
+  maxAllowedAgentScreen,
   tileAsOf,
 } from "./boardLayout.js";
 
@@ -30,6 +33,39 @@ function makeSurface(overrides: Partial<PersistedSurface> & { surfaceId: string 
     ...rest,
   };
 }
+
+describe("boardPanelSections", () => {
+  it("shows v2 surfaces and v1 regions together when both are present", () => {
+    expect(boardPanelSections({ v1RegionCount: 2, v2SurfaceCount: 1 })).toEqual({
+      showV2Board: true,
+      showV1Module: true,
+      showEmpty: false,
+    });
+  });
+
+  it("shows only v1 regions when there are no v2 surfaces", () => {
+    expect(boardPanelSections({ v1RegionCount: 1, v2SurfaceCount: 0 })).toEqual({
+      showV2Board: false,
+      showV1Module: true,
+      showEmpty: false,
+    });
+  });
+});
+
+describe("formatBoardTileTitle", () => {
+  it("collapses newlines to a single line", () => {
+    expect(formatBoardTileTitle("Line one\nLine two\r\nLine three", "fallback")).toBe(
+      "Line one Line two Line three",
+    );
+  });
+
+  it("caps long agent-authored titles with an ellipsis", () => {
+    const long = "a".repeat(100);
+    const formatted = formatBoardTileTitle(long, "fallback");
+    expect(formatted.length).toBeLessThanOrEqual(80);
+    expect(formatted.endsWith("…")).toBe(true);
+  });
+});
 
 describe("effectivePlacement", () => {
   it("applies agent placement when the owner has no override", () => {
@@ -77,8 +113,8 @@ describe("effectivePlacement", () => {
   });
 });
 
-describe("clampScreen", () => {
-  it("clamps an out-of-range agent screen to the highest occupied screen", () => {
+describe("clampAgentScreen", () => {
+  it("clamps an out-of-range agent screen to maxOccupied + 1", () => {
     const surfaces = [
       makeSurface({ surfaceId: "a", placement: { screen: 0, order: 0 } }),
       makeSurface({ surfaceId: "b", placement: { screen: 1, order: 0 } }),
@@ -87,8 +123,23 @@ describe("clampScreen", () => {
     const screen = layout.find((entry) =>
       entry.tiles.some((tile) => tile.surface.surfaceId === "b"),
     )?.screen;
-    expect(screen).toBe(1);
-    expect(clampScreen(5, 1)).toBe(1);
+    expect(screen).toBe(2);
+    expect(clampAgentScreen(5, 1)).toBe(2);
+  });
+
+  it("allows agent placement on exactly maxOccupied + 1", () => {
+    const surfaces = [makeSurface({ surfaceId: "a", placement: { screen: 0, order: 0 } })];
+    const layout = layoutBoardScreens(surfaces, { a: { screen: 1 } });
+    expect(layout.some((entry) => entry.screen === 1)).toBe(true);
+    expect(maxAllowedAgentScreen(0)).toBe(1);
+    expect(clampAgentScreen(1, 0)).toBe(1);
+  });
+
+  it("clamps agent placement beyond maxOccupied + 2 down to maxOccupied + 1", () => {
+    const surfaces = [makeSurface({ surfaceId: "a", placement: { screen: 0, order: 0 } })];
+    const layout = layoutBoardScreens(surfaces, { a: { screen: 3 } });
+    expect(layout[0]?.screen).toBe(1);
+    expect(clampAgentScreen(3, 0)).toBe(1);
   });
 });
 

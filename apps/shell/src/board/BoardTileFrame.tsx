@@ -3,6 +3,7 @@ import type { ResolvedSurface, UiEvent } from "@qwixl/shell-core";
 import { SurfaceRenderer } from "@qwixl/renderer-web";
 import type { ReactNode } from "react";
 import {
+  formatBoardTileTitle,
   isTileStale,
   provenanceConnectorLabels,
   tileAsOf,
@@ -41,7 +42,7 @@ export function BoardTileFrame({
   onMoveLater: () => void;
   onEvent: (event: UiEvent) => void;
 }) {
-  const title = surface.composition.intent?.trim() || surface.surfaceId;
+  const title = formatBoardTileTitle(surface.composition.intent, surface.surfaceId);
   const connectors = provenanceConnectorLabels(surface.bindings);
   const asOf = tileAsOf(surface.bindings, surface.lastRefreshedAt);
   const stale = isTileStale(surface.refresh, surface.bindings, surface.lastRefreshedAt, now);

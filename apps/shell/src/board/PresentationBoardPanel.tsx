@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { resolveComposition, type Catalog, type JsonValue, type ModuleRegistry, type UiEvent } from "@qwixl/shell-core";
 import type { OwnerStore } from "@qwixl/owner-store";
 import {
@@ -17,11 +17,23 @@ import {
   applyOwnerPin,
   applyOwnerReorder,
   applyOwnerSize,
+  boardPanelSections,
   layoutBoardScreens,
   nextBoardTileSize,
 } from "./boardLayout.js";
 
 export const PRESENTATION_BOARD_MODULE_ID = "atom/presentation-board";
+
+const BOARD_NOW_TICK_MS = 60_000;
+
+function useBoardNow(tickMs = BOARD_NOW_TICK_MS): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), tickMs);
+    return () => window.clearInterval(id);
+  }, [tickMs]);
+  return now;
+}
 
 export function PresentationBoardPanel({
   catalog,
@@ -39,7 +51,7 @@ export function PresentationBoardPanel({
   onClose: () => void;
 }) {
   const [highlightId, setHighlightId] = useState<string | null>(null);
-  const [boardNow] = useState(() => Date.now());
+  const boardNow = useBoardNow();
 
   const boardRecord = useMemo(
     () =>
@@ -63,31 +75,42 @@ export function PresentationBoardPanel({
     [boardRecord?.value],
   );
 
-  const showV2Board = v2State.surfaces.length > 0;
-  const showV1Module = !showV2Board && v1State.regions.length > 0;
+  const { showV2Board, showV1Module, showEmpty } = boardPanelSections({
+    v1RegionCount: v1State.regions.length,
+    v2SurfaceCount: v2State.surfaces.length,
+  });
 
-  const persistV1 = useCallback(
-    (next: PresentationBoardState) => {
+  const persistBoardValue = useCallback(
+    (value: Record<string, unknown>) => {
       ownerStore.upsert({
         category: PRESENTATION_BOARD_CATEGORY,
         label: PRESENTATION_BOARD_STATE_LABEL,
-        value: { ...next, updatedAt: Date.now() },
+        value: { ...value, updatedAt: Date.now() } as unknown as JsonValue,
         guarded: false,
       });
     },
     [ownerStore],
   );
 
-  const persistV2 = useCallback(
-    (next: PresentationBoardStateV2) => {
-      ownerStore.upsert({
-        category: PRESENTATION_BOARD_CATEGORY,
-        label: PRESENTATION_BOARD_STATE_LABEL,
-        value: { ...next, updatedAt: Date.now() } as unknown as JsonValue,
-        guarded: false,
+  const persistV1 = useCallback(
+    (next: PresentationBoardState) => {
+      persistBoardValue({
+        ...v2State,
+        schemaVersion: 2,
+        regions: next.regions,
       });
     },
-    [ownerStore],
+    [persistBoardValue, v2State],
+  );
+
+  const persistV2 = useCallback(
+    (next: PresentationBoardStateV2) => {
+      persistBoardValue({
+        ...next,
+        regions: v1State.regions,
+      });
+    },
+    [persistBoardValue, v1State.regions],
   );
 
   const boardScreens = useMemo(
@@ -198,76 +221,82 @@ export function PresentationBoardPanel({
         </div>
       </header>
 
-      {showV2Board ? (
-        <div className="board-screens" role="region" aria-label="Board screens">
-          {boardScreens.map((screen) => (
-            <section
-              key={screen.screen}
-              className="board-screen"
-              aria-label={`Board screen ${screen.screen + 1}`}
-            >
-              <div className="board-screen-grid">
-                {screen.tiles.map((tile) => {
-                  const resolved = resolvedTiles.get(tile.surface.surfaceId);
-                  if (!resolved) return null;
-                  return (
-                    <BoardTileFrame
-                      key={tile.surface.surfaceId}
-                      surface={tile.surface}
-                      resolved={resolved}
-                      placement={tile.placement}
-                      now={boardNow}
-                      onPin={(pinned) =>
-                        updateSurface(tile.surface.surfaceId, (surface) => applyOwnerPin(surface, pinned))
-                      }
-                      onDismiss={() => dismissSurface(tile.surface.surfaceId)}
-                      onResize={() =>
-                        updateSurface(tile.surface.surfaceId, (surface) =>
-                          applyOwnerSize(surface, nextBoardTileSize(tile.placement.size)),
-                        )
-                      }
-                      onMoveEarlier={() =>
-                        updateSurface(tile.surface.surfaceId, (surface) =>
-                          applyOwnerReorder(
-                            surface,
-                            tile.placement.screen,
-                            Math.max(0, tile.placement.order - 1),
-                          ),
-                        )
-                      }
-                      onMoveLater={() =>
-                        updateSurface(tile.surface.surfaceId, (surface) =>
-                          applyOwnerReorder(
-                            surface,
-                            tile.placement.screen,
-                            tile.placement.order + 1,
-                          ),
-                        )
-                      }
-                      onEvent={onTileEvent}
-                    />
-                  );
-                })}
-              </div>
-            </section>
-          ))}
-        </div>
-      ) : null}
+      <div className="board-panel-body">
+        {showV2Board ? (
+          <div className="board-v2-section">
+            <div className="board-screens" role="region" aria-label="Board screens">
+              {boardScreens.map((screen) => (
+                <section
+                  key={screen.screen}
+                  className="board-screen"
+                  aria-label={`Board screen ${screen.screen + 1}`}
+                >
+                  <div className="board-screen-grid">
+                    {screen.tiles.map((tile) => {
+                      const resolved = resolvedTiles.get(tile.surface.surfaceId);
+                      if (!resolved) return null;
+                      return (
+                        <BoardTileFrame
+                          key={tile.surface.surfaceId}
+                          surface={tile.surface}
+                          resolved={resolved}
+                          placement={tile.placement}
+                          now={boardNow}
+                          onPin={(pinned) =>
+                            updateSurface(tile.surface.surfaceId, (surface) =>
+                              applyOwnerPin(surface, pinned),
+                            )
+                          }
+                          onDismiss={() => dismissSurface(tile.surface.surfaceId)}
+                          onResize={() =>
+                            updateSurface(tile.surface.surfaceId, (surface) =>
+                              applyOwnerSize(surface, nextBoardTileSize(tile.placement.size)),
+                            )
+                          }
+                          onMoveEarlier={() =>
+                            updateSurface(tile.surface.surfaceId, (surface) =>
+                              applyOwnerReorder(
+                                surface,
+                                tile.placement.screen,
+                                Math.max(0, tile.placement.order - 1),
+                              ),
+                            )
+                          }
+                          onMoveLater={() =>
+                            updateSurface(tile.surface.surfaceId, (surface) =>
+                              applyOwnerReorder(
+                                surface,
+                                tile.placement.screen,
+                                tile.placement.order + 1,
+                              ),
+                            )
+                          }
+                          onEvent={onTileEvent}
+                        />
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
-      {showV1Module ? (
-        <CommsModuleEmbed
-          moduleId={PRESENTATION_BOARD_MODULE_ID}
-          catalog={catalog}
-          registry={registry}
-          props={v1Props}
-          minHeight={360}
-          onEvent={onV1Event}
-        />
-      ) : null}
+        {showV1Module ? (
+          <div className="board-v1-section">
+            <CommsModuleEmbed
+              moduleId={PRESENTATION_BOARD_MODULE_ID}
+              catalog={catalog}
+              registry={registry}
+              props={v1Props}
+              minHeight={360}
+              onEvent={onV1Event}
+            />
+          </div>
+        ) : null}
 
-      {!showV2Board && !showV1Module ? (
-        <p className="board-empty">No board tiles yet.</p>
-      ) : null}
+        {showEmpty ? <p className="board-empty">No board tiles yet.</p> : null}
+      </div>
     </section>
   );
 }

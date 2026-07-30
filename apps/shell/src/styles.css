@@ -3525,6 +3525,25 @@ body {
   height: 100%;
 }
 
+.board-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  flex: 1;
+}
+
+.board-v2-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.board-v1-section {
+  flex-shrink: 0;
+}
+
 .presentation-board-panel-header {
   display: flex;
   align-items: center;
@@ -3615,14 +3634,21 @@ body {
 
 .board-tile-frame-title {
   margin: 0;
-  font-size: 0.92rem;
+  font-size: 0.98rem;
   font-weight: 600;
   letter-spacing: -0.01em;
+  color: var(--shell-board-frame-title, #e8ecf2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .board-tile-frame-provenance {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
   color: var(--shell-board-frame-muted, #9aa3b2);
 }
 
