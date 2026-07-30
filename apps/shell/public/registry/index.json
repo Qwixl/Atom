@@ -5,6 +5,23 @@
   "ratingsUrl": "ratings.json",
   "modules": [
     {
+      "id": "atom/presentation-board",
+      "version": "1.0.0",
+      "manifestUrl": "atom/presentation-board/manifest.json",
+      "integrity": "sha256:b2493879eda9f31cf4b5aba41bd0b662c7b675d670be43414e32a6da159d45fa",
+      "bundleIntegrity": "sha256:520a45c0d016c734418bec2923ab69e2424683ff7ac805fbadf11b9b3393bfac",
+      "publisher": "did:key:z6Mkatomexamples01",
+      "pricing": {
+        "model": "free"
+      },
+      "categories": [
+        "presentation",
+        "productivity"
+      ],
+      "tier": "system",
+      "signatureUrl": "signature.sigstore.json"
+    },
+    {
       "id": "commerce/offer-comparison",
       "version": "1.0.0",
       "manifestUrl": "commerce/offer-comparison/manifest.json",
@@ -267,23 +284,6 @@
       "categories": [
         "scheduling",
         "coordination"
-      ],
-      "tier": "system",
-      "signatureUrl": "signature.sigstore.json"
-    },
-    {
-      "id": "atom/presentation-board",
-      "version": "1.0.0",
-      "manifestUrl": "atom/presentation-board/manifest.json",
-      "integrity": "sha256:b2493879eda9f31cf4b5aba41bd0b662c7b675d670be43414e32a6da159d45fa",
-      "bundleIntegrity": "sha256:520a45c0d016c734418bec2923ab69e2424683ff7ac805fbadf11b9b3393bfac",
-      "publisher": "did:key:z6Mkatomexamples01",
-      "pricing": {
-        "model": "free"
-      },
-      "categories": [
-        "presentation",
-        "productivity"
       ],
       "tier": "system",
       "signatureUrl": "signature.sigstore.json"
