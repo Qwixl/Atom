@@ -1,28 +1,9 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-26T21:38:11.407Z",
+  "updatedAt": "2026-07-30T19:55:44.687Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
-    {
-      "id": "atom/presentation-board",
-      "version": "1.0.0",
-      "manifestUrl": "atom/presentation-board/manifest.json",
-      "integrity": "sha256:9ee91ab225af562d40f83b129d8ca9521a111765f319e567f82b15e6b1cafe4b",
-      "bundleIntegrity": "sha256:520a45c0d016c734418bec2923ab69e2424683ff7ac805fbadf11b9b3393bfac",
-      "publisher": "did:key:z6Mkatomexamples01",
-      "pricing": {
-        "model": "paid",
-        "priceCents": 999,
-        "currency": "USD",
-        "purchaseUrl": "https://atom.apps.qwixl.com/apps/atom%2Fpresentation-board"
-      },
-      "categories": [
-        "presentation",
-        "productivity"
-      ],
-      "signatureUrl": "signature.sigstore.json"
-    },
     {
       "id": "commerce/offer-comparison",
       "version": "1.0.0",
@@ -286,6 +267,23 @@
       "categories": [
         "scheduling",
         "coordination"
+      ],
+      "tier": "system",
+      "signatureUrl": "signature.sigstore.json"
+    },
+    {
+      "id": "atom/presentation-board",
+      "version": "1.0.0",
+      "manifestUrl": "atom/presentation-board/manifest.json",
+      "integrity": "sha256:b2493879eda9f31cf4b5aba41bd0b662c7b675d670be43414e32a6da159d45fa",
+      "bundleIntegrity": "sha256:520a45c0d016c734418bec2923ab69e2424683ff7ac805fbadf11b9b3393bfac",
+      "publisher": "did:key:z6Mkatomexamples01",
+      "pricing": {
+        "model": "free"
+      },
+      "categories": [
+        "presentation",
+        "productivity"
       ],
       "tier": "system",
       "signatureUrl": "signature.sigstore.json"
