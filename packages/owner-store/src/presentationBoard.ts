@@ -247,6 +247,9 @@ function parsePersistedSurface(value: unknown): PersistedSurface | null {
   const surfaceId = typeof value.surfaceId === "string" ? value.surfaceId.trim() : "";
   if (!surfaceId) return null;
 
+  // `UiEvent.surfaceId` and consequential-action outputs correlate through
+  // `composition.surfaceId`, so a tile with two identities would let an owner control
+  // act on one surface while reporting another. They must be the same value.
   const compositionResult = validateComposition(value.composition);
   if (!compositionResult.ok || compositionResult.value.surfaceId !== surfaceId) return null;
 
