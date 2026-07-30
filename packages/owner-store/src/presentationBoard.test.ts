@@ -79,6 +79,8 @@ describe("parsePresentationBoardStateV2 round-trip", () => {
       surfaces: [
         validPersistedSurface({
           lastRefreshedAt: { "title:text": 1_700_000_090_000 },
+          lastAttemptedAt: { "title:text": 1_700_000_095_000 },
+          failureCounts: { "title:text": 1 },
           lastError: { at: 1_700_000_080_000, message: "connector timeout" },
           ownerOverrides: ["pinned", "screen"],
         }),
@@ -178,6 +180,66 @@ describe("parsePresentationBoardStateV2 partial surface invalidity", () => {
     } as unknown as JsonValue);
     expect(result.surfaces).toHaveLength(1);
     expect(result.surfaces[0]?.bindings).toHaveLength(1);
+  });
+});
+
+describe("parsePresentationBoardStateV2 lastAttemptedAt", () => {
+  it("drops entries whose key does not match a binding on the surface", () => {
+    const result = parsePresentationBoardStateV2({
+      schemaVersion: 2,
+      surfaces: [
+        validPersistedSurface({
+          lastAttemptedAt: {
+            "title:text": 100,
+            "orphan:prop": 200,
+          },
+        }),
+      ],
+      dismissed: [],
+      updatedAt: 1,
+    } as unknown as JsonValue);
+    expect(result.surfaces[0]?.lastAttemptedAt).toEqual({ "title:text": 100 });
+  });
+
+  it("omits lastAttemptedAt when every entry is invalid", () => {
+    const result = parsePresentationBoardStateV2({
+      schemaVersion: 2,
+      surfaces: [validPersistedSurface({ lastAttemptedAt: { "orphan:prop": 2 } })],
+      dismissed: [],
+      updatedAt: 1,
+    } as unknown as JsonValue);
+    expect(result.surfaces[0]?.lastAttemptedAt).toBeUndefined();
+  });
+});
+
+describe("parsePresentationBoardStateV2 failureCounts", () => {
+  it("drops orphan keys and rejects non-integer or negative counts", () => {
+    const result = parsePresentationBoardStateV2({
+      schemaVersion: 2,
+      surfaces: [
+        validPersistedSurface({
+          failureCounts: {
+            "title:text": 2,
+            "orphan:prop": 1,
+            "bad:float": 1.5,
+            "bad:negative": -1,
+          },
+        }),
+      ],
+      dismissed: [],
+      updatedAt: 1,
+    } as unknown as JsonValue);
+    expect(result.surfaces[0]?.failureCounts).toEqual({ "title:text": 2 });
+  });
+
+  it("omits failureCounts when every entry is invalid", () => {
+    const result = parsePresentationBoardStateV2({
+      schemaVersion: 2,
+      surfaces: [validPersistedSurface({ failureCounts: { "orphan:prop": 2 } })],
+      dismissed: [],
+      updatedAt: 1,
+    } as unknown as JsonValue);
+    expect(result.surfaces[0]?.failureCounts).toBeUndefined();
   });
 });
 

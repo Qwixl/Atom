@@ -11,6 +11,12 @@ import {
 } from "./standingIntents.js";
 import { normalizePushSubscriptions } from "./push/types.js";
 import { loadPushSenderConfig, sendBrainPushNotifications } from "./push/sendPush.js";
+import {
+  refreshDueSurfaces,
+  type BoardBindingExecutor,
+  type BoardDegradeRequest,
+} from "./boardRefresh.js";
+import { loadPresentationBoardState, savePresentationBoardState } from "./boardState.js";
 
 export interface BrainSchedulerOptions {
   vault: ConnectorVault;
@@ -37,6 +43,21 @@ export interface BrainSchedulerOptions {
     intent: StandingIntent,
     firedAt: Date,
   ) => Promise<BrainPendingNotification | null>;
+  /**
+   * Injected connector executor for board binding refresh (PS-05).
+   * Production passes `createReadOnlyConnectorExecutor(vault)`.
+   */
+  boardExecutor?: BoardBindingExecutor;
+  /** Connector ids entitled at refresh time; defaults to listing configured connectors. */
+  listEntitledConnectors?: (vault: ConnectorVault) => Promise<readonly string[]>;
+}
+
+export interface BrainTickResult {
+  fired: StandingIntent[];
+  notifications: BrainPendingNotification[];
+  boardRefreshedSurfaceIds: string[];
+  boardExpiredSurfaceIds: string[];
+  boardDegradeRequests: BoardDegradeRequest[];
 }
 
 export class BrainScheduler {
@@ -52,6 +73,10 @@ export class BrainScheduler {
     intent: StandingIntent,
     firedAt: Date,
   ) => Promise<BrainPendingNotification | null>;
+  private readonly boardExecutor?: BoardBindingExecutor;
+  private readonly listEntitledConnectors?: (
+    vault: ConnectorVault,
+  ) => Promise<readonly string[]>;
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticking = false;
   private lastTickAt: string | null = null;
@@ -67,6 +92,8 @@ export class BrainScheduler {
     this.now = options.now ?? (() => new Date());
     this.onFire = options.onFire;
     this.resolveNotification = options.resolveNotification;
+    this.boardExecutor = options.boardExecutor;
+    this.listEntitledConnectors = options.listEntitledConnectors;
   }
 
   start(): void {
@@ -107,9 +134,16 @@ export class BrainScheduler {
     };
   }
 
-  /** Evaluate due intents once. Safe to call from tests without start(). */
-  async tick(): Promise<{ fired: StandingIntent[]; notifications: BrainPendingNotification[] }> {
-    if (this.ticking) return { fired: [], notifications: [] };
+  /** Evaluate due intents and board refresh once. Safe to call from tests without start(). */
+  async tick(): Promise<BrainTickResult> {
+    const empty: BrainTickResult = {
+      fired: [],
+      notifications: [],
+      boardRefreshedSurfaceIds: [],
+      boardExpiredSurfaceIds: [],
+      boardDegradeRequests: [],
+    };
+    if (this.ticking) return empty;
     this.ticking = true;
     try {
       const now = this.now();
@@ -117,19 +151,17 @@ export class BrainScheduler {
       this.onReachabilityWake?.();
       if (this.killSwitch || !this.isBrainActive()) {
         this.lastFireCount = 0;
-        return { fired: [], notifications: [] };
+        return empty;
       }
+
+      const boardResult = await this.refreshBoard(now);
 
       const intents = normalizeStandingIntents(this.vault.getStandingIntents());
       const due = listDueIntents(intents, now);
-      if (due.length === 0) {
-        this.lastFireCount = 0;
-        return { fired: [], notifications: [] };
-      }
 
       const fired: StandingIntent[] = [];
-      const notifications: BrainPendingNotification[] = [];
-      const byId = new Map(intents.map((i) => [i.id, i]));
+      const notifications: BrainPendingNotification[] = [...boardResult.notifications];
+      const byId = new Map(intents.map((intent) => [intent.id, intent]));
 
       for (const intent of due) {
         const updated = markIntentFired(intent, now);
@@ -175,7 +207,9 @@ export class BrainScheduler {
       }
 
       const nextIntents = [...byId.values()];
-      await this.vault.setStandingIntents(nextIntents);
+      if (due.length > 0) {
+        await this.vault.setStandingIntents(nextIntents);
+      }
 
       if (notifications.length > 0) {
         const existing = normalizeBrainPendingNotifications(
@@ -187,16 +221,102 @@ export class BrainScheduler {
       }
 
       this.lastFireCount = fired.length;
-      return { fired, notifications };
+      return {
+        fired,
+        notifications,
+        boardRefreshedSurfaceIds: boardResult.refreshedSurfaceIds,
+        boardExpiredSurfaceIds: boardResult.expiredSurfaceIds,
+        boardDegradeRequests: boardResult.degradeRequests,
+      };
     } finally {
       this.ticking = false;
     }
+  }
+
+  private async refreshBoard(now: Date): Promise<{
+    refreshedSurfaceIds: string[];
+    expiredSurfaceIds: string[];
+    degradeRequests: BoardDegradeRequest[];
+    notifications: BrainPendingNotification[];
+  }> {
+    if (!this.boardExecutor) {
+      return {
+        refreshedSurfaceIds: [],
+        expiredSurfaceIds: [],
+        degradeRequests: [],
+        notifications: [],
+      };
+    }
+
+    const { v2, v1Regions } = loadPresentationBoardState(this.vault);
+    if (v2.surfaces.length === 0) {
+      return {
+        refreshedSurfaceIds: [],
+        expiredSurfaceIds: [],
+        degradeRequests: [],
+        notifications: [],
+      };
+    }
+
+    const entitled =
+      (await this.listEntitledConnectors?.(this.vault)) ??
+      (await defaultListEntitledConnectors(this.vault));
+
+    const result = await refreshDueSurfaces({
+      surfaces: v2.surfaces,
+      executor: this.boardExecutor,
+      entitledConnectors: entitled,
+      now: now.getTime(),
+    });
+
+    if (result.stateChanged) {
+      await savePresentationBoardState(
+        this.vault,
+        {
+          ...v2,
+          surfaces: result.surfaces,
+          dismissed: v2.dismissed,
+          updatedAt: now.getTime(),
+        },
+        v1Regions,
+      );
+    }
+
+    const notifications = result.degradeRequests.map((request) =>
+      buildBoardDegradeNotification(request, now),
+    );
+    return {
+      refreshedSurfaceIds: result.refreshedSurfaceIds,
+      expiredSurfaceIds: result.expiredSurfaceIds,
+      degradeRequests: result.degradeRequests,
+      notifications,
+    };
   }
 
   private isBrainActive(): boolean {
     if (this.resolveAlwaysOn) return this.resolveAlwaysOn();
     return this.alwaysOn;
   }
+}
+
+async function defaultListEntitledConnectors(vault: ConnectorVault): Promise<readonly string[]> {
+  const { listConfiguredConnectorIds } = await import("./connectorRegistry.js");
+  return listConfiguredConnectorIds(vault);
+}
+
+function buildBoardDegradeNotification(
+  request: BoardDegradeRequest,
+  firedAt: Date,
+): BrainPendingNotification {
+  return {
+    id: `board_degrade_${firedAt.getTime().toString(36)}_${request.surfaceId}`,
+    intentId: `board:${request.surfaceId}`,
+    kind: "watch",
+    title: "Board tile degraded",
+    body: request.message,
+    createdAt: firedAt.toISOString(),
+    deliveredAt: null,
+  };
 }
 
 export function replaceStandingIntents(
