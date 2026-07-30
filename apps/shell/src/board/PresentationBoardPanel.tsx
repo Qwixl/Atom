@@ -18,6 +18,7 @@ import {
   applyOwnerReorder,
   applyOwnerSize,
   boardPanelSections,
+  formatBoardSurfaceDisplay,
   layoutBoardScreens,
   nextBoardTileSize,
 } from "./boardLayout.js";
@@ -123,7 +124,7 @@ export function PresentationBoardPanel({
     return new Map(
       v2State.surfaces.map((surface) => [
         surface.surfaceId,
-        resolveComposition(surface.composition, catalog),
+        formatBoardSurfaceDisplay(resolveComposition(surface.composition, catalog)),
       ]),
     );
   }, [catalog, showV2Board, v2State.surfaces]);
