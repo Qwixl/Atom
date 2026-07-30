@@ -135,6 +135,11 @@ export {
   validateSurfacePinShape,
   validateSurfaceRelease,
 } from "./persistentSurface.js";
+export {
+  BOARD_CALENDAR_SURFACE_ID,
+  buildCalendarBoardSurfacePin,
+  defaultCalendarQueryWindow,
+} from "./boardCalendarTile.js";
 export type {
   SurfaceArrange,
   SurfaceBinding,

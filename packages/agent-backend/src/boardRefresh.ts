@@ -155,6 +155,35 @@ function evaluateJsonPointer(doc: unknown, pointer: string): unknown {
   return current;
 }
 
+function isCalendarEventLike(
+  value: unknown,
+): value is { summary: string; start: string; end?: string } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.summary === "string" && typeof record.start === "string";
+}
+
+function formatCalendarEventWhen(start: string, end?: string): string {
+  try {
+    const startDate = new Date(start);
+    const startText = startDate.toLocaleString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    if (!end) return startText;
+    const endText = new Date(end).toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    return `${startText} – ${endText}`;
+  } catch {
+    return end ? `${start} – ${end}` : start;
+  }
+}
+
 function coerceBindingFormat(value: unknown, format?: SurfaceBinding["format"]): JsonValue {
   if (!format || format === "text") {
     if (value === null || value === undefined) return "";
@@ -174,8 +203,16 @@ function coerceBindingFormat(value: unknown, format?: SurfaceBinding["format"]):
     }
     case "list":
       return (Array.isArray(value) ? value : [value]) as JsonValue;
-    case "table":
-      return (Array.isArray(value) ? value : []) as JsonValue;
+    case "table": {
+      if (!Array.isArray(value)) return [];
+      if (value.length > 0 && isCalendarEventLike(value[0])) {
+        return value.map((item) => {
+          const event = item as { summary: string; start: string; end?: string };
+          return [formatCalendarEventWhen(event.start, event.end), event.summary];
+        }) as JsonValue;
+      }
+      return value as JsonValue;
+    }
     default:
       return value as JsonValue;
   }
