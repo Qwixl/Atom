@@ -5,6 +5,9 @@ import {
   atomConnectorInvokeEvent,
   atomDataRequestEvent,
   atomGameMoveEvent,
+  atomSurfaceArrangeEvent,
+  atomSurfacePinEvent,
+  atomSurfaceReleaseEvent,
 } from "../atom-events.js";
 import type { AgentOutput } from "@qwixl/shell-core";
 import { v4 as uuid } from "uuid";
@@ -32,6 +35,15 @@ export function agentOutputToAgUiEvents(output: AgentOutput): BaseEvent[] {
   }
   if (output.type === "game-move") {
     return [atomGameMoveEvent(output.surfaceId, output.move)];
+  }
+  if (output.type === "surface-pin") {
+    return [atomSurfacePinEvent(output.pin)];
+  }
+  if (output.type === "surface-release") {
+    return [atomSurfaceReleaseEvent(output.release)];
+  }
+  if (output.type === "surface-arrange") {
+    return [atomSurfaceArrangeEvent(output.arrange)];
   }
   return [];
 }
