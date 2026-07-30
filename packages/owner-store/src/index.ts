@@ -4,9 +4,13 @@ export {
   PRESENTATION_BOARD_STATE_LABEL,
   PRESENTATION_BOARD_MUTE_LABEL,
   emptyPresentationBoardState,
+  emptyPresentationBoardStateV2,
   parsePresentationBoardState,
+  parsePresentationBoardStateV2,
   type BoardRegion,
+  type PersistedSurface,
   type PresentationBoardState,
+  type PresentationBoardStateV2,
 } from "./presentationBoard.js";
 export type {
   OwnerRecord,

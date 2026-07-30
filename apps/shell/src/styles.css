@@ -3525,6 +3525,25 @@ body {
   height: 100%;
 }
 
+.board-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  flex: 1;
+}
+
+.board-v2-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.board-v1-section {
+  flex-shrink: 0;
+}
+
 .presentation-board-panel-header {
   display: flex;
   align-items: center;
@@ -3543,5 +3562,162 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.board-empty {
+  margin: 0;
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.board-screens {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  min-height: 0;
+  flex: 1;
+  padding-bottom: 8px;
+}
+
+.board-screen {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  min-width: 0;
+}
+
+.board-screen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+
+.board-tile {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.board-tile--size-s {
+  grid-column: span 1;
+}
+
+.board-tile--size-m {
+  grid-column: span 1;
+}
+
+.board-tile--size-l {
+  grid-column: span 2;
+}
+
+.board-tile-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--shell-board-frame-border, #4a4f57);
+  border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--shell-board-frame-bg, #16181c);
+  color: var(--shell-board-frame-text, #d8dde6);
+}
+
+.board-tile-frame-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.board-tile-frame-title {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--shell-board-frame-title, #e8ecf2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.board-tile-frame-provenance {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--shell-board-frame-muted, #9aa3b2);
+}
+
+.board-tile-frame-error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--shell-board-frame-warning, #e8b86d);
+}
+
+.board-tile-frame-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+.board-tile-frame-badge--stale {
+  background: var(--shell-board-badge-stale-bg, #3a2f1a);
+  color: var(--shell-board-badge-stale-text, #f0c674);
+}
+
+.board-tile-frame-badge--degraded {
+  background: var(--shell-board-badge-degraded-bg, #3a1f1f);
+  color: var(--shell-board-badge-degraded-text, #f0a0a0);
+}
+
+.board-tile-frame-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.board-tile-frame-control {
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--shell-board-control-border, #5a6270);
+  background: var(--shell-board-control-bg, #1f2329);
+  color: var(--shell-board-control-text, #d8dde6);
+  cursor: pointer;
+}
+
+.board-tile-frame-control:hover {
+  background: var(--shell-board-control-bg-hover, #2a3038);
+}
+
+.board-tile-frame-control--dismiss {
+  margin-left: auto;
+}
+
+.board-tile-content {
+  padding: 12px;
+  border: 1px solid var(--shell-board-frame-border, #4a4f57);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: var(--shell-board-content-bg, #111316);
+}
+
+.board-tile-content--stale {
+  opacity: 0.72;
+}
+
+.board-tile-content--degraded {
+  opacity: 0.8;
+}
+
+.board-tile--pinned .board-tile-frame {
+  border-color: var(--shell-board-pinned-border, #6b8cce);
 }
 

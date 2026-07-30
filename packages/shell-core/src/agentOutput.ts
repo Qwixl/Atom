@@ -1,5 +1,10 @@
 import { normalizeDataRequest } from "./dataRequest.js";
 import type { AgentOutput } from "./session.js";
+import {
+  validateSurfaceArrange,
+  validateSurfacePinShape,
+  validateSurfaceRelease,
+} from "./persistentSurface.js";
 import { validateComposition, validateConsequentialAction } from "./validate.js";
 
 export type AgentWireReject = { kind: "reject"; text: string };
@@ -24,6 +29,27 @@ function invalidDataRequest(missing: string[]): AgentWireReject {
   return {
     kind: "reject",
     text: `(The agent made a malformed data request, blocked by the shell: missing ${missing.join(", ")}. Use: { "type": "data-request", "request": { "requestId": "unique-id", "categories": ["identity"], "reason": "one sentence" } })`,
+  };
+}
+
+function invalidSurfacePin(errors: string[]): AgentWireReject {
+  return {
+    kind: "reject",
+    text: `(The agent produced an invalid surface pin, discarded by the shell: ${errors.join("; ")})`,
+  };
+}
+
+function invalidSurfaceRelease(errors: string[]): AgentWireReject {
+  return {
+    kind: "reject",
+    text: `(The agent produced an invalid surface release, discarded by the shell: ${errors.join("; ")})`,
+  };
+}
+
+function invalidSurfaceArrange(errors: string[]): AgentWireReject {
+  return {
+    kind: "reject",
+    text: `(The agent produced an invalid surface arrange, discarded by the shell: ${errors.join("; ")})`,
   };
 }
 
@@ -84,6 +110,18 @@ export function parseAgentProtocolMessage(message: unknown): AgentWireResult | n
     };
   }
 
+  if (m.type === "surface-pin") {
+    return parseSurfacePinPayload(m);
+  }
+
+  if (m.type === "surface-release") {
+    return parseSurfaceReleasePayload(m);
+  }
+
+  if (m.type === "surface-arrange") {
+    return parseSurfaceArrangePayload(m);
+  }
+
   return null;
 }
 
@@ -132,4 +170,28 @@ export function parseDataRequestPayload(payload: unknown): AgentWireResult {
   return result.ok
     ? { kind: "output", output: { type: "data-request", request: result.value } }
     : invalidDataRequest(result.missing);
+}
+
+/** Parse AG-UI atom.surface-pin CUSTOM payload. Shape only — entitlement re-checked at apply. */
+export function parseSurfacePinPayload(payload: unknown): AgentWireResult {
+  const result = validateSurfacePinShape(payload);
+  return result.ok
+    ? { kind: "output", output: { type: "surface-pin", pin: result.value } }
+    : invalidSurfacePin(result.errors);
+}
+
+/** Parse AG-UI atom.surface-release CUSTOM payload. */
+export function parseSurfaceReleasePayload(payload: unknown): AgentWireResult {
+  const result = validateSurfaceRelease(payload);
+  return result.ok
+    ? { kind: "output", output: { type: "surface-release", release: result.value } }
+    : invalidSurfaceRelease(result.errors);
+}
+
+/** Parse AG-UI atom.surface-arrange CUSTOM payload. */
+export function parseSurfaceArrangePayload(payload: unknown): AgentWireResult {
+  const result = validateSurfaceArrange(payload);
+  return result.ok
+    ? { kind: "output", output: { type: "surface-arrange", arrange: result.value } }
+    : invalidSurfaceArrange(result.errors);
 }
