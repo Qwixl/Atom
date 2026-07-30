@@ -42,6 +42,7 @@ export function buildCalendarBoardSurfacePin(
         },
         select: "/events",
         format: "table",
+        columns: ["start", "summary"],
       },
     ],
     refresh: {

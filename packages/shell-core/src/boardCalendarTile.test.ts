@@ -25,6 +25,7 @@ describe("buildCalendarBoardSurfacePin", () => {
         },
         select: "/events",
         format: "table",
+        columns: ["start", "summary"],
       },
     ]);
     expect(result.value.refresh?.trigger).toEqual({ type: "interval", everyMinutes: 30 });
