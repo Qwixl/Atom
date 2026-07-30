@@ -92,12 +92,38 @@ export function MicrosoftGraphSettingsPanel({
     }
   }
 
+  const byoForm = (
+    <div className="atom-form-stack">
+      <label>
+        Application (client) ID
+        <input
+          value={clientId}
+          onChange={(e) => setClientId(e.target.value)}
+          placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+          autoComplete="off"
+        />
+      </label>
+      <label>
+        Client secret (optional for public/PKCE clients)
+        <input
+          type="password"
+          value={clientSecret}
+          onChange={(e) => setClientSecret(e.target.value)}
+          autoComplete="off"
+        />
+      </label>
+      <button type="button" disabled={busy || !clientId.trim()} onClick={() => void saveClient()}>
+        Save Entra app override
+      </button>
+    </div>
+  );
+
   return (
     <section className={embedded ? "atom-settings-embedded" : "atom-panel"}>
       {!embedded ? <h2>Microsoft 365</h2> : null}
       <p className="atom-note">
         Connect calendar read access via Microsoft Graph (`Calendars.Read`). Refresh tokens stay in
-        your agent vault. Multi-tenant production consent waits on Partner publisher verification.
+        your agent vault. Hosted Atom uses a shared Entra app — you should only need Connect.
       </p>
       {!config.adminToken && !vaultUnlocked ? (
         <p className="atom-note">Unlock your vault and connect your agent first.</p>
@@ -105,46 +131,58 @@ export function MicrosoftGraphSettingsPanel({
         <>
           <p className="atom-note">
             Status: {connected ? "Connected" : "Not connected"}
-            {clientConfigured ? " · Entra app configured" : " · Entra app not configured"}
+            {clientConfigured ? " · Sign-in ready" : " · Sign-in not available yet"}
           </p>
-          {!clientConfigured ? (
-            <div className="atom-form-stack">
-              <label>
-                Application (client) ID
-                <input
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                  autoComplete="off"
-                />
-              </label>
-              <label>
-                Client secret (optional for public/PKCE clients)
-                <input
-                  type="password"
-                  value={clientSecret}
-                  onChange={(e) => setClientSecret(e.target.value)}
-                  autoComplete="off"
-                />
-              </label>
-              <button type="button" disabled={busy || !clientId.trim()} onClick={() => void saveClient()}>
-                Save Entra app
-              </button>
-            </div>
-          ) : null}
-          <div className="atom-button-row">
-            <button type="button" disabled={busy || !clientConfigured} onClick={() => void connect()}>
-              Connect Microsoft 365
-            </button>
-            <button type="button" disabled={busy} onClick={() => void refresh()}>
-              Refresh status
-            </button>
-            {connected ? (
-              <button type="button" disabled={busy} onClick={() => void disconnect()}>
-                Disconnect
-              </button>
-            ) : null}
-          </div>
+          {clientConfigured ? (
+            <>
+              <div className="atom-button-row">
+                <button type="button" disabled={busy} onClick={() => void connect()}>
+                  Connect Microsoft 365
+                </button>
+                <button type="button" disabled={busy} onClick={() => void refresh()}>
+                  Refresh status
+                </button>
+                {connected ? (
+                  <button type="button" disabled={busy} onClick={() => void disconnect()}>
+                    Disconnect
+                  </button>
+                ) : null}
+              </div>
+              <details className="settings-advanced">
+                <summary>Advanced — use your own Entra app</summary>
+                <div className="settings-advanced-body">
+                  <p className="atom-note">
+                    Override the shared Atom client ID for your own tenant or custom-domain
+                    self-host. Redirect URI must match your agent&apos;s public base URL exactly.
+                  </p>
+                  {byoForm}
+                </div>
+              </details>
+            </>
+          ) : (
+            <>
+              <p className="atom-note">
+                One-tap Microsoft calendar is not available on this deployment yet — the Atom Entra
+                application has not been registered. Self-hosters can provide their own app below.
+              </p>
+              <details className="settings-advanced">
+                <summary>Advanced — bring your own Entra app</summary>
+                <div className="settings-advanced-body">
+                  <p className="atom-note">
+                    Register an app in your tenant, then paste its client ID here. Redirect URI must
+                    be <code>{`{publicBaseUrl}/connectors/microsoft/callback`}</code> for your
+                    agent.
+                  </p>
+                  {byoForm}
+                </div>
+              </details>
+              <div className="atom-button-row">
+                <button type="button" disabled={busy} onClick={() => void refresh()}>
+                  Refresh status
+                </button>
+              </div>
+            </>
+          )}
           {note ? <p className="atom-note">{note}</p> : null}
         </>
       )}

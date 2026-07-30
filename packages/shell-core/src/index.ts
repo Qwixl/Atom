@@ -141,6 +141,10 @@ export {
   buildCalendarBoardSurfacePin,
   defaultCalendarQueryWindow,
 } from "./boardCalendarTile.js";
+export {
+  BOARD_MICROSOFT_CALENDAR_SURFACE_ID,
+  buildMicrosoftGraphBoardSurfacePin,
+} from "./boardMicrosoftGraphCalendarTile.js";
 export type {
   SurfaceArrange,
   SurfaceBinding,
