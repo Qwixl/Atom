@@ -249,6 +249,7 @@ export class ConversationRuntime {
       case "surface-pin":
       case "surface-release":
       case "surface-arrange":
+        // PS-03 persists and PS-04 renders; entitlement is re-validated there via validateSurfacePin.
         break;
       case "done":
         this.busy = false;

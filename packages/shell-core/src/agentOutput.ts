@@ -2,7 +2,7 @@ import { normalizeDataRequest } from "./dataRequest.js";
 import type { AgentOutput } from "./session.js";
 import {
   validateSurfaceArrange,
-  validateSurfacePin,
+  validateSurfacePinShape,
   validateSurfaceRelease,
 } from "./persistentSurface.js";
 import { validateComposition, validateConsequentialAction } from "./validate.js";
@@ -174,7 +174,7 @@ export function parseDataRequestPayload(payload: unknown): AgentWireResult {
 
 /** Parse AG-UI atom.surface-pin CUSTOM payload. Shape only — entitlement re-checked at apply. */
 export function parseSurfacePinPayload(payload: unknown): AgentWireResult {
-  const result = validateSurfacePin(payload, { shapeOnly: true });
+  const result = validateSurfacePinShape(payload);
   return result.ok
     ? { kind: "output", output: { type: "surface-pin", pin: result.value } }
     : invalidSurfacePin(result.errors);

@@ -51,10 +51,8 @@ const BOARD_FORBIDDEN_COMPONENTS = new Set(["core/form", "core/text-field"]);
 const SURFACE_FORMATS = new Set(["text", "number", "date", "list", "table"]);
 const SURFACE_SIZES = new Set(["s", "m", "l"]);
 
-export type ValidateSurfacePinOptions = {
-  entitledConnectors?: string[];
-  /** Wire parsing only — skips entitlement (rule 4); shell re-validates at apply. */
-  shapeOnly?: boolean;
+export type ValidateSurfacePinEntitlementOptions = {
+  entitledConnectors: string[];
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -232,7 +230,8 @@ function validateBinding(
   binding: unknown,
   index: number,
   nodeIds: Set<string>,
-  options: ValidateSurfacePinOptions | undefined,
+  enforceEntitlement: boolean,
+  entitledConnectors: string[],
   errors: string[],
 ): SurfaceBinding | undefined {
   const path = `bindings[${index}]`;
@@ -254,15 +253,10 @@ function validateBinding(
   } else {
     if (typeof binding.source.connector !== "string" || binding.source.connector.length === 0) {
       bindingErrors.push(`${path}.source.connector: required non-empty string`);
-    } else if (!options?.shapeOnly) {
-      const entitled = options?.entitledConnectors;
-      if (!entitled) {
-        bindingErrors.push(`${path}.source.connector: no entitled connectors available`);
-      } else if (!entitled.includes(binding.source.connector)) {
-        bindingErrors.push(
-          `${path}.source.connector: connector "${binding.source.connector}" is not entitled`,
-        );
-      }
+    } else if (enforceEntitlement && !entitledConnectors.includes(binding.source.connector)) {
+      bindingErrors.push(
+        `${path}.source.connector: connector "${binding.source.connector}" is not entitled`,
+      );
     }
     if (typeof binding.source.tool !== "string" || binding.source.tool.length === 0) {
       bindingErrors.push(`${path}.source.tool: required non-empty string`);
@@ -301,9 +295,10 @@ function validateBinding(
   return result;
 }
 
-export function validateSurfacePin(
+function validateSurfacePinInternal(
   value: unknown,
-  options?: ValidateSurfacePinOptions,
+  enforceEntitlement: boolean,
+  entitledConnectors: string[],
 ): ValidationResult<SurfacePin> {
   const errors: string[] = [];
   if (!isPlainObject(value)) {
@@ -330,7 +325,14 @@ export function validateSurfacePin(
       errors.push("bindings: must be an array");
     } else {
       value.bindings.forEach((binding, index) => {
-        const validated = validateBinding(binding, index, nodeIds, options, errors);
+        const validated = validateBinding(
+          binding,
+          index,
+          nodeIds,
+          enforceEntitlement,
+          entitledConnectors,
+          errors,
+        );
         if (validated) bindings.push(validated);
       });
     }
@@ -341,11 +343,27 @@ export function validateSurfacePin(
 
   if (errors.length > 0) return { ok: false, errors };
 
-  const pin: SurfacePin = { composition: compositionResult.ok ? compositionResult.value : (value.composition as Composition) };
+  const pin: SurfacePin = {
+    composition: compositionResult.ok
+      ? compositionResult.value
+      : (value.composition as Composition),
+  };
   if (bindings.length > 0) pin.bindings = bindings;
   if (refresh) pin.refresh = refresh;
   if (placement) pin.placement = placement;
   return { ok: true, value: pin };
+}
+
+/** Wire parsing: every rule except entitlement (rule 4). */
+export function validateSurfacePinShape(value: unknown): ValidationResult<SurfacePin> {
+  return validateSurfacePinInternal(value, false, []);
+}
+
+export function validateSurfacePin(
+  value: unknown,
+  options: ValidateSurfacePinEntitlementOptions,
+): ValidationResult<SurfacePin> {
+  return validateSurfacePinInternal(value, true, options.entitledConnectors);
 }
 
 export function validateSurfaceRelease(value: unknown): ValidationResult<SurfaceRelease> {

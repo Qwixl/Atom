@@ -3,6 +3,7 @@ import {
   SURFACE_REFRESH_MIN_MINUTES,
   validateSurfaceArrange,
   validateSurfacePin,
+  validateSurfacePinShape,
   validateSurfaceRelease,
 } from "./persistentSurface.js";
 
@@ -38,10 +39,7 @@ function validPin(overrides: Record<string, unknown> = {}) {
 describe("validateSurfacePin", () => {
   describe("rule 1 — composition validation", () => {
     it("accepts a pin whose composition passes validateComposition", () => {
-      const result = validateSurfacePin(validPin(), {
-        entitledConnectors: ["webcal"],
-        shapeOnly: false,
-      });
+      const result = validateSurfacePin(validPin(), { entitledConnectors: ["webcal"] });
       expect(result.ok).toBe(true);
     });
 
@@ -169,12 +167,19 @@ describe("validateSurfacePin", () => {
       }
     });
 
-    it("rejects all bindings when entitledConnectors is absent", () => {
-      const result = validateSurfacePin(validPin());
+    it("rejects bindings when entitledConnectors is empty", () => {
+      const result = validateSurfacePin(validPin(), { entitledConnectors: [] });
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.errors.some((error) => error.includes("no entitled connectors"))).toBe(true);
+        expect(result.errors.some((error) => error.includes("is not entitled"))).toBe(true);
       }
+    });
+  });
+
+  describe("validateSurfacePinShape", () => {
+    it("validateSurfacePinShape does not enforce entitlement (rule 4 is re-checked at apply)", () => {
+      const result = validateSurfacePinShape(validPin());
+      expect(result.ok).toBe(true);
     });
   });
 
@@ -255,6 +260,50 @@ describe("validateSurfacePin", () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.errors.some((error) => error.includes("placement.screen"))).toBe(true);
+      }
+    });
+
+    it("rejects non-integer placement.screen", () => {
+      const result = validateSurfacePin(
+        validPin({ placement: { screen: 1.5 } }),
+        { entitledConnectors: ["webcal"] },
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.errors.some((error) => error.includes("placement.screen"))).toBe(true);
+      }
+    });
+
+    it("rejects negative placement.order", () => {
+      const result = validateSurfacePin(
+        validPin({ placement: { order: -1 } }),
+        { entitledConnectors: ["webcal"] },
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.errors.some((error) => error.includes("placement.order"))).toBe(true);
+      }
+    });
+
+    it("rejects non-integer placement.order", () => {
+      const result = validateSurfacePin(
+        validPin({ placement: { order: 2.5 } }),
+        { entitledConnectors: ["webcal"] },
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.errors.some((error) => error.includes("placement.order"))).toBe(true);
+      }
+    });
+
+    it("rejects invalid placement.size", () => {
+      const result = validateSurfacePin(
+        validPin({ placement: { size: "xl" } }),
+        { entitledConnectors: ["webcal"] },
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.errors.some((error) => error.includes("placement.size"))).toBe(true);
       }
     });
   });

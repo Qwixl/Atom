@@ -132,6 +132,7 @@ export {
   SURFACE_REFRESH_MIN_MINUTES,
   validateSurfaceArrange,
   validateSurfacePin,
+  validateSurfacePinShape,
   validateSurfaceRelease,
 } from "./persistentSurface.js";
 export type {
@@ -142,7 +143,7 @@ export type {
   SurfaceRefresh,
   SurfaceRefreshTrigger,
   SurfaceRelease,
-  ValidateSurfacePinOptions,
+  ValidateSurfacePinEntitlementOptions,
 } from "./persistentSurface.js";
 
 export { presentChatAgentError } from "./userFacingErrors.js";
