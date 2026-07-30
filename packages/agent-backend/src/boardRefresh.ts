@@ -155,36 +155,38 @@ function evaluateJsonPointer(doc: unknown, pointer: string): unknown {
   return current;
 }
 
-function isCalendarEventLike(
-  value: unknown,
-): value is { summary: string; start: string; end?: string } {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const record = value as Record<string, unknown>;
-  return typeof record.summary === "string" && typeof record.start === "string";
-}
-
-function formatCalendarEventWhen(start: string, end?: string): string {
-  try {
-    const startDate = new Date(start);
-    const startText = startDate.toLocaleString(undefined, {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-    if (!end) return startText;
-    const endText = new Date(end).toLocaleTimeString(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-    return `${startText} – ${endText}`;
-  } catch {
-    return end ? `${start} – ${end}` : start;
+function projectTableRows(value: unknown, columns: string[]): JsonValue {
+  if (!Array.isArray(value)) {
+    throw new Error("Table binding value must be an array");
   }
+  if (columns.length === 0) {
+    throw new Error("Table binding requires columns for projection");
+  }
+  const rows: JsonValue[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new Error("Table binding value must be an array of objects");
+    }
+    const record = item as Record<string, unknown>;
+    rows.push(
+      columns.map((key) => {
+        const cell = record[key];
+        if (cell === null || cell === undefined) return "";
+        if (typeof cell === "string" || typeof cell === "number" || typeof cell === "boolean") {
+          return cell;
+        }
+        return JSON.stringify(cell);
+      }),
+    );
+  }
+  return rows as JsonValue;
 }
 
-function coerceBindingFormat(value: unknown, format?: SurfaceBinding["format"]): JsonValue {
+function coerceBindingFormat(
+  value: unknown,
+  format?: SurfaceBinding["format"],
+  columns?: string[],
+): JsonValue {
   if (!format || format === "text") {
     if (value === null || value === undefined) return "";
     return String(value);
@@ -203,16 +205,8 @@ function coerceBindingFormat(value: unknown, format?: SurfaceBinding["format"]):
     }
     case "list":
       return (Array.isArray(value) ? value : [value]) as JsonValue;
-    case "table": {
-      if (!Array.isArray(value)) return [];
-      if (value.length > 0 && isCalendarEventLike(value[0])) {
-        return value.map((item) => {
-          const event = item as { summary: string; start: string; end?: string };
-          return [formatCalendarEventWhen(event.start, event.end), event.summary];
-        }) as JsonValue;
-      }
-      return value as JsonValue;
-    }
+    case "table":
+      return projectTableRows(value, columns ?? []);
     default:
       return value as JsonValue;
   }
@@ -348,7 +342,11 @@ async function refreshBinding(
     if (!node) {
       return fail(`Node "${binding.nodeId}" not found in composition`);
     }
-    safeSetNodeProp(node, binding.prop, coerceBindingFormat(selected, binding.format));
+    safeSetNodeProp(
+      node,
+      binding.prop,
+      coerceBindingFormat(selected, binding.format, binding.columns),
+    );
     lastRefreshedAt = { ...lastRefreshedAt, [key]: now };
     failureCounts = clearBindingFailure(failureCounts ?? {}, key);
     return {

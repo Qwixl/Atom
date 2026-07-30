@@ -130,6 +130,7 @@ export type { AgentWireResult, AgentWireReject } from "./agentOutput.js";
 
 export {
   SURFACE_REFRESH_MIN_MINUTES,
+  SURFACE_BINDING_COLUMNS_MAX,
   validateSurfaceArrange,
   validateSurfacePin,
   validateSurfacePinShape,
