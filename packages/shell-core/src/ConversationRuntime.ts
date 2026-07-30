@@ -246,6 +246,10 @@ export class ConversationRuntime {
         this.turnHadGameMove = true;
         this.options.onGameMove?.(output.surfaceId, output.move);
         break;
+      case "surface-pin":
+      case "surface-release":
+      case "surface-arrange":
+        break;
       case "done":
         this.busy = false;
         this.options.onTurnComplete?.({

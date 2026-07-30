@@ -122,8 +122,28 @@ export {
   parseConsequentialPayload,
   parseDataRequestPayload,
   parseGameMovePayload,
+  parseSurfaceArrangePayload,
+  parseSurfacePinPayload,
+  parseSurfaceReleasePayload,
 } from "./agentOutput.js";
 export type { AgentWireResult, AgentWireReject } from "./agentOutput.js";
+
+export {
+  SURFACE_REFRESH_MIN_MINUTES,
+  validateSurfaceArrange,
+  validateSurfacePin,
+  validateSurfaceRelease,
+} from "./persistentSurface.js";
+export type {
+  SurfaceArrange,
+  SurfaceBinding,
+  SurfacePin,
+  SurfacePlacement,
+  SurfaceRefresh,
+  SurfaceRefreshTrigger,
+  SurfaceRelease,
+  ValidateSurfacePinOptions,
+} from "./persistentSurface.js";
 
 export { presentChatAgentError } from "./userFacingErrors.js";
 
