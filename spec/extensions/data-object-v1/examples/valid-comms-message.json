@@ -1,0 +1,33 @@
+{
+  "messageId": "01948f00-1111-7000-8000-0000000000a1",
+  "role": "ROLE_USER",
+  "extensions": [
+    "https://atom.qwixl.dev/a2a/data-object/v1"
+  ],
+  "parts": [
+    {
+      "mediaType": "application/vnd.atom.data-object+json;version=1",
+      "data": {
+        "mediaType": "application/vnd.atom.data-object+json;version=1",
+        "object": {
+          "version": 1,
+          "id": "01948f00-0000-7000-8000-000000000001",
+          "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+          "issuedAt": "2026-01-15T11:59:00.000Z",
+          "semantic": {
+            "schema": "https://atom.qwixl.dev/schema/CommsMessage"
+          },
+          "payload": {
+            "text": "hello"
+          },
+          "governance": {
+            "purpose": "comms:message",
+            "ttlSeconds": 3600
+          },
+          "signatureAlgorithm": "ed25519",
+          "signature": "cwqOWw+iVJSW7Yk5oObo4FbwMVTVuwCL7MBi+kDsvflJIa3DdaneMdXbhkufB3jRNupBd0MLriOEC6PluKNpBw=="
+        }
+      }
+    }
+  ]
+}

@@ -36,6 +36,30 @@ Try the **personal demo** (LLM + WebCal + scheduling): `pnpm dev:demo` — [PERS
 
 Developer docs (tutorial, playground, modules): run `pnpm dev:docs` or read [DEVELOPERS.md](./DEVELOPERS.md).
 
+## Governed Object A2A extension (v1)
+
+Atom publishes a self-service A2A extension for signed, purpose-scoped,
+TTL-bounded data objects (Governed Objects).
+
+- **Identifier:** `https://atom.qwixl.dev/a2a/data-object/v1`
+- **Specification:** https://github.com/Qwixl/Atom/tree/main/spec/extensions/data-object-v1
+- **Agent Card:** `required: false`, no GO `params`
+- **Security:** media type is authoritative; omitting `message.extensions` or
+  the `A2A-Extensions` header does not weaken signature, expiry, or replay checks
+- **Evidence:** shared draft corpus of 31 vectors (GO processing + encapsulation;
+  the same corpus also includes credential-binding and MLS *part* shapes used by
+  the broader Internet-Draft — those are not GO-extension MUSTs). Python second
+  implementation covers GO + encapsulation. Option A stamp / `A2A-Extensions`
+  behaviour is covered by TypeScript tests in `@qwixl/a2a-transport`.
+- **Document host:** human-readable SPEC is in the GitHub tree linked above.
+  The extension URI is a stable identifier; HTTP resolution at that host may
+  be configured later and does not change the identifier.
+- **Out of scope for this extension:** MLS, rooms, Atom DID Bearer transport auth
+
+Broader provenance (GO together with MLS) remains in Internet-Draft
+[`draft-chapman-a2a-mls`](https://datatracker.ietf.org/doc/draft-chapman-a2a-mls/).
+Official `a2aproject` sponsorship is a separate, later ask.
+
 ## Principles
 
 - **Composition, not code generation.** Agents emit declarative compositions resolved against a catalog of vetted components. No arbitrary code crosses the agent boundary.

@@ -139,10 +139,13 @@ export class AtomDataObjectExecutor implements AgentExecutor {
       }
     }
 
+    const responseParts = parts.length > 0 ? parts : [textPart("Received.")];
     const response: Message = atomMessage({
       role: "agent",
       contextId: userMessage.contextId,
-      parts: parts.length > 0 ? parts : [textPart("Received.")],
+      parts: responseParts,
+      // D130 Option A: stamp GO only when the response carries GO parts (receipts).
+      declareDataObjectExtension: parts.length > 0,
     });
 
     eventBus.publish(AgentEvent.message(response));
