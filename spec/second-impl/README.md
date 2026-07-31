@@ -13,7 +13,12 @@ engineer can interoperate without reading our TypeScript.
    under `issuerDid`, expiry, purpose allowlist, replay, and credential binding
    (vectors `001`–`061`). Needs `cryptography` for Ed25519 verify.
 
-It does **not** implement MLS sessions.
+It does **not** implement MLS sessions, HTTP `A2A-Extensions` negotiation, or
+Option A stamp policy on A2A messages (those live in `@qwixl/a2a-transport`
+TypeScript tests — see `a2aExtensions.test.ts` and
+`spec/extensions/data-object-v1/conformance.md`). When citing this second
+implementation as evidence for the **A2A Governed Object extension**, claim only
+GO + encapsulation conformance.
 
 Decision note (D122): after the TypeScript libraries closed the draft
 Implementation Status gaps, the second language exercises the same Governed

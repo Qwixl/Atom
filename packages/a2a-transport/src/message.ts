@@ -12,10 +12,10 @@
  * the way out. Callers in `agent-backend` and the shell speak in terms of "user"
  * and "agent"; there is no reason to push a protobuf enum through them.
  *
- * Outgoing messages declare `ATOM_A2A_EXTENSION` in `extensions`. That field is
- * new in v1.0 and it is how a message says which protocol extensions it relies
- * on — the mechanism the Atom data-object extension is defined against, so we
- * use it rather than leaving peers to infer Atom from the part media types.
+ * Outgoing **Governed Object** messages declare `ATOM_A2A_EXTENSION` in
+ * `extensions` (D130). MLS-only messages must not (Option A): set
+ * `declareDataObjectExtension: false` so the GO URI is not stamped on MLS wire
+ * or handshake traffic.
  */
 
 import { v4 as uuidv4 } from "uuid";
@@ -30,7 +30,12 @@ export interface AtomMessageParams {
   role?: AtomRole;
   contextId?: string;
   taskId?: string;
-  /** Extension URIs to declare in addition to the Atom data-object extension. */
+  /**
+   * When true (default), declare `ATOM_A2A_EXTENSION`. MLS-only sends set false
+   * so the GO extension URI is not claimed on non-GO traffic (D130 Option A).
+   */
+  declareDataObjectExtension?: boolean;
+  /** Extension URIs to declare in addition to (or instead of, when GO is off) the defaults. */
   extensions?: string[];
 }
 
@@ -44,6 +49,11 @@ export function fromRole(role: Role): AtomRole {
 
 /** Build an A2A v1.0 message carrying Atom parts. */
 export function atomMessage(params: AtomMessageParams): Message {
+  const declareGo = params.declareDataObjectExtension !== false;
+  const extensions = [
+    ...(declareGo ? [ATOM_A2A_EXTENSION] : []),
+    ...(params.extensions ?? []),
+  ].filter((uri, i, all) => all.indexOf(uri) === i);
   return {
     messageId: uuidv4(),
     role: toRole(params.role),
@@ -51,7 +61,7 @@ export function atomMessage(params: AtomMessageParams): Message {
     // Absent ids are the empty string in v1.0, not `undefined`.
     contextId: params.contextId ?? "",
     taskId: params.taskId ?? "",
-    extensions: [ATOM_A2A_EXTENSION, ...(params.extensions ?? [])],
+    extensions,
     referenceTaskIds: [],
     metadata: undefined,
   };

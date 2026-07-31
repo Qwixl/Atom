@@ -32,6 +32,11 @@ import {
   authorizationHeaderFromToken,
   mintAtomTransportToken,
 } from "./transportAuth.js";
+import {
+  A2A_EXTENSIONS_HEADER,
+  defaultAtomA2aExtensionUris,
+  formatA2aExtensionsHeader,
+} from "./a2aExtensions.js";
 
 const legacyCompat = { enabled: true };
 
@@ -46,6 +51,17 @@ export interface CreateAtomPeerClientOptions {
   /** Token audience; defaults to the normalised peer base URL. */
   audience?: string;
   fetchImpl?: typeof fetch;
+}
+
+function withA2aExtensionsHeader(fetchImpl: typeof fetch): typeof fetch {
+  const uris = formatA2aExtensionsHeader(defaultAtomA2aExtensionUris());
+  return async (input, init) => {
+    const headers = new Headers(init?.headers);
+    if (!headers.has(A2A_EXTENSIONS_HEADER) && !headers.has("X-A2A-Extensions")) {
+      headers.set(A2A_EXTENSIONS_HEADER, uris);
+    }
+    return fetchImpl(input, { ...init, headers });
+  };
 }
 
 function atomAuthFetch(opts: {
@@ -83,6 +99,9 @@ function atomClientFactory(fetchImpl?: typeof fetch): ClientFactory {
 /**
  * Create a client for an Atom peer, given either its host root or its
  * `/a2a/jsonrpc` endpoint. Negotiates the protocol version from the peer's card.
+ *
+ * Atom→Atom requests SHOULD carry `A2A-Extensions` listing the GO URI (D130).
+ * The header is telemetry / process completeness — not a GO security control.
  */
 export async function createAtomPeerClient(
   peerUrl: string,
@@ -91,6 +110,7 @@ export async function createAtomPeerClient(
   const base = normalizePeerBaseUrl(peerUrl);
   const audience = options?.audience ?? base;
   let fetchImpl = options?.fetchImpl ?? globalThis.fetch.bind(globalThis);
+  fetchImpl = withA2aExtensionsHeader(fetchImpl);
   if (options?.identity) {
     fetchImpl = atomAuthFetch({
       identity: options.identity,

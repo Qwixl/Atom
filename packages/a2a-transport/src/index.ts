@@ -255,6 +255,20 @@ export {
   type AtomMessageParams,
   type AtomRole,
 } from "./message.js";
+export {
+  A2A_EXTENSIONS_HEADER,
+  assertRequiredExtensionsSupported,
+  cardExtensions,
+  defaultAtomA2aExtensionUris,
+  ExtensionSupportRequiredError,
+  formatA2aExtensionsHeader,
+  missingRequiredExtensions,
+  parseA2aExtensionsHeader,
+} from "./a2aExtensions.js";
+export {
+  createA2aExtensionsObserveMiddleware,
+  type AtomA2aExtensionsRequest,
+} from "./a2aExtensionsMiddleware.js";
 export { readAtomDataPart, toAtomDataPart } from "./dataPart.js";
 export {
   advertisedAgentDid,
