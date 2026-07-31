@@ -1,7 +1,7 @@
 ---
 title: "End-to-End Encryption and Purpose-Bound Governance for Agent-to-Agent Messaging"
 abbrev: "Confidential Agent Messaging"
-docname: draft-chapman-a2a-mls-00
+docname: draft-chapman-a2a-mls-01
 category: exp
 submissionType: independent
 
@@ -450,15 +450,23 @@ observable by a peer.
 
 ## Extension Declaration
 
-An agent supporting this specification MUST declare the extension URI
-`https://atom.qwixl.dev/a2a/data-object/v1` in the `capabilities.extensions`
-member of its Agent Card.
+An agent supporting the **Governed Object** profile defined in this document
+MUST declare the extension URI `https://atom.qwixl.dev/a2a/data-object/v1` in
+the `capabilities.extensions` member of its Agent Card, with `required` set to
+false.
 
-A message carrying any part specified in this section SHOULD additionally list
-that URI in the message's `extensions` member. A receiver MUST NOT require the
-member to be present, since a peer speaking A2A version 0.3 has no such member
-to populate, and MUST NOT rely upon it to identify a part: the media type is
-authoritative.
+A message carrying one or more **Governed Object** parts SHOULD list that URI
+in the message's `extensions` member. A message that carries only MLS wire or
+MLS handshake parts MUST NOT stamp the Governed Object URI in `extensions`
+(the GO claim stays narrow; MLS MAY later ship under its own extension URI).
+A receiver MUST NOT require the `extensions` member to be present, since a peer
+speaking A2A version 0.3 has no such member to populate, and MUST NOT rely upon
+it to identify a part: the media type is authoritative.
+
+The A2A extension specification for the Governed Object profile alone (without
+MLS) is published under `spec/extensions/data-object-v1/` in the reference
+implementation repository. This Internet-Draft remains the broader provenance
+document covering Governed Objects together with MLS session mechanics.
 
 Editor's note: this URI reflects the deployed reference implementation. Should
 this document be adopted by a standards body, the URI is expected to be
@@ -825,6 +833,16 @@ by a second implementation in another language attempting to interoperate from
 the description. The requirement in {{protocol-version}} that members be named
 as they appear on the wire, and the encapsulation vectors of {{vectors}}, exist
 to prevent a recurrence.
+
+# Changes from draft-chapman-a2a-mls-00
+
+- Clarified {{encapsulation}} Extension Declaration: messages carrying only MLS
+  wire or MLS handshake parts MUST NOT stamp the Governed Object extension URI;
+  GO-carrying messages SHOULD list it. The Agent Card declaration for the GO
+  URI uses `required` false.
+- Noted the separately published GO-only A2A extension profile under
+  `spec/extensions/data-object-v1/` in the reference implementation repository.
+  This document remains the broader GO+MLS provenance draft.
 
 --- back
 

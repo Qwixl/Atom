@@ -8,19 +8,20 @@ test vectors they reference.
 
 | Path | What it is |
 |---|---|
-| `draft-chapman-a2a-mls-00.md` | **IETF first-submission source**, kramdown-rfc markdown (GO + MLS provenance) |
-| `draft-chapman-a2a-mls-00.txt` | Rendered human-readable draft |
-| `draft-chapman-a2a-mls-00.xml` | Rendered XML — upload this one file to Datatracker |
-| `build.sh` | Renders and validates the draft: `./build.sh` |
+| `draft-chapman-a2a-mls-00.md` | **Published `-00` snapshot** (matches Datatracker first submission) |
+| `draft-chapman-a2a-mls-00.txt` / `.xml` | Rendered `-00` (do not overwrite with later work) |
+| `draft-chapman-a2a-mls-01.md` | **Current working revision** — Option A extension clarification + GO-only A2A extension cross-link |
+| `draft-chapman-a2a-mls-01.txt` / `.xml` | Rendered `-01` — upload **this** XML for the next Datatracker revision |
+| `build.sh` | Renders and validates a draft: `./build.sh [draft-chapman-a2a-mls-01]` |
 | `extensions/` | **A2A extension specs** — start with [Governed Object v1](./extensions/data-object-v1/) |
 | `vectors/` | 31 conformance test vectors — see `vectors/README.md` |
 | `second-impl/` | Minimal **Python** second implementation of encapsulation (`070`–`078`) + GO |
 | `hostile/` | Adversarial encapsulation mutations (D110 complement to the fixed corpus) |
+| `announcements/` | Founder-gated external text (Datatracker / list notes) |
 
-An Internet-Draft's first public submission must be numbered `-00`. The current file
-contains the complete A2A v1.0 binding, including media-type placement, Agent Card
-signatures, version compatibility, and the Governed Object processing rules. There is no
-published earlier revision.
+**Provenance is recorded by Datatracker submission**, not by mailing-list email.
+`-00` is already on Datatracker. Upload `-01.xml` for the next revision. Email to
+`mls@ietf.org` is optional awareness after a revision is public.
 
 ## Why the draft is vendor-neutral
 
@@ -46,50 +47,50 @@ code.
 No local toolchain is required. The IETF's own renderer validates and builds it:
 
 ```bash
-./build.sh
+./build.sh draft-chapman-a2a-mls-01   # current working revision
+./build.sh draft-chapman-a2a-mls-00   # frozen published snapshot
 ```
 
 This posts the markdown to `author-tools.ietf.org`, reports any errors or
 warnings, and writes the rendered `.txt` and `.xml`. It must report zero errors
 before submission. Omitting the argument builds the revision named as the default
-in `build.sh`.
+in `build.sh` (currently `-01`).
 
 To work offline instead:
 
 ```bash
 uv tool install xml2rfc
 gem install kramdown-rfc2629   # requires Ruby
-kramdown-rfc2629 draft-chapman-a2a-mls-00.md > draft-chapman-a2a-mls-00.xml
-xml2rfc --text draft-chapman-a2a-mls-00.xml
+kramdown-rfc2629 draft-chapman-a2a-mls-01.md > draft-chapman-a2a-mls-01.xml
+xml2rfc --text draft-chapman-a2a-mls-01.xml
 ```
 
-## Submitting
+## Submitting a revision (Datatracker)
 
 Cost: nothing. There is no fee to publish an Internet-Draft.
 
-1. Create an IETF Datatracker account at <https://datatracker.ietf.org/accounts/create/>.
-   Free, needs an email address only. No membership or organisation required.
-2. Run `./build.sh` and confirm zero errors.
-3. Upload **only** `draft-chapman-a2a-mls-00.xml` at
+1. Ensure you have an IETF Datatracker account at <https://datatracker.ietf.org/accounts/create/>.
+2. Run `./build.sh draft-chapman-a2a-mls-01` and confirm zero errors.
+3. Upload **only** `draft-chapman-a2a-mls-01.xml` at
    <https://datatracker.ietf.org/submit/>. The source, text, and vectors stay in
    this repository; they are not additional submission files.
-4. Confirm via the emailed link. The draft appears publicly within minutes at
+4. Confirm via the emailed link. The draft appears at
    `https://datatracker.ietf.org/doc/draft-chapman-a2a-mls/`.
+
+Do **not** overwrite `-00` files with later normative edits. Bump the revision
+number (`-01`, `-02`, …) for every Datatracker submission.
 
 Two operational notes:
 
-- Drafts expire after six months. Submitting a new revision (`-01`, then `-02`, and
-  so on) before expiry keeps the
+- Drafts expire after six months. Submitting a new revision before expiry keeps the
   document alive; letting it lapse does not erase it, but a lapsed draft reads
   as abandoned.
 - Submissions are closed for a period around each IETF meeting. Check
   <https://datatracker.ietf.org/meeting/important-dates/> before relying on a
   specific date.
 
-Announce a revision on the `mls@ietf.org` mailing list once it is public. That is a
-short, plain message describing what the draft addresses and asking for review
-of the credential-binding construction specifically — a narrow, answerable
-technical question gets replies, a general request for feedback does not.
+After a revision is public, you MAY announce it on `mls@ietf.org` with a narrow
+technical review ask. That email does not create the draft record.
 
 ## Conformance vectors
 
@@ -119,16 +120,4 @@ runner implements what the library does not.
 ## Second implementation (Python)
 
 Encapsulation **and** Governed Object processing — enough to prove the vectors
-are implementable without TypeScript:
-
-```bash
-python3 -m pip install -r spec/second-impl/requirements.txt
-python3 spec/second-impl/run_vectors.py   # 31/31
-```
-
-See `second-impl/README.md`. Hostile encapsulation mutations (must all reject):
-
-```bash
-python3 spec/hostile/run_hostile.py
-```
-
+without TypeScript. See `second-impl/README.md`.
