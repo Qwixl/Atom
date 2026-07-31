@@ -50,7 +50,10 @@ export function adminTokenPath(): string {
 const PUBLIC_ADMIN_PATHS = new Set(["/mls/key-package"]);
 
 function isPublicOAuthCallback(req: Request): boolean {
-  return req.method === "GET" && req.path === "/connectors/microsoft/callback";
+  if (req.path !== "/connectors/microsoft/callback" && req.path !== "/connectors/microsoft/oauth/complete") {
+    return false;
+  }
+  return req.method === "GET" || req.method === "POST";
 }
 
 function isPublicRoomRoute(req: Request): boolean {
