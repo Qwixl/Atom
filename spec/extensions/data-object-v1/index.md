@@ -15,6 +15,6 @@ parts. MLS, transport auth, and settlement are out of scope.
 | [examples/](./examples/) | Wire JSON examples |
 
 Broader GO+MLS Internet-Draft:
-[draft-chapman-a2a-mls-00](../../draft-chapman-a2a-mls-00.md).
+[draft-chapman-a2a-mls-01](../../draft-chapman-a2a-mls-01.md).
 
 Extension index: [../README.md](../README.md).

@@ -8,9 +8,9 @@ Published A2A protocol extensions defined by Atom.
 
 ## Relationship to the Internet-Draft
 
-[`draft-chapman-a2a-mls`](../draft-chapman-a2a-mls-00.md) is the broader
-standards-track document. It covers Governed Objects **and** MLS session
-establishment, credential binding, and A2A encapsulation of both.
+[`draft-chapman-a2a-mls-01`](../draft-chapman-a2a-mls-01.md) is the current
+working Internet-Draft revision (GO + MLS). The Datatracker first submission
+remains [`-00`](../draft-chapman-a2a-mls-00.md); do not overwrite it.
 
 The Governed Object extension here is the first Atom-published A2A extension.
 It extracts the GO-only profile that an A2A peer can adopt without implementing
@@ -20,4 +20,5 @@ with the draft; provenance and the combined GO+MLS design live in the draft.
 | Document | Scope |
 |---|---|
 | [data-object-v1](./data-object-v1/) | GO-only A2A extension (this publication) |
-| [draft-chapman-a2a-mls-00](../draft-chapman-a2a-mls-00.md) | GO + MLS + encapsulation (IETF Internet-Draft) |
+| [draft-chapman-a2a-mls-00](../draft-chapman-a2a-mls-00.md) | Published Datatracker `-00` snapshot |
+| [draft-chapman-a2a-mls-01](../draft-chapman-a2a-mls-01.md) | Working revision (Option A + GO extension cross-link) |
