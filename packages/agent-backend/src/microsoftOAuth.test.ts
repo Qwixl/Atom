@@ -9,9 +9,11 @@ import {
   ATOM_MICROSOFT_CLIENT_ID_UNSET,
   beginMicrosoftOAuth,
   clearMicrosoftOAuthPendingForTests,
+  encodeMicrosoftOAuthState,
   microsoftAuthorizeUrl,
   microsoftRedirectUri,
   MICROSOFT_GRAPH_NOT_CONFIGURED_MESSAGE,
+  parseMicrosoftOAuthStateAgentBase,
   resolveMicrosoftClient,
 } from "./microsoftOAuth.js";
 
@@ -31,7 +33,15 @@ describe("oauthPkce", () => {
 });
 
 describe("microsoftOAuth urls", () => {
+  const originalRedirect = process.env.ATOM_MICROSOFT_REDIRECT_URI;
+
+  afterEach(() => {
+    if (originalRedirect === undefined) delete process.env.ATOM_MICROSOFT_REDIRECT_URI;
+    else process.env.ATOM_MICROSOFT_REDIRECT_URI = originalRedirect;
+  });
+
   it("builds redirect and authorize URLs", () => {
+    delete process.env.ATOM_MICROSOFT_REDIRECT_URI;
     expect(microsoftRedirectUri("http://127.0.0.1:5204")).toBe(
       "http://127.0.0.1:5204/connectors/microsoft/callback",
     );
@@ -47,6 +57,19 @@ describe("microsoftOAuth urls", () => {
     expect(url).toContain("code_challenge=ch");
     expect(url).toContain("code_challenge_method=S256");
     expect(url).toContain("Calendars.ReadWrite");
+  });
+
+  it("prefers ATOM_MICROSOFT_REDIRECT_URI over publicBaseUrl", () => {
+    process.env.ATOM_MICROSOFT_REDIRECT_URI = "https://atom.qwixl.com/connectors/microsoft/callback";
+    expect(microsoftRedirectUri("https://luke.agents.atom.qwixl.com")).toBe(
+      "https://atom.qwixl.com/connectors/microsoft/callback",
+    );
+  });
+
+  it("encodes and parses agent base in OAuth state", () => {
+    const state = encodeMicrosoftOAuthState("https://luke.agents.atom.qwixl.com/");
+    expect(parseMicrosoftOAuthStateAgentBase(state)).toBe("https://luke.agents.atom.qwixl.com");
+    expect(parseMicrosoftOAuthStateAgentBase("not-encoded")).toBeUndefined();
   });
 });
 
