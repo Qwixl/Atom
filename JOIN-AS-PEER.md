@@ -95,7 +95,7 @@ Atom payloads travel in A2A `data` parts, identified by media type. A part carri
 
 That is the JSON on the wire. If you work in the A2A SDK, its generated types present part content as a tagged union and roles as a numeric enum; neither appears in what a peer receives, so implement against the JSON. Codec: `toAtomDataPart` / `readAtomDataPart` in `@qwixl/a2a-transport`.
 
-Messages: `role` is the enum **name** `ROLE_USER` / `ROLE_AGENT` rather than `"user"` / `"agent"`; empty members such as `contextId` and `taskId` are omitted rather than sent; and `extensions` is new. Declare the Atom extension URI `https://atom.qwixl.dev/a2a/data-object/v1` in `extensions` on every outgoing message, but do not require it on receipt — the media type identifies a part. `atomMessage()` does this for you.
+Messages: `role` is the enum **name** `ROLE_USER` / `ROLE_AGENT` rather than `"user"` / `"agent"`; empty members such as `contextId` and `taskId` are omitted rather than sent; and `extensions` is new. Atom SHOULD declare `https://atom.qwixl.dev/a2a/data-object/v1` in `extensions` on GO-carrying messages. MLS-only messages MUST NOT stamp that URI. Do not require the member on receipt — the media type identifies a part. `atomMessage()` stamps GO by default; MLS helpers pass `declareDataObjectExtension: false`.
 
 **Full wire reference, with a complete request and the reasoning behind the media-type rules: [A2A-v1.md](./A2A-v1.md).** Conformance vectors for the part encoding are in [`spec/vectors/`](./spec/vectors/) (`070`–`078`).
 

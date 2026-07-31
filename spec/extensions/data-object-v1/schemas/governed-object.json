@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atom.qwixl.dev/a2a/data-object/v1/schemas/governed-object.json",
+  "title": "Governed Object v1",
+  "description": "Signed, purpose-bound JSON envelope for the Atom A2A data-object extension.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "id",
+    "issuerDid",
+    "issuedAt",
+    "semantic",
+    "payload",
+    "governance",
+    "signatureAlgorithm",
+    "signature"
+  ],
+  "properties": {
+    "version": {
+      "type": "number",
+      "const": 1,
+      "description": "Format version. MUST be 1 for this specification."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique object identifier per issuer."
+    },
+    "issuerDid": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Agent identity of the signer (did:key for this profile)."
+    },
+    "issuedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Issuance time, RFC 3339 date-time in UTC."
+    },
+    "semantic": {
+      "type": "object",
+      "required": ["schema"],
+      "additionalProperties": true,
+      "properties": {
+        "schema": {
+          "type": "string",
+          "format": "uri",
+          "description": "Absolute URI identifying the payload type."
+        },
+        "version": {
+          "description": "Optional schema version."
+        },
+        "embeddingHint": {
+          "description": "Optional embedding hint."
+        }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "description": "Application data."
+    },
+    "governance": {
+      "type": "object",
+      "required": ["purpose"],
+      "additionalProperties": false,
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Declared use for the payload."
+        },
+        "ttlSeconds": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Optional lifetime in seconds from issuedAt (non-negative)."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Optional absolute expiry, RFC 3339 date-time."
+        }
+      }
+    },
+    "signatureAlgorithm": {
+      "type": "string",
+      "const": "ed25519"
+    },
+    "signature": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Base64-encoded Ed25519 signature over the canonical form."
+    }
+  }
+}
