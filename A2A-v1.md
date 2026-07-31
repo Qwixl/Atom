@@ -91,11 +91,11 @@ The duplication is transitional. The inner key exists only for peers and modules
 | Member | Note |
 |---|---|
 | `role` | `"ROLE_USER"` or `"ROLE_AGENT"` — the enum name |
-| `extensions` | Extension URIs this message relies on. Atom lists its extension URI on every outgoing message |
+| `extensions` | Extension URIs this message relies on. Atom SHOULD list the Governed Object URI on GO-carrying messages; MLS-only messages MUST NOT stamp that URI. The reference `atomMessage()` helper stamps GO by default; MLS helpers disable it |
 | `contextId`, `taskId` | Plain strings; omitted when empty, never `null` |
 | `referenceTaskIds` | Present in v1.0; Atom sends it empty |
 
-Declaring the extension URI in `extensions` is how v1.0 lets a message say what it depends on, so Atom populates it. Do not *require* it on receipt: a v0.3 peer has no such member, and the media type is what identifies a part.
+Declaring the GO extension URI in `extensions` is how v1.0 lets a message say what GO-carrying traffic depends on. Atom's `atomMessage()` stamps it by default; MLS-only sends pass `declareDataObjectExtension: false` and MUST omit it. Do not *require* the member on receipt: a v0.3 peer has no such member, and the media type is what identifies a part. Full GO-only profile: [`spec/extensions/data-object-v1/`](./spec/extensions/data-object-v1/).
 
 ## Agent card
 
@@ -148,6 +148,8 @@ On the SDK, compat is opt-in on both sides and must be configured in two places 
 This is tested rather than asserted: `packages/a2a-transport/src/compat.integration.test.ts` runs a real `@a2a-js/sdk@0.3.14` peer and exercises both directions.
 
 ## Proving conformance
+
+Governed Object A2A extension (GO-only profile): [`spec/extensions/data-object-v1/`](./spec/extensions/data-object-v1/).
 
 The encapsulation rules above have machine-readable vectors, so you can check an implementation without coordinating with us:
 

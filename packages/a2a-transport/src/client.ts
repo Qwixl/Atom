@@ -29,10 +29,20 @@ export interface SendMlsHandshakeParams {
 async function sendParts(
   client: Client,
   parts: Part[],
-  params: { contextId?: string; role?: AtomRole },
+  params: {
+    contextId?: string;
+    role?: AtomRole;
+    /** Defaults true. MLS-only paths pass false (D130 Option A). */
+    declareDataObjectExtension?: boolean;
+  },
 ): Promise<Message> {
   const request: SendMessageRequest = {
-    message: atomMessage({ parts, role: params.role, contextId: params.contextId }),
+    message: atomMessage({
+      parts,
+      role: params.role,
+      contextId: params.contextId,
+      declareDataObjectExtension: params.declareDataObjectExtension,
+    }),
     tenant: "",
     configuration: undefined,
     metadata: undefined,
@@ -56,7 +66,10 @@ export async function sendDataObject(
 
 /** Send MLS wire bytes (application message, welcome, or key package) via A2A. */
 export async function sendMlsWire(client: Client, params: SendMlsWireParams): Promise<Message> {
-  return sendParts(client, [mlsWireToPart(params.wire, params.senderDid)], params);
+  return sendParts(client, [mlsWireToPart(params.wire, params.senderDid)], {
+    ...params,
+    declareDataObjectExtension: false,
+  });
 }
 
 /** Send MLS pair handshake metadata via A2A. */
@@ -64,5 +77,8 @@ export async function sendMlsHandshake(
   client: Client,
   params: SendMlsHandshakeParams,
 ): Promise<Message> {
-  return sendParts(client, [mlsHandshakeToPart(params.handshake)], params);
+  return sendParts(client, [mlsHandshakeToPart(params.handshake)], {
+    ...params,
+    declareDataObjectExtension: false,
+  });
 }
