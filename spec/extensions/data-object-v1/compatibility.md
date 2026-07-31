@@ -13,7 +13,7 @@ This extension is specified against **A2A v1.0**, which provides:
   `message.extensions` is absent (v0.3 peers cannot populate it).
 - Senders SHOULD still duplicate `mediaType` inside the part's `data` object
   when speaking to mixed v0.3/v1.0 deployments, per the encapsulation rules in
-  [draft-chapman-a2a-mls-00](../../draft-chapman-a2a-mls-00.md).
+  [draft-chapman-a2a-mls-01](../../draft-chapman-a2a-mls-01.md).
 - Agent Cards that list both v1.0 and v0.3 interfaces on the same endpoint MAY
   be used; this extension does not require dual interfaces.
 
