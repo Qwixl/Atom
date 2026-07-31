@@ -1,18 +1,20 @@
 # Atom protocol specification work
 
 This directory holds the standards-track material for the Atom protocol: the
-IETF Internet-Draft, and the conformance test vectors it references.
+IETF Internet-Draft, the A2A extension publication package, and the conformance
+test vectors they reference.
 
 ## Contents
 
 | Path | What it is |
 |---|---|
-| `draft-chapman-a2a-mls-00.md` | **Current first-submission source**, kramdown-rfc markdown |
+| `draft-chapman-a2a-mls-00.md` | **IETF first-submission source**, kramdown-rfc markdown (GO + MLS provenance) |
 | `draft-chapman-a2a-mls-00.txt` | Rendered human-readable draft |
 | `draft-chapman-a2a-mls-00.xml` | Rendered XML — upload this one file to Datatracker |
 | `build.sh` | Renders and validates the draft: `./build.sh` |
+| `extensions/` | **A2A extension specs** — start with [Governed Object v1](./extensions/data-object-v1/) |
 | `vectors/` | 31 conformance test vectors — see `vectors/README.md` |
-| `second-impl/` | Minimal **Python** second implementation of encapsulation (`070`–`078`) |
+| `second-impl/` | Minimal **Python** second implementation of encapsulation (`070`–`078`) + GO |
 | `hostile/` | Adversarial encapsulation mutations (D110 complement to the fixed corpus) |
 
 An Internet-Draft's first public submission must be numbered `-00`. The current file
