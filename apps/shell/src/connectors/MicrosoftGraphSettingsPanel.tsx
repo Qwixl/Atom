@@ -61,13 +61,22 @@ export function MicrosoftGraphSettingsPanel({
   }
 
   async function connect() {
+    // Open synchronously on the click gesture — awaiting first makes browsers
+    // flash-and-close the popup (lost user activation).
+    const popup = window.open("about:blank", "atom-microsoft-oauth", "noopener,noreferrer");
     setBusy(true);
     setNote("Opening Microsoft sign-in…");
     try {
       const started = await client.startMicrosoftOAuth();
-      window.open(started.authorizeUrl, "_blank", "noopener,noreferrer");
+      if (popup && !popup.closed) {
+        popup.location.href = started.authorizeUrl;
+      } else {
+        window.location.assign(started.authorizeUrl);
+        return;
+      }
       setNote("Finish signing in in the new window, then click Refresh status.");
     } catch (error) {
+      if (popup && !popup.closed) popup.close();
       setNote(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(false);
