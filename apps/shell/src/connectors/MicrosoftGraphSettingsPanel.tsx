@@ -62,8 +62,9 @@ export function MicrosoftGraphSettingsPanel({
 
   async function connect() {
     // Open synchronously on the click gesture — awaiting first makes browsers
-    // flash-and-close the popup (lost user activation).
-    const popup = window.open("about:blank", "atom-microsoft-oauth", "noopener,noreferrer");
+    // flash-and-close the popup (lost user activation). Do not use noopener:
+    // we need the Window handle to set location after /oauth/start returns.
+    const popup = window.open("about:blank", "atom-microsoft-oauth");
     setBusy(true);
     setNote("Opening Microsoft sign-in…");
     try {
