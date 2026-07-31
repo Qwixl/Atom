@@ -45,7 +45,7 @@ describe("microsoftOAuth urls", () => {
     expect(url).toContain("client_id=app-id");
     expect(url).toContain("code_challenge=ch");
     expect(url).toContain("code_challenge_method=S256");
-    expect(url).toContain("Calendars.Read");
+    expect(url).toContain("Calendars.ReadWrite");
   });
 });
 
@@ -87,7 +87,7 @@ describe("resolveMicrosoftClient", () => {
       /* expected */
     }
     expect(authorizeUrl).toBeUndefined();
-    expect(ATOM_MICROSOFT_CLIENT_ID).toBe("00000000-0000-0000-0000-000000000000");
+    expect(ATOM_MICROSOFT_CLIENT_ID).toBe("c673f99b-adad-4f64-a983-c21f10f8aa52");
   });
 
   it("uses MICROSOFT_CLIENT_ID env before the Atom default", async () => {

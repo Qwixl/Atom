@@ -40,7 +40,7 @@ export function MicrosoftGraphSettingsPanel({
     const id = clientId.trim();
     if (!id) return;
     setBusy(true);
-    setNote("Saving Entra app credentials to your agent vault…");
+    setNote("Saving…");
     try {
       const approvalRef = await approvalRefForConnectorWrite(
         "Configure Microsoft Graph app",
@@ -66,7 +66,7 @@ export function MicrosoftGraphSettingsPanel({
     try {
       const started = await client.startMicrosoftOAuth();
       window.open(started.authorizeUrl, "_blank", "noopener,noreferrer");
-      setNote("Complete sign-in in the new window, then refresh status here.");
+      setNote("Finish signing in in the new window, then click Refresh status.");
     } catch (error) {
       setNote(error instanceof Error ? error.message : String(error));
     } finally {
@@ -76,7 +76,7 @@ export function MicrosoftGraphSettingsPanel({
 
   async function disconnect() {
     setBusy(true);
-    setNote("Disconnecting Microsoft…");
+    setNote("Disconnecting…");
     try {
       const approvalRef = await approvalRefForConnectorWrite(
         "Disconnect Microsoft Graph",
@@ -104,7 +104,7 @@ export function MicrosoftGraphSettingsPanel({
         />
       </label>
       <label>
-        Client secret (optional for public/PKCE clients)
+        Client secret (leave blank)
         <input
           type="password"
           value={clientSecret}
@@ -113,7 +113,7 @@ export function MicrosoftGraphSettingsPanel({
         />
       </label>
       <button type="button" disabled={busy || !clientId.trim()} onClick={() => void saveClient()}>
-        Save Entra app override
+        Save
       </button>
     </div>
   );
@@ -121,23 +121,17 @@ export function MicrosoftGraphSettingsPanel({
   return (
     <section className={embedded ? "atom-settings-embedded" : "atom-panel"}>
       {!embedded ? <h2>Microsoft 365</h2> : null}
-      <p className="atom-note">
-        Connect calendar read access via Microsoft Graph (`Calendars.Read`). Refresh tokens stay in
-        your agent vault. Hosted Atom uses a shared Entra app — you should only need Connect.
-      </p>
+      <p className="atom-note">Connect your Outlook calendar. Sign in with Microsoft and approve access.</p>
       {!config.adminToken && !vaultUnlocked ? (
         <p className="atom-note">Unlock your vault and connect your agent first.</p>
       ) : (
         <>
-          <p className="atom-note">
-            Status: {connected ? "Connected" : "Not connected"}
-            {clientConfigured ? " · Sign-in ready" : " · Sign-in not available yet"}
-          </p>
+          <p className="atom-note">Status: {connected ? "Connected" : "Not connected"}</p>
           {clientConfigured ? (
             <>
               <div className="atom-button-row">
                 <button type="button" disabled={busy} onClick={() => void connect()}>
-                  Connect Microsoft 365
+                  {connected ? "Reconnect Microsoft 365" : "Connect Microsoft 365"}
                 </button>
                 <button type="button" disabled={busy} onClick={() => void refresh()}>
                   Refresh status
@@ -149,11 +143,10 @@ export function MicrosoftGraphSettingsPanel({
                 ) : null}
               </div>
               <details className="settings-advanced">
-                <summary>Advanced — use your own Entra app</summary>
+                <summary>Advanced</summary>
                 <div className="settings-advanced-body">
                   <p className="atom-note">
-                    Override the shared Atom client ID for your own tenant or custom-domain
-                    self-host. Redirect URI must match your agent&apos;s public base URL exactly.
+                    Only for self-hosters using their own Microsoft app registration.
                   </p>
                   {byoForm}
                 </div>
@@ -162,16 +155,17 @@ export function MicrosoftGraphSettingsPanel({
           ) : (
             <>
               <p className="atom-note">
-                One-tap Microsoft calendar is not available on this deployment yet — the Atom Entra
-                application has not been registered. Self-hosters can provide their own app below.
+                Microsoft sign-in is not available on this agent yet. If you run Atom yourself, open
+                Advanced below; otherwise this needs a deploy that includes the shared Atom Microsoft
+                app.
               </p>
               <details className="settings-advanced">
-                <summary>Advanced — bring your own Entra app</summary>
+                <summary>Advanced</summary>
                 <div className="settings-advanced-body">
                   <p className="atom-note">
-                    Register an app in your tenant, then paste its client ID here. Redirect URI must
-                    be <code>{`{publicBaseUrl}/connectors/microsoft/callback`}</code> for your
-                    agent.
+                    Paste your Microsoft app&apos;s Application (client) ID — a GUID, not an email.
+                    Redirect URI must be{" "}
+                    <code>{`{publicBaseUrl}/connectors/microsoft/callback`}</code>.
                   </p>
                   {byoForm}
                 </div>
