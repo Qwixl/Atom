@@ -4,8 +4,8 @@
 
 Independent Submission                                     L. D. Chapman
 Internet-Draft                                                     Qwixl
-Intended status: Experimental                               28 July 2026
-Expires: 29 January 2027
+Intended status: Experimental                               31 July 2026
+Expires: 1 February 2027
 
 
  End-to-End Encryption and Purpose-Bound Governance for Agent-to-Agent
@@ -53,12 +53,12 @@ Status of This Memo
 
 
 
-Chapman                  Expires 29 January 2027                [Page 1]
+Chapman                  Expires 1 February 2027                [Page 1]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
 
-   This Internet-Draft will expire on 29 January 2027.
+   This Internet-Draft will expire on 1 February 2027.
 
 Copyright Notice
 
@@ -109,7 +109,7 @@ Table of Contents
 
 
 
-Chapman                  Expires 29 January 2027                [Page 2]
+Chapman                  Expires 1 February 2027                [Page 2]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -165,7 +165,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027                [Page 3]
+Chapman                  Expires 1 February 2027                [Page 3]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -221,7 +221,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027                [Page 4]
+Chapman                  Expires 1 February 2027                [Page 4]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -277,7 +277,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027                [Page 5]
+Chapman                  Expires 1 February 2027                [Page 5]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -333,7 +333,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027                [Page 6]
+Chapman                  Expires 1 February 2027                [Page 6]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -389,7 +389,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027                [Page 7]
+Chapman                  Expires 1 February 2027                [Page 7]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -445,7 +445,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027                [Page 8]
+Chapman                  Expires 1 February 2027                [Page 8]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -501,7 +501,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027                [Page 9]
+Chapman                  Expires 1 February 2027                [Page 9]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -557,7 +557,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027               [Page 10]
+Chapman                  Expires 1 February 2027               [Page 10]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -613,7 +613,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027               [Page 11]
+Chapman                  Expires 1 February 2027               [Page 11]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -669,7 +669,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027               [Page 12]
+Chapman                  Expires 1 February 2027               [Page 12]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -682,15 +682,25 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 7.2.  Extension Declaration
 
-   An agent supporting this specification MUST declare the extension URI
-   https://atom.qwixl.dev/a2a/data-object/v1 in the
-   capabilities.extensions member of its Agent Card.
+   An agent supporting the *Governed Object* profile defined in this
+   document MUST declare the extension URI https://atom.qwixl.dev/a2a/
+   data-object/v1 in the capabilities.extensions member of its Agent
+   Card, with required set to false.
 
-   A message carrying any part specified in this section SHOULD
-   additionally list that URI in the message's extensions member.  A
-   receiver MUST NOT require the member to be present, since a peer
-   speaking A2A version 0.3 has no such member to populate, and MUST NOT
-   rely upon it to identify a part: the media type is authoritative.
+   A message carrying one or more *Governed Object* parts SHOULD list
+   that URI in the message's extensions member.  A message that carries
+   only MLS wire or MLS handshake parts MUST NOT stamp the Governed
+   Object URI in extensions (the GO claim stays narrow; MLS MAY later
+   ship under its own extension URI).  A receiver MUST NOT require the
+   extensions member to be present, since a peer speaking A2A version
+   0.3 has no such member to populate, and MUST NOT rely upon it to
+   identify a part: the media type is authoritative.
+
+   The A2A extension specification for the Governed Object profile alone
+   (without MLS) is published under spec/extensions/data-object-v1/ in
+   the reference implementation repository.  This Internet-Draft remains
+   the broader provenance document covering Governed Objects together
+   with MLS session mechanics.
 
    Editor's note: this URI reflects the deployed reference
    implementation.  Should this document be adopted by a standards body,
@@ -712,23 +722,18 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    The duplication exists because version 0.3 of A2A had no mediaType
    member on a part, obliging deployments written against A2A version
    0.3 to carry the media type inside the payload.  A receiver that
+
+
+
+Chapman                  Expires 1 February 2027               [Page 13]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
+
    reads only the inner member therefore continues to interoperate.  A
    sender MAY omit the inner member once no such receiver remains
    reachable; this document retains it as a SHOULD rather than a MUST
    for that reason.
-
-
-
-
-
-
-
-
-
-Chapman                  Expires 29 January 2027               [Page 13]
-
-Internet-Draft        Confidential Agent Messaging             July 2026
-
 
 7.4.  Governed Object Part
 
@@ -776,12 +781,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-
-
-
-
-
-Chapman                  Expires 29 January 2027               [Page 14]
+Chapman                  Expires 1 February 2027               [Page 14]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -837,7 +837,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027               [Page 15]
+Chapman                  Expires 1 February 2027               [Page 15]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -893,7 +893,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027               [Page 16]
+Chapman                  Expires 1 February 2027               [Page 16]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -949,7 +949,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027               [Page 17]
+Chapman                  Expires 1 February 2027               [Page 17]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -1005,7 +1005,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027               [Page 18]
+Chapman                  Expires 1 February 2027               [Page 18]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -1061,7 +1061,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027               [Page 19]
+Chapman                  Expires 1 February 2027               [Page 19]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -1117,7 +1117,7 @@ Internet-Draft        Confidential Agent Messaging             July 2026
 
 
 
-Chapman                  Expires 29 January 2027               [Page 20]
+Chapman                  Expires 1 February 2027               [Page 20]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -1155,33 +1155,38 @@ Internet-Draft        Confidential Agent Messaging             July 2026
    *  Out-of-band invitation with identity assertion, and abort on
       identity mismatch.
 
-   Specified here but NOT yet implemented at the time of writing:
-
-   *  The credential binding key-equality check of Section 4.3.  The
-      implementation places the DID in the MLS credential but does not
-      verify that the LeafNode signature key matches it.  This
-      requirement was identified while preparing this document.
-
-   *  Replay rejection (Section 8.2).  No (issuerDid, id) history is
-      retained.
-
-   *  Check 3 of Section 8, confirming issuerDid against the sending MLS
-      member's credential.
-
    *  Transport authentication on the message-submission endpoint
-      (Section 7), which is presently unauthenticated.
+      (Section 7): Agent Cards declare an HTTP Bearer scheme
+      (atomDidBearer), and /a2a/jsonrpc requires an Atom DID Bearer
+      token (Authorization: Bearer atom.<payload>.<sig>) signed by the
+      caller's did:key, with audience bound to the peer's public base
+      URL.
+
+   Previously deferred and now implemented in the reference libraries:
+
+   *  The credential binding key-equality check of Section 4.3 (@qwixl/
+      protocol + @qwixl/mls-session KeyPackage generation and
+      admission).
+
+   *  Replay rejection (Section 8.2) via ReplayGuard in @qwixl/protocol,
+      wired through the agent backend receive paths.
 
 
 
-Chapman                  Expires 29 January 2027               [Page 21]
+Chapman                  Expires 1 February 2027               [Page 21]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
 
-   *  Validation on dequeue for messages queued to offline recipients
-      (Section 10), which presently occurs only on enqueue.
+   *  Check 3 of Section 8, confirming issuerDid against the sending MLS
+      member's LeafNode credential (decrypt returns senderDid;
+      verifyDataObject({ expectedMlsSenderDid })).
 
-   The author notes that the last five items were each identified by the
+   *  Validation on dequeue for messages queued to offline recipients
+      (Section 10): dequeueAsleepMessages applies Section 8 when the
+      agent wakes; the queue remains size-bounded at enqueue.
+
+   The author notes that several of these items were identified by the
    exercise of writing this specification, having not been apparent from
    the working implementation.  This is offered as evidence for the
    general proposition that specification and implementation are not
@@ -1220,19 +1225,19 @@ Internet-Draft        Confidential Agent Messaging             July 2026
               2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
               May 2017, <https://www.rfc-editor.org/rfc/rfc8174>.
 
+
+
+
+
+Chapman                  Expires 1 February 2027               [Page 22]
+
+Internet-Draft        Confidential Agent Messaging             July 2026
+
+
    [RFC8259]  Bray, T., Ed., "The JavaScript Object Notation (JSON) Data
               Interchange Format", STD 90, RFC 8259,
               DOI 10.17487/RFC8259, December 2017,
               <https://www.rfc-editor.org/rfc/rfc8259>.
-
-
-
-
-
-Chapman                  Expires 29 January 2027               [Page 22]
-
-Internet-Draft        Confidential Agent Messaging             July 2026
-
 
    [RFC9420]  Barnes, R., Beurdouche, B., Robert, R., Millican, J.,
               Omara, E., and K. Cohn-Gordon, "The Messaging Layer
@@ -1280,12 +1285,7 @@ Appendix A.  Test Vectors
 
 
 
-
-
-
-
-
-Chapman                  Expires 29 January 2027               [Page 23]
+Chapman                  Expires 1 February 2027               [Page 23]
 
 Internet-Draft        Confidential Agent Messaging             July 2026
 
@@ -1341,4 +1341,4 @@ Author's Address
 
 
 
-Chapman                  Expires 29 January 2027               [Page 24]
+Chapman                  Expires 1 February 2027               [Page 24]

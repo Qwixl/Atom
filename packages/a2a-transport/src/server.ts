@@ -12,6 +12,14 @@ import {
   createAtomTransportUserBuilder,
   type AtomTransportAudience,
 } from "./transportAuthMiddleware.js";
+import {
+  assertRequiredExtensionsSupported,
+  ExtensionSupportRequiredError,
+} from "./a2aExtensions.js";
+import {
+  createA2aExtensionsObserveMiddleware,
+  type AtomA2aExtensionsRequest,
+} from "./a2aExtensionsMiddleware.js";
 import { agentCardUrl } from "./agentCard.js";
 
 export interface CreateAtomA2aExpressAppOptions {
@@ -39,6 +47,13 @@ export interface CreateAtomA2aExpressAppOptions {
    * legacy peers; production agents leave this on.
    */
   requireTransportAuth?: boolean;
+  /**
+   * When true, refuse `/a2a/jsonrpc` if the card marks any extension
+   * `required: true` that the client did not declare on `A2A-Extensions`.
+   * Defaults false: Atom's GO extension is optional. Enable for fixture cards
+   * that exercise binding-native required-extension refusal.
+   */
+  enforceRequiredExtensions?: boolean;
 }
 
 function audienceFromCard(card: AgentCard): string {
@@ -76,6 +91,28 @@ export function createAtomA2aExpressApp(options: CreateAtomA2aExpressAppOptions)
   );
 
   const authOpts = { audience, required: requireTransportAuth };
+  app.use("/a2a/jsonrpc", createA2aExtensionsObserveMiddleware());
+  if (options.enforceRequiredExtensions) {
+    app.use("/a2a/jsonrpc", (req: AtomA2aExtensionsRequest, res, next) => {
+      try {
+        assertRequiredExtensionsSupported(
+          options.agentCard,
+          req.atomA2aExtensions ?? [],
+        );
+        next();
+      } catch (error) {
+        if (error instanceof ExtensionSupportRequiredError) {
+          res.status(400).json({
+            error: error.name,
+            message: error.message,
+            missingExtensionUris: error.missingExtensionUris,
+          });
+          return;
+        }
+        next(error);
+      }
+    });
+  }
   app.use("/a2a/jsonrpc", createAtomTransportAuthMiddleware(authOpts));
 
   const userBuilder = createAtomTransportUserBuilder(authOpts);

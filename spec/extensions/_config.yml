@@ -1,0 +1,7 @@
+# GitHub Pages — Atom extension specs
+
+source: /spec/extensions
+destination: /extensions
+
+# Serve markdown as pages from the extensions tree when Pages is enabled
+# for this repository (Settings → Pages → Deploy from branch).

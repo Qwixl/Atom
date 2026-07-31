@@ -83,7 +83,7 @@ Atom payloads travel in A2A `data` parts. On the wire:
 
 Note the wire JSON is not the generated type: the SDK presents part content as a tagged union and `role` as a numeric enum, and neither is observable by a peer. Full wire reference: [A2A-v1.md](./A2A-v1.md).
 
-Messages: `role` is the enum name `ROLE_USER` / `ROLE_AGENT`; empty members are omitted rather than sent; `extensions` and `referenceTaskIds` are new. Every outgoing Atom message declares `https://atom.qwixl.dev/a2a/data-object/v1` in `extensions` — the v1.0 mechanism for signalling which protocol extensions a message relies on (`atomMessage()`) — and no receiver requires it.
+Messages: `role` is the enum name `ROLE_USER` / `ROLE_AGENT`; empty members are omitted rather than sent; `extensions` and `referenceTaskIds` are new. Atom SHOULD declare `https://atom.qwixl.dev/a2a/data-object/v1` in `extensions` on GO-carrying traffic (`atomMessage()` stamps it by default); MLS-only messages MUST NOT stamp that URI. No receiver requires the member — the media type identifies a part.
 
 ### Agent card (A2A v1.0)
 
