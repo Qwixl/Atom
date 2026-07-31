@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { PersistedSurface } from "@qwixl/owner-store";
+import type { CompositionNode, JsonValue, ResolvedNode, ResolvedSurface } from "@qwixl/shell-core";
 import {
   boardPanelSections,
   clampAgentScreen,
   effectivePlacement,
+  formatBoardSurfaceDisplay,
+  formatBoardTableCellDisplay,
   formatBoardTileTitle,
   isTileStale,
   layoutBoardScreens,
@@ -188,5 +191,95 @@ describe("isTileStale", () => {
     const lastRefreshedAt = { "root:text": 1_000 };
     expect(isTileStale(refresh, bindings, lastRefreshedAt, 1_000 + 60_000)).toBe(false);
     expect(isTileStale(refresh, bindings, lastRefreshedAt, 1_000 + 60_001)).toBe(true);
+  });
+});
+
+const displayFormat = { locale: "en-GB", timeZone: "UTC" } as const;
+
+function mockTableResolved(rows: JsonValue[][]): ResolvedSurface {
+  const node: CompositionNode = {
+    id: "events-table",
+    component: "core/table",
+    props: { columns: ["When", "Event"], rows },
+  };
+  const root: ResolvedNode = {
+    kind: "component",
+    node,
+    entry: {
+      origin: "core",
+      spec: { component: "core/table", name: "core/table" },
+    },
+    children: [],
+  };
+  return { surfaceId: "board-cal", root, degraded: false };
+}
+
+describe("formatBoardTableCellDisplay", () => {
+  it("formats an ISO datetime with Z to a readable local datetime", () => {
+    const formatted = formatBoardTableCellDisplay("2026-07-30T09:00:00.000Z", displayFormat);
+    expect(formatted).not.toBe("2026-07-30T09:00:00.000Z");
+    expect(String(formatted)).toMatch(/Thu/);
+    expect(String(formatted)).toMatch(/30 Jul/);
+    expect(String(formatted)).toMatch(/09:00/);
+  });
+
+  it("formats a date-only ISO value without a time component", () => {
+    const formatted = formatBoardTableCellDisplay("2026-07-30", displayFormat);
+    expect(String(formatted)).toMatch(/Thu/);
+    expect(String(formatted)).toMatch(/30 Jul/);
+    expect(String(formatted)).not.toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  it("leaves non-ISO strings, numbers, booleans, and empty strings unchanged", () => {
+    expect(formatBoardTableCellDisplay("Standup", displayFormat)).toBe("Standup");
+    expect(formatBoardTableCellDisplay("", displayFormat)).toBe("");
+    expect(formatBoardTableCellDisplay(42, displayFormat)).toBe(42);
+    expect(formatBoardTableCellDisplay(true, displayFormat)).toBe(true);
+    expect(formatBoardTableCellDisplay("07/30/2026", displayFormat)).toBe("07/30/2026");
+    expect(formatBoardTableCellDisplay("2026-07-30T09:00:00", displayFormat)).toBe(
+      "2026-07-30T09:00:00",
+    );
+  });
+
+  it("returns a pattern-matching but invalid date raw, never Invalid Date", () => {
+    const invalid = "2026-02-30";
+    const formatted = formatBoardTableCellDisplay(invalid, displayFormat);
+    expect(formatted).toBe(invalid);
+    expect(String(formatted)).not.toBe("Invalid Date");
+    expect(String(formatted)).not.toContain("Invalid");
+  });
+
+  it("leaves stringified JSON cells unchanged", () => {
+    const json = '{"room":"A","floor":2}';
+    expect(formatBoardTableCellDisplay(json, displayFormat)).toBe(json);
+  });
+});
+
+describe("formatBoardSurfaceDisplay", () => {
+  it("formats core/table rows on a copy without mutating the resolved or persisted composition", () => {
+    const composition = {
+      version: 1 as const,
+      surfaceId: "board-cal",
+      root: {
+        id: "events-table",
+        component: "core/table",
+        props: {
+          columns: ["When", "Event"],
+          rows: [["2026-07-30T09:00:00.000Z", "Standup"]],
+        },
+      },
+    };
+    const compositionBefore = structuredClone(composition);
+    const resolved = mockTableResolved(composition.root.props!.rows as JsonValue[][]);
+    const resolvedBefore = structuredClone(resolved);
+
+    const formatted = formatBoardSurfaceDisplay(resolved, displayFormat);
+    const rows = formatted.root.node.props?.rows as string[][];
+
+    expect(composition).toEqual(compositionBefore);
+    expect(resolved).toEqual(resolvedBefore);
+    expect(rows[0]?.[0]).not.toBe("2026-07-30T09:00:00.000Z");
+    expect(rows[0]?.[1]).toBe("Standup");
+    expect(String(rows[0]?.[0])).toMatch(/09:00/);
   });
 });

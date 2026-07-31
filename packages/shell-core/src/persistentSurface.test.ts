@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  SURFACE_BINDING_COLUMNS_MAX,
   SURFACE_REFRESH_MIN_MINUTES,
   validateSurfaceArrange,
   validateSurfacePin,
@@ -150,6 +151,194 @@ describe("validateSurfacePin", () => {
         { entitledConnectors: ["webcal"] },
       );
       expect(result.ok).toBe(false);
+    });
+  });
+
+  describe("rule — table binding columns", () => {
+    const tableComposition = {
+      ...validComposition,
+      root: {
+        id: "events-table",
+        component: "core/table",
+        props: { columns: ["When", "Event"], rows: [] },
+      },
+    };
+
+    function tablePin(binding: Record<string, unknown>) {
+      return validPin({
+        composition: tableComposition,
+        bindings: [binding],
+      });
+    }
+
+    it("accepts a table binding with valid columns", () => {
+      const result = validateSurfacePin(
+        tablePin({
+          nodeId: "events-table",
+          prop: "rows",
+          source: { connector: "webcal", tool: "listEvents" },
+          format: "table",
+          columns: ["start", "summary"],
+        }),
+        { entitledConnectors: ["webcal"] },
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.bindings?.[0]?.columns).toEqual(["start", "summary"]);
+      }
+    });
+
+    it("rejects table format without columns", () => {
+      const result = validateSurfacePin(
+        tablePin({
+          nodeId: "events-table",
+          prop: "rows",
+          source: { connector: "webcal", tool: "listEvents" },
+          format: "table",
+        }),
+        { entitledConnectors: ["webcal"] },
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.errors.some((error) => error.includes("bindings[0].columns: required"))).toBe(
+          true,
+        );
+      }
+    });
+
+    it("rejects columns when format is not table", () => {
+      const result = validateSurfacePin(
+        tablePin({
+          nodeId: "events-table",
+          prop: "rows",
+          source: { connector: "webcal", tool: "listEvents" },
+          format: "text",
+          columns: ["start"],
+        }),
+        { entitledConnectors: ["webcal"] },
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(
+          result.errors.some((error) => error.includes("bindings[0].columns: only allowed")),
+        ).toBe(true);
+      }
+    });
+
+    it("rejects non-array columns", () => {
+      const result = validateSurfacePin(
+        tablePin({
+          nodeId: "events-table",
+          prop: "rows",
+          source: { connector: "webcal", tool: "listEvents" },
+          format: "table",
+          columns: "start",
+        }),
+        { entitledConnectors: ["webcal"] },
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.errors.some((error) => error.includes("bindings[0].columns: must be an array"))).toBe(
+          true,
+        );
+      }
+    });
+
+    it("rejects an empty columns array", () => {
+      const result = validateSurfacePin(
+        tablePin({
+          nodeId: "events-table",
+          prop: "rows",
+          source: { connector: "webcal", tool: "listEvents" },
+          format: "table",
+          columns: [],
+        }),
+        { entitledConnectors: ["webcal"] },
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(
+          result.errors.some((error) => error.includes("bindings[0].columns: must be a non-empty array")),
+        ).toBe(true);
+      }
+    });
+
+    it("rejects columns over SURFACE_BINDING_COLUMNS_MAX", () => {
+      const result = validateSurfacePin(
+        tablePin({
+          nodeId: "events-table",
+          prop: "rows",
+          source: { connector: "webcal", tool: "listEvents" },
+          format: "table",
+          columns: Array.from({ length: SURFACE_BINDING_COLUMNS_MAX + 1 }, (_, index) => `col${index}`),
+        }),
+        { entitledConnectors: ["webcal"] },
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(
+          result.errors.some((error) =>
+            error.includes(`bindings[0].columns: must have at most ${SURFACE_BINDING_COLUMNS_MAX}`),
+          ),
+        ).toBe(true);
+      }
+    });
+
+    it("rejects a non-string column entry", () => {
+      const result = validateSurfacePin(
+        tablePin({
+          nodeId: "events-table",
+          prop: "rows",
+          source: { connector: "webcal", tool: "listEvents" },
+          format: "table",
+          columns: ["start", 42],
+        }),
+        { entitledConnectors: ["webcal"] },
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(
+          result.errors.some((error) => error.includes("bindings[0].columns[1]: must be a non-empty string")),
+        ).toBe(true);
+      }
+    });
+
+    it("rejects an empty-string column entry", () => {
+      const result = validateSurfacePin(
+        tablePin({
+          nodeId: "events-table",
+          prop: "rows",
+          source: { connector: "webcal", tool: "listEvents" },
+          format: "table",
+          columns: ["start", ""],
+        }),
+        { entitledConnectors: ["webcal"] },
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(
+          result.errors.some((error) => error.includes("bindings[0].columns[1]: must be a non-empty string")),
+        ).toBe(true);
+      }
+    });
+
+    it("rejects a forbidden column key", () => {
+      const result = validateSurfacePin(
+        tablePin({
+          nodeId: "events-table",
+          prop: "rows",
+          source: { connector: "webcal", tool: "listEvents" },
+          format: "table",
+          columns: ["__proto__"],
+        }),
+        { entitledConnectors: ["webcal"] },
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(
+          result.errors.some((error) => error.includes("bindings[0].columns[0]: forbidden key")),
+        ).toBe(true);
+      }
     });
   });
 
