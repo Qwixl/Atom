@@ -88,7 +88,7 @@ verification.
 
 Encapsulation of GO parts in A2A wire JSON (placement of `mediaType` on the
 part and optionally inside `data`) follows the same rules as
-[draft-chapman-a2a-mls-00](../../draft-chapman-a2a-mls-00.md) §Encapsulation /
+[draft-chapman-a2a-mls-01](../../draft-chapman-a2a-mls-01.md) §Encapsulation /
 Media Type Placement. Conformance vectors `070`–`078` in `spec/vectors/` cover
 that placement for GO and related part kinds.
 
@@ -170,7 +170,7 @@ See [schemas/governed-object.json](./schemas/governed-object.json).
 The signature is computed over a canonical serialisation of the object
 excluding `signatureAlgorithm` and `signature`. Canonical form and Ed25519
 signing match
-[draft-chapman-a2a-mls-00](../../draft-chapman-a2a-mls-00.md) §The Governed
+[draft-chapman-a2a-mls-01](../../draft-chapman-a2a-mls-01.md) §The Governed
 Object (Canonical Serialisation and Signing). Implementations SHOULD use
 [RFC 8785](https://www.rfc-editor.org/rfc/rfc8785) (JCS) where available.
 
@@ -237,7 +237,7 @@ required to implement MLS.
 Structure, canonicalisation, signing, and receiver processing for Governed
 Objects were first specified in the combined GO+MLS Internet-Draft:
 
-- [draft-chapman-a2a-mls-00](../../draft-chapman-a2a-mls-00.md)
+- [draft-chapman-a2a-mls-01](../../draft-chapman-a2a-mls-01.md)
 
 This extension publishes the GO-only A2A binding for self-service A2A extension
 adoption. Where this document and the draft both normatively address the same

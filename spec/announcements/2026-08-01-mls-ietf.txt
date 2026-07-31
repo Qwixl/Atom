@@ -1,22 +1,23 @@
-Subject: draft-chapman-a2a-mls — Governed Object A2A extension split
-To: mls@ietf.org
-Status: founder-approved 2026-08-01 — send from the draft author's subscribed address
+Subject: Datatracker upload — draft-chapman-a2a-mls-01
+Status: founder Class D — upload XML; mailing-list email is optional after publish
 
-Folks,
+WHAT RECORDS PROVENANCE
+  https://datatracker.ietf.org/submit/
+  Upload ONLY: spec/draft-chapman-a2a-mls-01.xml
+  (after ./build.sh draft-chapman-a2a-mls-01 reports zero errors)
 
-`draft-chapman-a2a-mls` continues to specify Governed Objects together with MLS
-session mechanics for agent messaging.
+WHY -01
+  -00 is already on Datatracker and must stay the first-submission snapshot.
+  -01 clarifies Extension Declaration (MLS-only MUST NOT stamp the GO URI)
+  and cross-links the GO-only A2A extension SPEC.
 
-Separately, we have published a **GO-only** A2A extension profile (no MLS in
-the extension MUSTs) under
-`https://atom.qwixl.dev/a2a/data-object/v1`, with a SPEC and conformance
-corpus in the reference implementation repository. The draft's Extension
-Declaration section now clarifies that MLS-only messages must not stamp the
-GO URI.
+OPTIONAL AFTER DATATRACKER PUBLISHES -01
+  Announce on mls@ietf.org with a narrow review ask (credential-binding).
+  Email does not create the draft record.
 
-Review ask remains narrow: the credential-binding construction in the draft.
-
-Spec pointer: https://github.com/Qwixl/Atom/tree/main/spec/extensions/data-object-v1
-
-Thanks,
-Luke Chapman
+CHECKLIST
+  [ ] ./build.sh draft-chapman-a2a-mls-01 → OK: zero errors
+  [ ] Upload draft-chapman-a2a-mls-01.xml at datatracker.ietf.org/submit/
+  [ ] Confirm emailed link
+  [ ] Verify https://datatracker.ietf.org/doc/draft-chapman-a2a-mls/ shows -01
+  [ ] (Optional) mls@ietf.org note
