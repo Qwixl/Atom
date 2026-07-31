@@ -9,26 +9,33 @@ export const MICROSOFT_GRAPH_CONNECTOR_ID = "microsoft-graph";
 
 /**
  * Atom multi-tenant Entra application (client) ID.
- * Public-client IDs are not secrets. Replace this placeholder once the app is registered.
- * While unchanged, Microsoft Graph behaves as "not configured" (no authorize URL is built).
+ * Public-client IDs are not secrets. Ships with the registered Atom app.
  */
 export const ATOM_MICROSOFT_CLIENT_ID = "c673f99b-adad-4f64-a983-c21f10f8aa52";
+
+/** Sentinel used when no Atom/shared app is registered yet. */
+export const ATOM_MICROSOFT_CLIENT_ID_UNSET = "00000000-0000-0000-0000-000000000000";
 
 export const MICROSOFT_GRAPH_NOT_CONFIGURED_MESSAGE =
   "Microsoft Graph not configured — set MICROSOFT_CLIENT_ID (or vault oauth client) first";
 
 export function isConfiguredMicrosoftClientId(clientId: string): boolean {
   const trimmed = clientId.trim();
-  return trimmed.length > 0 && trimmed !== ATOM_MICROSOFT_CLIENT_ID;
+  return trimmed.length > 0 && trimmed !== ATOM_MICROSOFT_CLIENT_ID_UNSET;
+}
+
+function looksLikeMicrosoftClientId(clientId: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    clientId.trim(),
+  );
 }
 
 export function resolveMicrosoftClientId(vault: ConnectorVault): string {
-  const fromVault = vault.getOAuthClient(MICROSOFT_OAUTH_PROVIDER);
-  return (
-    fromVault?.clientId?.trim() ||
-    process.env.MICROSOFT_CLIENT_ID?.trim() ||
-    ATOM_MICROSOFT_CLIENT_ID.trim()
-  );
+  const fromVault = vault.getOAuthClient(MICROSOFT_OAUTH_PROVIDER)?.clientId?.trim();
+  const fromEnv = process.env.MICROSOFT_CLIENT_ID?.trim();
+  if (fromVault && looksLikeMicrosoftClientId(fromVault)) return fromVault;
+  if (fromEnv && looksLikeMicrosoftClientId(fromEnv)) return fromEnv;
+  return ATOM_MICROSOFT_CLIENT_ID.trim();
 }
 
 export const MICROSOFT_GRAPH_SCOPES = [

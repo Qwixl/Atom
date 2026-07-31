@@ -6,6 +6,7 @@ import { ConnectorVault } from "./connectorVault.js";
 import { codeChallengeS256, generateCodeVerifier, generateOAuthState } from "./oauthPkce.js";
 import {
   ATOM_MICROSOFT_CLIENT_ID,
+  ATOM_MICROSOFT_CLIENT_ID_UNSET,
   beginMicrosoftOAuth,
   clearMicrosoftOAuthPendingForTests,
   microsoftAuthorizeUrl,
@@ -58,7 +59,7 @@ describe("resolveMicrosoftClient", () => {
     else process.env.MICROSOFT_CLIENT_ID = originalClientId;
   });
 
-  it("treats the Atom placeholder client ID as not configured", async () => {
+  it("uses the shipped Atom client ID when env and vault are empty", async () => {
     delete process.env.MICROSOFT_CLIENT_ID;
     const dir = mkdtempSync(path.join(tmpdir(), "atom-ms-oauth-"));
     const vault = new ConnectorVault(
@@ -66,28 +67,23 @@ describe("resolveMicrosoftClient", () => {
       path.join(dir, "vault.enc"),
     );
     await vault.load();
-    expect(() => resolveMicrosoftClient(vault)).toThrow(MICROSOFT_GRAPH_NOT_CONFIGURED_MESSAGE);
-    expect(() => beginMicrosoftOAuth(vault, "http://127.0.0.1:5204")).toThrow(
-      MICROSOFT_GRAPH_NOT_CONFIGURED_MESSAGE,
-    );
+    const { clientId } = resolveMicrosoftClient(vault);
+    expect(clientId).toBe(ATOM_MICROSOFT_CLIENT_ID);
+    expect(ATOM_MICROSOFT_CLIENT_ID).not.toBe(ATOM_MICROSOFT_CLIENT_ID_UNSET);
+    const started = beginMicrosoftOAuth(vault, "http://127.0.0.1:5204");
+    expect(started.authorizeUrl).toContain(`client_id=${ATOM_MICROSOFT_CLIENT_ID}`);
   });
 
-  it("does not build an authorize URL when only the placeholder client ID is available", async () => {
+  it("does not treat the unset sentinel as a configured client ID", async () => {
     delete process.env.MICROSOFT_CLIENT_ID;
-    const dir = mkdtempSync(path.join(tmpdir(), "atom-ms-oauth-"));
+    const dir = mkdtempSync(path.join(tmpdir(), "atom-ms-oauth-unset-"));
     const vault = new ConnectorVault(
       path.join(dir, "vault-master.key"),
       path.join(dir, "vault.enc"),
     );
     await vault.load();
-    let authorizeUrl: string | undefined;
-    try {
-      ({ authorizeUrl } = beginMicrosoftOAuth(vault, "http://127.0.0.1:5204"));
-    } catch {
-      /* expected */
-    }
-    expect(authorizeUrl).toBeUndefined();
-    expect(ATOM_MICROSOFT_CLIENT_ID).toBe("c673f99b-adad-4f64-a983-c21f10f8aa52");
+    await vault.setOAuthClient("microsoft", { clientId: ATOM_MICROSOFT_CLIENT_ID_UNSET });
+    expect(() => resolveMicrosoftClient(vault)).toThrow(MICROSOFT_GRAPH_NOT_CONFIGURED_MESSAGE);
   });
 
   it("uses MICROSOFT_CLIENT_ID env before the Atom default", async () => {
