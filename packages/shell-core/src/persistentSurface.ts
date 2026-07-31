@@ -8,6 +8,8 @@ export interface SurfaceBinding {
   source: { connector: string; tool: string; args?: Record<string, unknown> };
   select?: string;
   format?: "text" | "number" | "date" | "list" | "table";
+  /** Object keys to project into table rows when `format` is `table`, in column order. */
+  columns?: string[];
 }
 
 export type SurfaceRefreshTrigger =
@@ -46,6 +48,8 @@ export interface SurfaceArrange {
 }
 
 export const SURFACE_REFRESH_MIN_MINUTES = 15;
+/** Maximum `columns` entries on a table-format binding. */
+export const SURFACE_BINDING_COLUMNS_MAX = 16;
 
 const BOARD_FORBIDDEN_COMPONENTS = new Set(["core/form", "core/text-field"]);
 const SURFACE_FORMATS = new Set(["text", "number", "date", "list", "table"]);
@@ -226,6 +230,51 @@ function validateRefresh(refresh: unknown, path: string, errors: string[]): Surf
   return result;
 }
 
+function validateBindingColumns(
+  binding: Record<string, unknown>,
+  path: string,
+  format: string | undefined,
+  bindingErrors: string[],
+): string[] | undefined {
+  if (binding.columns === undefined) {
+    if (format === "table") {
+      bindingErrors.push(`${path}.columns: required when format is table`);
+    }
+    return undefined;
+  }
+  if (format !== "table") {
+    bindingErrors.push(`${path}.columns: only allowed when format is table`);
+    return undefined;
+  }
+  if (!Array.isArray(binding.columns)) {
+    bindingErrors.push(`${path}.columns: must be an array`);
+    return undefined;
+  }
+  if (binding.columns.length === 0) {
+    bindingErrors.push(`${path}.columns: must be a non-empty array`);
+    return undefined;
+  }
+  if (binding.columns.length > SURFACE_BINDING_COLUMNS_MAX) {
+    bindingErrors.push(
+      `${path}.columns: must have at most ${SURFACE_BINDING_COLUMNS_MAX} entries`,
+    );
+    return undefined;
+  }
+  const columns: string[] = [];
+  binding.columns.forEach((column, index) => {
+    if (typeof column !== "string" || column.length === 0) {
+      bindingErrors.push(`${path}.columns[${index}]: must be a non-empty string`);
+      return;
+    }
+    if (column === "__proto__" || column === "constructor") {
+      bindingErrors.push(`${path}.columns[${index}]: forbidden key`);
+      return;
+    }
+    columns.push(column);
+  });
+  return columns.length === binding.columns.length ? columns : undefined;
+}
+
 function validateBinding(
   binding: unknown,
   index: number,
@@ -276,6 +325,11 @@ function validateBinding(
       bindingErrors.push(`${path}.format: must be one of text, number, date, list, table`);
     }
   }
+  const format =
+    typeof binding.format === "string" && SURFACE_FORMATS.has(binding.format)
+      ? binding.format
+      : undefined;
+  const columns = validateBindingColumns(binding, path, format, bindingErrors);
   if (bindingErrors.length > 0) {
     errors.push(...bindingErrors);
     return undefined;
@@ -292,6 +346,7 @@ function validateBinding(
   if (args !== undefined) result.source.args = args;
   if (binding.select !== undefined) result.select = binding.select as string;
   if (binding.format !== undefined) result.format = binding.format as SurfaceBinding["format"];
+  if (columns) result.columns = columns;
   return result;
 }
 

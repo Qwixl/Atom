@@ -1,5 +1,13 @@
 import type { PersistedSurface } from "@qwixl/owner-store";
-import type { SurfaceBinding, SurfacePlacement } from "@qwixl/shell-core";
+import type {
+  CompositionNode,
+  JsonValue,
+  ResolvedNode,
+  ResolvedSurface,
+  SurfaceBinding,
+  SurfacePlacement,
+} from "@qwixl/shell-core";
+import { formatIso8601ForDisplay, type WebcalDisplayFormatOptions } from "../connectors/webcalDateDisplay.js";
 
 export type BoardTileSize = "s" | "m" | "l";
 
@@ -215,4 +223,64 @@ export function applyOwnerReorder(
     ),
     updatedAt: Date.now(),
   };
+}
+
+export type BoardDisplayFormatOptions = WebcalDisplayFormatOptions;
+
+/** Formats a single table cell for Board display; non-ISO values pass through unchanged. */
+export function formatBoardTableCellDisplay(
+  value: unknown,
+  options?: BoardDisplayFormatOptions,
+): unknown {
+  if (typeof value !== "string") return value;
+  return formatIso8601ForDisplay(value, options) ?? value;
+}
+
+function formatTableNodeRows(
+  node: CompositionNode,
+  options?: BoardDisplayFormatOptions,
+): CompositionNode {
+  if (node.component !== "core/table" || !node.props) return node;
+  const rows = node.props.rows;
+  if (!Array.isArray(rows)) return node;
+  const formattedRows = rows.map((row) => {
+    if (!Array.isArray(row)) return row;
+    return row.map((cell) => formatBoardTableCellDisplay(cell, options));
+  }) as JsonValue;
+  return {
+    ...node,
+    props: {
+      ...node.props,
+      rows: formattedRows,
+    },
+  };
+}
+
+function formatResolvedNodeDisplay(
+  resolved: ResolvedNode,
+  options?: BoardDisplayFormatOptions,
+): ResolvedNode {
+  const formattedNode = formatTableNodeRows(resolved.node, options);
+  const children = resolved.children.map((child) => formatResolvedNodeDisplay(child, options));
+  const nodeChanged = formattedNode !== resolved.node;
+  const childrenChanged = children.some((child, index) => child !== resolved.children[index]);
+  if (!nodeChanged && !childrenChanged) return resolved;
+  switch (resolved.kind) {
+    case "component":
+      return { ...resolved, node: formattedNode, children };
+    case "substituted":
+      return { ...resolved, node: formattedNode, children };
+    case "fallback":
+      return { ...resolved, node: formattedNode, children };
+  }
+}
+
+/** Board-layer display copy with ISO table cells formatted for the owner's locale. */
+export function formatBoardSurfaceDisplay(
+  resolved: ResolvedSurface,
+  options?: BoardDisplayFormatOptions,
+): ResolvedSurface {
+  const root = formatResolvedNodeDisplay(resolved.root, options);
+  if (root === resolved.root) return resolved;
+  return { ...resolved, root };
 }

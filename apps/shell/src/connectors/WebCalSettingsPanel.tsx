@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { approvalRefForConnectorWrite } from "./connectorWriteApproval.js";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
+import { formatIso8601ForDisplay } from "./webcalDateDisplay.js";
 
 interface WebcalFeedSummary {
   id: string;
@@ -23,16 +24,12 @@ interface CalendarPublishFeed {
 
 function formatRange(start: string, end: string): string {
   try {
-    const s = new Date(start);
-    const e = new Date(end);
-    const opts: Intl.DateTimeFormatOptions = {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    };
-    return `${s.toLocaleString(undefined, opts)} – ${e.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
+    const startText = formatIso8601ForDisplay(start) ?? start;
+    const endDate = new Date(end);
+    const endText = Number.isNaN(endDate.getTime())
+      ? end
+      : endDate.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    return `${startText} – ${endText}`;
   } catch {
     return `${start} – ${end}`;
   }

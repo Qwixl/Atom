@@ -155,7 +155,38 @@ function evaluateJsonPointer(doc: unknown, pointer: string): unknown {
   return current;
 }
 
-function coerceBindingFormat(value: unknown, format?: SurfaceBinding["format"]): JsonValue {
+function projectTableRows(value: unknown, columns: string[]): JsonValue {
+  if (!Array.isArray(value)) {
+    throw new Error("Table binding value must be an array");
+  }
+  if (columns.length === 0) {
+    throw new Error("Table binding requires columns for projection");
+  }
+  const rows: JsonValue[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new Error("Table binding value must be an array of objects");
+    }
+    const record = item as Record<string, unknown>;
+    rows.push(
+      columns.map((key) => {
+        const cell = record[key];
+        if (cell === null || cell === undefined) return "";
+        if (typeof cell === "string" || typeof cell === "number" || typeof cell === "boolean") {
+          return cell;
+        }
+        return JSON.stringify(cell);
+      }),
+    );
+  }
+  return rows as JsonValue;
+}
+
+function coerceBindingFormat(
+  value: unknown,
+  format?: SurfaceBinding["format"],
+  columns?: string[],
+): JsonValue {
   if (!format || format === "text") {
     if (value === null || value === undefined) return "";
     return String(value);
@@ -175,7 +206,7 @@ function coerceBindingFormat(value: unknown, format?: SurfaceBinding["format"]):
     case "list":
       return (Array.isArray(value) ? value : [value]) as JsonValue;
     case "table":
-      return (Array.isArray(value) ? value : []) as JsonValue;
+      return projectTableRows(value, columns ?? []);
     default:
       return value as JsonValue;
   }
@@ -311,7 +342,11 @@ async function refreshBinding(
     if (!node) {
       return fail(`Node "${binding.nodeId}" not found in composition`);
     }
-    safeSetNodeProp(node, binding.prop, coerceBindingFormat(selected, binding.format));
+    safeSetNodeProp(
+      node,
+      binding.prop,
+      coerceBindingFormat(selected, binding.format, binding.columns),
+    );
     lastRefreshedAt = { ...lastRefreshedAt, [key]: now };
     failureCounts = clearBindingFailure(failureCounts ?? {}, key);
     return {

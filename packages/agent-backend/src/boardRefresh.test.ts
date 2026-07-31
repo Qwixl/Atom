@@ -403,6 +403,151 @@ describe("refreshDueSurfaces", () => {
     expect(afterAllDegraded.surfaces[0]).toEqual(surface);
   });
 
+  describe("table format projection", () => {
+    function tableSurface(overrides: Partial<PersistedSurface> = {}): PersistedSurface {
+      return testSurface({
+        composition: {
+          version: 1,
+          surfaceId: "tile-1",
+          root: {
+            id: "tbl",
+            component: "core/table",
+            props: {
+              columns: ["When", "What"],
+              rows: [["2026-01-01T00:00:00.000Z", "Kept"]],
+            },
+          },
+        },
+        bindings: [
+          {
+            nodeId: "tbl",
+            prop: "rows",
+            source: { connector: "webcal", tool: "listEvents" },
+            select: "/events",
+            format: "table",
+            columns: ["start", "summary"],
+          },
+        ],
+        ...overrides,
+      });
+    }
+
+    it("projects an array of objects into rows using columns in declared order", async () => {
+      const executor = vi.fn(async () => ({
+        events: [
+          { start: "2026-07-30T09:00:00.000Z", summary: "Standup" },
+          { start: "2026-07-30T14:00:00.000Z", summary: "Review" },
+        ],
+      }));
+      const result = await refreshDueSurfaces({
+        surfaces: [tableSurface()],
+        executor,
+        entitledConnectors: ["webcal"],
+        now: 1_700_000_000_000,
+      });
+      expect(result.surfaces[0]?.composition.root.props?.rows).toEqual([
+        ["2026-07-30T09:00:00.000Z", "Standup"],
+        ["2026-07-30T14:00:00.000Z", "Review"],
+      ]);
+    });
+
+    it("uses an empty cell for a missing or null projected field", async () => {
+      const executor = vi.fn(async () => ({
+        events: [{ start: "2026-07-30T09:00:00.000Z" }, { summary: "No time" }],
+      }));
+      const result = await refreshDueSurfaces({
+        surfaces: [tableSurface()],
+        executor,
+        entitledConnectors: ["webcal"],
+        now: 1_700_000_000_000,
+      });
+      expect(result.surfaces[0]?.composition.root.props?.rows).toEqual([
+        ["2026-07-30T09:00:00.000Z", ""],
+        ["", "No time"],
+      ]);
+    });
+
+    it("stringifies nested object cells instead of dropping them", async () => {
+      const nested = { room: "A", floor: 2 };
+      const executor = vi.fn(async () => ({
+        events: [{ start: "2026-07-30T09:00:00.000Z", summary: "Standup", meta: nested }],
+      }));
+      const surface = tableSurface({
+        bindings: [
+          {
+            nodeId: "tbl",
+            prop: "rows",
+            source: { connector: "webcal", tool: "listEvents" },
+            select: "/events",
+            format: "table",
+            columns: ["start", "meta"],
+          },
+        ],
+      });
+      const result = await refreshDueSurfaces({
+        surfaces: [surface],
+        executor,
+        entitledConnectors: ["webcal"],
+        now: 1_700_000_000_000,
+      });
+      expect(result.surfaces[0]?.composition.root.props?.rows).toEqual([
+        ["2026-07-30T09:00:00.000Z", JSON.stringify(nested)],
+      ]);
+    });
+
+    it("passes date values through raw without backend reformatting", async () => {
+      const isoStart = "2026-07-30T09:00:00.000Z";
+      const executor = vi.fn(async () => ({
+        events: [{ start: isoStart, summary: "Standup" }],
+      }));
+      const result = await refreshDueSurfaces({
+        surfaces: [tableSurface()],
+        executor,
+        entitledConnectors: ["webcal"],
+        now: 1_700_000_000_000,
+      });
+      const rows = result.surfaces[0]?.composition.root.props?.rows as string[][];
+      expect(rows?.[0]?.[0]).toBe(isoStart);
+      expect(rows?.[0]?.[0]).not.toMatch(/Jul|Mon|Tue|Wed|Thu|Fri|Sat|Sun/);
+    });
+
+    it("treats a non-array selected value as a binding failure and preserves the previous rows", async () => {
+      const executor = vi.fn(async () => ({ events: "not-an-array" }));
+      const surface = tableSurface();
+      const result = await refreshDueSurfaces({
+        surfaces: [surface],
+        executor,
+        entitledConnectors: ["webcal"],
+        now: 2_000,
+      });
+      const next = result.surfaces[0]!;
+      expect(next.composition.root.props?.rows).toEqual([
+        ["2026-01-01T00:00:00.000Z", "Kept"],
+      ]);
+      expect(next.lastError?.message).toContain("must be an array");
+      expect(next.failureCounts).toEqual({ "tbl:rows": 1 });
+    });
+
+    it("treats an array containing a non-object as a binding failure and preserves the previous rows", async () => {
+      const executor = vi.fn(async () => ({
+        events: [{ start: "2026-07-30T09:00:00.000Z", summary: "Ok" }, "bad-row"],
+      }));
+      const surface = tableSurface();
+      const result = await refreshDueSurfaces({
+        surfaces: [surface],
+        executor,
+        entitledConnectors: ["webcal"],
+        now: 2_000,
+      });
+      const next = result.surfaces[0]!;
+      expect(next.composition.root.props?.rows).toEqual([
+        ["2026-01-01T00:00:00.000Z", "Kept"],
+      ]);
+      expect(next.lastError?.message).toContain("array of objects");
+      expect(next.failureCounts).toEqual({ "tbl:rows": 1 });
+    });
+  });
+
   it("a never-successful binding still reports never-refreshed for as-of (lastRefreshedAt remains successes-only)", async () => {
     const now = 8_000_000;
     const executor = vi.fn(async () => {
