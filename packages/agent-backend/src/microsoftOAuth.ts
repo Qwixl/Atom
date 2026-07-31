@@ -12,7 +12,7 @@ export const MICROSOFT_GRAPH_CONNECTOR_ID = "microsoft-graph";
  * Public-client IDs are not secrets. Replace this placeholder once the app is registered.
  * While unchanged, Microsoft Graph behaves as "not configured" (no authorize URL is built).
  */
-export const ATOM_MICROSOFT_CLIENT_ID = "00000000-0000-0000-0000-000000000000";
+export const ATOM_MICROSOFT_CLIENT_ID = "c673f99b-adad-4f64-a983-c21f10f8aa52";
 
 export const MICROSOFT_GRAPH_NOT_CONFIGURED_MESSAGE =
   "Microsoft Graph not configured — set MICROSOFT_CLIENT_ID (or vault oauth client) first";
@@ -35,7 +35,7 @@ export const MICROSOFT_GRAPH_SCOPES = [
   "offline_access",
   "openid",
   "profile",
-  "Calendars.Read",
+  "Calendars.ReadWrite",
 ] as const;
 
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
