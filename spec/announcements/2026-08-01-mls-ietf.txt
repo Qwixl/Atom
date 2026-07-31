@@ -1,0 +1,22 @@
+Subject: draft-chapman-a2a-mls — Governed Object A2A extension split
+To: mls@ietf.org
+Status: founder-approved 2026-08-01 — send from the draft author's subscribed address
+
+Folks,
+
+`draft-chapman-a2a-mls` continues to specify Governed Objects together with MLS
+session mechanics for agent messaging.
+
+Separately, we have published a **GO-only** A2A extension profile (no MLS in
+the extension MUSTs) under
+`https://atom.qwixl.dev/a2a/data-object/v1`, with a SPEC and conformance
+corpus in the reference implementation repository. The draft's Extension
+Declaration section now clarifies that MLS-only messages must not stamp the
+GO URI.
+
+Review ask remains narrow: the credential-binding construction in the draft.
+
+Spec pointer: https://github.com/Qwixl/Atom/tree/main/spec/extensions/data-object-v1
+
+Thanks,
+Luke Chapman

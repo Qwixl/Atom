@@ -1,0 +1,15 @@
+{
+  "messageId": "01948f00-2222-7000-8000-0000000000b2",
+  "role": "ROLE_USER",
+  "contextId": "mls:example-session",
+  "extensions": [],
+  "parts": [
+    {
+      "mediaType": "application/vnd.atom.mls-wire+cbor;version=1",
+      "data": {
+        "mediaType": "application/vnd.atom.mls-wire+cbor;version=1",
+        "wire": "AAECAwQFBgcICQoLDA0ODw=="
+      }
+    }
+  ]
+}
