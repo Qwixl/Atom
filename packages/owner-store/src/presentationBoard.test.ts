@@ -144,6 +144,84 @@ describe("parsePresentationBoardStateV2 garbage input", () => {
   });
 });
 
+describe("parsePresentationBoardStateV2 table binding columns", () => {
+  const tableComposition = {
+    version: 1 as const,
+    surfaceId: "board-cal",
+    root: {
+      id: "events-table",
+      component: "core/table",
+      props: { columns: ["When", "Event"], rows: [] },
+    },
+  };
+
+  it("round-trips columns on a table-format binding", () => {
+    const original = validV2State({
+      surfaces: [
+        validPersistedSurface({
+          composition: tableComposition,
+          bindings: [
+            {
+              nodeId: "events-table",
+              prop: "rows",
+              source: { connector: "webcal", tool: "listEvents" },
+              format: "table",
+              columns: ["start", "summary"],
+            },
+          ],
+        }),
+      ],
+    });
+    const parsed = parsePresentationBoardStateV2(asStoredJson(original));
+    expect(parsed.surfaces[0]?.bindings?.[0]?.columns).toEqual(["start", "summary"]);
+  });
+
+  it("skips the whole surface when table format omits columns", () => {
+    const result = parsePresentationBoardStateV2({
+      schemaVersion: 2,
+      surfaces: [
+        validPersistedSurface({
+          composition: tableComposition,
+          bindings: [
+            {
+              nodeId: "events-table",
+              prop: "rows",
+              source: { connector: "webcal", tool: "listEvents" },
+              format: "table",
+            },
+          ],
+        }),
+      ],
+      dismissed: [],
+      updatedAt: 1,
+    } as unknown as JsonValue);
+    expect(result.surfaces).toEqual([]);
+  });
+
+  it("skips the whole surface when columns are invalid", () => {
+    const result = parsePresentationBoardStateV2({
+      schemaVersion: 2,
+      surfaces: [
+        validPersistedSurface({
+          composition: tableComposition,
+          bindings: [
+            {
+              nodeId: "events-table",
+              prop: "rows",
+              source: { connector: "webcal", tool: "listEvents" },
+              format: "table",
+              columns: ["__proto__"],
+            },
+          ],
+        }),
+      ],
+      dismissed: [],
+      updatedAt: 1,
+    } as unknown as JsonValue);
+    expect(result.surfaces).toEqual([]);
+  });
+});
+
 describe("parsePresentationBoardStateV2 partial surface invalidity", () => {
   it("skips the whole surface when any binding fails validation", () => {
     const result = parsePresentationBoardStateV2({

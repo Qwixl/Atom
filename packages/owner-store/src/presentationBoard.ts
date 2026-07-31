@@ -129,6 +129,22 @@ function parseBinding(value: unknown, nodeIds: Set<string>): SurfaceBinding | nu
   if (value.format !== undefined) {
     if (typeof value.format !== "string" || !SURFACE_FORMATS.has(value.format)) return null;
   }
+  const format =
+    typeof value.format === "string" && SURFACE_FORMATS.has(value.format) ? value.format : undefined;
+  let columns: string[] | undefined;
+  if (value.columns !== undefined) {
+    if (format !== "table") return null;
+    if (!Array.isArray(value.columns) || value.columns.length === 0) return null;
+    if (value.columns.length > 16) return null;
+    columns = [];
+    for (const column of value.columns) {
+      if (typeof column !== "string" || column.length === 0) return null;
+      if (column === "__proto__" || column === "constructor") return null;
+      columns.push(column);
+    }
+  } else if (format === "table") {
+    return null;
+  }
   const binding: SurfaceBinding = {
     nodeId,
     prop,
@@ -139,6 +155,7 @@ function parseBinding(value: unknown, nodeIds: Set<string>): SurfaceBinding | nu
   }
   if (value.select !== undefined) binding.select = value.select;
   if (value.format !== undefined) binding.format = value.format as SurfaceBinding["format"];
+  if (columns) binding.columns = columns;
   return binding;
 }
 
