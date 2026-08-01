@@ -10,7 +10,7 @@
  *   pnpm --filter @qwixl/agent-llm admin:model-behavior -- --eval --write
  *
  * Keys: OPENROUTER_API_KEY | LLM_API_KEY | OPENAI_API_KEY (env only — never commit).
- * See repo-root MODEL-BEHAVIOR-ADMIN.md.
+ * See documents/ops/MODEL-BEHAVIOR-ADMIN.md.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -382,7 +382,7 @@ Env: OPENROUTER_API_KEY | LLM_API_KEY | OPENAI_API_KEY
      MODEL_BEHAVIOR_SIGHTINGS (local sightings JSON path(s))
      ATOM_CONTROL_PLANE_URL + ATOM_PROVISION_SECRET (pending first-use queue)
 
-See MODEL-BEHAVIOR-ADMIN.md.`);
+See documents/ops/MODEL-BEHAVIOR-ADMIN.md.`);
     return;
   }
 

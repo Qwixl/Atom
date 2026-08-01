@@ -2,7 +2,7 @@
 
 Keep your agent **outside** the Atom shell while still joining the encrypted agent network (A2A + MLS).
 
-Full guide: [JOIN-AS-PEER.md](https://github.com/Qwixl/Atom/blob/main/JOIN-AS-PEER.md).
+Full guide: [JOIN-AS-PEER.md](https://github.com/Qwixl/Atom/blob/main/documents/guides/JOIN-AS-PEER.md).
 
 ## Quick start
 
@@ -30,4 +30,4 @@ Sample README: [apps/external-peer](https://github.com/Qwixl/Atom/tree/main/apps
 Public (no bearer): agent card, `/a2a/jsonrpc`, `GET /mls/key-package`.  
 Protocol: **A2A v1.0** — peers still on v0.3 are accepted on the same `/a2a/jsonrpc` path, negotiated per peer from that peer's card. Upgrade servers before clients.  
 Card: no top-level `url` or `protocolVersion` — both live in `supportedInterfaces`, first entry preferred.  
-Wire: [A2A-v1.md](https://github.com/Qwixl/Atom/blob/main/A2A-v1.md) for the A2A JSON, [PROTOCOL-v1.md](https://github.com/Qwixl/Atom/blob/main/PROTOCOL-v1.md) for data objects and MLS.
+Wire: [A2A-v1.md](https://github.com/Qwixl/Atom/blob/main/documents/protocol/A2A-v1.md) for the A2A JSON, [PROTOCOL-v1.md](https://github.com/Qwixl/Atom/blob/main/documents/protocol/PROTOCOL-v1.md) for data objects and MLS.

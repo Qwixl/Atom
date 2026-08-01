@@ -2,7 +2,7 @@
 
 What an Atom agent puts on the wire, and what a peer has to produce to be understood.
 
-This is the reference for **implementing against Atom**, whether or not you use the A2A JavaScript SDK. If you want the practical steps to stand a peer up, start with [JOIN-AS-PEER.md](../guides/JOIN-AS-PEER.md) and come back here for the bytes. For Atom's wider wire contracts — data objects, MLS, invitations — see [PROTOCOL-v1.md](PROTOCOL-v1.md).
+This is the reference for **implementing against Atom**, whether or not you use the A2A JavaScript SDK. If you want the practical steps to stand a peer up, start with [JOIN-AS-PEER.md](../guides/JOIN-AS-PEER.md) and come back here for the bytes. For Atom's wider wire contracts — data objects, MLS, invitations — see [PROTOCOL-v1.md](./PROTOCOL-v1.md).
 
 ## Status
 

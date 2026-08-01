@@ -27,4 +27,4 @@ Without `?playground=1`, the same app demonstrates embedding `shell-core` + `ren
 ## Related
 
 - [Module author tutorial](/guides/module-author-tutorial) — when you need a sandboxed module instead of primitives
-- [EMBED.md](https://github.com/Qwixl/Atom/blob/main/EMBED.md) — production embed contract
+- [EMBED.md](https://github.com/Qwixl/Atom/blob/main/documents/reference/EMBED.md) — production embed contract

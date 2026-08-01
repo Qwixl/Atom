@@ -1,6 +1,6 @@
 # Demo peer agent (M14.6)
 
-Public **counterpart** agent for the reference shell: MLS handshake + automatic scheduling proposal. For the guided **personal** demo (your LLM + WebCal feed), use [PERSONAL-DEMO.md](PERSONAL-DEMO.md) (`pnpm dev:demo`) instead.
+Public **counterpart** agent for the reference shell: MLS handshake + automatic scheduling proposal. For the guided **personal** demo (your LLM + WebCal feed), use [PERSONAL-DEMO.md](./PERSONAL-DEMO.md) (`pnpm dev:demo`) instead.
 
 ## Quick path (first-run wizard)
 

@@ -30,4 +30,4 @@ Execute after M14 + M15 ship. Do not run the public push before the zero-termina
 
 ## Not doing
 
-Paid ads, undisclosed influencer coverage, Product Hunt consumer launch, press release without usage proof — see private adoption notes.
+Paid ads, undisclosed influencer coverage, Product Hunt consumer launch, press release without usage proof.

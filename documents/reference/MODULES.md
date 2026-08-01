@@ -23,7 +23,7 @@ The curated store at [atom.registry.qwixl.com](https://atom.registry.qwixl.com) 
 - Terrorist facilitation or violent extremism
 - CSAM or sexual abuse material
 
-Third-party registries are owner-controlled; Atom cannot centrally block them. Owners who add a custom index accept responsibility for what they install. Report abuse on the reference store via **Settings → Registry → Report** on a catalog row (control plane intake) or the project security contact in [SECURITY.md](../../SECURITY.md). Operators follow the private registry-revocation runbook.
+Third-party registries are owner-controlled; Atom cannot centrally block them. Owners who add a custom index accept responsibility for what they install. Report abuse on the reference store via **Settings → Registry → Report** on a catalog row (control plane intake) or the project security contact in [SECURITY.md](../../SECURITY.md). Curated-store takedowns follow the operator process described in [SECURITY.md](../../SECURITY.md).
 
 PRs to the reference registry must pass `pnpm registry:verify` in CI (`--require-integrity --signatures --require-signatures --require-publisher` + trusted publisher allowlist + bundle scan). Duplicate `id@version` rows in `index.json` fail verification. Soft CI remains available as `pnpm registry:verify:soft`.
 
@@ -97,7 +97,7 @@ Optional `pricing` on `manifest.json` and mirrored on the index entry:
 
 Omit `pricing` or set `"model": "free"` for free modules. Paid modules set `purchaseUrl` (and optionally an entitlement certificate at install). Owners can install from any compliant registry URL — including the commercial Atom Apps registry (`https://atom.apps.qwixl.com/registry/index.json`) via the shell Install / App Store handoff. See [Atom Apps publish docs](https://atom.apps.qwixl.com/docs/publish) for packaging modules for that registry.
 
-Governance of the open registry protocol: the decisions log (private).
+Governance of the open registry protocol is owner-controlled per registry index policy.
 
 ## iframe bridge
 
@@ -107,7 +107,7 @@ Governance of the open registry protocol: the decisions log (private).
 
 What the sandbox does **not** cover: declared event names are enforced by `SurfaceRenderer`, but the Messages/Chat embed (`CommsModuleEmbed`) forwards whatever the frame posts — the manifest list is a contract you keep, not a filter applied on every path. Network access is not blocked by the iframe sandbox either; it depends on the CSP of whichever host actually serves your bundle, which is a deployment property. The reference registry host sends `default-src 'none'`, and the commercial Atom Apps registry serves module files from its own origin under the same policy as well as rejecting network primitives (`fetch`, XHR, WebSocket, `sendBeacon`, remote scripts) at publish time. If you serve bundles from a host that sends no CSP, nothing restricts them — so verify with `curl -I` against a real module URL rather than trusting a `vercel.json` in the repo, because the project that owns the config is not always the project that answers the request.
 
-See [API-v1.md](API-v1.md#module-sandbox-web-v1) for the full sandbox contract.
+See [API-v1.md](./API-v1.md#module-sandbox-web-v1) for the full sandbox contract.
 
 ## CLI reference
 

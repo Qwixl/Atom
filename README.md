@@ -32,9 +32,9 @@ Two ways to use Atom — pick one and stay in it:
 
 Self-host with npm: `npx @qwixl/agent-backend` (terminal) or pair with [atom.qwixl.com](https://atom.qwixl.com) (browser).
 
-Try the **personal demo** (LLM + WebCal + scheduling): `pnpm dev:demo` — [PERSONAL-DEMO.md](./PERSONAL-DEMO.md). For MLS with a counterpart agent, see [DEMO-PEER.md](./DEMO-PEER.md).
+Try the **personal demo** (LLM + WebCal + scheduling): `pnpm dev:demo`. Guides and contracts: **[documents/](./documents/README.md)**.
 
-Developer docs (tutorial, playground, modules): run `pnpm dev:docs` or read [DEVELOPERS.md](./DEVELOPERS.md).
+Developer entry: [DEVELOPERS.md](./documents/guides/DEVELOPERS.md) (or `pnpm dev:docs`).
 
 ## Governed Object A2A extension (v1)
 
@@ -98,28 +98,20 @@ pnpm add @qwixl/shell-core @qwixl/renderer-web react
 pnpm add @qwixl/a2ui-adapter @qwixl/ag-ui-adapter @qwixl/owner-store
 ```
 
-Build your app with any bundler that resolves the package `development` export condition in dev (Vite, etc.). See **[EMBED.md](./EMBED.md)** for a <1 hour integration guide.
+Build your app with any bundler that resolves the package `development` export condition in dev (Vite, etc.). Embed howto: see [documents/](./documents/README.md).
 
 ## Guides
+
+Canonical public howto index: **[documents/README.md](./documents/README.md)**.
 
 | Doc | Audience |
 |---|---|
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | How to contribute (issues, PRs, principles) |
 | [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) | Community standards |
-| [EMBED.md](./EMBED.md) | Third-party hosts embedding the engine |
-| [MODULES.md](./MODULES.md) | Module authors publishing to a registry |
-| [API-v1.md](./API-v1.md) | Frozen v1 contracts (composition, session, manifest, sandbox) |
-| [AGENT-BACKEND.md](./AGENT-BACKEND.md) | Self-hosting the owner agent backend |
-| [JOIN-AS-PEER.md](./JOIN-AS-PEER.md) | Join the network as an external peer (no shell portal) |
-| [DEVELOPERS.md](./DEVELOPERS.md) | M14 developer platform entry |
-| [MODEL-BEHAVIOR-ADMIN.md](./MODEL-BEHAVIOR-ADMIN.md) | Ops: model behavior classes + maintenance script (not product UI) |
-| [PERSONAL-DEMO.md](./PERSONAL-DEMO.md) | Guided personal demo (`pnpm dev:demo`) |
-| [DEMO-PEER.md](./DEMO-PEER.md) | Live demo counterpart agent (M14.6) |
-| [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md) | M16 public push gates |
-| [PROTOCOL-v1.md](./PROTOCOL-v1.md) | Frozen v1 data-object + did:key contracts |
-| [A2A-v1.md](./A2A-v1.md) | A2A v1.0 on the wire: parts, messages, cards, version negotiation |
 | [SECURITY.md](./SECURITY.md) | Threat model for shipped surface |
-| [SECRET-STORE.md](./SECRET-STORE.md) | Credential adapter priority for embedders |
+| [DEVELOPERS.md](./documents/guides/DEVELOPERS.md) | Developer platform entry |
+| [PROTOCOL-v1.md](./documents/protocol/PROTOCOL-v1.md) | Frozen v1 data-object + did:key contracts |
+| [AGENT-BACKEND.md](./documents/guides/AGENT-BACKEND.md) | Self-hosting the owner agent backend |
 
 Live hosts: [atom.qwixl.com](https://atom.qwixl.com) · [atom.registry.qwixl.com](https://atom.registry.qwixl.com)
 
@@ -137,7 +129,7 @@ pnpm atom rooms join room:coffeeshop --host http://127.0.0.1:5205
 pnpm atom rooms send room:coffeeshop --message "Hello"
 pnpm atom chat "what's on today?"
 pnpm dev:shell-only   # shell only (advanced; needs separate agent)
-pnpm dev:demo         # personal demo: shell + your agent (see PERSONAL-DEMO.md)
+pnpm dev:demo         # personal demo: shell + your agent (see documents/guides/PERSONAL-DEMO.md)
 pnpm dev:embed        # embed demo on http://localhost:5203 (?playground=1 for JSON editor)
 pnpm dev:docs         # docs site on http://localhost:5206
 pnpm dev:hosting      # control plane :5300 + stub hosted agent :5301
@@ -146,7 +138,7 @@ pnpm dev:hosting       # stub CP + stub agent :5301
 pnpm dev:agent-only   # agent backend only (terminal / advanced)
 pnpm dev:a2a          # alias for dev:agent-only
 pnpm start:agent      # run built atom-agent CLI (after build:packages)
-pnpm docker:agent     # Docker Compose self-host (see AGENT-BACKEND.md)
+pnpm docker:agent     # Docker Compose self-host (see documents/guides/AGENT-BACKEND.md)
 pnpm docker:demo-peer # demo peer agent on http://localhost:5205
 pnpm dev:registry     # module registry host on http://localhost:5202
 pnpm registry:verify  # verify index + manifest + bundle hashes

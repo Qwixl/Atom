@@ -67,7 +67,7 @@ Categorization runs under a **neutral `balanced` profile** (no tool-shy/eager ad
 
 ## Cron / CI (maintainers)
 
-[`.github/workflows/model-behavior-admin.yml`](./.github/workflows/model-behavior-admin.yml):
+[`.github/workflows/model-behavior-admin.yml`](../../.github/workflows/model-behavior-admin.yml):
 
 1. Prints registry
 2. Fetches pending queue (when `ATOM_CONTROL_PLANE_URL` + `ATOM_PROVISION_SECRET` set)
@@ -92,4 +92,4 @@ Categorization runs under a **neutral `balanced` profile** (no tool-shy/eager ad
 
 - Tool-judgment evals: `pnpm --filter @qwixl/agent-llm eval:tools`  
 - Package: `@qwixl/agent-llm`  
-- Contributing principles: [CONTRIBUTING.md](./CONTRIBUTING.md)
+- Contributing principles: [CONTRIBUTING.md](../../CONTRIBUTING.md)

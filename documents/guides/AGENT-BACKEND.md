@@ -287,7 +287,7 @@ PORT=5205 PUBLIC_BASE_URL=http://127.0.0.1:5205 pnpm start:agent
 
 In the shell **Comms** panel on each side: copy invite from A, connect from B, send encrypted messages.
 
-To join the network as a **peer** without running a second owner portal (no shell URL+token on the peer side), see [JOIN-AS-PEER.md](JOIN-AS-PEER.md) and `pnpm dev:external-peer`.
+To join the network as a **peer** without running a second owner portal (no shell URL+token on the peer side), see [JOIN-AS-PEER.md](./JOIN-AS-PEER.md) and `pnpm dev:external-peer`.
 
 ## Security notes
 
@@ -317,7 +317,7 @@ Many subsystems ship **v1 engines** to prove product loops before production sca
 - Module store: beta-free flag; no in-app billing yet.
 - Hosted signup in this repo: local control-plane stub only (`pnpm dev:hosting`).
 
-Production-gap inventory is maintained privately; shipped contracts are described here.
+Production hardening is incremental per subsystem; see **Known v1 limits** above for the shipped scope.
 
 ## Related
 

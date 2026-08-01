@@ -119,7 +119,7 @@ Not included in `shell-core` — your app implements these:
 - **Agent connection config** and secret storage.
 - **Layout chrome** around the feed.
 
-See [API-v1.md](API-v1.md) for the frozen wire contracts.
+See [API-v1.md](./API-v1.md) for the frozen wire contracts.
 
 ## 7. Checklist (< 1 hour)
 

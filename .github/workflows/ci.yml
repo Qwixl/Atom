@@ -30,6 +30,7 @@ jobs:
           --config.manage-package-manager-versions=false
           --pm-on-fail=ignore
           audit --prod --audit-level=high
+      - run: node scripts/verify-documents-corpus.mjs
       - run: pnpm build:packages
       - run: pnpm registry:verify
       - run: pnpm typecheck

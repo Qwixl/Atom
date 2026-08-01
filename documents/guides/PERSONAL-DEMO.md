@@ -36,4 +36,4 @@ There is no Google Calendar OAuth module in Atom.
 
 ## Not this command
 
-For MLS + automatic proposal from a **counterpart agent**, see [DEMO-PEER.md](DEMO-PEER.md) (`pnpm dev:demo-peer` + first-run wizard).
+For MLS + automatic proposal from a **counterpart agent**, see [DEMO-PEER.md](./DEMO-PEER.md) (`pnpm dev:demo-peer` + first-run wizard).

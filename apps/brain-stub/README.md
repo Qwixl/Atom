@@ -34,5 +34,5 @@ docker compose --profile brain-body up --build
 ## Related
 
 - **Chat brain only (this app):** AG-UI SSE body/brain split — not A2A peer join.
-- **Join the Atom network without a shell portal:** [JOIN-AS-PEER.md](../../JOIN-AS-PEER.md) and [apps/external-peer](../external-peer/).
-- **Full owner agent (portal):** [AGENT-BACKEND.md](../../AGENT-BACKEND.md).
+- **Join the Atom network without a shell portal:** [JOIN-AS-PEER.md](../../documents/guides/JOIN-AS-PEER.md) and [apps/external-peer](../external-peer/).
+- **Full owner agent (portal):** [AGENT-BACKEND.md](../../documents/guides/AGENT-BACKEND.md).

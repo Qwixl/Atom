@@ -146,6 +146,6 @@ Registered by `registerCorePrimitives()`: `core/text`, `core/heading`, `core/ima
 
 ## References
 
-- Embed guide: [EMBED.md](EMBED.md)
-- Module author guide: [MODULES.md](MODULES.md)
+- Embed guide: [EMBED.md](./EMBED.md)
+- Module author guide: [MODULES.md](./MODULES.md)
 - Contract tests: `packages/shell-core/src/contracts.test.ts`
