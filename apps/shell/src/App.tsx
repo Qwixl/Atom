@@ -97,6 +97,7 @@ import {
   type McpToolExecutor,
 } from "@qwixl/agent-llm";
 import { AgUiAgentSession, type AgUiAgentConfig } from "@qwixl/ag-ui-adapter";
+import { McpAppHostDock, useMcpAppSurfaces } from "./mcp/McpAppHostDock.js";
 import {
   OwnerStore,
   activeContextTags,
@@ -937,6 +938,7 @@ export function App() {
   /** Set when user picks a provider that needs configuration first. */
   const [settingsIntent, setSettingsIntent] = useState<Provider | null>(null);
   const [input, setInput] = useState("");
+  const { surfaces: mcpAppSurfaces, dismiss: dismissMcpApp, openFromToolCall } = useMcpAppSurfaces();
   const [attestations, setAttestations] = useState<readonly AttestationEntry[]>(
     attestationLog.list(),
   );
@@ -1557,6 +1559,8 @@ export function App() {
         call.toolName,
         call.arguments ?? {},
       );
+      // Attested open only after successful tools/call (D131 §14.1).
+      void openFromToolCall(client, call).catch(() => undefined);
       return response.result;
     };
     try {
@@ -1569,7 +1573,7 @@ export function App() {
       setChatSessionBearer(refreshed);
       return await invokeOnce();
     }
-  }, [vaultUnlocked]);
+  }, [vaultUnlocked, openFromToolCall]);
 
   const agUiSessionKey = provider === "ag-ui" ? agUiConfig.url : null;
   const agUiBearer =
@@ -3224,6 +3228,28 @@ export function App() {
             })
           )}
           {busy ? <div className="feed-busy">agent working…</div> : null}
+          <McpAppHostDock
+            surfaces={mcpAppSurfaces}
+            onDismiss={dismissMcpApp}
+            onProxyTool={async (serverId, toolName, args) => {
+              const config = vaultUnlocked
+                ? await loadCommsAgentConfigSecure()
+                : loadCommsAgentConfig();
+              const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
+              const response = await client.invokeMcpTool(serverId, toolName, args);
+              return response.result;
+            }}
+            onProxyResource={async (serverId, uri) => {
+              const config = vaultUnlocked
+                ? await loadCommsAgentConfigSecure()
+                : loadCommsAgentConfig();
+              const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
+              return client.readMcpUiResource(serverId, uri);
+            }}
+            onApprovedChatMessage={(text) => {
+              conversationRef.current?.appendUser(text);
+            }}
+          />
         </main>
         ) : null}
 

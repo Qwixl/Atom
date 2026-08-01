@@ -1,6 +1,12 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import type { McpStdioConnectOptions, McpToolDescriptor } from "./types.js";
+import type {
+  McpStdioConnectOptions,
+  McpToolDescriptor,
+  McpReadResourceResult,
+  McpResourceDescriptor,
+} from "./types.js";
+import { mapSdkReadResource, mapSdkResource, mapSdkTool } from "./resourceMap.js";
 
 /** One-shot stdio MCP session: connect, use, close. */
 export class McpStdioSession {
@@ -34,11 +40,19 @@ export class McpStdioSession {
   async listTools(): Promise<McpToolDescriptor[]> {
     if (!this.client) throw new Error("MCP session not connected");
     const result = await this.client.listTools();
-    return result.tools.map((tool) => ({
-      name: tool.name,
-      description: tool.description,
-      inputSchema: tool.inputSchema,
-    }));
+    return result.tools.map((tool) => mapSdkTool(tool));
+  }
+
+  async listResources(): Promise<McpResourceDescriptor[]> {
+    if (!this.client) throw new Error("MCP session not connected");
+    const result = await this.client.listResources();
+    return result.resources.map((resource) => mapSdkResource(resource));
+  }
+
+  async readResource(uri: string): Promise<McpReadResourceResult> {
+    if (!this.client) throw new Error("MCP session not connected");
+    const result = await this.client.readResource({ uri });
+    return mapSdkReadResource(result);
   }
 
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {

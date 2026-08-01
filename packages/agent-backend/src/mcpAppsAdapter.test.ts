@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import { mcpAppsToolToRegistryRef, mcpAppsUiUriToModuleId } from "./mcpAppsAdapter.js";
 
 describe("mcpAppsAdapter", () => {
-  it("maps ui:// URIs to registry module ids", () => {
+  it("maps Atom ui:// URIs to registry module ids", () => {
     expect(mcpAppsUiUriToModuleId("ui://atom/media/video-call")).toBe("media/video-call");
+  });
+
+  it("does not map third-party ui:// to registry (D131)", () => {
+    expect(mcpAppsUiUriToModuleId("ui://third/party-app")).toBeNull();
   });
 
   it("builds registry ref from MCP Apps tool descriptor", () => {

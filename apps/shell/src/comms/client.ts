@@ -986,6 +986,7 @@ export class CommsAgentClient {
       url?: string;
       hasAuthHeaders: boolean;
       allowedTools: string[];
+      safeTools: string[];
       enabled: boolean;
       trusted: boolean;
       trustedAt?: number;
@@ -1025,7 +1026,15 @@ export class CommsAgentClient {
     return resp.json() as Promise<{ ok: boolean }>;
   }
 
-  async listMcpTools(serverId: string): Promise<{ serverId: string; tools: Array<{ name: string; description?: string }> }> {
+  async listMcpTools(serverId: string): Promise<{
+    serverId: string;
+    tools: Array<{
+      name: string;
+      description?: string;
+      ui?: { uri: string; mimeType?: string };
+      visibility?: string[];
+    }>;
+  }> {
     return getJson(this.base(), `/mcp/servers/${encodeURIComponent(serverId)}/tools`, this.auth);
   }
 
@@ -1053,6 +1062,41 @@ export class CommsAgentClient {
       { allowedTools, approvalRef },
       this.auth,
       true,
+    );
+  }
+
+  async setMcpSafeTools(
+    serverId: string,
+    safeTools: string[],
+    approvalRef?: string,
+  ): Promise<{ server: { id: string; safeTools: string[] } | null }> {
+    return postJson(
+      this.base(),
+      `/mcp/servers/${encodeURIComponent(serverId)}/safe-tools`,
+      { safeTools, approvalRef },
+      this.auth,
+      true,
+    );
+  }
+
+  async readMcpUiResource(
+    serverId: string,
+    uri: string,
+  ): Promise<{
+    serverId: string;
+    uri: string;
+    mimeType: string;
+    html: string;
+    htmlWithCsp: string;
+    csp: string;
+    contentHash: string;
+    pinnedUris: string[];
+  }> {
+    const q = new URLSearchParams({ uri });
+    return getJson(
+      this.base(),
+      `/mcp/servers/${encodeURIComponent(serverId)}/ui-resource?${q}`,
+      this.auth,
     );
   }
 
