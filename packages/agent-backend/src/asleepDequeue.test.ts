@@ -137,4 +137,79 @@ describe("asleep dequeue validation", () => {
       expect(queue.list()).toHaveLength(1);
     });
   });
+
+  it("rejects objects whose governance TTL expired while queued", async () => {
+    const keyPair = await generateAgentKeyPair();
+    const issuedAt = new Date("2026-07-21T10:00:00.000Z");
+    const object = await signDataObject(
+      {
+        semantic: { schema: "https://schema.org/Message" },
+        payload: { text: "stale-at-wake" },
+        governance: { purpose: "comms:message", ttlSeconds: 60 },
+      },
+      keyPair,
+      { issuedAt: issuedAt.toISOString() },
+    );
+    queue.enqueue({
+      blob: Buffer.from(
+        JSON.stringify({
+          params: {
+            message: {
+              parts: [{ data: { mediaType: ATOM_DATA_OBJECT_MEDIA_TYPE, object } }],
+            },
+          },
+        }),
+      ),
+    });
+
+    const wakeNow = new Date(issuedAt.getTime() + 120_000);
+    const outcome = await dequeueAsleepMessages({
+      queue,
+      verifyOptions: {
+        allowedPurposes: ["comms:message"],
+        now: wakeNow,
+        replay: new ReplayGuard(),
+      },
+    });
+    expect(outcome.rejected).toBe(1);
+    expect(outcome.accepted).toBe(0);
+    expect(queue.list()).toHaveLength(0);
+  });
+
+  it("rejects a replayed object on a subsequent dequeue", async () => {
+    const keyPair = await generateAgentKeyPair();
+    const object = await signDataObject(
+      {
+        semantic: { schema: "https://schema.org/Message" },
+        payload: { text: "once" },
+        governance: { purpose: "comms:message", ttlSeconds: 3600 },
+      },
+      keyPair,
+    );
+    const body = Buffer.from(
+      JSON.stringify({
+        params: {
+          message: {
+            parts: [{ data: { mediaType: ATOM_DATA_OBJECT_MEDIA_TYPE, object } }],
+          },
+        },
+      }),
+    );
+    const replay = new ReplayGuard();
+    queue.enqueue({ blob: body });
+    const first = await dequeueAsleepMessages({
+      queue,
+      verifyOptions: { allowedPurposes: ["comms:message"], replay },
+    });
+    expect(first.accepted).toBe(1);
+
+    queue.enqueue({ blob: body });
+    const second = await dequeueAsleepMessages({
+      queue,
+      verifyOptions: { allowedPurposes: ["comms:message"], replay },
+    });
+    expect(second.rejected).toBe(1);
+    expect(second.accepted).toBe(0);
+    expect(queue.list()).toHaveLength(0);
+  });
 });
