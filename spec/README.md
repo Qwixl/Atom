@@ -10,9 +10,11 @@ test vectors they reference.
 |---|---|
 | `draft-chapman-a2a-mls-00.md` | **Published `-00` snapshot** (matches Datatracker first submission) |
 | `draft-chapman-a2a-mls-00.txt` / `.xml` | Rendered `-00` (do not overwrite with later work) |
-| `draft-chapman-a2a-mls-01.md` | **Current working revision** — Option A extension clarification + GO-only A2A extension cross-link |
-| `draft-chapman-a2a-mls-01.txt` / `.xml` | Rendered `-01` — upload **this** XML for the next Datatracker revision |
-| `build.sh` | Renders and validates a draft: `./build.sh [draft-chapman-a2a-mls-01]` |
+| `draft-chapman-a2a-mls-01.md` | **Published `-01`** on Datatracker — Option A + GO extension cross-link (do not rewrite as next upload) |
+| `draft-chapman-a2a-mls-01.txt` / `.xml` | Rendered `-01` snapshot |
+| `draft-chapman-a2a-mls-02.md` | **Current working revision** — Purpose Value Registry (D132 / ST-03) |
+| `draft-chapman-a2a-mls-02.txt` / `.xml` | Rendered `-02` — upload **this** XML for the next Datatracker revision (Class D) |
+| `build.sh` | Renders and validates a draft: `./build.sh [draft-chapman-a2a-mls-02]` |
 | `extensions/` | **A2A extension specs** — start with [Governed Object v1](./extensions/data-object-v1/) |
 | `vectors/` | 31 conformance test vectors — see `vectors/README.md` |
 | `second-impl/` | Minimal **Python** second implementation of encapsulation (`070`–`078`) + GO |
@@ -20,8 +22,8 @@ test vectors they reference.
 | `announcements/` | Founder-gated external text (Datatracker / list notes) |
 
 **Provenance is recorded by Datatracker submission**, not by mailing-list email.
-`-00` is already on Datatracker. Upload `-01.xml` for the next revision. Email to
-`mls@ietf.org` is optional awareness after a revision is public.
+`-00` and `-01` are on Datatracker. Next upload is `-02.xml` (founder Class D).
+Email to `mls@ietf.org` is optional awareness after a revision is public.
 
 ## Why the draft is vendor-neutral
 
@@ -47,22 +49,23 @@ code.
 No local toolchain is required. The IETF's own renderer validates and builds it:
 
 ```bash
-./build.sh draft-chapman-a2a-mls-01   # current working revision
-./build.sh draft-chapman-a2a-mls-00   # frozen published snapshot
+./build.sh draft-chapman-a2a-mls-02   # current working revision
+./build.sh draft-chapman-a2a-mls-01   # published -01 snapshot
+./build.sh draft-chapman-a2a-mls-00   # frozen published -00 snapshot
 ```
 
 This posts the markdown to `author-tools.ietf.org`, reports any errors or
 warnings, and writes the rendered `.txt` and `.xml`. It must report zero errors
 before submission. Omitting the argument builds the revision named as the default
-in `build.sh` (currently `-01`).
+in `build.sh` (currently `-02`).
 
 To work offline instead:
 
 ```bash
 uv tool install xml2rfc
 gem install kramdown-rfc2629   # requires Ruby
-kramdown-rfc2629 draft-chapman-a2a-mls-01.md > draft-chapman-a2a-mls-01.xml
-xml2rfc --text draft-chapman-a2a-mls-01.xml
+kramdown-rfc2629 draft-chapman-a2a-mls-02.md > draft-chapman-a2a-mls-02.xml
+xml2rfc --text draft-chapman-a2a-mls-02.xml
 ```
 
 ## Submitting a revision (Datatracker)
@@ -70,15 +73,15 @@ xml2rfc --text draft-chapman-a2a-mls-01.xml
 Cost: nothing. There is no fee to publish an Internet-Draft.
 
 1. Ensure you have an IETF Datatracker account at <https://datatracker.ietf.org/accounts/create/>.
-2. Run `./build.sh draft-chapman-a2a-mls-01` and confirm zero errors.
-3. Upload **only** `draft-chapman-a2a-mls-01.xml` at
+2. Run `./build.sh draft-chapman-a2a-mls-02` and confirm zero errors.
+3. Upload **only** `draft-chapman-a2a-mls-02.xml` at
    <https://datatracker.ietf.org/submit/>. The source, text, and vectors stay in
    this repository; they are not additional submission files.
 4. Confirm via the emailed link. The draft appears at
    `https://datatracker.ietf.org/doc/draft-chapman-a2a-mls/`.
 
-Do **not** overwrite `-00` files with later normative edits. Bump the revision
-number (`-01`, `-02`, …) for every Datatracker submission.
+Do **not** overwrite `-00` or `-01` files with later normative edits. Bump the
+revision number (`-01`, `-02`, …) for every Datatracker submission.
 
 Two operational notes:
 

@@ -199,6 +199,14 @@ explicit allowlists. Absence of an allowlist MUST NOT be treated as "allow
 whatever the sender prefers" in security-sensitive deployments without an
 explicit local policy decision.
 
+IANA registration of a purpose value (see Internet-Draft
+`draft-chapman-a2a-mls` Purpose Value Registry, from `-02`) **SHOULD** be used
+as an informative shared vocabulary for high-consequence purposes. Registration
+**MUST NOT** be treated as (i) permission to process, (ii) default allowlist
+membership, or (iii) authorisation for side effects. Empty/absent allowlist
+deployments remain a local profile choice and do not imply cross-implementation
+purpose alignment.
+
 ## Relationship to Part.data / encapsulation
 
 GO parts use A2A `data` parts. On the wire, the part is JSON with `mediaType`
