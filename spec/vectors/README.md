@@ -26,6 +26,11 @@ They are also acceptance criteria for us. They were written from the specificati
 text rather than generated from `@qwixl/protocol`, precisely so they are capable of
 disagreeing with it. They did: see below.
 
+Governed Object signature vectors exercise the deterministic key-sorted JSON
+profile used by the reference stack (`stableStringify`), not a certified
+RFC 8785 JCS library. See `draft-chapman-a2a-mls-03` §Canonical Serialisation
+and Implementation Status.
+
 ## Format
 
 One JSON file per vector. Every vector has `id`, `kind`, `description`, and

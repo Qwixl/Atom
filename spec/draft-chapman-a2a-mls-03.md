@@ -352,16 +352,28 @@ undefined or missing-property concept MUST treat such properties as absent
 members (omit them) before canonicalisation, and MUST NOT emit a distinct
 undefined token.
 
-The canonical form MUST be the JSON Canonicalization Scheme (JCS)
-serialisation of that object as specified in {{RFC8785}}. In particular, JCS
-orders object member names lexicographically by UTF-16 code unit sequence
-and emits no insignificant whitespace. Implementations MUST NOT invent a
-parallel key-order or whitespace rule set that diverges from {{RFC8785}}.
+Interoperable implementations SHOULD produce the JSON Canonicalization Scheme
+(JCS) serialisation of that object as specified in {{RFC8785}}.
+
+Absent a dedicated JCS library, an implementation MUST still:
+
+* omit absent members (and language-level undefined / missing properties);
+* retain JSON `null` where present;
+* order object member names lexicographically by UTF-16 code unit sequence;
+* emit no insignificant whitespace; and
+* MUST NOT invent a parallel key-order or whitespace rule set for the same
+  abstract object that would diverge from {{RFC8785}} for those constraints.
+
+The Atom reference implementation currently uses a deterministic key-sorted
+JSON profile that satisfies these MUST constraints for the published vector
+suite; it does not yet invoke a dedicated {{RFC8785}} library. See
+{{implementation-status}}.
 
 Payload authors SHOULD avoid floating-point numbers, because canonical
 serialisation of floating-point values is a known source of cross-language
-interoperability failure. Where numeric precision matters, payloads SHOULD
-encode values as strings or as integers in a stated minor unit.
+interoperability failure (including under full JCS). Where numeric precision
+matters, payloads SHOULD encode values as strings or as integers in a stated
+minor unit.
 
 ## Signing
 
@@ -936,7 +948,11 @@ Implemented and interoperability-tested between two independent processes over
 HTTP:
 
 * Governed Object construction, canonical serialisation, Ed25519 signing, and
-  verification, including tamper and expiry rejection.
+  verification, including tamper and expiry rejection. Canonical form is a
+  deterministic key-sorted JSON profile (`stableStringify` in
+  `@qwixl/protocol`) that meets the MUST constraints of {{canonical}} for the
+  published vector suite; adoption of a dedicated {{RFC8785}} JCS library
+  (byte-identical JCS for all JSON types, including floats) remains deferred.
 * `did:key` Ed25519 identity derivation without network resolution.
 * MLS pair and group sessions using ciphersuite `0x0001` via the `ts-mls`
   library in a single open-source implementation (`https://github.com/Qwixl/Atom`),
@@ -1011,8 +1027,10 @@ to prevent a recurrence.
   wire Commits remain authoritative for existing members.
 - Honest {{implementation-status}} for group persistence and three-agent
   proofs; deferred partial fan-out recovery and host self-leave without Remove.
-- Tightened {{canonical}}: MUST use {{RFC8785}} JCS; removed JS-specific
-  "undefined" wording; clarify absent members vs JSON `null`.
+- Clarified {{canonical}}: SHOULD {{RFC8785}} JCS; MUST deterministic
+  key-order / no whitespace / omit absent members; removed JS-specific
+  "undefined" wording; Implementation Status notes reference `stableStringify`
+  until a dedicated JCS library lands.
 
 # Changes from draft-chapman-a2a-mls-01
 
@@ -1058,17 +1076,19 @@ Vectors are published at `https://github.com/Qwixl/Atom` under `spec/vectors/`.
 An implementation claiming conformance to this document SHOULD produce the
 specified outcome for every vector.
 
-The vectors were derived from this document's text rather than generated from the
-reference implementation, so that the two are capable of disagreeing. On first
-execution they did: the reference implementation treated `governance.expiresAt`
-as authoritative whenever present and never compared it to the interval implied
-by `ttlSeconds`, so a sender could extend a short-lived object's lifetime
-indefinitely by supplying an additional distant absolute expiry. Because the
-governance block is covered by the signature, the resulting object was valid
-under every other check. This is the origin of the requirement in
-{{governance}} that the earlier instant govern, and it is offered as a
-concrete instance of why vectors written from specification text are worth the
-effort of producing.
+Governed Object signature vectors exercise the deterministic canonical profile
+described in {{implementation-status}}, not a certified {{RFC8785}}
+implementation. The vectors were otherwise derived from this document's text
+rather than generated from the reference implementation, so that the two are
+capable of disagreeing. On first execution they did: the reference
+implementation treated `governance.expiresAt` as authoritative whenever present
+and never compared it to the interval implied by `ttlSeconds`, so a sender
+could extend a short-lived object's lifetime indefinitely by supplying an
+additional distant absolute expiry. Because the governance block is covered by
+the signature, the resulting object was valid under every other check. This is
+the origin of the requirement in {{governance}} that the earlier instant
+govern, and it is offered as a concrete instance of why vectors written from
+specification text are worth the effort of producing.
 
 # Acknowledgements
 {:numbered="false"}
