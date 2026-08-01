@@ -22,7 +22,6 @@ describe("inbound MLS public commit (D135)", () => {
         hostDid: host.did,
         name: "Commit Fan-out",
         roomId,
-        acceptedBaseRules: true,
         hostEndpoint: "http://127.0.0.1:9/a2a/jsonrpc",
       });
       rooms.addMember(roomId, { did: m1.did, endpoint: "http://127.0.0.1:9/a2a/jsonrpc" });
