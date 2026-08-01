@@ -1,8 +1,10 @@
+<!-- Derived from docs/public-source/protocol/A2A-v1.md — do not invent here (D138). -->
+
 # Atom on A2A v1.0
 
 What an Atom agent puts on the wire, and what a peer has to produce to be understood.
 
-This is the reference for **implementing against Atom**, whether or not you use the A2A JavaScript SDK. If you want the practical steps to stand a peer up, start with [JOIN-AS-PEER.md](./JOIN-AS-PEER.md) and come back here for the bytes. For Atom's wider wire contracts — data objects, MLS, invitations — see [PROTOCOL-v1.md](./PROTOCOL-v1.md).
+This is the reference for **implementing against Atom**, whether or not you use the A2A JavaScript SDK. If you want the practical steps to stand a peer up, start with [JOIN-AS-PEER.md](../guides/JOIN-AS-PEER.md) and come back here for the bytes. For Atom's wider wire contracts — data objects, MLS, invitations — see [PROTOCOL-v1.md](PROTOCOL-v1.md).
 
 ## Status
 
@@ -12,8 +14,8 @@ This is the reference for **implementing against Atom**, whether or not you use 
 | Older peers | **v0.3 accepted**, decided per peer from that peer's own card |
 | Reference SDK | `@a2a-js/sdk@1.0.0`, compat layer enabled on both sides |
 | Atom extension URI | `https://atom.qwixl.dev/a2a/data-object/v1` |
-| Specification | [`draft-chapman-a2a-mls`](./spec/) §Encapsulation (see `-01` working revision; `-00` is the Datatracker first submission) |
-| Conformance vectors | [`spec/vectors/`](./spec/vectors/) — 31, of which 9 cover encapsulation |
+| Specification | [`draft-chapman-a2a-mls`](../../spec/) §Encapsulation (see `-01` working revision; `-00` is the Datatracker first submission) |
+| Conformance vectors | [`spec/vectors/`](../../spec/vectors/) — 31, of which 9 cover encapsulation |
 
 ## Everything is JSON, not types
 
@@ -95,7 +97,7 @@ The duplication is transitional. The inner key exists only for peers and modules
 | `contextId`, `taskId` | Plain strings; omitted when empty, never `null` |
 | `referenceTaskIds` | Present in v1.0; Atom sends it empty |
 
-Declaring the GO extension URI in `extensions` is how v1.0 lets a message say what GO-carrying traffic depends on. Atom's `atomMessage()` stamps it by default; MLS-only sends pass `declareDataObjectExtension: false` and MUST omit it. Do not *require* the member on receipt: a v0.3 peer has no such member, and the media type is what identifies a part. Full GO-only profile: [`spec/extensions/data-object-v1/`](./spec/extensions/data-object-v1/).
+Declaring the GO extension URI in `extensions` is how v1.0 lets a message say what GO-carrying traffic depends on. Atom's `atomMessage()` stamps it by default; MLS-only sends pass `declareDataObjectExtension: false` and MUST omit it. Do not *require* the member on receipt: a v0.3 peer has no such member, and the media type is what identifies a part. Full GO-only profile: [`spec/extensions/data-object-v1/`](../../spec/extensions/data-object-v1/).
 
 ## Agent card
 
@@ -149,7 +151,7 @@ This is tested rather than asserted: `packages/a2a-transport/src/compat.integrat
 
 ## Proving conformance
 
-Governed Object A2A extension (GO-only profile): [`spec/extensions/data-object-v1/`](./spec/extensions/data-object-v1/).
+Governed Object A2A extension (GO-only profile): [`spec/extensions/data-object-v1/`](../../spec/extensions/data-object-v1/).
 
 The encapsulation rules above have machine-readable vectors, so you can check an implementation without coordinating with us:
 
@@ -160,7 +162,7 @@ node spec/vectors/run.mjs
 Vectors `070`–`078` cover the part serialisation specifically: media type in either position, in both, in neither, the conflict case, a text part masquerading as a data part, and a well-formed part of the wrong media type. They are JSON, so an implementation in any language can consume them; the reference runner is JavaScript (`spec/vectors/run.mjs`), and a minimal **Python** second implementation lives at `spec/second-impl/` (hostile mutations at `spec/hostile/`).
 
 
-The vectors are written from the specification text rather than generated from this implementation, which is what lets them disagree with it — and they have twice, each time correctly. See [`spec/vectors/README.md`](./spec/vectors/README.md).
+The vectors are written from the specification text rather than generated from this implementation, which is what lets them disagree with it — and they have twice, each time correctly. See [`spec/vectors/README.md`](../../spec/vectors/README.md).
 
 ## SDK helpers
 

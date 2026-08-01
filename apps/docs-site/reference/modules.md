@@ -10,4 +10,4 @@ pnpm exec atom-registry publish-all   # monorepo helper
 pnpm registry:verify
 ```
 
-See [MODULES.md](https://github.com/Qwixl/Atom/blob/main/MODULES.md) and the [module author tutorial](/guides/module-author-tutorial).
+See [MODULES.md](https://github.com/Qwixl/Atom/blob/main/documents/reference/MODULES.md) and the [module author tutorial](/guides/module-author-tutorial).

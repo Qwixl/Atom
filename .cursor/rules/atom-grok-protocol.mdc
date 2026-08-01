@@ -38,6 +38,13 @@ Not Done because tests pass. Need acceptance evidence, required verification,
 challenger dispositions, honest status terms, backlog/session updates, and a
 handoff with exact next command (`sessions/01-handoff-protocol.md`).
 
+## Public `/documents` (D138)
+
+- Never invent content only under `/documents/`. Private master under
+  `docs/public-source/` first; sanitise; then derive.
+- No documents-only commits or PRs. Public docs ride with substantive work.
+- Do not dump guides at repo root. See `docs/process/09-documents-corpus.md`.
+
 ## Recent failure mode to avoid
 
 Shipping Class B honesty / draft PRs after a design gate **without** a diff

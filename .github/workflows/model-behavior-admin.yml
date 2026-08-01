@@ -98,7 +98,7 @@ jobs:
             - [ ] Confirm family seeds were not deleted unexpectedly
             - [ ] Merge when satisfied (do not auto-merge)
 
-            See [MODEL-BEHAVIOR-ADMIN.md](../blob/main/MODEL-BEHAVIOR-ADMIN.md).
+            See [MODEL-BEHAVIOR-ADMIN.md](https://github.com/Qwixl/Atom/blob/main/documents/ops/MODEL-BEHAVIOR-ADMIN.md).
           branch: chore/model-behavior-admin
           base: staging
           delete-branch: true

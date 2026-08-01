@@ -1,3 +1,5 @@
+<!-- Derived from docs/public-source/ops/LAUNCH-CHECKLIST.md — do not invent here (D138). -->
+
 # M16 launch checklist
 
 Execute after M14 + M15 ship. Do not run the public push before the zero-terminal path and developer on-ramp exist (D040).
@@ -30,4 +32,4 @@ Execute after M14 + M15 ship. Do not run the public push before the zero-termina
 
 ## Not doing
 
-Paid ads, undisclosed influencer coverage, Product Hunt consumer launch, press release without usage proof — see `docs/05-economics/03-adoption-push-m16.md` (private corpus).
+Paid ads, undisclosed influencer coverage, Product Hunt consumer launch, press release without usage proof — see private adoption notes.

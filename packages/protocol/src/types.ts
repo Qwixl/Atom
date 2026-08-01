@@ -1,4 +1,4 @@
-/** Atom data-object wire types (protocol v1). See PROTOCOL-v1.md. */
+/** Atom data-object wire types (protocol v1). See documents/protocol/PROTOCOL-v1.md. */
 
 export type JsonObject = Record<string, unknown>;
 

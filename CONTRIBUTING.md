@@ -9,13 +9,13 @@ By participating you agree to the [Code of Conduct](./CODE_OF_CONDUCT.md).
 | Goal | Doc |
 |---|---|
 | Product overview | [README.md](./README.md) |
-| Developer entry | [DEVELOPERS.md](./DEVELOPERS.md) |
-| Embed the engine | [EMBED.md](./EMBED.md) |
-| Author a module | [MODULES.md](./MODULES.md) |
-| Self-host an agent | [AGENT-BACKEND.md](./AGENT-BACKEND.md) |
+| Developer entry | [DEVELOPERS.md](./documents/guides/DEVELOPERS.md) |
+| Embed the engine | [EMBED.md](./documents/reference/EMBED.md) |
+| Author a module | [MODULES.md](./documents/reference/MODULES.md) |
+| Self-host an agent | [AGENT-BACKEND.md](./documents/guides/AGENT-BACKEND.md) |
 | Security model | [SECURITY.md](./SECURITY.md) |
-| Model behavior admin (ops) | [MODEL-BEHAVIOR-ADMIN.md](./MODEL-BEHAVIOR-ADMIN.md) |
-| Frozen contracts | [API-v1.md](./API-v1.md), [PROTOCOL-v1.md](./PROTOCOL-v1.md) |
+| Model behavior admin (ops) | [MODEL-BEHAVIOR-ADMIN.md](./documents/ops/MODEL-BEHAVIOR-ADMIN.md) |
+| Frozen contracts | [API-v1.md](./documents/reference/API-v1.md), [PROTOCOL-v1.md](./documents/protocol/PROTOCOL-v1.md) |
 
 **Discussions** ([GitHub Discussions](https://github.com/Qwixl/Atom/discussions)) — ideas, Q&A, show-and-tell.  
 **Issues** — bugs and concrete feature proposals (use the templates).  
@@ -69,7 +69,7 @@ Operator-only material (private design notes, local Supabase migration dumps you
 
 - Scaffold: `pnpm registry:scaffold -- --id your-org/widget --out ./tmp/widget`
 - After edits under `apps/shell/public/registry/`: `pnpm registry:publish-all` then `pnpm registry:verify`
-- Production curated listings require integrity + Sigstore bundles — see [SECURITY.md](./SECURITY.md) and [MODULES.md](./MODULES.md)
+- Production curated listings require integrity + Sigstore bundles — see [SECURITY.md](./SECURITY.md) and [MODULES.md](./documents/reference/MODULES.md)
 
 ## License
 

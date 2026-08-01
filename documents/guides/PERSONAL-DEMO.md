@@ -1,3 +1,5 @@
+<!-- Derived from docs/public-source/guides/PERSONAL-DEMO.md — do not invent here (D138). -->
+
 # Personal demo (recommended first run)
 
 One command starts the reference shell and **your** agent backend. Follow the step-by-step panel on the left — your LLM key, your WebCal feed, your real calendar.
@@ -36,4 +38,4 @@ There is no Google Calendar OAuth module in Atom.
 
 ## Not this command
 
-For MLS + automatic proposal from a **counterpart agent**, see [DEMO-PEER.md](./DEMO-PEER.md) (`pnpm dev:demo-peer` + first-run wizard).
+For MLS + automatic proposal from a **counterpart agent**, see [DEMO-PEER.md](DEMO-PEER.md) (`pnpm dev:demo-peer` + first-run wizard).

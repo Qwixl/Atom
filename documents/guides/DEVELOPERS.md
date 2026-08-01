@@ -1,3 +1,5 @@
+<!-- Derived from docs/public-source/guides/DEVELOPERS.md — do not invent here (D138). -->
+
 # Atom developer guide
 
 Public entry point for building on the Atom platform (M14). Full API reference lives in the repo root markdown files and the docs site (`pnpm dev:docs`).
@@ -10,26 +12,26 @@ MCP Apps and vendor app SDKs put your widget inside an AI vendor's chat product 
 
 | Goal | Start here |
 |---|---|
-| Run an agent backend | `npx @qwixl/agent-backend` — [AGENT-BACKEND.md](./AGENT-BACKEND.md) |
-| Join the network as an external peer | [JOIN-AS-PEER.md](./JOIN-AS-PEER.md) — `pnpm dev:external-peer` |
-| Try MLS + scheduling | [PERSONAL-DEMO.md](./PERSONAL-DEMO.md) — `pnpm dev:demo` |
-| Demo peer (counterpart agent) | [DEMO-PEER.md](./DEMO-PEER.md) — `pnpm dev` → `/demo` or `pnpm dev:demo-peer` |
-| Embed the shell | [EMBED.md](./EMBED.md) |
-| Build a module | [MODULES.md](./MODULES.md) — tutorial at `apps/docs-site/guides/module-author-tutorial.md` |
+| Run an agent backend | `npx @qwixl/agent-backend` — [AGENT-BACKEND.md](AGENT-BACKEND.md) |
+| Join the network as an external peer | [JOIN-AS-PEER.md](JOIN-AS-PEER.md) — `pnpm dev:external-peer` |
+| Try MLS + scheduling | [PERSONAL-DEMO.md](PERSONAL-DEMO.md) — `pnpm dev:demo` |
+| Demo peer (counterpart agent) | [DEMO-PEER.md](DEMO-PEER.md) — `pnpm dev` → `/demo` or `pnpm dev:demo-peer` |
+| Embed the shell | [EMBED.md](../reference/EMBED.md) |
+| Build a module | [MODULES.md](../reference/MODULES.md) — tutorial at `apps/docs-site/guides/module-author-tutorial.md` |
 | Build a connector | `apps/docs-site/guides/connector-author-tutorial.md` |
 | Playground | `pnpm dev:embed` → http://localhost:5203/?playground=1 |
 | Docs site | `pnpm dev:docs` → http://localhost:5206 |
-| Wire protocol | [PROTOCOL-v1.md](./PROTOCOL-v1.md) |
-| A2A v1.0 on the wire | [A2A-v1.md](./A2A-v1.md) — parts, messages, cards, negotiation, conformance vectors |
-| Security posture | [SECURITY.md](./SECURITY.md) |
-| Model behavior admin (ops) | [MODEL-BEHAVIOR-ADMIN.md](./MODEL-BEHAVIOR-ADMIN.md) — classes + cron script; not a Settings feature |
-| M16 launch gates | [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md) |
+| Wire protocol | [PROTOCOL-v1.md](../protocol/PROTOCOL-v1.md) |
+| A2A v1.0 on the wire | [A2A-v1.md](../protocol/A2A-v1.md) — parts, messages, cards, negotiation, conformance vectors |
+| Security posture | [SECURITY.md](../../SECURITY.md) |
+| Model behavior admin (ops) | [MODEL-BEHAVIOR-ADMIN.md](../ops/MODEL-BEHAVIOR-ADMIN.md) — classes + cron script; not a Settings feature |
+| M16 launch gates | [LAUNCH-CHECKLIST.md](../ops/LAUNCH-CHECKLIST.md) |
 
 ## Hosting security (M21)
 
 This repo’s `apps/control-plane` is a **local stub** only (`HOSTED_STUB_*`). Commercial hosted fleets are out of scope here — self-host the agent, or point the shell at your own control plane.
 
-Before registry deploy: `pnpm registry:verify --require-integrity --signatures`. Publisher/Sigstore keys are CI secrets only — see [SECURITY.md](./SECURITY.md) § Registry publisher hygiene.
+Before registry deploy: `pnpm registry:verify --require-integrity --signatures`. Publisher/Sigstore keys are CI secrets only — see [SECURITY.md](../../SECURITY.md) § Registry publisher hygiene.
 
 Shell production guard: `scripts/verify-production-shell.mjs` runs on every `pnpm --filter @qwixl/shell-app build`.
 

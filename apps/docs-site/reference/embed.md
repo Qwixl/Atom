@@ -6,6 +6,6 @@ Import `@qwixl/shell-core` and `@qwixl/renderer-web`, register the catalog, reso
 pnpm add @qwixl/shell-core @qwixl/renderer-web react
 ```
 
-See [EMBED.md](https://github.com/Qwixl/Atom/blob/main/EMBED.md) for a under-one-hour integration path.
+See [EMBED.md](https://github.com/Qwixl/Atom/blob/main/documents/reference/EMBED.md) for a under-one-hour integration path.
 
 Reference implementation: `apps/embed-demo` (`pnpm dev:embed`).

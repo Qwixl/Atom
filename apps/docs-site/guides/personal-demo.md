@@ -16,6 +16,6 @@ Open `http://localhost:5200` and follow the numbered panel on the left:
 
 Read-only calendar via WebCal; no Google OAuth module.
 
-Full detail: [PERSONAL-DEMO.md](https://github.com/Qwixl/Atom/blob/main/PERSONAL-DEMO.md).
+Full detail: [PERSONAL-DEMO.md](https://github.com/Qwixl/Atom/blob/main/documents/guides/PERSONAL-DEMO.md).
 
 For MLS + counterpart agent, see [Demo peer agent](./demo-peer.md).

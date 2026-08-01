@@ -56,6 +56,8 @@ Ask for or locate:
 - [ ] Status terms honest (not Done for Designed/Implemented-only)
 - [ ] As-built / backlog / session handoff updated
 - [ ] No stronger docs claim than implementation
+- [ ] `/documents/` changes (if any) derive from `docs/public-source/` masters;
+      no invent-only public files; not a documents-only PR (D138)
 
 ## Output format
 

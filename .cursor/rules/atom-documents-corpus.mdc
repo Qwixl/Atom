@@ -1,0 +1,39 @@
+---
+description: Public /documents corpus — derived from private /docs only; no documents-only PRs (D138)
+alwaysApply: true
+---
+
+# Atom public documents corpus (non-negotiable)
+
+Full policy: `docs/process/09-documents-corpus.md` (D138). Protocol §9.
+
+## Dual corpus
+
+| Tree | Visibility | Role |
+|---|---|---|
+| `/docs/` | Private (gitignored) | Programme truth, sessions, decisions, **public-source masters** |
+| `/documents/` | Public (tracked) | Sanitised derivations for outsiders |
+
+## Hard rules
+
+1. **Never invent into `/documents/`.** Edit `docs/public-source/…` (or another
+   `/docs/` master) first; then derive the public file.
+2. **Sanitise.** No private `/docs/` links, decision-log deep links, secrets,
+   session/backlog state, or operator runbooks that are not needed for public
+   understanding.
+3. **No documents-only commits/PRs.** Do not open a commit or PR whose only
+   meaningful changes are under `/documents/`. Public docs ride with
+   substantive work (code, `spec/`, protocol/rules, CI, packages).
+4. **Clean root.** Do not add product/protocol guides at repo root. Root keeps
+   only `README.md`, `LICENSE`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`,
+   `SECURITY.md` (plus build files). New public guides go under
+   `documents/{protocol,guides,reference,ops}/`.
+
+## Layout
+
+- `documents/protocol/` — wire contracts
+- `documents/guides/` — how-to
+- `documents/reference/` — API / modules / embed
+- `documents/ops/` — intentional public maintainer docs
+
+Violating these rules is a protocol failure — same class as skipping challengers.

@@ -1,3 +1,5 @@
+<!-- Derived from docs/public-source/reference/MODULES.md — do not invent here (D138). -->
+
 # Publish a shell module
 
 Modules are **pure renderers**: sandboxed iframe bundles registered in a static index. The public registry host is [atom.registry.qwixl.com](https://atom.registry.qwixl.com).
@@ -23,7 +25,7 @@ The curated store at [atom.registry.qwixl.com](https://atom.registry.qwixl.com) 
 - Terrorist facilitation or violent extremism
 - CSAM or sexual abuse material
 
-Third-party registries are owner-controlled; Atom cannot centrally block them. Owners who add a custom index accept responsibility for what they install. Report abuse on the reference store via **Settings → Registry → Report** on a catalog row (control plane intake) or the project security contact in [SECURITY.md](./SECURITY.md). Operators follow the revocation runbook under `docs/04-security/06-registry-revocation-runbook.md` (private working tree).
+Third-party registries are owner-controlled; Atom cannot centrally block them. Owners who add a custom index accept responsibility for what they install. Report abuse on the reference store via **Settings → Registry → Report** on a catalog row (control plane intake) or the project security contact in [SECURITY.md](../../SECURITY.md). Operators follow the private registry-revocation runbook.
 
 PRs to the reference registry must pass `pnpm registry:verify` in CI (`--require-integrity --signatures --require-signatures --require-publisher` + trusted publisher allowlist + bundle scan). Duplicate `id@version` rows in `index.json` fail verification. Soft CI remains available as `pnpm registry:verify:soft`.
 
@@ -54,7 +56,7 @@ Self-hosted shells may configure trust when loading a custom registry index:
 | `trustedPublishers` | reference + curated demo DIDs on production | When set, only manifests whose `publisher` DID is in the list may install |
 | `blockedIds` | unset | Owner denylist of module ids (Settings → Registry) |
 
-Production shell (`atom.qwixl.com`) pins the reference registry and does not expose custom index URLs. It sets `trustedPublishers` + `requireSignature: true`. Enterprise embedders set policy via host config — see [SECURITY.md](./SECURITY.md) § Registry install checks.
+Production shell (`atom.qwixl.com`) pins the reference registry and does not expose custom index URLs. It sets `trustedPublishers` + `requireSignature: true`. Enterprise embedders set policy via host config — see [SECURITY.md](../../SECURITY.md) § Registry install checks.
 
 ## Scaffold
 
@@ -97,7 +99,7 @@ Optional `pricing` on `manifest.json` and mirrored on the index entry:
 
 Omit `pricing` or set `"model": "free"` for free modules. Paid modules set `purchaseUrl` (and optionally an entitlement certificate at install). Owners can install from any compliant registry URL — including the commercial Atom Apps registry (`https://atom.apps.qwixl.com/registry/index.json`) via the shell Install / App Store handoff. See [Atom Apps publish docs](https://atom.apps.qwixl.com/docs/publish) for packaging modules for that registry.
 
-Governance of the open registry protocol: `06-decisions-log.md#d029`.
+Governance of the open registry protocol: the decisions log (private).
 
 ## iframe bridge
 
@@ -107,7 +109,7 @@ Governance of the open registry protocol: `06-decisions-log.md#d029`.
 
 What the sandbox does **not** cover: declared event names are enforced by `SurfaceRenderer`, but the Messages/Chat embed (`CommsModuleEmbed`) forwards whatever the frame posts — the manifest list is a contract you keep, not a filter applied on every path. Network access is not blocked by the iframe sandbox either; it depends on the CSP of whichever host actually serves your bundle, which is a deployment property. The reference registry host sends `default-src 'none'`, and the commercial Atom Apps registry serves module files from its own origin under the same policy as well as rejecting network primitives (`fetch`, XHR, WebSocket, `sendBeacon`, remote scripts) at publish time. If you serve bundles from a host that sends no CSP, nothing restricts them — so verify with `curl -I` against a real module URL rather than trusting a `vercel.json` in the repo, because the project that owns the config is not always the project that answers the request.
 
-See [API-v1.md](./API-v1.md#module-sandbox-web-v1) for the full sandbox contract.
+See [API-v1.md](API-v1.md#module-sandbox-web-v1) for the full sandbox contract.
 
 ## CLI reference
 
@@ -140,4 +142,4 @@ External developers hosting their own registry only run `publish` on their modul
 
 ## Example module
 
-Reference: [`apps/shell/public/registry/travel/seat-map/`](./apps/shell/public/registry/travel/seat-map/) and bundle at [`apps/shell/public/modules/travel-seat-map/`](./apps/shell/public/modules/travel-seat-map/).
+Reference: [`apps/shell/public/registry/travel/seat-map/`](../../apps/shell/public/registry/travel/seat-map/) and bundle at [`apps/shell/public/modules/travel-seat-map/`](../../apps/shell/public/modules/travel-seat-map/).

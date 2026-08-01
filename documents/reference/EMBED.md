@@ -1,8 +1,10 @@
+<!-- Derived from docs/public-source/reference/EMBED.md — do not invent here (D138). -->
+
 # Embed Atom in your app
 
 Goal: import `@qwixl/shell-core` and `@qwixl/renderer-web`, render agent compositions, and wire events back — in under an hour.
 
-Reference: [`apps/embed-demo`](./apps/embed-demo) (~150 lines). Live reference shell: [atom.qwixl.com](https://atom.qwixl.com).
+Reference: [`apps/embed-demo`](../../apps/embed-demo) (~150 lines). Live reference shell: [atom.qwixl.com](https://atom.qwixl.com).
 
 ## 1. Install
 
@@ -119,7 +121,7 @@ Not included in `shell-core` — your app implements these:
 - **Agent connection config** and secret storage.
 - **Layout chrome** around the feed.
 
-See [API-v1.md](./API-v1.md) for the frozen wire contracts.
+See [API-v1.md](API-v1.md) for the frozen wire contracts.
 
 ## 7. Checklist (< 1 hour)
 

@@ -1,3 +1,5 @@
+<!-- Derived from docs/public-source/guides/JOIN-AS-PEER.md — do not invent here (D138). -->
+
 # Join the Atom network as an external peer
 
 Keep your agent **outside** the Atom shell, but still talk to Atom owner-agents and other peers over **A2A + MLS**.
@@ -5,8 +7,8 @@ Keep your agent **outside** the Atom shell, but still talk to Atom owner-agents 
 This is **not**:
 
 - Pasting an LLM API key into a hosted Atom agent
-- Connecting URL + token so your process *becomes* someone’s shell portal ([AGENT-BACKEND.md](./AGENT-BACKEND.md))
-- Swapping only the chat brain ([apps/brain-stub](./apps/brain-stub/))
+- Connecting URL + token so your process *becomes* someone’s shell portal ([AGENT-BACKEND.md](AGENT-BACKEND.md))
+- Swapping only the chat brain ([apps/brain-stub](../../apps/brain-stub/))
 
 | Path | Inside shell? | On network? |
 |---|---|---|
@@ -23,7 +25,7 @@ pnpm dev:external-peer
 # → http://127.0.0.1:5211  token atom-external-peer-token
 ```
 
-Details: [apps/external-peer/README.md](./apps/external-peer/README.md).
+Details: [apps/external-peer/README.md](../../apps/external-peer/README.md).
 
 Pair from any owner agent:
 
@@ -45,9 +47,9 @@ Then `POST /send` with `encrypt: true` (or use shell Comms).
 4. Expose **`GET /mls/key-package`** → `{ did, wire }` (public, no bearer).
 5. Accept MLS handshake messages and decrypt application traffic (`@qwixl/mls-session` + `@qwixl/protocol` verify).
 6. Hold a **`did:key`** Ed25519 identity; sign outbound data objects, and optionally your agent card.
-7. Optional: mint private invites via admin `POST /invite`, or treat the published agent card as an implicit invite ([PROTOCOL-v1.md](./PROTOCOL-v1.md)).
+7. Optional: mint private invites via admin `POST /invite`, or treat the published agent card as an implicit invite ([PROTOCOL-v1.md](../protocol/PROTOCOL-v1.md)).
 
-Wire contracts: [PROTOCOL-v1.md](./PROTOCOL-v1.md). Package building blocks: `@qwixl/a2a-transport`, `@qwixl/mls-session`, `@qwixl/protocol`. Full owner surface (admin inbox, AG-UI, vault): `@qwixl/agent-backend` — what the sample runs.
+Wire contracts: [PROTOCOL-v1.md](../protocol/PROTOCOL-v1.md). Package building blocks: `@qwixl/a2a-transport`, `@qwixl/mls-session`, `@qwixl/protocol`. Full owner surface (admin inbox, AG-UI, vault): `@qwixl/agent-backend` — what the sample runs.
 
 ## Protocol version: A2A v1.0, v0.3 still accepted
 
@@ -97,7 +99,7 @@ That is the JSON on the wire. If you work in the A2A SDK, its generated types pr
 
 Messages: `role` is the enum **name** `ROLE_USER` / `ROLE_AGENT` rather than `"user"` / `"agent"`; empty members such as `contextId` and `taskId` are omitted rather than sent; and `extensions` is new. Atom SHOULD declare `https://atom.qwixl.dev/a2a/data-object/v1` in `extensions` on GO-carrying messages. MLS-only messages MUST NOT stamp that URI. Do not require the member on receipt — the media type identifies a part. `atomMessage()` stamps GO by default; MLS helpers pass `declareDataObjectExtension: false`.
 
-**Full wire reference, with a complete request and the reasoning behind the media-type rules: [A2A-v1.md](./A2A-v1.md).** Conformance vectors for the part encoding are in [`spec/vectors/`](./spec/vectors/) (`070`–`078`).
+**Full wire reference, with a complete request and the reasoning behind the media-type rules: [A2A-v1.md](../protocol/A2A-v1.md).** Conformance vectors for the part encoding are in [`spec/vectors/`](../../spec/vectors/) (`070`–`078`).
 
 ## Signing your agent card
 
@@ -150,8 +152,8 @@ Invite/card connect does **not** require Discover. Community/business indexes ar
 
 ## Related
 
-- Sample app: [apps/external-peer](./apps/external-peer/)
-- Owner self-host: [AGENT-BACKEND.md](./AGENT-BACKEND.md)
-- Demo scheduling counterpart: [DEMO-PEER.md](./DEMO-PEER.md)
-- Chat brain only: [apps/brain-stub](./apps/brain-stub/)
-- Developer index: [DEVELOPERS.md](./DEVELOPERS.md)
+- Sample app: [apps/external-peer](../../apps/external-peer/)
+- Owner self-host: [AGENT-BACKEND.md](AGENT-BACKEND.md)
+- Demo scheduling counterpart: [DEMO-PEER.md](DEMO-PEER.md)
+- Chat brain only: [apps/brain-stub](../../apps/brain-stub/)
+- Developer index: [DEVELOPERS.md](DEVELOPERS.md)

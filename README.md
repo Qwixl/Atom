@@ -32,9 +32,9 @@ Two ways to use Atom — pick one and stay in it:
 
 Self-host with npm: `npx @qwixl/agent-backend` (terminal) or pair with [atom.qwixl.com](https://atom.qwixl.com) (browser).
 
-Try the **personal demo** (LLM + WebCal + scheduling): `pnpm dev:demo` — [PERSONAL-DEMO.md](./PERSONAL-DEMO.md). For MLS with a counterpart agent, see [DEMO-PEER.md](./DEMO-PEER.md).
+Try the **personal demo** (LLM + WebCal + scheduling): `pnpm dev:demo` — [PERSONAL-DEMO.md](./documents/guides/PERSONAL-DEMO.md). For MLS with a counterpart agent, see [DEMO-PEER.md](./documents/guides/DEMO-PEER.md).
 
-Developer docs (tutorial, playground, modules): run `pnpm dev:docs` or read [DEVELOPERS.md](./DEVELOPERS.md).
+Developer docs (tutorial, playground, modules): run `pnpm dev:docs` or read [DEVELOPERS.md](./documents/guides/DEVELOPERS.md).
 
 ## Governed Object A2A extension (v1)
 
@@ -98,7 +98,7 @@ pnpm add @qwixl/shell-core @qwixl/renderer-web react
 pnpm add @qwixl/a2ui-adapter @qwixl/ag-ui-adapter @qwixl/owner-store
 ```
 
-Build your app with any bundler that resolves the package `development` export condition in dev (Vite, etc.). See **[EMBED.md](./EMBED.md)** for a <1 hour integration guide.
+Build your app with any bundler that resolves the package `development` export condition in dev (Vite, etc.). See **[EMBED.md](./documents/reference/EMBED.md)** for a <1 hour integration guide.
 
 ## Guides
 
@@ -106,20 +106,21 @@ Build your app with any bundler that resolves the package `development` export c
 |---|---|
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | How to contribute (issues, PRs, principles) |
 | [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) | Community standards |
-| [EMBED.md](./EMBED.md) | Third-party hosts embedding the engine |
-| [MODULES.md](./MODULES.md) | Module authors publishing to a registry |
-| [API-v1.md](./API-v1.md) | Frozen v1 contracts (composition, session, manifest, sandbox) |
-| [AGENT-BACKEND.md](./AGENT-BACKEND.md) | Self-hosting the owner agent backend |
-| [JOIN-AS-PEER.md](./JOIN-AS-PEER.md) | Join the network as an external peer (no shell portal) |
-| [DEVELOPERS.md](./DEVELOPERS.md) | M14 developer platform entry |
-| [MODEL-BEHAVIOR-ADMIN.md](./MODEL-BEHAVIOR-ADMIN.md) | Ops: model behavior classes + maintenance script (not product UI) |
-| [PERSONAL-DEMO.md](./PERSONAL-DEMO.md) | Guided personal demo (`pnpm dev:demo`) |
-| [DEMO-PEER.md](./DEMO-PEER.md) | Live demo counterpart agent (M14.6) |
-| [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md) | M16 public push gates |
-| [PROTOCOL-v1.md](./PROTOCOL-v1.md) | Frozen v1 data-object + did:key contracts |
-| [A2A-v1.md](./A2A-v1.md) | A2A v1.0 on the wire: parts, messages, cards, version negotiation |
+| [documents/](./documents/README.md) | Public guides & contracts index |
+| [EMBED.md](./documents/reference/EMBED.md) | Third-party hosts embedding the engine |
+| [MODULES.md](./documents/reference/MODULES.md) | Module authors publishing to a registry |
+| [API-v1.md](./documents/reference/API-v1.md) | Frozen v1 contracts (composition, session, manifest, sandbox) |
+| [AGENT-BACKEND.md](./documents/guides/AGENT-BACKEND.md) | Self-hosting the owner agent backend |
+| [JOIN-AS-PEER.md](./documents/guides/JOIN-AS-PEER.md) | Join the network as an external peer (no shell portal) |
+| [DEVELOPERS.md](./documents/guides/DEVELOPERS.md) | M14 developer platform entry |
+| [MODEL-BEHAVIOR-ADMIN.md](./documents/ops/MODEL-BEHAVIOR-ADMIN.md) | Ops: model behavior classes + maintenance script (not product UI) |
+| [PERSONAL-DEMO.md](./documents/guides/PERSONAL-DEMO.md) | Guided personal demo (`pnpm dev:demo`) |
+| [DEMO-PEER.md](./documents/guides/DEMO-PEER.md) | Live demo counterpart agent (M14.6) |
+| [LAUNCH-CHECKLIST.md](./documents/ops/LAUNCH-CHECKLIST.md) | M16 public push gates |
+| [PROTOCOL-v1.md](./documents/protocol/PROTOCOL-v1.md) | Frozen v1 data-object + did:key contracts |
+| [A2A-v1.md](./documents/protocol/A2A-v1.md) | A2A v1.0 on the wire: parts, messages, cards, version negotiation |
 | [SECURITY.md](./SECURITY.md) | Threat model for shipped surface |
-| [SECRET-STORE.md](./SECRET-STORE.md) | Credential adapter priority for embedders |
+| [SECRET-STORE.md](./documents/ops/SECRET-STORE.md) | Credential adapter priority for embedders |
 
 Live hosts: [atom.qwixl.com](https://atom.qwixl.com) · [atom.registry.qwixl.com](https://atom.registry.qwixl.com)
 

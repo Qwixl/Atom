@@ -3,7 +3,8 @@
  *
  * v1 ships minimal engines to prove product loops. Production backends swap via
  * env/factory without changing admin routes or protocol surfaces. See
- * docs/02-architecture/20-v1-production-gaps.md (private) and AGENT-BACKEND.md § V1 scope.
+ * docs/02-architecture/20-v1-production-gaps.md (private) and
+ * documents/guides/AGENT-BACKEND.md § V1 scope.
  */
 
 /** How the current implementation persists data. */

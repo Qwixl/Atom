@@ -1,3 +1,5 @@
+<!-- Derived from docs/public-source/guides/AGENT-BACKEND.md — do not invent here (D138). -->
+
 # Self-hosting the Atom agent backend
 
 Owner-controlled agent backend for Phase 1 private comms: **did:key** identity, signed data objects, **MLS E2E** over **A2A**. MLS keys and signing keys never enter the browser shell (D017).
@@ -28,7 +30,7 @@ Owner-controlled agent backend for Phase 1 private comms: **did:key** identity, 
 | `/.well-known/agent-card.json` | A2A agent card (v1.0; v0.3-shaped card served to legacy requests) |
 | `/a2a/jsonrpc` | A2A JSON-RPC transport — one path for both v1.0 and v0.3, dispatched on the `A2A-Version` header |
 
-Wire contracts: [PROTOCOL-v1.md](./PROTOCOL-v1.md).
+Wire contracts: [PROTOCOL-v1.md](../protocol/PROTOCOL-v1.md).
 
 ## Admin API authentication (M13)
 
@@ -254,7 +256,7 @@ With business mode enabled, inbound `commerce:intent` objects are matched agains
 
 Domain verification (tier 1, D039): publish DNS TXT at `_atom.<domain>` with `atom-did=<agent-did>`, or serve a matching agent card at `https://<domain>/.well-known/agent-card.json`. For local dev, set `ATOM_BUSINESS_DOMAIN=example.com` to grant tier 1 without DNS.
 
-Well-known verification also checks the **agent card signature** (A2A v1.0). When a fetched card carries `signatures`, the signature must verify **and** the signer DID must equal the agent DID being verified — otherwise verification fails. Previously HTTPS proved control of the domain but nothing about the agent, so any host could publish a card claiming any agent's DID. Unsigned cards keep the previous behaviour rather than being rejected, because peers on A2A v0.3 cannot sign a card at all. Atom signs its own card with the agent's `did:key`, so the verifying key is resolved from the DID itself — no key server or JWKS endpoint. See [PROTOCOL-v1.md](./PROTOCOL-v1.md).
+Well-known verification also checks the **agent card signature** (A2A v1.0). When a fetched card carries `signatures`, the signature must verify **and** the signer DID must equal the agent DID being verified — otherwise verification fails. Previously HTTPS proved control of the domain but nothing about the agent, so any host could publish a card claiming any agent's DID. Unsigned cards keep the previous behaviour rather than being rejected, because peers on A2A v0.3 cannot sign a card at all. Atom signs its own card with the agent's `did:key`, so the verifying key is resolved from the DID itself — no key server or JWKS endpoint. See [PROTOCOL-v1.md](../protocol/PROTOCOL-v1.md).
 
 | Variable | Default | Description |
 |---|---|---|
@@ -287,7 +289,7 @@ PORT=5205 PUBLIC_BASE_URL=http://127.0.0.1:5205 pnpm start:agent
 
 In the shell **Comms** panel on each side: copy invite from A, connect from B, send encrypted messages.
 
-To join the network as a **peer** without running a second owner portal (no shell URL+token on the peer side), see [JOIN-AS-PEER.md](./JOIN-AS-PEER.md) and `pnpm dev:external-peer`.
+To join the network as a **peer** without running a second owner portal (no shell URL+token on the peer side), see [JOIN-AS-PEER.md](JOIN-AS-PEER.md) and `pnpm dev:external-peer`.
 
 ## Security notes
 
@@ -317,9 +319,9 @@ Many subsystems ship **v1 engines** to prove product loops before production sca
 - Module store: beta-free flag; no in-app billing yet.
 - Hosted signup in this repo: local control-plane stub only (`pnpm dev:hosting`).
 
-Full inventory (private working doc): `docs/02-architecture/20-v1-production-gaps.md`. Decision: D048.
+Production-gap inventory is maintained privately; shipped contracts are described here.
 
 ## Related
 
-- [PROTOCOL-v1.md](./PROTOCOL-v1.md) — data objects, MLS, invitations
-- [SECRET-STORE.md](./SECRET-STORE.md) — shell credential adapters (separate from agent keys)
+- [PROTOCOL-v1.md](../protocol/PROTOCOL-v1.md) — data objects, MLS, invitations
+- [SECRET-STORE.md](../ops/SECRET-STORE.md) — shell credential adapters (separate from agent keys)

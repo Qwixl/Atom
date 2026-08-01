@@ -1,3 +1,5 @@
+<!-- Derived from docs/public-source/ops/MODEL-BEHAVIOR-ADMIN.md — do not invent here (D138). -->
+
 # Model behavior administration
 
 **Internal ops / maintenance — not a product Settings feature.**
@@ -17,7 +19,7 @@ Anyone forking or running locally gets this machinery. **API keys never ship in 
 | `tool-shy` | Models that answer from context instead of invoking | `tool_choice: auto`, alias on, **strong invoke** system addendum |
 | `local-slm` | Small / local models with weaker tool+JSON discipline | `tool_choice: auto`, alias **off** (fewer tools), local-slm protocol addendum |
 
-Source of truth: [`packages/agent-llm/src/modelBehaviorRegistry.json`](./packages/agent-llm/src/modelBehaviorRegistry.json)  
+Source of truth: [`packages/agent-llm/src/modelBehaviorRegistry.json`](../../packages/agent-llm/src/modelBehaviorRegistry.json)  
 Resolver: `@qwixl/agent-llm` → `resolveModelBehavior(modelId)` (exact bare id → longest family pattern → `balanced`).
 
 ### Exact vs family

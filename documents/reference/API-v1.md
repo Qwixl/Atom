@@ -1,3 +1,5 @@
+<!-- Derived from docs/public-source/reference/API-v1.md — do not invent here (D138). -->
+
 # Atom platform API v1 (frozen)
 
 **Status:** frozen as of platform v0.1.0. Breaking changes to these contracts require a major semver bump and a migration note.
@@ -102,7 +104,7 @@ interface RegistryRevocations {
 
 ## Secret storage
 
-Hosts resolve LLM and other credentials via the `SecretStore` interface. Adapter priority: host inject → `localStorage` (dev) → memory. See [SECRET-STORE.md](./SECRET-STORE.md).
+Hosts resolve LLM and other credentials via the `SecretStore` interface. Adapter priority: host inject → `localStorage` (dev) → memory. See [SECRET-STORE.md](../ops/SECRET-STORE.md).
 
 ## Module sandbox (web v1)
 
@@ -146,6 +148,6 @@ Registered by `registerCorePrimitives()`: `core/text`, `core/heading`, `core/ima
 
 ## References
 
-- Embed guide: [EMBED.md](./EMBED.md)
-- Module author guide: [MODULES.md](./MODULES.md)
+- Embed guide: [EMBED.md](EMBED.md)
+- Module author guide: [MODULES.md](MODULES.md)
 - Contract tests: `packages/shell-core/src/contracts.test.ts`

@@ -1,8 +1,10 @@
+<!-- Derived from docs/public-source/protocol/PROTOCOL-v1.md — do not invent here (D138). -->
+
 # Atom protocol v1 (data objects + identity)
 
 **Status:** frozen as of `@qwixl/protocol@0.1.0`. Breaking changes require major semver and a migration note.
 
-Decisions: `06-decisions-log.md#d022` (did:key), `#d024` (governance), `#d023`/`#d025` (MLS E2E on agent backend).
+Decisions: the decisions log (private) (did:key), `#d024` (governance), `#d023`/`#d025` (MLS E2E on agent backend).
 
 ## Data object (`DataObject`, v1)
 
@@ -63,7 +65,7 @@ When `semantic.schema` is unknown, hosts MAY use vector similarity against `embe
 **Protocol version:** A2A **v1.0** (spec GA 2026-07-22, `@a2a-js/sdk@1.0.0`). v0.3 peers remain supported through the SDK's opt-in compat layer, enabled on both sides — see [Protocol version and v0.3 compatibility](#protocol-version-and-v03-compatibility).
 
 - Signed `DataObject` payloads travel in A2A `data` parts with `mediaType` `application/vnd.atom.data-object+json;version=1`, carried both on the part and in the envelope `{ mediaType, object }` (`@qwixl/a2a-transport`).
-- Reference agent backend: `pnpm start:agent` or `npx @qwixl/agent-backend` → `http://127.0.0.1:5204` (JSON-RPC at `/a2a/jsonrpc`, admin at `/inbox`, `/send`). See [AGENT-BACKEND.md](./AGENT-BACKEND.md).
+- Reference agent backend: `pnpm start:agent` or `npx @qwixl/agent-backend` → `http://127.0.0.1:5204` (JSON-RPC at `/a2a/jsonrpc`, admin at `/inbox`, `/send`). See [AGENT-BACKEND.md](../guides/AGENT-BACKEND.md).
 - Verification on receive: `verifyMessageDataObjects()` with purpose allowlist.
 - MLS wire parts: `mlsWireToPart()` / `parseMlsWireFromPart()` for encrypted payloads (handshake + application messages).
 - MLS handshake: `sendMlsHandshake()` delivers Welcome + ratchet tree; `POST /mls/connect` on reference agent orchestrates pair setup.
@@ -81,7 +83,7 @@ Atom payloads travel in A2A `data` parts. On the wire:
 
 **Decision:** the media type is written in **both** positions and read from **either**, and a part whose two declarations *disagree* is rejected rather than resolved in favour of one. Routes rejected: the **part member only** — cleanest wire, but breaks peers and modules reading the envelope key; the **envelope key only** — leaves Atom parts opaque to generic A2A tooling; **preferring one member on conflict** — makes a message mean different things to receivers that read different members, which a sender can exploit to choose which peer acts (conformance vector `073`). The duplication is transitional; the envelope key can be dropped once no peer reads it. Codec: `toAtomDataPart()` / `readAtomDataPart()`.
 
-Note the wire JSON is not the generated type: the SDK presents part content as a tagged union and `role` as a numeric enum, and neither is observable by a peer. Full wire reference: [A2A-v1.md](./A2A-v1.md).
+Note the wire JSON is not the generated type: the SDK presents part content as a tagged union and `role` as a numeric enum, and neither is observable by a peer. Full wire reference: [A2A-v1.md](A2A-v1.md).
 
 Messages: `role` is the enum name `ROLE_USER` / `ROLE_AGENT`; empty members are omitted rather than sent; `extensions` and `referenceTaskIds` are new. Atom SHOULD declare `https://atom.qwixl.dev/a2a/data-object/v1` in `extensions` on GO-carrying traffic (`atomMessage()` stamps it by default); MLS-only messages MUST NOT stamp that URI. No receiver requires the member — the media type identifies a part.
 

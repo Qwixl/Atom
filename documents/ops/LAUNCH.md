@@ -1,13 +1,15 @@
+<!-- Derived from docs/public-source/ops/LAUNCH.md — do not invent here (D138). -->
+
 # Launch — Phase 1 private comms (M7)
 
-Open-source, privacy-first, owner-controlled agent-to-agent communications. Positioning per [D006](docs/06-decisions-log.md#d006) and trust-ladder Phase 1 ([docs/02-architecture/03-trust-ladder.md](docs/02-architecture/03-trust-ladder.md)).
+Open-source, privacy-first, owner-controlled agent-to-agent communications. Positioning: open-source, privacy-first, owner-controlled Phase-1 communications.
 
 ## What ships in M7
 
 | Layer | What | How to run |
 |---|---|---|
 | **Protocol** | Signed data objects, `did:key`, MLS E2E, invitation tokens | `@qwixl/protocol`, `@qwixl/a2a-transport`, `@qwixl/mls-session` on npm |
-| **Agent backend** | A2A transport, MLS, admin API, optional AG-UI LLM | `npx @qwixl/agent-backend` or [AGENT-BACKEND.md](./AGENT-BACKEND.md) |
+| **Agent backend** | A2A transport, MLS, admin API, optional AG-UI LLM | `npx @qwixl/agent-backend` or [AGENT-BACKEND.md](../guides/AGENT-BACKEND.md) |
 | **Reference shell** | Comms panel, profile/owner store, AG-UI + mock providers | `pnpm dev` (monorepo) or [atom.qwixl.com](https://atom.qwixl.com) |
 
 No commerce, no payments, no centralized identity operator.
@@ -59,7 +61,7 @@ npx @qwixl/agent-backend
 
 ## Related public docs
 
-- [PROTOCOL-v1.md](./PROTOCOL-v1.md) — wire contracts
-- [AGENT-BACKEND.md](./AGENT-BACKEND.md) — self-hosting
-- [SECRET-STORE.md](./SECRET-STORE.md) — credential adapters (D027)
-- [EMBED.md](./EMBED.md) — embed `@qwixl/shell-core` in your product
+- [PROTOCOL-v1.md](../protocol/PROTOCOL-v1.md) — wire contracts
+- [AGENT-BACKEND.md](../guides/AGENT-BACKEND.md) — self-hosting
+- [SECRET-STORE.md](SECRET-STORE.md) — credential adapters (D027)
+- [EMBED.md](../reference/EMBED.md) — embed `@qwixl/shell-core` in your product
