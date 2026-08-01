@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atom.qwixl.dev/a2a/offline-delivery/v1/schemas/agent-extension.json",
+  "title": "AgentExtension declaration for Offline Delivery v1",
+  "description": "Shape of the capabilities.extensions entry for https://atom.qwixl.dev/a2a/offline-delivery/v1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["uri", "description", "required", "params"],
+  "properties": {
+    "uri": {
+      "type": "string",
+      "const": "https://atom.qwixl.dev/a2a/offline-delivery/v1"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "required": {
+      "type": "boolean",
+      "const": false
+    },
+    "params": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["sleep", "hourly_wake"]
+        }
+      }
+    }
+  }
+}
