@@ -96,6 +96,47 @@ describe("BUS-01 adversarial — A1 hold fallback", () => {
     }
   });
 
+  it("BUS-01-HOLD-GATE rejects known pending Mode H subject without offer- prefix", async () => {
+    let placeHoldCalled = false;
+    const app = express();
+    app.use(express.json());
+    registerTransactionAdminRoutes(app, {
+      stripeSecretKey: null,
+      stripeProductId: null,
+      paymentRail: createMockPaymentRail(),
+      store: {
+        offerHold: async () => {
+          placeHoldCalled = true;
+          throw new Error("unreachable");
+        },
+      } as unknown as TransactionCommitStore,
+      isModeHHoldSubject: (id) => id === "pending-mode-h-uuid",
+    });
+    const server = app.listen(0);
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("no port");
+    const base = `http://127.0.0.1:${address.port}`;
+    try {
+      const res = await fetch(`${base}/transactions/offer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transactionId: "t-hold-gate",
+          attestationRef: "a",
+          paymentMethodId: "pm_card_visa",
+          peerUrl: "http://127.0.0.1:9",
+          amountMinor: 100,
+          currency: "EUR",
+          subjectId: "pending-mode-h-uuid",
+        }),
+      });
+      expect(res.status).toBe(409);
+      expect(placeHoldCalled).toBe(false);
+    } finally {
+      server.close();
+    }
+  });
+
   it("shell acceptCommerceOffer refuses missing checkout without offerTransaction", () => {
     const panel = readFileSync(path.join(repoRoot, "apps/shell/src/CommsPanel.tsx"), "utf8");
     const fnStart = panel.indexOf("async function acceptCommerceOffer");

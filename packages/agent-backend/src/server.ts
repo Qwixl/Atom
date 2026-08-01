@@ -663,6 +663,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     workspaceId: process.env.ATOM_WORKSPACE_ID?.trim() || "personal",
     applicationFeeMinor: 0,
     connectAccountId: process.env.ATOM_STRIPE_CONNECT_ACCOUNT_ID?.trim() || null,
+    isModeHHoldSubject: (subjectId) => businessStore.isModeHHoldSubject(subjectId),
     evaluateCommerceSpend: ({ amountMinor, currency }) =>
       evaluateSpend(
         { budgetLedger, stripeSecretKey: config.stripeSecretKey, platformFeeBps: 0 },

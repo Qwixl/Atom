@@ -14,6 +14,8 @@ export interface TransactionAdminDeps {
     amountMinor: number;
     currency: string;
   }) => { allowed: boolean; reason?: string; requiresChrome: boolean };
+  /** BUS-01-HOLD-GATE — true when subjectId is a known pending Mode H offer/session. */
+  isModeHHoldSubject?: (subjectId: string) => boolean;
   /** Platform application fee in minor units (0 during beta). */
   applicationFeeMinor?: number;
   /** Stripe Connect destination for business workspace. */
@@ -104,10 +106,13 @@ export function registerTransactionAdminRoutes(adminApp: Express, deps: Transact
     // BUS-01 / D139 Mode H — catalog commerce must use Checkout, never hold.
     const subjectId = body.subjectId?.trim() ?? "";
     const settlementMode = body.settlementMode?.trim();
+    const knownModeH =
+      typeof deps.isModeHHoldSubject === "function" && deps.isModeHHoldSubject(subjectId);
     if (
       settlementMode === "merchant-checkout" ||
       /^offer[-_]/i.test(subjectId) ||
-      subjectId.startsWith("offer")
+      subjectId.startsWith("offer") ||
+      knownModeH
     ) {
       res.status(409).json({
         error:

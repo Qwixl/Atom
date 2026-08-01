@@ -121,6 +121,13 @@ export class BusinessStore {
     return [...this.intents.values()];
   }
 
+  /** BUS-01-HOLD-GATE — subject matches a pending Mode H offer or Checkout Session id. */
+  isModeHHoldSubject(subjectId: string): boolean {
+    const id = subjectId.trim();
+    if (!id) return false;
+    return Boolean(this.modeHOffers.getByOfferId(id) || this.modeHOffers.getBySessionId(id));
+  }
+
   async sendIntent(params: {
     payload: CommerceIntentPayload;
     peerUrl?: string;

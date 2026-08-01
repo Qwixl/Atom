@@ -82,6 +82,10 @@ export class ModeHOfferStore {
     this.writer.persist();
   }
 
+  async flush(): Promise<void> {
+    await this.writer.flush();
+  }
+
   private evictExpired(): void {
     const now = Date.now();
     for (const offer of [...this.byOffer.values()]) {
