@@ -89,6 +89,11 @@ export class MlsSessionRecordStore {
     return [...this.groupSessions.values()];
   }
 
+  /** Await queued disk writes (tests / shutdown). */
+  async flush(): Promise<void> {
+    await this.persistQueue;
+  }
+
   private persist(): void {
     this.persistQueue = this.persistQueue
       .then(async () => {

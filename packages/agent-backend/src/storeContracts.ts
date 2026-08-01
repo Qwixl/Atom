@@ -79,7 +79,7 @@ export const AGENT_STORE_REGISTRY: Record<string, AgentStoreMeta> = {
     id: "mlsSessions",
     durability: "json-v1",
     productionBackend: "encrypted-json",
-    v1Note: "Snapshots on disk; live sessions in memory (D025). Pair re-handshake on failure.",
+    v1Note: "Snapshots on disk (D135); live sessions in memory. Fail-closed restore drops bad group/pair sessions — re-join/re-handshake.",
   },
   connectorVault: {
     id: "connectorVault",
