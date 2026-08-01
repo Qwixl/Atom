@@ -230,6 +230,25 @@ export async function loadBrainStatus(config: CommsAgentConfig): Promise<BrainSt
   }
 }
 
+/** Notify the brain that a Chat/shell session opened (board on-open refresh). */
+export async function notifyBrainSessionOpen(config: CommsAgentConfig): Promise<{
+  noted: boolean;
+  boardRefreshed: string[];
+}> {
+  const body = await custodyFetch<{
+    ok?: boolean;
+    noted?: boolean;
+    boardRefreshed?: string[];
+  }>(config, "/brain/session-open", {
+    method: "POST",
+    body: "{}",
+  });
+  return {
+    noted: body.noted === true,
+    boardRefreshed: Array.isArray(body.boardRefreshed) ? body.boardRefreshed : [],
+  };
+}
+
 export interface BrainPendingNotification {
   id: string;
   intentId: string;

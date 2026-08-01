@@ -565,3 +565,68 @@ describe("refreshDueSurfaces", () => {
     expect(Object.keys(surface.lastRefreshedAt)).toHaveLength(0);
   });
 });
+
+describe("PS-05a dueContext triggers", () => {
+  it("on-open is due only when sessionOpenedAt is after lastAttempt", async () => {
+    const executor = vi.fn(async () => ({ summary: "Open" }));
+    const openAt = 5_000;
+    const surface = testSurface({
+      refresh: { trigger: { type: "on-open" }, staleAfterSeconds: 900 },
+      lastAttemptedAt: { "n1:text": 4_000 },
+      lastRefreshedAt: { "n1:text": 4_000 },
+    });
+    const missed = await refreshDueSurfaces({
+      surfaces: [surface],
+      executor,
+      entitledConnectors: ["weather"],
+      now: 6_000,
+    });
+    expect(executor).not.toHaveBeenCalled();
+    expect(missed.stateChanged).toBe(false);
+
+    const hit = await refreshDueSurfaces({
+      surfaces: [surface],
+      executor,
+      entitledConnectors: ["weather"],
+      now: 6_000,
+      dueContext: { sessionOpened: true, sessionOpenedAtMs: openAt },
+    });
+    expect(executor).toHaveBeenCalledTimes(1);
+    expect(hit.refreshedSurfaceIds).toEqual(["tile-1"]);
+  });
+
+  it("connector-change refreshes only the matching connector trigger", async () => {
+    const executor = vi.fn(async () => ({ summary: "Cal" }));
+    const calendar = testSurface({
+      surfaceId: "cal",
+      refresh: {
+        trigger: { type: "connector-change", connector: "webcal" },
+        staleAfterSeconds: 900,
+      },
+      bindings: [
+        {
+          nodeId: "n1",
+          prop: "text",
+          source: { connector: "webcal", tool: "events" },
+          select: "/summary",
+        },
+      ],
+    });
+    const weather = testSurface({
+      surfaceId: "wx",
+      refresh: {
+        trigger: { type: "connector-change", connector: "weather" },
+        staleAfterSeconds: 900,
+      },
+    });
+    const result = await refreshDueSurfaces({
+      surfaces: [calendar, weather],
+      executor,
+      entitledConnectors: ["webcal", "weather"],
+      now: 9_000,
+      dueContext: { changedConnectors: new Set(["webcal"]) },
+    });
+    expect(executor).toHaveBeenCalledTimes(1);
+    expect(result.refreshedSurfaceIds).toEqual(["cal"]);
+  });
+});
