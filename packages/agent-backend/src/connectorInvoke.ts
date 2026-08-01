@@ -41,6 +41,18 @@ export async function invokeConnectorCached(
   return withInvokeMeta(payload, { fetchedAtMs: now, cacheHit: false, ttlMs });
 }
 
+type ConnectorCacheInvalidateListener = (connectorId: string) => void;
+
+let invalidateListener: ConnectorCacheInvalidateListener | undefined;
+
+/** Optional hook for board `connector-change` refresh (PS-05a). */
+export function setConnectorCacheInvalidateListener(
+  listener: ConnectorCacheInvalidateListener | undefined,
+): void {
+  invalidateListener = listener;
+}
+
 export function invalidateConnectorCache(connectorId: string): void {
   connectorResultCache.invalidateConnector(connectorId);
+  invalidateListener?.(connectorId);
 }

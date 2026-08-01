@@ -15,8 +15,12 @@ import {
   refreshDueSurfaces,
   type BoardBindingExecutor,
   type BoardDegradeRequest,
+  type SurfaceRefreshDueContext,
 } from "./boardRefresh.js";
 import { loadPresentationBoardState, savePresentationBoardState } from "./boardState.js";
+
+/** Multi-tab storm floor for noteSessionOpen (challenger PS-05a). */
+const SESSION_OPEN_DEBOUNCE_MS = 30_000;
 
 export interface BrainSchedulerOptions {
   vault: ConnectorVault;
@@ -81,6 +85,11 @@ export class BrainScheduler {
   private ticking = false;
   private lastTickAt: string | null = null;
   private lastFireCount = 0;
+  /** Pending board on-open marker; cleared only after an active refreshBoard. */
+  private sessionOpenedAtMs: number | null = null;
+  private lastSessionOpenNotedAtMs = 0;
+  /** Pending connector-change ids; drained per active refreshBoard. */
+  private changedConnectors = new Set<string>();
 
   constructor(options: BrainSchedulerOptions) {
     this.vault = options.vault;
@@ -131,6 +140,42 @@ export class BrainScheduler {
       lastFireCount: this.lastFireCount,
       intentCount: normalizeStandingIntents(this.vault.getStandingIntents()).length,
       pendingCount: this.vault.getBrainPendingNotifications().length,
+    };
+  }
+
+  /**
+   * Shell session-open signal for board `on-open` triggers (PS-05a).
+   * Debounced so multi-tab POSTs do not re-stamp forever. Returns whether the
+   * marker was accepted.
+   */
+  noteSessionOpen(atMs?: number): boolean {
+    const at = atMs ?? this.now().getTime();
+    if (
+      this.lastSessionOpenNotedAtMs > 0 &&
+      at - this.lastSessionOpenNotedAtMs < SESSION_OPEN_DEBOUNCE_MS
+    ) {
+      return false;
+    }
+    this.lastSessionOpenNotedAtMs = at;
+    this.sessionOpenedAtMs = at;
+    return true;
+  }
+
+  /** Credential/config change signal for board `connector-change` triggers. */
+  noteConnectorChange(connectorId: string): void {
+    const id = connectorId.trim();
+    if (!id) return;
+    this.changedConnectors.add(id);
+  }
+
+  /** Test/diagnostic: pending board due markers. */
+  getPendingBoardDueContext(): {
+    sessionOpenedAtMs: number | null;
+    changedConnectors: string[];
+  } {
+    return {
+      sessionOpenedAtMs: this.sessionOpenedAtMs,
+      changedConnectors: [...this.changedConnectors].sort(),
     };
   }
 
@@ -250,6 +295,9 @@ export class BrainScheduler {
 
     const { v2, v1Regions } = loadPresentationBoardState(this.vault);
     if (v2.surfaces.length === 0) {
+      // Nothing to refresh; drop pending markers so they cannot accumulate forever.
+      this.sessionOpenedAtMs = null;
+      this.changedConnectors.clear();
       return {
         refreshedSurfaceIds: [],
         expiredSurfaceIds: [],
@@ -262,12 +310,34 @@ export class BrainScheduler {
       (await this.listEntitledConnectors?.(this.vault)) ??
       (await defaultListEntitledConnectors(this.vault));
 
-    const result = await refreshDueSurfaces({
-      surfaces: v2.surfaces,
-      executor: this.boardExecutor,
-      entitledConnectors: entitled,
-      now: now.getTime(),
-    });
+    const sessionSnapshot = this.sessionOpenedAtMs;
+    const changedBatch = new Set(this.changedConnectors);
+    this.changedConnectors.clear();
+
+    const dueContext: SurfaceRefreshDueContext = {
+      sessionOpened: sessionSnapshot !== null,
+      sessionOpenedAtMs: sessionSnapshot ?? undefined,
+      changedConnectors: changedBatch.size > 0 ? changedBatch : undefined,
+    };
+
+    let result;
+    try {
+      result = await refreshDueSurfaces({
+        surfaces: v2.surfaces,
+        executor: this.boardExecutor,
+        entitledConnectors: entitled,
+        now: now.getTime(),
+        dueContext,
+      });
+    } catch (error) {
+      for (const id of changedBatch) this.changedConnectors.add(id);
+      throw error;
+    }
+
+    // Clear session marker only if no newer noteSessionOpen arrived mid-tick.
+    if (this.sessionOpenedAtMs === sessionSnapshot) {
+      this.sessionOpenedAtMs = null;
+    }
 
     if (result.stateChanged) {
       await savePresentationBoardState(
