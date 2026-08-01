@@ -16,6 +16,7 @@ import {
   secondsUntilHourlyWakeWindow,
 } from "./reachability.js";
 import { AsleepQueueFullError, AsleepQueueStore } from "./asleepQueue.js";
+import { CommerceAbuseError } from "./commerceAbuse.js";
 
 describe("resolveReachabilityConfig", () => {
   it("defaults to always_on for backward compatibility", () => {
@@ -279,6 +280,25 @@ describe("createInboundReachabilityMiddleware", () => {
     const parsed = JSON.parse(result.body) as { error: string; kind: string };
     expect(parsed.kind).toBe("bytes");
     expect(parsed.error).not.toBe("agent_asleep");
+  });
+
+  it("returns 429 commerce_rate_limited when enqueue throws CommerceAbuseError", async () => {
+    const result = await runMiddleware({
+      mode: "sleep",
+      atomCallerDid: "did:key:flood",
+      body: JSON.stringify({ purpose: "commerce:intent" }),
+      now: new Date("2026-07-21T10:00:00.000Z"),
+      enqueue: () => {
+        throw new CommerceAbuseError("Commerce rate limited (intent)", "rate_limited");
+      },
+    });
+    expect(result.statusCode).toBe(429);
+    expect(JSON.parse(result.body)).toMatchObject({
+      error: "commerce_rate_limited",
+      code: "rate_limited",
+      queued: false,
+    });
+    expect(JSON.parse(result.body).error).not.toBe("asleep_queue_full");
   });
 
   it("returns 429 asleep_queue_full for per-peer cap", async () => {

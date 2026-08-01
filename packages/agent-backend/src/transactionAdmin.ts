@@ -87,6 +87,7 @@ export function registerTransactionAdminRoutes(adminApp: Express, deps: Transact
       currency?: string;
       label?: string;
       subjectId?: string;
+      settlementMode?: string;
       stripeSecretKey?: string;
     };
     if (
@@ -97,6 +98,20 @@ export function registerTransactionAdminRoutes(adminApp: Express, deps: Transact
     ) {
       res.status(400).json({
         error: "transactionId, attestationRef, paymentMethodId, and peerUrl required",
+      });
+      return;
+    }
+    // BUS-01 / D139 Mode H — catalog commerce must use Checkout, never hold.
+    const subjectId = body.subjectId?.trim() ?? "";
+    const settlementMode = body.settlementMode?.trim();
+    if (
+      settlementMode === "merchant-checkout" ||
+      /^offer[-_]/i.test(subjectId) ||
+      subjectId.startsWith("offer")
+    ) {
+      res.status(409).json({
+        error:
+          "Mode H commerce offers must use merchant Checkout (commerce:offer settlementMode=merchant-checkout). Authorization hold is not allowed.",
       });
       return;
     }

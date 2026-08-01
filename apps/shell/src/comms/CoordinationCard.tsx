@@ -38,6 +38,7 @@ export function CoordinationCard({
     intentId: string,
     label: string,
     amount: MonetaryAmount,
+    checkoutUrl?: string,
   ) => void;
   onPollVote?: (pollId: string, optionId: string) => void;
   onPaySplitShare?: (
@@ -314,6 +315,7 @@ export function CoordinationCard({
         <p className="shell-comms-coord-meta">
           {formatMonetaryAmount(item.amount)}
           {item.sponsored ? " · sponsored (disclosed)" : ""}
+          {item.settlementMode === "merchant-checkout" ? " · pay on merchant Checkout" : ""}
         </p>
         {item.terms.length > 0 ? (
           <ul className="shell-comms-offer-terms">
@@ -328,9 +330,17 @@ export function CoordinationCard({
               type="button"
               className="chrome-approve"
               disabled={busy}
-              onClick={() => onAcceptOffer(item.offerId, item.intentId, item.label, item.amount)}
+              onClick={() =>
+                onAcceptOffer(
+                  item.offerId,
+                  item.intentId,
+                  item.label,
+                  item.amount,
+                  item.checkoutUrl,
+                )
+              }
             >
-              Accept offer
+              {item.checkoutUrl ? "Pay on merchant page" : "Accept offer"}
             </button>
           </div>
         ) : null}
@@ -351,6 +361,22 @@ export function CoordinationCard({
           {item.note ? ` — ${item.note}` : ""}
         </p>
         <time>{new Date(item.at).toLocaleTimeString()}</time>
+      </div>
+    );
+  }
+
+  if (item.kind === "commerce-outcome") {
+    return (
+      <div className={`shell-comms-coord shell-comms-coord-${directionClass} shell-comms-txn`}>
+        <div className="shell-comms-coord-head">
+          <strong>Payment confirmed</strong>
+          <span>{item.offerId}</span>
+        </div>
+        <p className="shell-comms-coord-meta">
+          {formatMonetaryAmount(item.amount)} · merchant Checkout paid
+          {item.checkoutSessionId ? ` · ${item.checkoutSessionId}` : ""}
+        </p>
+        <time>{new Date(item.paidAt || item.at).toLocaleTimeString()}</time>
       </div>
     );
   }
@@ -399,18 +425,22 @@ export function CoordinationCard({
           Total {formatMonetaryAmount({ amountMinor: item.totalMinor, currency: item.currency })} ·{" "}
           {item.splitCount} ways · Your share {formatMonetaryAmount(shareAmount)}
         </p>
-        {showActions ? (
+        {showActions && onPaySplitShare ? (
           <div className="shell-comms-coord-rsvp">
             <button
               type="button"
               className="chrome-approve"
               disabled={busy}
-              onClick={() => onPaySplitShare?.(item.splitId, item.label, shareAmount)}
+              onClick={() => onPaySplitShare(item.splitId, item.label, shareAmount)}
             >
               Pay your share
             </button>
           </div>
-        ) : null}
+        ) : (
+          <p className="shell-comms-coord-meta">
+            Peer split payment is not available in Atom Business checkout yet.
+          </p>
+        )}
         <time>{new Date(item.at).toLocaleTimeString()}</time>
       </div>
     );
@@ -618,6 +648,7 @@ export function ThreadItemView({
     intentId: string,
     label: string,
     amount: MonetaryAmount,
+    checkoutUrl?: string,
   ) => void;
   onPollVote?: (pollId: string, optionId: string) => void;
   onPaySplitShare?: (
@@ -726,7 +757,7 @@ export function threadItemNeedsActions(
   if (item.kind === "dating-intro") return !respondedIds.has(item.id);
   if (item.kind === "poll-request") return !respondedIds.has(item.id);
   if (item.kind === "shared-list") return true;
-  if (item.kind === "split-proposal") return !respondedTxnIds.has(`txn-split-${item.splitId}`);
+  if (item.kind === "split-proposal") return false; // BUS-01 4D — quarantine; BUS-SPLIT-01 later
   if (item.kind === "transaction-hold") return !respondedTxnIds.has(item.transactionId);
   if (item.kind === "commerce-offer") return !respondedOfferIds.has(item.offerId);
   return false;

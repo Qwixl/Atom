@@ -2018,22 +2018,38 @@ export function CommsPanel({
     intentId: string,
     label: string,
     amount: MonetaryAmount,
+    checkoutUrl?: string,
   ) {
     if (!selected) return;
-    const paymentMethodId = stripePaymentMethodId?.trim() || "pm_card_visa";
-    const transactionId = `txn-${offerId}`;
+    if (!checkoutUrl?.trim().startsWith("https://")) {
+      setActionNote(
+        "This offer has no merchant Checkout URL. Mode H requires merchant-checkout (BUS-01). Catalog hold is disabled.",
+      );
+      return;
+    }
+    try {
+      const host = new URL(checkoutUrl.trim()).hostname.toLowerCase();
+      if (host !== "checkout.stripe.com" && !host.endsWith(".checkout.stripe.com")) {
+        setActionNote("Checkout URL must be Stripe Checkout (checkout.stripe.com). Refusing to open.");
+        return;
+      }
+    } catch {
+      setActionNote("Checkout URL is not a valid https URL.");
+      return;
+    }
     const action: ConsequentialAction = {
       id: crypto.randomUUID(),
       kind: "confirmation",
-      title: "Accept signed offer",
+      title: "Confirm purchase interest",
       terms: {
         contact: selected.name,
         offerId,
+        intentId,
         label,
         amount: `${(amount.amountMinor / 100).toFixed(2)} ${amount.currency}`,
-        action: "Place authorization hold from signed offer fields (M11)",
+        action: "Open merchant Stripe Checkout to pay (Atom does not take payment)",
       },
-      confirmLabel: "Accept & hold",
+      confirmLabel: "Pay on merchant page",
       declineLabel: "Cancel",
     };
     const confirmation = await onRequestConfirmation(action);
@@ -2041,20 +2057,9 @@ export function CommsPanel({
     setBusy(true);
     setActionNote(null);
     try {
-      await client.offerTransaction({
-        transactionId,
-        attestationRef: confirmation.attestationRef,
-        paymentMethodId,
-        peerUrl: selected.endpoint,
-        peerDid: selected.did,
-        amountMinor: amount.amountMinor,
-        currency: amount.currency,
-        label,
-        subjectId: offerId,
-        encrypt: sessionReady,
-      });
+      window.open(checkoutUrl.trim(), "_blank", "noopener,noreferrer");
       setAcceptedOfferIds((current) => new Set([...current, offerId]));
-      setActionNote("Offer accepted — payment hold placed.");
+      setActionNote("Opened merchant Checkout — complete payment there.");
       await refreshInbox();
     } catch (error) {
       setActionNote(error instanceof Error ? error.message : String(error));
@@ -2671,13 +2676,11 @@ export function CommsPanel({
                           onDeclineTransaction={(transactionId, label) =>
                             void respondTransactionDecline(transactionId, label)
                           }
-                          onAcceptOffer={(offerId, intentId, label, amount) =>
-                            void acceptCommerceOffer(offerId, intentId, label, amount)
+                          onAcceptOffer={(offerId, intentId, label, amount, checkoutUrl) =>
+                            void acceptCommerceOffer(offerId, intentId, label, amount, checkoutUrl)
                           }
                           onPollVote={(pollId, optionId) => void respondPollVote(pollId, optionId)}
-                          onPaySplitShare={(splitId, label, amount) =>
-                            void paySplitShare(splitId, label, amount)
-                          }
+                          onPaySplitShare={undefined}
                           onTttCell={(gameId, cell, mark) => void playTttCell(gameId, cell, mark)}
                           onBsFire={(gameId, cell) => void fireBsShot(gameId, cell)}
                           onDownloadIcs={(item) => downloadSchedulingIcs(item)}
@@ -2783,13 +2786,11 @@ export function CommsPanel({
                       onDeclineTransaction={(transactionId, label) =>
                         void respondTransactionDecline(transactionId, label)
                       }
-                      onAcceptOffer={(offerId, intentId, label, amount) =>
-                        void acceptCommerceOffer(offerId, intentId, label, amount)
-                      }
-                      onPollVote={(pollId, optionId) => void respondPollVote(pollId, optionId)}
-                      onPaySplitShare={(splitId, label, amount) =>
-                        void paySplitShare(splitId, label, amount)
-                      }
+                      onAcceptOffer={(offerId, intentId, label, amount, checkoutUrl) =>
+                            void acceptCommerceOffer(offerId, intentId, label, amount, checkoutUrl)
+                          }
+                          onPollVote={(pollId, optionId) => void respondPollVote(pollId, optionId)}
+                          onPaySplitShare={undefined}
                       onTttCell={(gameId, cell, mark) => void playTttCell(gameId, cell, mark)}
                       onBsFire={(gameId, cell) => void fireBsShot(gameId, cell)}
                       onDownloadIcs={(item) => downloadSchedulingIcs(item)}

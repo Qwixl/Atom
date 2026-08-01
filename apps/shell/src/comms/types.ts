@@ -195,6 +195,10 @@ export type CommsThreadItem =
       available: boolean;
       terms: string[];
       sponsored?: boolean;
+      settlementMode?: string;
+      optionExpiresAt?: string;
+      checkoutUrl?: string;
+      checkoutSessionId?: string;
     }
   | {
       kind: "commerce-decline";
@@ -205,6 +209,20 @@ export type CommsThreadItem =
       intentId: string;
       reasonCode: string;
       note?: string;
+    }
+  | {
+      kind: "commerce-outcome";
+      id: string;
+      direction: "in" | "out";
+      at: string;
+      peerDid: string;
+      offerId: string;
+      intentId: string;
+      checkoutSessionId: string;
+      amount: MonetaryAmount;
+      paidAt: string;
+      settlementMode: string;
+      stripePaymentIntentId?: string;
     }
   | {
       kind: "poll-request";

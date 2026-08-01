@@ -1549,6 +1549,36 @@ export class CommsAgentClient {
   }> {
     return getJson(this.base(), `/billing/ledger/${encodeURIComponent(workspaceId)}`, this.auth, true);
   }
+
+  async getBusinessShopping(): Promise<{
+    agentShoppingEnabled: boolean;
+    suggestMutes: Array<{ peerDid: string; count: number }>;
+  }> {
+    return getJson(this.base(), "/business/shopping", this.auth, true);
+  }
+
+  async setBusinessShopping(opts: {
+    enabled?: boolean;
+    attestAbuseKillSwitch?: boolean;
+  }): Promise<{
+    agentShoppingEnabled: boolean;
+    suggestMutes: Array<{ peerDid: string; count: number }>;
+  }> {
+    return postJson(this.base(), "/business/shopping", opts, this.auth, true);
+  }
+
+  async dismissSuggestMute(peerDid: string): Promise<{
+    ok: boolean;
+    suggestMutes: Array<{ peerDid: string; count: number }>;
+  }> {
+    return postJson(
+      this.base(),
+      "/business/shopping/dismiss-suggest-mute",
+      { peerDid },
+      this.auth,
+      true,
+    );
+  }
 }
 
 export type { VerifiedContactInvite };

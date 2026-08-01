@@ -37,6 +37,7 @@ class DevStubProvisioner implements FleetProvisioner {
     void input.brainAlwaysOn;
     void input.llmBaseUrl;
     void input.llmModel;
+    // Real fleet must apply hostedBusinessCommerceEnv(workspaceKind) to the agent container.
     const stub = devStubCredentials();
     if (!stub) {
       throw new Error("Dev stub credentials not configured");
