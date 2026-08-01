@@ -12,7 +12,7 @@ This is the reference for **implementing against Atom**, whether or not you use 
 | Older peers | **v0.3 accepted**, decided per peer from that peer's own card |
 | Reference SDK | `@a2a-js/sdk@1.0.0`, compat layer enabled on both sides |
 | Atom extension URI | `https://atom.qwixl.dev/a2a/data-object/v1` |
-| Specification | [`draft-chapman-a2a-mls-00`](./spec/) §7 (Encapsulation) |
+| Specification | [`draft-chapman-a2a-mls`](./spec/) §Encapsulation (see `-01` working revision; `-00` is the Datatracker first submission) |
 | Conformance vectors | [`spec/vectors/`](./spec/vectors/) — 31, of which 9 cover encapsulation |
 
 ## Everything is JSON, not types
