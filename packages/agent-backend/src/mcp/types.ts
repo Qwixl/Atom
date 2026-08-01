@@ -14,6 +14,11 @@ export interface StoredMcpServer {
   headers?: Record<string, string>;
   /** Empty = all tools from server are permitted once trusted (until owner tightens). */
   allowedTools: string[];
+  /**
+   * Owner-configured tools that View `tools/call` may auto-proxy (D131 1B).
+   * Prohibited when allowedTools is empty; must be a subset of allowedTools.
+   */
+  safeTools?: string[];
   enabled: boolean;
   /** Owner consented to invoke tools from this server. Omitted on legacy rows = trusted (BK-19). */
   trusted?: boolean;
@@ -31,6 +36,7 @@ export interface McpServerPublicView {
   url?: string;
   hasAuthHeaders: boolean;
   allowedTools: string[];
+  safeTools: string[];
   enabled: boolean;
   trusted: boolean;
   trustedAt?: number;
@@ -57,6 +63,7 @@ export function toMcpServerPublicView(server: StoredMcpServer): McpServerPublicV
     url: server.url,
     hasAuthHeaders: Boolean(server.headers && Object.keys(server.headers).length > 0),
     allowedTools: server.allowedTools,
+    safeTools: [...(server.safeTools ?? [])],
     enabled: server.enabled,
     trusted: isMcpServerTrusted(server),
     trustedAt: server.trustedAt,

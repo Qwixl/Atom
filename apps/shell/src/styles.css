@@ -1751,6 +1751,50 @@ body {
   animation: pulse 1.4s infinite;
 }
 
+.mcp-app-dock {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.mcp-app-dock__bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--shell-text-muted);
+  margin-bottom: 6px;
+}
+
+.mcp-app-host__chrome {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+  margin-bottom: 6px;
+  color: var(--shell-text-muted);
+}
+
+.mcp-app-host__stale {
+  color: var(--shell-warn);
+  font-weight: 600;
+}
+
+.mcp-app-host__confirm {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--shell-border, #ccc);
+  background: var(--shell-surface, #fff);
+}
+
+.mcp-app-host__confirm pre {
+  max-height: 160px;
+  overflow: auto;
+  font-size: 12px;
+}
+
 @keyframes pulse {
   50% {
     opacity: 0.4;

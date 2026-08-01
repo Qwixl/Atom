@@ -64,6 +64,27 @@ export class McpServersStore {
     const server = this.get(id);
     if (!server) throw new Error(`Unknown MCP server: ${id}`);
     server.allowedTools = [...allowedTools];
+    // Drop safeTools that are no longer allowlisted.
+    if (server.safeTools?.length) {
+      server.safeTools = server.safeTools.filter((tool) => allowedTools.includes(tool));
+    }
+    this.writer.persist();
+    await this.writer.flush();
+  }
+
+  async updateSafeTools(id: string, safeTools: string[]): Promise<void> {
+    const server = this.get(id);
+    if (!server) throw new Error(`Unknown MCP server: ${id}`);
+    if (server.allowedTools.length === 0 && safeTools.length > 0) {
+      throw new Error("safeTools requires a non-empty allowedTools list");
+    }
+    const next = [...new Set(safeTools.map((tool) => tool.trim()).filter(Boolean))];
+    for (const tool of next) {
+      if (!server.allowedTools.includes(tool)) {
+        throw new Error(`safeTools entry not in allowedTools: ${tool}`);
+      }
+    }
+    server.safeTools = next;
     this.writer.persist();
     await this.writer.flush();
   }

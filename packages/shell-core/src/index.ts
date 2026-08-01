@@ -145,6 +145,14 @@ export {
   BOARD_MICROSOFT_CALENDAR_SURFACE_ID,
   buildMicrosoftGraphBoardSurfacePin,
 } from "./boardMicrosoftGraphCalendarTile.js";
+export {
+  classifyMcpAppBridgeRequest,
+  classifyPermissionRequest,
+  quarantineMcpAppChatMessage,
+  type McpAppBridgeContext,
+  type McpAppBridgeDecision,
+  toolAllowsAppVisibility,
+} from "./mcpAppBridge.js";
 export type {
   SurfaceArrange,
   SurfaceBinding,

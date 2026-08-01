@@ -1,7 +1,9 @@
 /**
- * MCP Apps SEP-1865 adapter — maps ui:// resources to Atom registry module installs.
- * Interop only (D068); owner-shell catalog + chrome remain the trust boundary.
+ * MCP Apps SEP-1865 adapter — maps Atom-owned ui:// resources to registry modules.
+ * Third-party ui:// MUST use McpAppHost (D131 §14.9), not this mapper.
  */
+
+import { isAtomUiRegistryUri } from "./mcp/mcpAppPolicy.js";
 
 export interface McpAppsUiResource {
   uri: string;
@@ -22,7 +24,7 @@ export interface RegistryModuleRef {
   manifestUrl?: string;
 }
 
-/** Known MCP Apps ui:// prefix → Atom registry module id. */
+/** Known MCP Apps ui:// prefix → Atom registry module id (Atom URIs only). */
 const UI_URI_MODULE_MAP: Record<string, string> = {
   "ui://atom/media/audio-player": "media/audio-player",
   "ui://atom/media/video-call": "media/video-call",
@@ -31,10 +33,11 @@ const UI_URI_MODULE_MAP: Record<string, string> = {
 
 export function mcpAppsUiUriToModuleId(uri: string): string | null {
   const trimmed = uri.trim();
+  if (!isAtomUiRegistryUri(trimmed)) return null;
   if (UI_URI_MODULE_MAP[trimmed]) return UI_URI_MODULE_MAP[trimmed];
-  const match = /^ui:\/\/([^/]+)\/(.+)$/.exec(trimmed);
-  if (!match) return null;
-  return `${match[1]}/${match[2]}`;
+  const match = /^ui:\/\/atom\/(.+)$/i.exec(trimmed);
+  if (!match?.[1]) return null;
+  return match[1];
 }
 
 export function mcpAppsToolToRegistryRef(
