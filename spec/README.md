@@ -14,8 +14,8 @@ test vectors they reference.
 | `draft-chapman-a2a-mls-01.txt` / `.xml` | Rendered `-01` snapshot |
 | `draft-chapman-a2a-mls-02.md` | **Current MLS working revision** — Purpose Value Registry (D132 / ST-03); on Datatracker |
 | `draft-chapman-a2a-mls-02.txt` / `.xml` | Rendered `-02` |
-| `draft-chapman-a2a-offline-delivery-00.md` | **Local offline-delivery profile** (D133 / ST-04a) — not on Datatracker until Class D |
-| `draft-chapman-a2a-offline-delivery-00.txt` / `.xml` | Rendered `-00` — upload only when founder Class-D authorises |
+| `draft-chapman-a2a-offline-delivery-00.md` | **Published `-00`** on Datatracker (D133 / ST-04a) |
+| `draft-chapman-a2a-offline-delivery-00.txt` / `.xml` | Rendered `-00` snapshot |
 | `build.sh` | Renders and validates a draft: `./build.sh [draft-name]` |
 | `extensions/` | **A2A extension specs** — start with [Governed Object v1](./extensions/data-object-v1/) |
 | `vectors/` | 31 conformance test vectors — see `vectors/README.md` |
@@ -24,8 +24,7 @@ test vectors they reference.
 | `announcements/` | Founder-gated external text (Datatracker / list notes) |
 
 **Provenance is recorded by Datatracker submission**, not by mailing-list email.
-MLS `-00` / `-01` / `-02` are on Datatracker. Offline-delivery `-00` is local
-until a separate Class D upload.
+MLS `-00` / `-01` / `-02` and offline-delivery `-00` are on Datatracker.
 Email to `mls@ietf.org` is optional awareness after a revision is public.
 
 ## Why the draft is vendor-neutral
