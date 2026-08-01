@@ -1,6 +1,12 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { McpHttpConnectOptions, McpToolDescriptor } from "./types.js";
+import type {
+  McpHttpConnectOptions,
+  McpToolDescriptor,
+  McpReadResourceResult,
+  McpResourceDescriptor,
+} from "./types.js";
+import { mapSdkReadResource, mapSdkResource, mapSdkTool } from "./resourceMap.js";
 
 /** One-shot Streamable HTTP MCP session: connect, use, close. */
 export class McpHttpSession {
@@ -25,11 +31,19 @@ export class McpHttpSession {
   async listTools(): Promise<McpToolDescriptor[]> {
     if (!this.client) throw new Error("MCP session not connected");
     const result = await this.client.listTools();
-    return result.tools.map((tool) => ({
-      name: tool.name,
-      description: tool.description,
-      inputSchema: tool.inputSchema,
-    }));
+    return result.tools.map((tool) => mapSdkTool(tool));
+  }
+
+  async listResources(): Promise<McpResourceDescriptor[]> {
+    if (!this.client) throw new Error("MCP session not connected");
+    const result = await this.client.listResources();
+    return result.resources.map((resource) => mapSdkResource(resource));
+  }
+
+  async readResource(uri: string): Promise<McpReadResourceResult> {
+    if (!this.client) throw new Error("MCP session not connected");
+    const result = await this.client.readResource({ uri });
+    return mapSdkReadResource(result);
   }
 
   async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
