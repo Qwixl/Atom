@@ -1,0 +1,33 @@
+---
+description: Public /documents tree — howto/guidance/contracts only; no documents-only PRs
+alwaysApply: true
+---
+
+# Atom public documents (non-negotiable)
+
+## What `/documents/` is for
+
+Tracked guides and contracts outsiders need to build, run, embed, and
+interoperate with Atom.
+
+## Hard rules
+
+1. **Howto bar.** Public text may tell the reader what to run, configure, or
+   implement. It MUST NOT publish background discussion, rejected options,
+   thought-generation, or how the product is invented internally.
+2. **No process meta in public files.** Do not document private programme
+   trees, derivation pipelines, decision archaeology, or session/backlog
+   state under `/documents/` (including HTML comments).
+3. **No documents-only commits/PRs.** Public docs ride with substantive work
+   (code, `spec/`, CI, packages).
+4. **Clean root.** No product/protocol guides at repo root — only
+   README/LICENSE/CONTRIBUTING/CODE_OF_CONDUCT/SECURITY.
+
+## Layout
+
+- `documents/protocol/` — wire contracts
+- `documents/guides/` — how-to
+- `documents/reference/` — API / modules / embed
+- `documents/ops/` — intentional public maintainer docs
+
+Violating these rules is a protocol failure — same class as skipping challengers.

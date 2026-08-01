@@ -5,9 +5,8 @@ alwaysApply: true
 
 # Atom Grok protocol (non-negotiable)
 
-Authority and quality for this repo follow
-`Atom Grok execution protocol` and
-`August execution plan`.
+Authority and quality for this repo follow the Atom Grok execution protocol
+and the August execution plan.
 
 ## Before claiming progress on a marker
 
@@ -36,7 +35,16 @@ Dispose every challenger finding as **fixed**, **rejected with evidence**, or
 
 Not Done because tests pass. Need acceptance evidence, required verification,
 challenger dispositions, honest status terms, backlog/session updates, and a
-handoff with exact next command (`session handoff protocol`).
+handoff with the exact next command.
+
+## Public `/documents`
+
+- Howto / guidance / contracts only. No background debate, rejected-option
+  essays, or internal artefact-invention narrative.
+- No documents-only commits or PRs. Public docs ride with substantive work.
+- Do not dump guides at repo root.
+- Never publish private programme paths, derivation notes, or process
+  archaeology in tracked public files (including HTML comments).
 
 ## Recent failure mode to avoid
 
