@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AgentKindConfig } from "./config.js";
+import { isAsleepQueueFullError } from "./asleepQueue.js";
 
 export type ReachabilityMode = "session" | "sleep" | "hourly_wake" | "always_on";
 
@@ -187,7 +188,11 @@ async function readRawBody(req: IncomingMessage): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-/** Best-effort issuer DID from JSON-RPC body (opaque path — no decrypt). */
+/**
+ * Best-effort issuer DID from JSON-RPC body (opaque path — no decrypt).
+ * MUST NOT be used for per-peer queue caps (D133 / RC-4); prefer
+ * `atomCallerDid` from transport auth.
+ */
 export function extractFromDidFromRawBody(raw: Buffer): string | undefined {
   try {
     const parsed = JSON.parse(raw.toString("utf8")) as {
@@ -210,13 +215,28 @@ export function extractFromDidFromRawBody(raw: Buffer): string | undefined {
   return undefined;
 }
 
+export type AsleepQueueFullHttpStatus = 429 | 507;
+
+/** Map queue-full kind → HTTP status (507 global, 429 per-peer). */
+export function asleepQueueFullHttpStatus(
+  kind: "messages" | "bytes" | "peer",
+): AsleepQueueFullHttpStatus {
+  return kind === "peer" ? 429 : 507;
+}
+
 export interface InboundReachabilityGateDeps {
   config: ReachabilityConfig;
   now?: () => Date;
   enqueue: (input: { blob: Buffer; fromDid?: string }) => void | Promise<void>;
 }
 
-/** Express middleware — rejects A2A POST when agent is asleep and queues ciphertext blob. */
+type RequestWithCallerDid = IncomingMessage & { atomCallerDid?: string };
+
+/**
+ * Express middleware — rejects A2A POST when agent is asleep and queues
+ * ciphertext. Uses verified transport DID for peer caps. Returns distinct
+ * `asleep_queue_full` when enqueue fails (never lies with `agent_asleep`).
+ */
 export function createInboundReachabilityMiddleware(
   deps: InboundReachabilityGateDeps,
 ): (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void {
@@ -234,13 +254,12 @@ export function createInboundReachabilityMiddleware(
     void (async () => {
       try {
         const raw = await readRawBody(req);
-        await deps.enqueue({
-          blob: raw,
-          fromDid: extractFromDidFromRawBody(raw),
-        });
+        const fromDid = (req as RequestWithCallerDid).atomCallerDid?.trim() || undefined;
+        await deps.enqueue({ blob: raw, fromDid });
         const body: Record<string, unknown> = {
           error: verdict.error ?? "agent_asleep",
           message: verdict.message ?? "asleep, try later",
+          queued: true,
         };
         if (verdict.retryAfterSec !== undefined) {
           body.retryAfterSec = verdict.retryAfterSec;
@@ -250,6 +269,20 @@ export function createInboundReachabilityMiddleware(
         res.setHeader("Content-Type", "application/json; charset=utf-8");
         res.end(JSON.stringify(body));
       } catch (error) {
+        if (isAsleepQueueFullError(error)) {
+          const status = asleepQueueFullHttpStatus(error.kind);
+          res.statusCode = status;
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+          res.end(
+            JSON.stringify({
+              error: "asleep_queue_full",
+              message: error.message,
+              kind: error.kind,
+              queued: false,
+            }),
+          );
+          return;
+        }
         next(error);
       }
     })();

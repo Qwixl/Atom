@@ -1,0 +1,13 @@
+Subject: Datatracker — draft-chapman-a2a-offline-delivery-00 (Class D pending)
+Status: local -00 ready (D133); founder upload when authorised
+
+PROVENANCE
+  Local only until Class D
+  Companion to draft-chapman-a2a-mls (Availability MUSTs remain there)
+
+CHECKLIST (-00)
+  [x] Author draft-chapman-a2a-offline-delivery-00.md (D133)
+  [x] Class B honesty: enqueue truth, asleep_queue_full, peer-cap DID
+  [x] ./build.sh draft-chapman-a2a-offline-delivery-00 → OK: zero errors
+  [ ] Founder uploads draft-chapman-a2a-offline-delivery-00.xml
+  [ ] Confirm emailed link; verify on datatracker
