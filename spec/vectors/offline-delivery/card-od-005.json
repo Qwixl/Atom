@@ -1,0 +1,18 @@
+{
+  "id": "card-od-005",
+  "kind": "agent-card-extension",
+  "description": "Missing params.mode is rejected.",
+  "requires": [
+    "agent-card",
+    "offline-delivery-extension"
+  ],
+  "extension": {
+    "uri": "https://atom.qwixl.dev/a2a/offline-delivery/v1",
+    "description": "Offline delivery profile",
+    "required": false,
+    "params": {}
+  },
+  "expect": {
+    "schemaOk": false
+  }
+}

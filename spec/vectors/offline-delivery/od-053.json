@@ -1,0 +1,54 @@
+{
+  "id": "od-053",
+  "kind": "asleep-dequeue-sequence",
+  "description": "Same-process replay: accept then re-enqueue identical body → reject.",
+  "requires": [
+    "asleep-dequeue",
+    "replay"
+  ],
+  "body": {
+    "jsonrpc": "2.0",
+    "method": "message/send",
+    "params": {
+      "message": {
+        "parts": [
+          {
+            "mediaType": "application/vnd.atom.data-object+json;version=1",
+            "object": {
+              "version": 1,
+              "id": "01948f00-0000-7000-8000-000000000101",
+              "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+              "issuedAt": "2026-01-15T13:59:00.000Z",
+              "semantic": {
+                "schema": "https://atom.qwixl.dev/schema/CommsMessage"
+              },
+              "payload": {
+                "text": "offline-delivery vector"
+              },
+              "governance": {
+                "purpose": "comms:message",
+                "ttlSeconds": 3600
+              },
+              "signatureAlgorithm": "ed25519",
+              "signature": "JgBlppqN33yg+02Q/CjBwvMwOZf8wXJumNYh3DSVU6zgqqw2TTEVANFcQnUKZf1zRee6gG4gB8BlR3dXY7FRBg=="
+            }
+          }
+        ]
+      }
+    }
+  },
+  "wakeNow": "2026-01-15T14:00:00.000Z",
+  "permittedPurposes": [
+    "comms:message"
+  ],
+  "steps": [
+    "dequeue-accept",
+    "re-enqueue",
+    "dequeue-reject"
+  ],
+  "expect": {
+    "firstAcceptedMin": 1,
+    "secondRejectedMin": 1,
+    "queueEmpty": true
+  }
+}

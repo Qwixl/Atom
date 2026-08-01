@@ -12,6 +12,9 @@ node spec/vectors/generate.mjs   # regenerate (deterministic)
 node spec/vectors/run.mjs        # check this repo's implementation against them
 ```
 
+Offline delivery / reachability vectors (D110-independent subtree) live in
+[`offline-delivery/`](offline-delivery/README.md).
+
 `run.mjs` exits non-zero on any disagreement.
 
 ## Why these exist
