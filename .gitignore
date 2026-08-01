@@ -18,7 +18,12 @@
 .env.*
 .idea/
 /.agents/
-/.cursor/
+# Cursor local state ignored; commit shared agents + Atom protocol rules only.
+/.cursor/*
+!/.cursor/agents/
+!/.cursor/agents/**
+!/.cursor/rules/
+!/.cursor/rules/**
 /AGENTS.md
 /docs/
 /notes/
