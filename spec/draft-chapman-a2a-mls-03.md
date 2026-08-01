@@ -34,10 +34,10 @@ normative:
   RFC8259:
   RFC4648:
   RFC8126:
+  RFC8785:
 
 informative:
   RFC7942:
-  RFC8785:
   A2A:
     title: "Agent2Agent (A2A) Protocol Specification, Version 1.0"
     target: https://a2a-protocol.org/
