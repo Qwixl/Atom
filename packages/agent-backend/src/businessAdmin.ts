@@ -129,7 +129,8 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
       res.json({ item });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const status = message.includes("hosted Business") || message.includes("entitlement") ? 403 : 400;
+      const status =
+        /hosted business|entitlement|commerce entitlement/i.test(message) ? 403 : 400;
       res.status(status).json({ error: message });
     }
   });
@@ -146,7 +147,8 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
       res.json({ catalog: deps.catalog.list() });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const status = message.includes("hosted Business") || message.includes("entitlement") ? 403 : 400;
+      const status =
+        /hosted business|entitlement|commerce entitlement/i.test(message) ? 403 : 400;
       res.status(status).json({ error: message });
     }
   });
