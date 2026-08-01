@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { CommsAgentClient } from "./comms/client.js";
+import { CommsAgentClient, type RoomMessageVerification, type RoomVerificationReport } from "./comms/client.js";
+import { RoomVerificationBanner } from "./RoomVerificationBanner.js";
 import { quickJoinCoffeeShop } from "./discoverActions.js";
 import { loadCommsAgentConfig, loadContacts, saveContacts } from "./comms/storage.js";
 import { isAgentAuthError, formatDiscoverHostError } from "./comms/agentErrors.js";
@@ -93,7 +94,29 @@ interface RoomMessageWire {
   at: string;
   deleted?: boolean;
   editedAt?: string;
+  verification?: RoomMessageVerification;
+  verificationDetail?: string;
 }
+
+const ROOM_MSG_VERIFY_BADGE: Partial<
+  Record<RoomMessageVerification, { label: string; title: string }>
+> = {
+  unsigned: {
+    label: "Unsigned",
+    title:
+      "Sent after this room started signing messages, but arrived without a signature. Atom can't confirm who wrote it.",
+  },
+  invalid: {
+    label: "Failed check",
+    title:
+      "The signature didn't verify, or the message was attributed to someone other than the signer. Atom can't confirm who wrote it.",
+  },
+  substituted: {
+    label: "Altered by host",
+    title:
+      "The signature is genuine, but the room host served different text alongside it. You're seeing the signed original.",
+  },
+};
 
 interface RoomMemberWire {
   did: string;
@@ -166,6 +189,7 @@ export function RoomsPanel({
     acceptedBaseRules: false,
   });
   const [roomReportOpen, setRoomReportOpen] = useState(false);
+  const [verification, setVerification] = useState<RoomVerificationReport | null>(null);
   const [pendingJoinRequests, setPendingJoinRequests] = useState<JoinRequestWire[]>([]);
   const [listWidth, setListWidth] = useState(loadRoomsListWidth);
   const [listFilter, setListFilter] = useState("");
@@ -180,6 +204,7 @@ export function RoomsPanel({
   const composeRef = useRef<HTMLTextAreaElement | null>(null);
   const pollRef = useRef<number | null>(null);
   const memberPollRef = useRef<number | null>(null);
+  const verificationPollRef = useRef<number | null>(null);
   const membersRef = useRef(members);
   const lastSeqRef = useRef(0);
   const localDidRef = useRef(localDid);
@@ -446,6 +471,16 @@ export function RoomsPanel({
     }
   }, [client, selectedId]);
 
+  const refreshVerification = useCallback(async () => {
+    if (!selectedId) return;
+    try {
+      const report = await client.getRoomVerification(selectedId);
+      setVerification(report);
+    } catch {
+      /* host unreachable is not an integrity finding */
+    }
+  }, [client, selectedId]);
+
   useEffect(() => {
     if (!connectionActive) {
       setLocalDid(null);
@@ -488,25 +523,32 @@ export function RoomsPanel({
       setMessages([]);
       setMembers([]);
       setMemberMenuDid(null);
+      setVerification(null);
       lastSeqRef.current = 0;
       return;
     }
     setAttendance(loadRoomAttendance(selectedId));
     lastSeqRef.current = 0;
     setMessages([]);
+    setVerification(null);
     void refreshMembers();
     void refreshMessages();
+    void refreshVerification();
     pollRef.current = window.setInterval(() => {
       void refreshMessages();
     }, 3000);
     memberPollRef.current = window.setInterval(() => {
       void refreshMembers();
     }, 8000);
+    verificationPollRef.current = window.setInterval(() => {
+      void refreshVerification();
+    }, 30000);
     return () => {
       if (pollRef.current) window.clearInterval(pollRef.current);
       if (memberPollRef.current) window.clearInterval(memberPollRef.current);
+      if (verificationPollRef.current) window.clearInterval(verificationPollRef.current);
     };
-  }, [selectedId, refreshMessages, refreshMembers]);
+  }, [selectedId, refreshMessages, refreshMembers, refreshVerification]);
 
   const sendActivity = useCallback(
     async (
@@ -1383,6 +1425,13 @@ export function RoomsPanel({
                 </div>
               ) : null}
 
+              <RoomVerificationBanner
+                verification={verification}
+                canLeave={canLeave}
+                onReport={() => setRoomReportOpen(true)}
+                onLeave={() => void leaveSelectedRoom()}
+              />
+
               <div className={`rooms-thread-grid rooms-pane-${mobilePane}`}>
                 {mobilePane === "members" ? (
                   <button
@@ -1558,6 +1607,14 @@ export function RoomsPanel({
                                 </strong>
                                 {msg.editedAt && !msg.deleted ? (
                                   <span className="rooms-msg-edited">(edited)</span>
+                                ) : null}
+                                {msg.verification && ROOM_MSG_VERIFY_BADGE[msg.verification] ? (
+                                  <span
+                                    className={`rooms-msg-verify rooms-msg-verify-${msg.verification}`}
+                                    title={ROOM_MSG_VERIFY_BADGE[msg.verification]!.title}
+                                  >
+                                    {ROOM_MSG_VERIFY_BADGE[msg.verification]!.label}
+                                  </span>
                                 ) : null}
                                 {msg.kind === "activity" ? (
                                   <span> · {formatRoomActivity(msg.activityKind, msg.payload)}</span>
