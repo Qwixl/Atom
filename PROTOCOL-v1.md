@@ -52,7 +52,7 @@ Signing: `signDataObject(body, keyPair)` after `generateAgentKeyPair()`.
 - MLS wire bytes travel in A2A `data` parts with `mediaType` `application/vnd.atom.mls-wire+cbor;version=1`, carried both on the part and in the envelope `{ mediaType, wire: "<base64>", senderDid? }` (`@qwixl/a2a-transport`) — see [Part encoding (A2A v1.0)](#part-encoding-a2a-v10).
 - Ciphertext is exchanged over **A2A** transport; the shell never holds MLS epoch secrets (D017, D023).
 - Plaintext data objects are verified with `verifyDataObject()` after MLS decryption on the backend.
-- Pair session API: `establishPairSession()`, `MlsPairSession.encrypt()` / `.decrypt()`. Process restart persistence deferred (D025).
+- Pair session API: `establishPairSession()`, `MlsPairSession.encrypt()` / `.decrypt()`. Pair and multi-member group snapshots persist across process restart (D135 / MLS-01); fail-closed restore drops bad sessions and requires re-join.
 
 ## Embedding fallback
 

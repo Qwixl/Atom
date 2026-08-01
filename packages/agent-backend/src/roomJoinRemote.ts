@@ -90,8 +90,9 @@ export async function joinRemoteRoom(
     request?: unknown;
     handshake?: {
       initiatorDid: string;
-      welcome: string;
+      welcome?: string;
       ratchetTree: string;
+      commit?: string;
       memberDids?: string[];
     };
   };
@@ -105,6 +106,9 @@ export async function joinRemoteRoom(
       );
     }
   } else if (joined.handshake) {
+    if (!joined.handshake.welcome) {
+      throw new Error("Host join returned handshake without welcome");
+    }
     await mlsStore.joinRoom({
       roomId,
       handshake: {
@@ -112,6 +116,7 @@ export async function joinRemoteRoom(
         initiatorDid: joined.handshake.initiatorDid,
         welcome: joined.handshake.welcome,
         ratchetTree: joined.handshake.ratchetTree,
+        commit: joined.handshake.commit,
         memberDids: joined.handshake.memberDids,
       },
       memberPackages: memberKp.packages,

@@ -13,4 +13,6 @@ export interface MlsGroupSnapshot {
   roomId: string;
   memberDids: string[];
   groupStateB64: string;
+  /** D135 — optional sidecar when using encodeGroupStateWithoutTree. */
+  ratchetTreeB64?: string;
 }
