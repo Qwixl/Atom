@@ -154,6 +154,21 @@ export function registerBrainAdminRoutes(app: Express, deps: BrainAdminDeps): vo
     });
   });
 
+  /**
+   * Shell session-open for board `on-open` surfaces (PS-05a). Decoupled from
+   * briefing prefs: any vault+agent ready client may call this once per session.
+   */
+  app.post("/brain/session-open", async (_req, res) => {
+    const noted = deps.scheduler.noteSessionOpen();
+    const result = await deps.scheduler.tick();
+    res.json({
+      ok: true,
+      noted,
+      boardRefreshed: result.boardRefreshedSurfaceIds,
+      boardExpired: result.boardExpiredSurfaceIds,
+    });
+  });
+
   /** Class C / Police → founder inject (AS-08). Admin bearer required (same as other brain routes). */
   app.post("/brain/pending/inject", async (req, res) => {
     const body = req.body as { notification?: unknown };

@@ -1067,7 +1067,7 @@ Use **registry modules** only when the owner needs interactivity, shared state, 
 | Personal reminder / solo calendar block | \`consequential-action\` confirmation |
 | Group decision / poll | \`coordination/poll\` |
 | Event RSVP (yes / maybe / no) | \`coordination/rsvp\` |
-| Presentation board (paid; pin / focus regions) | \`atom/presentation-board\` |
+| Presentation board (system; pin / focus regions) | \`atom/presentation-board\` |
 | Shared checklist / todos | \`coordination/shared-list\` |
 | Dating intro card (name + one-liner; Accept/Pass) | \`dating/intro\` |
 | Study flashcards (flip / next) | \`education/flashcards\` |
@@ -1086,7 +1086,7 @@ Rules:
 - Do **not** use \`scheduling/meeting-picker\` to **read** the owner's calendar feed.
 - \`dating/intro\` only when the owner explicitly wants to send or answer a dating intro — never from calendar/RSS. No contact details in props.
 - \`education/flashcards\` needs \`props.title\` and \`props.cards\` as \`[{ front, back }, …]\` with real study content.
-- \`atom/presentation-board\` is a paid first-party board module for **v1 text regions** in chat: pass \`props.regions\` as \`[{ id, title, body?, pinned? }, …]\` and optional \`highlightId\`. Prefer updating the same \`surfaceId\` when rearranging. Do not invent shell dashboards outside this module.
+- \`atom/presentation-board\` is a free system board module for **v1 text regions** in chat: pass \`props.regions\` as \`[{ id, title, body?, pinned? }, …]\` and optional \`highlightId\`. Prefer updating the same \`surfaceId\` when rearranging. Do not invent shell dashboards outside this module.
 - **Persistent board tiles (v2)** use \`surface-pin\`, \`surface-arrange\`, and \`surface-release\` — not the presentation-board module. Pin when the owner will want to re-check something without asking again; prefer \`surface-arrange\` when only priority or placement changed; \`surface-release\` when the tile's relevance has passed. Never pin a binding whose connector is not in the owner's connected set. Never put a consequential action on a board tile — tiles are read-only glance surfaces.
 - Board refresh intervals must respect the shell floor (\`everyMinutes\` ≥ ${15} — \`SURFACE_REFRESH_MIN_MINUTES\`). For calendar feeds, prefer **30+ minutes**: ICS providers cache aggressively and data may lag hours behind even when the as-of label is honest.
 - First calendar tile recipe: \`surface-pin\` with \`surfaceId: "board-cal"\`, \`core/table\` columns \`["When", "Event"]\`, binding \`webcal\` / \`listEvents\` with \`select: "/events"\` (the executor returns \`{ events }\` — not \`/result/events\`), \`format: "table"\`, and frozen \`args: { timeMin, timeMax }\` in ISO 8601. See \`buildCalendarBoardSurfacePin\` in \`@qwixl/shell-core\`.
