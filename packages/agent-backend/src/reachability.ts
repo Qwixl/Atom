@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AgentKindConfig } from "./config.js";
 import { isAsleepQueueFullError } from "./asleepQueue.js";
+import { CommerceAbuseError } from "./commerceAbuse.js";
 
 export type ReachabilityMode = "session" | "sleep" | "hourly_wake" | "always_on";
 
@@ -255,6 +256,21 @@ export function createInboundReachabilityMiddleware(
         res.setHeader("Content-Type", "application/json; charset=utf-8");
         res.end(JSON.stringify(body));
       } catch (error) {
+        if (error instanceof CommerceAbuseError) {
+          const status =
+            error.code === "abuse_store" || error.code === "abuse_kill_unattested" ? 503 : 429;
+          res.statusCode = status;
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+          res.end(
+            JSON.stringify({
+              error: "commerce_rate_limited",
+              code: error.code,
+              message: error.message,
+              queued: false,
+            }),
+          );
+          return;
+        }
         if (isAsleepQueueFullError(error)) {
           const status = asleepQueueFullHttpStatus(error.kind);
           res.statusCode = status;

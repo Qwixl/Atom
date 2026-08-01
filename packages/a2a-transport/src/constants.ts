@@ -209,12 +209,21 @@ export const COMMERCE_DECLINE_SCHEMA = "https://atom.qwixl.dev/schema/CommerceDe
 export const COMMERCE_SPLIT_PROPOSAL_PURPOSE = "commerce:split-proposal";
 export const COMMERCE_SPLIT_PROPOSAL_SCHEMA = "https://atom.qwixl.dev/schema/SplitProposal";
 
+/** BUS-01 Mode H — merchant Checkout paid outcome (not action:receipt / M11 rail). */
+export const COMMERCE_OUTCOME_PURPOSE = "commerce:outcome";
+export const COMMERCE_OUTCOME_SCHEMA = "https://atom.qwixl.dev/schema/CommerceOutcome";
+
+/** Mode H settlement modes on commerce:offer (D139). */
+export const COMMERCE_SETTLEMENT_MERCHANT_CHECKOUT = "merchant-checkout";
+export const COMMERCE_SETTLEMENT_ATOM_MEDIATED = "atom-mediated";
+
 /** All M12 commerce purposes (receiver allowlists). */
 export const COMMERCE_PURPOSES = [
   COMMERCE_INTENT_PURPOSE,
   COMMERCE_OFFER_PURPOSE,
   COMMERCE_DECLINE_PURPOSE,
   COMMERCE_SPLIT_PROPOSAL_PURPOSE,
+  COMMERCE_OUTCOME_PURPOSE,
 ] as const;
 
 /** Plain-language tier-1 disclosure (D039). */

@@ -11,12 +11,20 @@ import {
   COMMERCE_INTENT_SCHEMA,
   COMMERCE_OFFER_PURPOSE,
   COMMERCE_OFFER_SCHEMA,
+  COMMERCE_OUTCOME_PURPOSE,
+  COMMERCE_OUTCOME_SCHEMA,
   COMMERCE_PURPOSES,
+  COMMERCE_SETTLEMENT_ATOM_MEDIATED,
+  COMMERCE_SETTLEMENT_MERCHANT_CHECKOUT,
   COMMERCE_SPLIT_PROPOSAL_PURPOSE,
   COMMERCE_SPLIT_PROPOSAL_SCHEMA,
   DEFAULT_COMMERCE_TTL_SECONDS,
 } from "./constants.js";
 import type { MonetaryAmount } from "./transactions.js";
+
+export type CommerceSettlementMode =
+  | typeof COMMERCE_SETTLEMENT_MERCHANT_CHECKOUT
+  | typeof COMMERCE_SETTLEMENT_ATOM_MEDIATED;
 
 /**
  * M12 commerce objects — intent / offer / decline (D031: rankable terms in signed fields).
@@ -61,6 +69,28 @@ export interface CommerceOfferPayload {
   sponsoredRank?: number;
   validUntil?: string;
   peerDid?: string;
+  /**
+   * BUS-01 / D139 — how money moves. Required for new Mode H offers.
+   * Legacy offers may omit; treat missing as non-Mode-H until migrated.
+   */
+  settlementMode?: CommerceSettlementMode;
+  /** Buy-option TTL (ISO-8601). Required when settlementMode is merchant-checkout. */
+  optionExpiresAt?: string;
+  /** Stripe Checkout Session URL (https). Required when merchant-checkout. */
+  checkoutUrl?: string;
+  /** Stripe Checkout Session id (`cs_…`). Required when Session is known. */
+  checkoutSessionId?: string;
+}
+
+/** BUS-01 Mode H — signed proof that merchant Checkout was paid for an offer. */
+export interface CommerceOutcomePayload {
+  offerId: string;
+  intentId: string;
+  checkoutSessionId: string;
+  amount: MonetaryAmount;
+  paidAt: string;
+  settlementMode: typeof COMMERCE_SETTLEMENT_MERCHANT_CHECKOUT;
+  stripePaymentIntentId?: string;
 }
 
 export interface CommerceDeclinePayload {
@@ -119,6 +149,46 @@ function assertTerms(value: unknown): asserts value is string[] {
       throw new Error("Commerce offer terms must be strings");
     }
   }
+}
+
+function assertSettlementMode(value: unknown): asserts value is CommerceSettlementMode {
+  if (
+    value !== COMMERCE_SETTLEMENT_MERCHANT_CHECKOUT &&
+    value !== COMMERCE_SETTLEMENT_ATOM_MEDIATED
+  ) {
+    throw new Error("Commerce offer settlementMode is invalid");
+  }
+}
+
+function assertHttpsUrl(value: unknown, field: string): asserts value is string {
+  assertNonEmptyString(value, field);
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`Commerce payload field "${field}" must be a valid URL`);
+  }
+  if (parsed.protocol !== "https:") {
+    throw new Error(`Commerce payload field "${field}" must be https`);
+  }
+}
+
+/** Mode H Checkout URLs must be Stripe Checkout hosts (anti-phishing). */
+function assertStripeCheckoutUrl(value: unknown): asserts value is string {
+  assertHttpsUrl(value, "checkoutUrl");
+  const host = new URL(value).hostname.toLowerCase();
+  if (host !== "checkout.stripe.com" && !host.endsWith(".checkout.stripe.com")) {
+    throw new Error("Commerce checkoutUrl must be a Stripe Checkout host (checkout.stripe.com)");
+  }
+}
+
+function assertModeHOfferFields(payload: CommerceOfferPayload): void {
+  if (payload.settlementMode === undefined) return;
+  assertSettlementMode(payload.settlementMode);
+  if (payload.settlementMode !== COMMERCE_SETTLEMENT_MERCHANT_CHECKOUT) return;
+  assertNonEmptyString(payload.optionExpiresAt, "optionExpiresAt");
+  assertStripeCheckoutUrl(payload.checkoutUrl);
+  assertNonEmptyString(payload.checkoutSessionId, "checkoutSessionId");
 }
 
 async function signCommerceObject(
@@ -202,6 +272,7 @@ export async function createCommerceOffer(opts: {
   if (typeof opts.payload.available !== "boolean") {
     throw new Error("Commerce offer available must be a boolean");
   }
+  assertModeHOfferFields(opts.payload);
   return signCommerceObject(opts.identity, {
     schema: COMMERCE_OFFER_SCHEMA,
     purpose: COMMERCE_OFFER_PURPOSE,
@@ -224,7 +295,49 @@ export async function verifyCommerceOffer(input: unknown): Promise<{
   assertNonEmptyString(object.payload.label, "label");
   assertMonetaryAmount(object.payload.amount);
   assertTerms(object.payload.terms);
-  return { object, payload: object.payload as unknown as CommerceOfferPayload };
+  const payload = object.payload as unknown as CommerceOfferPayload;
+  assertModeHOfferFields(payload);
+  return { object, payload };
+}
+
+export async function createCommerceOutcome(opts: {
+  identity: AgentKeyPair;
+  payload: CommerceOutcomePayload;
+  ttlSeconds?: number;
+}): Promise<DataObject> {
+  assertNonEmptyString(opts.payload.offerId, "offerId");
+  assertNonEmptyString(opts.payload.intentId, "intentId");
+  assertNonEmptyString(opts.payload.checkoutSessionId, "checkoutSessionId");
+  assertNonEmptyString(opts.payload.paidAt, "paidAt");
+  assertMonetaryAmount(opts.payload.amount);
+  if (opts.payload.settlementMode !== COMMERCE_SETTLEMENT_MERCHANT_CHECKOUT) {
+    throw new Error("Commerce outcome settlementMode must be merchant-checkout");
+  }
+  return signCommerceObject(opts.identity, {
+    schema: COMMERCE_OUTCOME_SCHEMA,
+    purpose: COMMERCE_OUTCOME_PURPOSE,
+    payload: opts.payload as unknown as Record<string, unknown>,
+    ttlSeconds: opts.ttlSeconds,
+  });
+}
+
+export async function verifyCommerceOutcome(input: unknown): Promise<{
+  object: DataObject;
+  payload: CommerceOutcomePayload;
+}> {
+  const object = await verifyCommerceObject(input, {
+    purpose: COMMERCE_OUTCOME_PURPOSE,
+    schema: COMMERCE_OUTCOME_SCHEMA,
+  });
+  assertNonEmptyString(object.payload.offerId, "offerId");
+  assertNonEmptyString(object.payload.intentId, "intentId");
+  assertNonEmptyString(object.payload.checkoutSessionId, "checkoutSessionId");
+  assertNonEmptyString(object.payload.paidAt, "paidAt");
+  assertMonetaryAmount(object.payload.amount);
+  if (object.payload.settlementMode !== COMMERCE_SETTLEMENT_MERCHANT_CHECKOUT) {
+    throw new Error("Commerce outcome settlementMode must be merchant-checkout");
+  }
+  return { object, payload: object.payload as unknown as CommerceOutcomePayload };
 }
 
 export async function createCommerceDecline(opts: {

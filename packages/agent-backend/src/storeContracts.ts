@@ -51,6 +51,18 @@ export const AGENT_STORE_REGISTRY: Record<string, AgentStoreMeta> = {
     productionBackend: "json",
     v1Note: "JSON file; intent queue survives restart (M13.6).",
   },
+  modeHOffers: {
+    id: "modeHOffers",
+    durability: "json-v1",
+    productionBackend: "json",
+    v1Note: "Pending Mode H Checkout sessions + outcome mint idempotency (BUS-01).",
+  },
+  commerceAbuse: {
+    id: "commerceAbuse",
+    durability: "json-v1",
+    productionBackend: "json",
+    v1Note: "Rate/mint budgets + Agent Shopping flag (BUS-ABUSE-01). Fail-closed on load error.",
+  },
   transactionCommit: {
     id: "transactionCommit",
     durability: "json-v1",

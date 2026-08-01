@@ -161,7 +161,7 @@ import {
   markSessionOpenBriefingRunToday,
 } from "./brain/briefingAutoFire.js";
 import { useBrainPendingPoll } from "./brain/useBrainPendingPoll.js";
-import { SpendPolicySettingsPanel } from "./billing/SpendPolicySettingsPanel.js";
+import { AgentShoppingSettingsPanel } from "./billing/AgentShoppingSettingsPanel.js";
 import { PlanLaneSettingsPanel } from "./billing/PlanLaneSettingsPanel.js";
 import { formatLocationContextForPrompt } from "./location/locationContext.js";
 import { loadLocationPreferences } from "./location/locationPreferences.js";
@@ -353,7 +353,6 @@ const DEFAULT_REGISTRY_URL = "/registry/index.json";
 const APP_STORE_URL_KEY = "atom-app-store-url";
 /** Atom App Store front-end (D073/D099). Owner-editable; any compatible store works. */
 const DEFAULT_APP_STORE_URL = "https://atom.apps.qwixl.com";
-const AGENT_SHOPPER_KEY = "atom-agent-shopper-enabled";
 const REVOCATION_REFRESH_MS = 5 * 60 * 1000;
 
 function loadRegistryUrl(): string {
@@ -4031,9 +4030,6 @@ function SettingsDialog({
   const [appStoreUrl, setAppStoreUrl] = useState(
     () => loadStringFromStorage(APP_STORE_URL_KEY)?.trim() || DEFAULT_APP_STORE_URL,
   );
-  const [agentShopperOn, setAgentShopperOn] = useState(
-    () => loadBooleanFromStorage(AGENT_SHOPPER_KEY, false),
-  );
   const [requireIntegrity, setRequireIntegrity] = useState(trustInitial.requireIntegrity !== false);
   const [requireSignature, setRequireSignature] = useState(trustInitial.requireSignature === true);
   const [blockedIdsText, setBlockedIdsText] = useState(
@@ -4703,26 +4699,11 @@ function SettingsDialog({
         {!productionLocked ? (
           <>
             <hr className="settings-divider" />
-            <SettingsToggle
-              checked={agentShopperOn}
-              label="Allow Agent Shopping"
-              onChange={(next) => {
-                setAgentShopperOn(next);
-                saveStringToStorage(AGENT_SHOPPER_KEY, String(next));
-              }}
+            <AgentShoppingSettingsPanel
+              workspaceId={activeWorkspaceId}
+              vaultUnlocked={vaultUnlocked}
+              embedded
             />
-            <p className="settings-note">
-              When on, your agent may set up a confirmation of interest with a merchant within your
-              limits. Payment still happens between you and the merchant (their checkout page). When
-              off, the agent can only share product details for you to visit the merchant yourself.
-            </p>
-            {agentShopperOn ? (
-              <SpendPolicySettingsPanel
-                workspaceId={activeWorkspaceId}
-                vaultUnlocked={vaultUnlocked}
-                embedded
-              />
-            ) : null}
           </>
         ) : null}
       </div>

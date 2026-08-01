@@ -59,6 +59,8 @@ import { TrustedAgentsStore } from "./trustedAgentsStore.js";
 import { HandleCacheStore } from "./handleCache.js";
 import { BudgetLedgerStore } from "./budgetLedger.js";
 import { evaluateSpend, registerBillingAdminRoutes } from "./billingAdmin.js";
+import { registerStripeModeHWebhook } from "./payment/stripeWebhook.js";
+import { CommerceAbuseStore } from "./commerceAbuse.js";
 import { connectMlsPeer, reconnectStoredMlsPeers } from "./mlsReconnect.js";
 import { bootstrapMeshPeers, meshBootstrapEnabled } from "./meshBootstrap.js";
 import { registerActionAdminRoutes } from "./actionAdmin.js";
@@ -112,6 +114,7 @@ import {
   runAsleepInboxWakeNotification,
   type ReachabilityConfig,
 } from "./reachability.js";
+import { a2aBlobLooksLikeCommerceIntent } from "./commerceAbuseAsleep.js";
 
 export interface StartAgentServerOptions {
   config?: AgentBackendConfig;
@@ -134,6 +137,8 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     };
   }
   const identity = await loadOrCreateIdentity();
+  const commerceAbuseStore = new CommerceAbuseStore();
+  await commerceAbuseStore.load();
   const reachabilityConfig: ReachabilityConfig = {
     ...config.reachabilityConfig,
     wakeSeed: identity.did || config.reachabilityConfig.wakeSeed,
@@ -304,6 +309,34 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     mlsStore,
     catalog: catalogStore,
     businessMode: config.businessMode,
+    stripeSecretKey: config.stripeSecretKey,
+    commerceWorkspaceId: process.env.ATOM_WORKSPACE_ID?.trim() || "default",
+    checkoutSuccessUrl: process.env.ATOM_CHECKOUT_SUCCESS_URL?.trim() || null,
+    checkoutCancelUrl: process.env.ATOM_CHECKOUT_CANCEL_URL?.trim() || null,
+    abuse: commerceAbuseStore,
+    onSuggestMute: (peerDid) => {
+      console.warn(
+        `[commerce-abuse] suggest mute peer ${peerDid} — owner: GET /business/shopping`,
+      );
+    },
+    onCommerceOutcomePaid: ({ amountMinor, currency, description, offerId, checkoutSessionId }) => {
+      budgetLedger.append({
+        workspaceId: process.env.ATOM_WORKSPACE_ID?.trim() || "personal",
+        category: "commerce",
+        amountMinor,
+        currency,
+        description,
+      });
+      if (currency?.toLowerCase() === "gbp" && amountMinor > 0) {
+        void import("./controlPlaneCredits.js").then(({ reportAgentSpendToControlPlane }) => {
+          reportAgentSpendToControlPlane({
+            amountPence: amountMinor,
+            description: description ?? "commerce outcome",
+            idempotencyKey: `${offerId}:${checkoutSessionId}`,
+          });
+        });
+      }
+    },
   });
   await businessStore.load();
 
@@ -520,6 +553,13 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       // Do not swallow enqueue failures — middleware maps AsleepQueueFullError to
       // asleep_queue_full (never agent_asleep with queued:false). D133 / ST-04a.
       enqueue: (input) => {
+        // BUS-ABUSE-01a: peek-only at enqueue (dequeue increments) — fail-closed.
+        if (input.fromDid && a2aBlobLooksLikeCommerceIntent(input.blob)) {
+          commerceAbuseStore.assertInboundIntentBudgetAvailable(input.fromDid);
+          commerceAbuseStore.assertSessionMintBudgetAvailable(
+            process.env.ATOM_WORKSPACE_ID?.trim() || "default",
+          );
+        }
         asleepQueue.enqueue(input);
       },
     }),
@@ -557,6 +597,12 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     config,
     rooms,
     businessDomain: verification?.businessDomain ?? config.businessDomain,
+  });
+  // Mode H: Stripe webhooks are public (signature-authenticated); raw body required.
+  registerStripeModeHWebhook(app, {
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET?.trim() || null,
+    assertWebhookIpAllowed: (ip) => commerceAbuseStore.assertWebhookIpAllowed(ip),
+    onCheckoutPaid: (input) => businessStore.mintOutcomeFromCheckoutPaid(input),
   });
 
   const adminApp = express();
@@ -655,6 +701,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     store: businessStore,
     verification: verificationStore,
     vault: connectorVault,
+    abuse: commerceAbuseStore,
   });
   registerConnectorAdminRoutes(adminApp, {
     vault: connectorVault,

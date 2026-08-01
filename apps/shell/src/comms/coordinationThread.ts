@@ -24,6 +24,7 @@ import {
   COMMERCE_INTENT_PURPOSE,
   COMMERCE_OFFER_PURPOSE,
   COMMERCE_DECLINE_PURPOSE,
+  COMMERCE_OUTCOME_PURPOSE,
   COMMERCE_SPLIT_PROPOSAL_PURPOSE,
   COMMS_MESSAGE_PURPOSE,
   type ActionReserveRefKind,
@@ -300,6 +301,13 @@ export function inboxEntryToThreadItem(
       available: payload.available === true,
       terms,
       sponsored: payload.sponsored === true,
+      settlementMode:
+        typeof payload.settlementMode === "string" ? payload.settlementMode : undefined,
+      optionExpiresAt:
+        typeof payload.optionExpiresAt === "string" ? payload.optionExpiresAt : undefined,
+      checkoutUrl: typeof payload.checkoutUrl === "string" ? payload.checkoutUrl : undefined,
+      checkoutSessionId:
+        typeof payload.checkoutSessionId === "string" ? payload.checkoutSessionId : undefined,
     };
   }
 
@@ -313,6 +321,29 @@ export function inboxEntryToThreadItem(
       intentId: String(payload.intentId ?? ""),
       reasonCode: String(payload.reasonCode ?? "other"),
       note: typeof payload.note === "string" ? payload.note : undefined,
+    };
+  }
+
+  if (purpose === COMMERCE_OUTCOME_PURPOSE) {
+    const amount = parseAmount(payload.amount);
+    if (!amount) return null;
+    return {
+      kind: "commerce-outcome",
+      id,
+      direction: "in",
+      at,
+      peerDid,
+      offerId: String(payload.offerId ?? ""),
+      intentId: String(payload.intentId ?? ""),
+      checkoutSessionId: String(payload.checkoutSessionId ?? ""),
+      amount,
+      paidAt: typeof payload.paidAt === "string" ? payload.paidAt : at,
+      settlementMode:
+        typeof payload.settlementMode === "string" ? payload.settlementMode : "merchant-checkout",
+      stripePaymentIntentId:
+        typeof payload.stripePaymentIntentId === "string"
+          ? payload.stripePaymentIntentId
+          : undefined,
     };
   }
 
