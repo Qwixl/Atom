@@ -170,9 +170,12 @@ See [schemas/governed-object.json](./schemas/governed-object.json).
 The signature is computed over a canonical serialisation of the object
 excluding `signatureAlgorithm` and `signature`. Canonical form and Ed25519
 signing match
-[draft-chapman-a2a-mls-01](../../draft-chapman-a2a-mls-01.md) §The Governed
-Object (Canonical Serialisation and Signing). Implementations SHOULD use
-[RFC 8785](https://www.rfc-editor.org/rfc/rfc8785) (JCS) where available.
+[draft-chapman-a2a-mls-03](../../draft-chapman-a2a-mls-03.md) §Canonical
+Serialisation and Signing: implementations SHOULD use
+[RFC 8785](https://www.rfc-editor.org/rfc/rfc8785) (JCS); absent a JCS library
+they MUST still apply the deterministic key-order / no-whitespace profile
+described there. The Atom reference stack uses `stableStringify` until a
+dedicated JCS library lands.
 
 ## Receiver requirements
 
