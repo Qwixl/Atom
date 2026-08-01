@@ -1,0 +1,26 @@
+{
+  "id": "od-010",
+  "kind": "asleep-http-response",
+  "description": "sleep + verified transport DID → 503 agent_asleep, queued.",
+  "requires": [
+    "asleep-http",
+    "store-and-forward"
+  ],
+  "config": {
+    "mode": "sleep",
+    "wakeSeed": "wake-vector-seed",
+    "forceAlwaysOn": false
+  },
+  "now": "2026-01-15T12:00:00.000Z",
+  "request": {
+    "method": "POST",
+    "body": "{\"jsonrpc\":\"2.0\",\"method\":\"message/send\",\"params\":{\"message\":{\"parts\":[]}}}",
+    "atomCallerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG"
+  },
+  "expect": {
+    "statusCode": 503,
+    "error": "agent_asleep",
+    "queued": true,
+    "enqueued": true
+  }
+}

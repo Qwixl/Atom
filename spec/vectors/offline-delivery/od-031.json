@@ -1,0 +1,16 @@
+{
+  "id": "od-031",
+  "kind": "asleep-queue",
+  "description": "Persisted index survives a new AsleepQueueStore on the same directory.",
+  "requires": [
+    "asleep-queue",
+    "persistence"
+  ],
+  "action": "persist-reopen",
+  "input": {
+    "blobBase64": "c3Vydml2ZXMtcmVzdGFydA=="
+  },
+  "expect": {
+    "listCountAfterReopen": 1
+  }
+}

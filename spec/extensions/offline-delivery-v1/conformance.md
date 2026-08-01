@@ -10,4 +10,5 @@ Card-declaration checks (Atom reference):
 
 Wire asleep / queue-full behaviour is governed by
 `draft-chapman-a2a-offline-delivery-00` and **ST-04-vectors** (D110) — not by
-this package alone.
+this package alone. Runnable fixtures:
+[`spec/vectors/offline-delivery/`](../../vectors/offline-delivery/README.md).

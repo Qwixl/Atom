@@ -1,0 +1,45 @@
+{
+  "id": "od-022",
+  "kind": "asleep-http-response",
+  "description": "Peer cap uses transport atomCallerDid, not body issuerDid — second message 429 kind peer.",
+  "requires": [
+    "asleep-http",
+    "queue-caps",
+    "transport-auth"
+  ],
+  "config": {
+    "mode": "sleep",
+    "wakeSeed": "wake-vector-seed",
+    "forceAlwaysOn": false
+  },
+  "now": "2026-01-15T12:00:00.000Z",
+  "queueCaps": {
+    "maxPendingPerPeer": 1
+  },
+  "requests": [
+    {
+      "method": "POST",
+      "body": "{\"jsonrpc\":\"2.0\",\"method\":\"message/send\",\"params\":{\"message\":{\"issuerDid\":\"did:key:z6Mkforged00000000000000000000000000000000001\"}}}",
+      "atomCallerDid": "did:key:z6MknGc3ocHs3zdPiJbnaaqDi58NGb4pk1Sp9WxWufuXSdxf"
+    },
+    {
+      "method": "POST",
+      "body": "{\"jsonrpc\":\"2.0\",\"method\":\"message/send\",\"params\":{\"message\":{\"issuerDid\":\"did:key:z6Mkforged00000000000000000000000000000000001\"}}}",
+      "atomCallerDid": "did:key:z6MknGc3ocHs3zdPiJbnaaqDi58NGb4pk1Sp9WxWufuXSdxf"
+    }
+  ],
+  "expect": {
+    "first": {
+      "statusCode": 503,
+      "queued": true,
+      "fromDid": "did:key:z6MknGc3ocHs3zdPiJbnaaqDi58NGb4pk1Sp9WxWufuXSdxf"
+    },
+    "second": {
+      "statusCode": 429,
+      "error": "asleep_queue_full",
+      "kind": "peer",
+      "queued": false,
+      "enqueued": false
+    }
+  }
+}

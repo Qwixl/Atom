@@ -1,0 +1,17 @@
+{
+  "id": "od-002",
+  "kind": "reachability-verdict",
+  "description": "session accepts inbound (no asleep store-and-forward).",
+  "requires": [
+    "reachability"
+  ],
+  "config": {
+    "mode": "session",
+    "wakeSeed": "wake-vector-seed",
+    "forceAlwaysOn": false
+  },
+  "now": "2026-01-15T12:00:00.000Z",
+  "expect": {
+    "accept": true
+  }
+}

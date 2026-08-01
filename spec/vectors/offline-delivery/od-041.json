@@ -1,0 +1,21 @@
+{
+  "id": "od-041",
+  "kind": "asleep-queue",
+  "description": "maxTotalBytes cap rejects enqueue.",
+  "requires": [
+    "asleep-queue",
+    "queue-caps"
+  ],
+  "action": "enqueue-reject",
+  "caps": {
+    "maxTotalBytes": 4
+  },
+  "inputs": [
+    {
+      "blobBase64": "MDEyMzQ1Njc4OQ=="
+    }
+  ],
+  "expect": {
+    "rejectKind": "bytes"
+  }
+}

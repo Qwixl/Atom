@@ -1,0 +1,20 @@
+{
+  "id": "card-od-002",
+  "kind": "agent-card-extension",
+  "description": "Valid hourly_wake offline-delivery extension passes schema checks.",
+  "requires": [
+    "agent-card",
+    "offline-delivery-extension"
+  ],
+  "extension": {
+    "uri": "https://atom.qwixl.dev/a2a/offline-delivery/v1",
+    "description": "Offline delivery profile",
+    "required": false,
+    "params": {
+      "mode": "hourly_wake"
+    }
+  },
+  "expect": {
+    "schemaOk": true
+  }
+}

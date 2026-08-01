@@ -1,0 +1,25 @@
+{
+  "id": "od-040",
+  "kind": "asleep-queue",
+  "description": "maxMessages cap rejects enqueue.",
+  "requires": [
+    "asleep-queue",
+    "queue-caps"
+  ],
+  "action": "enqueue-reject",
+  "caps": {
+    "maxMessages": 1
+  },
+  "inputs": [
+    {
+      "blobBase64": "Zmlyc3Q="
+    },
+    {
+      "blobBase64": "c2Vjb25k"
+    }
+  ],
+  "expect": {
+    "firstAccepted": true,
+    "secondKind": "messages"
+  }
+}
