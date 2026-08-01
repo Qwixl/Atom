@@ -44,6 +44,11 @@ An empty or absent allowlist MAY accept any purpose under this extension's
 documented deployment-profile delta. That choice weakens purpose limitation.
 Security-sensitive deployments SHOULD configure explicit allowlists.
 
+IANA-registered purpose values (Internet-Draft purpose registry from
+`draft-chapman-a2a-mls-02`) are informative vocabulary only. Registration MUST
+NOT be treated as allowlist default membership or as authorisation for side
+effects.
+
 ## Rejection diagnostics
 
 Receivers SHOULD distinguish rejection causes for operators, and SHOULD NOT
