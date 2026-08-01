@@ -121,11 +121,9 @@ export class BusinessStore {
     return [...this.intents.values()];
   }
 
-  /** BUS-01-HOLD-GATE — subject matches a pending Mode H offer or Checkout Session id. */
+  /** BUS-01-HOLD-GATE / HOLD-EVICT — pending Mode H offer/session/intent or quarantine. */
   isModeHHoldSubject(subjectId: string): boolean {
-    const id = subjectId.trim();
-    if (!id) return false;
-    return Boolean(this.modeHOffers.getByOfferId(id) || this.modeHOffers.getBySessionId(id));
+    return this.modeHOffers.isHoldSubject(subjectId);
   }
 
   async sendIntent(params: {

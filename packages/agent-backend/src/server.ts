@@ -644,6 +644,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     stripePublishableKey: config.stripePublishableKey,
     stripeProductId: config.stripeProductId,
     paymentRail: options.paymentRail,
+    isModeHHoldSubject: (subjectId) => businessStore.isModeHHoldSubject(subjectId),
   });
   registerBillingAdminRoutes(adminApp, {
     budgetLedger,

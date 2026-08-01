@@ -61,4 +61,46 @@ describe("BUS-01-HOLD-GATE BusinessStore.isModeHHoldSubject", () => {
     expect(store.isModeHHoldSubject("cs_test_hold_gate")).toBe(true);
     expect(store.isModeHHoldSubject("unrelated-subject")).toBe(false);
   });
+
+  it("BUS-01-HOLD-EVICT: remains true after option eviction including intentId", async () => {
+    const merchant = await generateAgentKeyPair();
+    const abuse = new CommerceAbuseStore(
+      path.join(dir, "abuse-evict.json"),
+      path.join(dir, "shopping-evict.json"),
+    );
+    await abuse.load();
+    const modeHPath = path.join(dir, "mode-h-evict.json");
+    const offers = new ModeHOfferStore(modeHPath);
+    await offers.load();
+    offers.upsert({
+      offerId: "evict-uuid",
+      intentId: "evict-intent",
+      checkoutSessionId: "cs_evict_gate",
+      amount: { currency: "EUR", amountMinor: 100 },
+      label: "Item",
+      buyerPeerUrl: "http://127.0.0.1:9",
+      createdAt: new Date().toISOString(),
+      optionExpiresAt: new Date(Date.now() - 2000).toISOString(),
+    });
+    offers.assertCanAcceptPending();
+    await offers.flush();
+
+    const store = new BusinessStore(
+      {
+        localDid: merchant.did,
+        identity: merchant,
+        mlsStore: {} as MlsSessionStore,
+        catalog: { list: () => [], get: () => undefined } as unknown as BusinessCatalogStore,
+        businessMode: true,
+        abuse,
+      },
+      path.join(dir, "intents-evict.json"),
+      modeHPath,
+    );
+    await store.load();
+
+    expect(store.isModeHHoldSubject("evict-uuid")).toBe(true);
+    expect(store.isModeHHoldSubject("cs_evict_gate")).toBe(true);
+    expect(store.isModeHHoldSubject("evict-intent")).toBe(true);
+  });
 });
