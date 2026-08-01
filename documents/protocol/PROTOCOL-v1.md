@@ -2,11 +2,11 @@
 
 **Status:** frozen as of `@qwixl/protocol@0.1.0`. Breaking changes require major semver and a migration note.
 
-Decisions: the decisions log (private) (did:key), `#d024` (governance), `#d023`/`#d025` (MLS E2E on agent backend).
+Identity uses **did:key** (Ed25519). Governance purpose binding is enforced receiver-side. MLS E2E runs on the owner-controlled agent backend.
 
 ## Data object (`DataObject`, v1)
 
-Four layers per `03-protocol/00-data-object.md`:
+Four layers:
 
 1. **Cryptographic envelope** — `issuerDid`, `signature`, `signatureAlgorithm`
 2. **Semantic tag** — `semantic.schema` (+ optional `version`, `embeddingHint`)
@@ -44,7 +44,7 @@ Signing: `signDataObject(body, keyPair)` after `generateAgentKeyPair()`.
 |---|---|
 | Purpose binding | Receiver `allowedPurposes` in `verifyDataObject()` |
 | TTL / expiry | Receiver rejects expired objects (`ttlSeconds` from `issuedAt`, or `expiresAt`) |
-| Cryptographic purpose-binding | **Not in v1** — see `07-open-questions.md#q7` |
+| Cryptographic purpose-binding | **Not in v1** — deferred to a future protocol revision |
 
 ## E2E encryption (agent ↔ agent)
 
@@ -81,7 +81,7 @@ Atom payloads travel in A2A `data` parts. On the wire:
 
 **Decision:** the media type is written in **both** positions and read from **either**, and a part whose two declarations *disagree* is rejected rather than resolved in favour of one. Routes rejected: the **part member only** — cleanest wire, but breaks peers and modules reading the envelope key; the **envelope key only** — leaves Atom parts opaque to generic A2A tooling; **preferring one member on conflict** — makes a message mean different things to receivers that read different members, which a sender can exploit to choose which peer acts (conformance vector `073`). The duplication is transitional; the envelope key can be dropped once no peer reads it. Codec: `toAtomDataPart()` / `readAtomDataPart()`.
 
-Note the wire JSON is not the generated type: the SDK presents part content as a tagged union and `role` as a numeric enum, and neither is observable by a peer. Full wire reference: [A2A-v1.md](A2A-v1.md).
+Note the wire JSON is not the generated type: the SDK presents part content as a tagged union and `role` as a numeric enum, and neither is observable by a peer. Full wire reference: [A2A-v1.md](./A2A-v1.md).
 
 Messages: `role` is the enum name `ROLE_USER` / `ROLE_AGENT`; empty members are omitted rather than sent; `extensions` and `referenceTaskIds` are new. Atom SHOULD declare `https://atom.qwixl.dev/a2a/data-object/v1` in `extensions` on GO-carrying traffic (`atomMessage()` stamps it by default); MLS-only messages MUST NOT stamp that URI. No receiver requires the member — the media type identifies a part.
 

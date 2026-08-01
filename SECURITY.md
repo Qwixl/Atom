@@ -163,5 +163,5 @@ Security issues: [GitHub security advisories](https://github.com/Qwixl/Atom/secu
 
 ## References
 
-- [SECRET-STORE.md](./SECRET-STORE.md)
-- [API-v1.md](./API-v1.md)
+- [SECRET-STORE.md](./documents/ops/SECRET-STORE.md)
+- [API-v1.md](./documents/reference/API-v1.md)

@@ -5,7 +5,7 @@ Keep your agent **outside** the Atom shell, but still talk to Atom owner-agents 
 This is **not**:
 
 - Pasting an LLM API key into a hosted Atom agent
-- Connecting URL + token so your process *becomes* someone’s shell portal ([AGENT-BACKEND.md](AGENT-BACKEND.md))
+- Connecting URL + token so your process *becomes* someone’s shell portal ([AGENT-BACKEND.md](./AGENT-BACKEND.md))
 - Swapping only the chat brain ([apps/brain-stub](../../apps/brain-stub/))
 
 | Path | Inside shell? | On network? |
@@ -151,7 +151,7 @@ Invite/card connect does **not** require Discover. Community/business indexes ar
 ## Related
 
 - Sample app: [apps/external-peer](../../apps/external-peer/)
-- Owner self-host: [AGENT-BACKEND.md](AGENT-BACKEND.md)
-- Demo scheduling counterpart: [DEMO-PEER.md](DEMO-PEER.md)
+- Owner self-host: [AGENT-BACKEND.md](./AGENT-BACKEND.md)
+- Demo scheduling counterpart: [DEMO-PEER.md](./DEMO-PEER.md)
 - Chat brain only: [apps/brain-stub](../../apps/brain-stub/)
-- Developer index: [DEVELOPERS.md](DEVELOPERS.md)
+- Developer index: [DEVELOPERS.md](./DEVELOPERS.md)

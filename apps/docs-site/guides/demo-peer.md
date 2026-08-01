@@ -13,4 +13,4 @@ MLS + automatic scheduling proposal from a **counterpart** agent — not the sam
 pnpm docker:demo-peer   # alternative
 ```
 
-See [DEMO-PEER.md](https://github.com/Qwixl/Atom/blob/main/DEMO-PEER.md) for production deployment.
+See [DEMO-PEER.md](https://github.com/Qwixl/Atom/blob/main/documents/guides/DEMO-PEER.md) for production deployment.

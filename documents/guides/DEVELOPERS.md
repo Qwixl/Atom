@@ -1,19 +1,19 @@
 # Atom developer guide
 
-Public entry point for building on the Atom platform (M14). Full API reference lives in the repo root markdown files and the docs site (`pnpm dev:docs`).
+Public entry point for building on the Atom platform (M14). Full API reference: [API-v1.md](../reference/API-v1.md), [MODULES.md](../reference/MODULES.md), [EMBED.md](../reference/EMBED.md); local docs site: `pnpm dev:docs`.
 
 ## Why build here instead of a chat-platform SDK
 
-MCP Apps and vendor app SDKs put your widget inside an AI vendor's chat product — the vendor owns the host, the identity, and the distribution. Atom modules ship into **user-owned infrastructure**: a shell the user runs (or exports and leaves with), a federated registry any publisher can host, and an agent the user picks the model for. Technically the module contract is familiar — sandboxed iframe, postMessage bridge, integrity-hashed bundle — but consequential actions and guarded data cross an owner-side trust boundary (shell chrome + attestation log) that no in-conversation widget can bypass or imitate. Positioning details: [README.md § Why Atom](./README.md#why-atom).
+MCP Apps and vendor app SDKs put your widget inside an AI vendor's chat product — the vendor owns the host, the identity, and the distribution. Atom modules ship into **user-owned infrastructure**: a shell the user runs (or exports and leaves with), a federated registry any publisher can host, and an agent the user picks the model for. Technically the module contract is familiar — sandboxed iframe, postMessage bridge, integrity-hashed bundle — but consequential actions and guarded data cross an owner-side trust boundary (shell chrome + attestation log) that no in-conversation widget can bypass or imitate. Positioning details: [README.md § Why Atom](../../README.md#why-atom).
 
 ## Quick paths
 
 | Goal | Start here |
 |---|---|
-| Run an agent backend | `npx @qwixl/agent-backend` — [AGENT-BACKEND.md](AGENT-BACKEND.md) |
-| Join the network as an external peer | [JOIN-AS-PEER.md](JOIN-AS-PEER.md) — `pnpm dev:external-peer` |
-| Try MLS + scheduling | [PERSONAL-DEMO.md](PERSONAL-DEMO.md) — `pnpm dev:demo` |
-| Demo peer (counterpart agent) | [DEMO-PEER.md](DEMO-PEER.md) — `pnpm dev` → `/demo` or `pnpm dev:demo-peer` |
+| Run an agent backend | `npx @qwixl/agent-backend` — [AGENT-BACKEND.md](./AGENT-BACKEND.md) |
+| Join the network as an external peer | [JOIN-AS-PEER.md](./JOIN-AS-PEER.md) — `pnpm dev:external-peer` |
+| Try MLS + scheduling | [PERSONAL-DEMO.md](./PERSONAL-DEMO.md) — `pnpm dev:demo` |
+| Demo peer (counterpart agent) | [DEMO-PEER.md](./DEMO-PEER.md) — `pnpm dev` → `/demo` or `pnpm dev:demo-peer` |
 | Embed the shell | [EMBED.md](../reference/EMBED.md) |
 | Build a module | [MODULES.md](../reference/MODULES.md) — tutorial at `apps/docs-site/guides/module-author-tutorial.md` |
 | Build a connector | `apps/docs-site/guides/connector-author-tutorial.md` |

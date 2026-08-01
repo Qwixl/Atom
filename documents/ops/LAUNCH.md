@@ -1,6 +1,6 @@
 # Launch — Phase 1 private comms (M7)
 
-Open-source, privacy-first, owner-controlled agent-to-agent communications. Positioning: open-source, privacy-first, owner-controlled Phase-1 communications.
+Open-source, privacy-first, owner-controlled agent-to-agent communications. Phase 1 targets trust-ladder private comms between owner-controlled agents.
 
 ## What ships in M7
 
@@ -42,7 +42,7 @@ npx @qwixl/agent-backend
 - **Audience:** privacy-first early adopters; self-hosters; developers embedding `@qwixl/shell-core`
 - **Message:** your agent, your keys, your shell — counterpart agents get proofs and scoped slices, not your platform login
 - **Distribution:** GitHub (`Qwixl/Atom`), npm (`@qwixl/*`), Docker Compose for agent backend
-- **Not claiming:** mainstream scale, incumbent replacement, or sustainable revenue (see go-to-market precedents in private docs)
+- **Not claiming:** mainstream scale, incumbent replacement, or sustainable revenue at M7 launch
 
 ## Security posture (v1)
 
@@ -61,5 +61,5 @@ npx @qwixl/agent-backend
 
 - [PROTOCOL-v1.md](../protocol/PROTOCOL-v1.md) — wire contracts
 - [AGENT-BACKEND.md](../guides/AGENT-BACKEND.md) — self-hosting
-- [SECRET-STORE.md](SECRET-STORE.md) — credential adapters (D027)
+- [SECRET-STORE.md](./SECRET-STORE.md) — credential adapters (D027)
 - [EMBED.md](../reference/EMBED.md) — embed `@qwixl/shell-core` in your product
