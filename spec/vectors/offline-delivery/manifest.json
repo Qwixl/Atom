@@ -1,0 +1,305 @@
+{
+  "specification": "draft-chapman-a2a-offline-delivery-00",
+  "generated": "deterministic — regenerate with `node spec/vectors/offline-delivery/generate.mjs`",
+  "d110Note": "generate.mjs uses node:crypto/fs only; run.mjs imports packages/*/dist after build.",
+  "wakeSeed": "wake-vector-seed",
+  "wakeMinuteUtc": 11,
+  "wakeWindowInsideExample": "2026-01-15T12:11:10.000Z",
+  "wakeWindowOutsideExample": "2026-01-15T12:41:00.000Z",
+  "identities": {
+    "alice": {
+      "did": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+      "publicKeyBase64": "TLWr9q15+/WrvMr8wmnYXNJlHtS4hbWGnyQa7fCluik="
+    },
+    "caller": {
+      "did": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG"
+    },
+    "transportPeer": {
+      "did": "did:key:z6MknGc3ocHs3zdPiJbnaaqDi58NGb4pk1Sp9WxWufuXSdxf"
+    }
+  },
+  "counts": {
+    "total": 34,
+    "byKind": {
+      "reachability-verdict": 5,
+      "asleep-http-response": 9,
+      "asleep-queue": 6,
+      "asleep-dequeue": 5,
+      "asleep-dequeue-sequence": 1,
+      "asleep-dequeue-restart": 1,
+      "agent-card-extension": 6,
+      "agent-card-build": 1
+    }
+  },
+  "vectors": [
+    {
+      "id": "od-001",
+      "kind": "reachability-verdict",
+      "requires": [
+        "reachability"
+      ]
+    },
+    {
+      "id": "od-002",
+      "kind": "reachability-verdict",
+      "requires": [
+        "reachability"
+      ]
+    },
+    {
+      "id": "od-003",
+      "kind": "reachability-verdict",
+      "requires": [
+        "reachability"
+      ]
+    },
+    {
+      "id": "od-004",
+      "kind": "reachability-verdict",
+      "requires": [
+        "reachability",
+        "hourly-wake"
+      ]
+    },
+    {
+      "id": "od-005",
+      "kind": "reachability-verdict",
+      "requires": [
+        "reachability",
+        "hourly-wake"
+      ]
+    },
+    {
+      "id": "od-010",
+      "kind": "asleep-http-response",
+      "requires": [
+        "asleep-http",
+        "store-and-forward"
+      ]
+    },
+    {
+      "id": "od-011",
+      "kind": "asleep-http-response",
+      "requires": [
+        "asleep-http",
+        "hourly-wake"
+      ]
+    },
+    {
+      "id": "od-012",
+      "kind": "asleep-http-response",
+      "requires": [
+        "asleep-http",
+        "hourly-wake"
+      ]
+    },
+    {
+      "id": "od-013",
+      "kind": "asleep-http-response",
+      "requires": [
+        "asleep-http"
+      ]
+    },
+    {
+      "id": "od-014",
+      "kind": "asleep-http-response",
+      "requires": [
+        "asleep-http",
+        "reachability"
+      ]
+    },
+    {
+      "id": "od-015",
+      "kind": "asleep-http-response",
+      "requires": [
+        "asleep-http",
+        "transport-auth"
+      ]
+    },
+    {
+      "id": "od-020",
+      "kind": "asleep-http-response",
+      "requires": [
+        "asleep-http",
+        "queue-caps"
+      ]
+    },
+    {
+      "id": "od-021",
+      "kind": "asleep-http-response",
+      "requires": [
+        "asleep-http",
+        "queue-caps"
+      ]
+    },
+    {
+      "id": "od-022",
+      "kind": "asleep-http-response",
+      "requires": [
+        "asleep-http",
+        "queue-caps",
+        "transport-auth"
+      ]
+    },
+    {
+      "id": "od-030",
+      "kind": "asleep-queue",
+      "requires": [
+        "asleep-queue"
+      ]
+    },
+    {
+      "id": "od-031",
+      "kind": "asleep-queue",
+      "requires": [
+        "asleep-queue",
+        "persistence"
+      ]
+    },
+    {
+      "id": "od-040",
+      "kind": "asleep-queue",
+      "requires": [
+        "asleep-queue",
+        "queue-caps"
+      ]
+    },
+    {
+      "id": "od-041",
+      "kind": "asleep-queue",
+      "requires": [
+        "asleep-queue",
+        "queue-caps"
+      ]
+    },
+    {
+      "id": "od-042",
+      "kind": "asleep-queue",
+      "requires": [
+        "asleep-queue",
+        "queue-caps"
+      ]
+    },
+    {
+      "id": "od-043",
+      "kind": "asleep-queue",
+      "requires": [
+        "asleep-queue",
+        "ttl"
+      ]
+    },
+    {
+      "id": "od-050",
+      "kind": "asleep-dequeue",
+      "requires": [
+        "asleep-dequeue",
+        "processing"
+      ]
+    },
+    {
+      "id": "od-051",
+      "kind": "asleep-dequeue",
+      "requires": [
+        "asleep-dequeue",
+        "processing"
+      ]
+    },
+    {
+      "id": "od-052",
+      "kind": "asleep-dequeue",
+      "requires": [
+        "asleep-dequeue",
+        "processing",
+        "governance"
+      ]
+    },
+    {
+      "id": "od-053",
+      "kind": "asleep-dequeue-sequence",
+      "requires": [
+        "asleep-dequeue",
+        "replay"
+      ]
+    },
+    {
+      "id": "od-054",
+      "kind": "asleep-dequeue",
+      "requires": [
+        "asleep-dequeue"
+      ]
+    },
+    {
+      "id": "od-055",
+      "kind": "asleep-dequeue",
+      "requires": [
+        "asleep-dequeue",
+        "ttl"
+      ]
+    },
+    {
+      "id": "od-060",
+      "kind": "asleep-dequeue-restart",
+      "requires": [
+        "asleep-dequeue",
+        "replay",
+        "persistence"
+      ]
+    },
+    {
+      "id": "card-od-001",
+      "kind": "agent-card-extension",
+      "requires": [
+        "agent-card",
+        "offline-delivery-extension"
+      ]
+    },
+    {
+      "id": "card-od-002",
+      "kind": "agent-card-extension",
+      "requires": [
+        "agent-card",
+        "offline-delivery-extension"
+      ]
+    },
+    {
+      "id": "card-od-003",
+      "kind": "agent-card-extension",
+      "requires": [
+        "agent-card",
+        "offline-delivery-extension"
+      ]
+    },
+    {
+      "id": "card-od-004",
+      "kind": "agent-card-extension",
+      "requires": [
+        "agent-card",
+        "offline-delivery-extension"
+      ]
+    },
+    {
+      "id": "card-od-005",
+      "kind": "agent-card-extension",
+      "requires": [
+        "agent-card",
+        "offline-delivery-extension"
+      ]
+    },
+    {
+      "id": "card-od-006",
+      "kind": "agent-card-extension",
+      "requires": [
+        "agent-card",
+        "offline-delivery-extension"
+      ]
+    },
+    {
+      "id": "card-od-007",
+      "kind": "agent-card-build",
+      "requires": [
+        "agent-card",
+        "offline-delivery-extension"
+      ]
+    }
+  ]
+}

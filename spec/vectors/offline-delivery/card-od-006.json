@@ -1,0 +1,20 @@
+{
+  "id": "card-od-006",
+  "kind": "agent-card-extension",
+  "description": "Wrong extension URI is rejected.",
+  "requires": [
+    "agent-card",
+    "offline-delivery-extension"
+  ],
+  "extension": {
+    "uri": "https://example.com/wrong",
+    "description": "Offline delivery profile",
+    "required": false,
+    "params": {
+      "mode": "sleep"
+    }
+  },
+  "expect": {
+    "schemaOk": false
+  }
+}

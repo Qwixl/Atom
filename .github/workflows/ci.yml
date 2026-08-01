@@ -35,6 +35,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: node spec/vectors/run.mjs
+      - run: node spec/vectors/offline-delivery/run.mjs
       - run: python3 -m pip install -r spec/second-impl/requirements.txt
       - run: python3 spec/second-impl/run_vectors.py
       - run: python3 spec/hostile/run_hostile.py

@@ -1,0 +1,28 @@
+{
+  "id": "od-011",
+  "kind": "asleep-http-response",
+  "description": "hourly_wake outside window + caller → 503, Retry-After, queued.",
+  "requires": [
+    "asleep-http",
+    "hourly-wake"
+  ],
+  "config": {
+    "mode": "hourly_wake",
+    "wakeSeed": "wake-vector-seed",
+    "forceAlwaysOn": false
+  },
+  "now": "2026-01-15T12:41:00.000Z",
+  "request": {
+    "method": "POST",
+    "body": "{}",
+    "atomCallerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG"
+  },
+  "expect": {
+    "statusCode": 503,
+    "error": "agent_asleep",
+    "queued": true,
+    "enqueued": true,
+    "retryAfterHeader": true,
+    "retryAfterSecMin": 1
+  }
+}
