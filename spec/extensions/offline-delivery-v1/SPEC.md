@@ -1,6 +1,6 @@
 # A2A Extension: Offline Delivery v1
 
-**Status:** Candidate (repository-hosted; Class D external announcement pending)  
+**Status:** Announced (self-service; a2aproject sponsorship separate)  
 **Identifier:** `https://atom.qwixl.dev/a2a/offline-delivery/v1`  
 **Decision:** D134 / ST-04c
 

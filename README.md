@@ -60,6 +60,21 @@ Broader provenance (GO together with MLS) remains in Internet-Draft
 [`draft-chapman-a2a-mls`](https://datatracker.ietf.org/doc/draft-chapman-a2a-mls/).
 Official `a2aproject` sponsorship is a separate, later ask.
 
+## Offline delivery A2A extension (v1)
+
+Atom publishes a self-service A2A extension that advertises store-and-forward /
+reachability support on the Agent Card when the agent’s effective mode is
+`sleep` or `hourly_wake`.
+
+- **Identifier:** `https://atom.qwixl.dev/a2a/offline-delivery/v1`
+- **Specification:** https://github.com/Qwixl/Atom/tree/main/spec/extensions/offline-delivery-v1
+- **Agent Card:** `required: false`, `params.mode` ∈ {`sleep`, `hourly_wake`}
+- **Scope:** card discovery only — no media type; no `message.extensions` stamp
+- **Wire semantics:** Internet-Draft [`draft-chapman-a2a-offline-delivery`](https://datatracker.ietf.org/doc/draft-chapman-a2a-offline-delivery/) (`-00`); HTTP asleep / queue-full / auth responses remain authoritative over a stale card
+- **Evidence:** D110 corpus under `spec/vectors/offline-delivery/` (34 vectors) + CI runner
+- **Document host:** SPEC in the GitHub tree linked above; the URI is a stable identifier (HTTP resolution at that host may follow later)
+- **Out of scope for this extension:** MLS, rooms, Governed Object processing, push vendors
+
 ## Principles
 
 - **Composition, not code generation.** Agents emit declarative compositions resolved against a catalog of vetted components. No arbitrary code crosses the agent boundary.
