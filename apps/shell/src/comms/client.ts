@@ -14,6 +14,46 @@ import type { InboxEntryWire, AgentContact } from "./types.js";
 import { formatAgentError } from "./agentErrors.js";
 import { assertProductionAgentUrl } from "../productionGuard.js";
 
+/**
+ * What this agent can say about a message its room host served it. `legacy` is
+ * a message from before the room started signing; `unsigned` is one that should
+ * have been signed and was not. `substituted` means the signature was genuine
+ * but the host served different content alongside it.
+ */
+export type RoomMessageVerification =
+  | "verified"
+  | "legacy"
+  | "unsigned"
+  | "invalid"
+  | "substituted"
+  | "omitted";
+
+export interface RoomVerificationSummary {
+  verified: number;
+  legacy: number;
+  unsigned: number;
+  invalid: number;
+  substituted: number;
+  omitted: number;
+}
+
+export type RoomVerificationReport =
+  /** We host this room, so there is no third party to check. */
+  | { role: "host" }
+  | {
+      role: "member";
+      summary: RoomVerificationSummary;
+      omissions: Array<{
+        objectId: string;
+        senderDid: string;
+        kind: "message" | "activity";
+        text?: string;
+        at: string;
+        n: number;
+      }>;
+      forks: Array<{ objectId: string; senderDid: string; n: number; at: string }>;
+    };
+
 export interface ResolvedDiscoverTarget {
   adminBase: string;
   agentCardUrl: string;
@@ -1324,11 +1364,28 @@ export class CommsAgentClient {
       at: string;
       deleted?: boolean;
       editedAt?: string;
+      verification?: RoomMessageVerification;
+      verificationDetail?: string;
     }>;
+    verification?: RoomVerificationSummary;
   }> {
     return getJson(
       this.base(),
       `/rooms/${encodeURIComponent(roomId)}/messages?after=${afterSeq}`,
+      this.auth,
+      true,
+    );
+  }
+
+  /**
+   * Full-range audit of what the host has served against what we received
+   * directly. Separate from message polling, which is incremental and so cannot
+   * see omissions.
+   */
+  async getRoomVerification(roomId: string): Promise<RoomVerificationReport> {
+    return getJson(
+      this.base(),
+      `/rooms/${encodeURIComponent(roomId)}/verification`,
       this.auth,
       true,
     );

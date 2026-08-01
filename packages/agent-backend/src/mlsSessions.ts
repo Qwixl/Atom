@@ -12,8 +12,13 @@ import {
   type GeneratedKeyPackage,
   type MlsWireMessage,
 } from "@qwixl/mls-session";
-import { ATOM_MLS_HANDSHAKE_MEDIA_TYPE, type AtomMlsHandshakeEnvelope } from "@qwixl/a2a-transport";
-import type { AgentKeyPair } from "@qwixl/protocol";
+import {
+  ATOM_MLS_HANDSHAKE_MEDIA_TYPE,
+  decodeEncryptedObjectPayload,
+  encodeEncryptedObjectPayload,
+  type AtomMlsHandshakeEnvelope,
+} from "@qwixl/a2a-transport";
+import type { AgentKeyPair, DataObject } from "@qwixl/protocol";
 import type { KeyPackage, PrivateKeyPackage } from "ts-mls";
 import type { MlsSessionRecordStore } from "./mlsSessionRecords.js";
 
@@ -336,12 +341,28 @@ export function adminBaseFromPeerUrl(peerUrl: string): string {
   return `${url.protocol}//${url.host}`;
 }
 
-export function parseRoomPayload(plaintext: Uint8Array): {
-  kind: "message" | "activity";
-  text?: string;
-  activityKind?: string;
-  payload?: Record<string, unknown>;
-} {
+/**
+ * RI-01/RI-04. Room MLS plaintext is a signed data object in the same
+ * encapsulation the pairwise path uses (`version: 2`). `version: 1` is the
+ * pre-migration bare record, readable so existing rooms do not empty out —
+ * acceptance of it is bounded by the room's cutoff, not by this reader.
+ */
+export type RoomPayload =
+  | { version: 2; object: DataObject }
+  | {
+      version: 1;
+      kind: "message" | "activity";
+      text?: string;
+      activityKind?: string;
+      payload?: Record<string, unknown>;
+    };
+
+export function parseRoomPayload(plaintext: Uint8Array): RoomPayload {
+  try {
+    return { version: 2, object: decodeEncryptedObjectPayload(plaintext) };
+  } catch {
+    // Not a signed-object envelope; fall through to the legacy shape.
+  }
   const parsed = JSON.parse(new TextDecoder().decode(plaintext)) as {
     kind?: string;
     text?: string;
@@ -351,15 +372,21 @@ export function parseRoomPayload(plaintext: Uint8Array): {
   if (parsed.kind !== "message" && parsed.kind !== "activity") {
     throw new Error("Invalid room payload kind");
   }
-  return parsed as {
-    kind: "message" | "activity";
-    text?: string;
-    activityKind?: string;
-    payload?: Record<string, unknown>;
+  return {
+    version: 1,
+    kind: parsed.kind,
+    text: parsed.text,
+    activityKind: parsed.activityKind,
+    payload: parsed.payload,
   };
 }
 
-export function encodeRoomPayload(payload: {
+export function encodeRoomObject(object: DataObject): Uint8Array {
+  return encodeEncryptedObjectPayload(object);
+}
+
+/** Legacy encoder, retained only so migration tests can produce v1 traffic. */
+export function encodeLegacyRoomPayload(payload: {
   kind: "message" | "activity";
   text?: string;
   activityKind?: string;
