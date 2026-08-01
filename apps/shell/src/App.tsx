@@ -246,6 +246,7 @@ import {
   loadOwnerProposals,
   loadOwnerRecords,
   newStandingIntentId,
+  notifyBrainSessionOpen,
   saveAttestations,
   saveBrainIntents,
   saveChatFeed,
@@ -1890,6 +1891,48 @@ export function App() {
     provider,
     requestBriefingComposition,
   ]);
+
+  // Board on-open refresh (PS-05a): independent of briefing prefs. Once per tab session;
+  // server also debounces noteSessionOpen. Set the tab flag only after a successful notify
+  // (or after a deliberate skip when auth is unavailable).
+  useEffect(() => {
+    if (IS_DEMO_MODE || !vaultUnlocked || !agentConnectionReady || !connectorContextReady) return;
+    const flagKey = "atom:board-session-open-sent";
+    try {
+      if (sessionStorage.getItem(flagKey) === "1") return;
+    } catch {
+      /* sessionStorage unavailable — still attempt once this mount */
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const config = await loadCommsAgentConfigSecure();
+        if (!config.adminToken?.trim() && !usesSupabaseHostedAuth()) {
+          try {
+            sessionStorage.setItem(flagKey, "1");
+          } catch {
+            /* ignore */
+          }
+          return;
+        }
+        if (cancelled) return;
+        await notifyBrainSessionOpen(config);
+        if (cancelled) return;
+        try {
+          sessionStorage.setItem(flagKey, "1");
+        } catch {
+          /* ignore */
+        }
+      } catch (error) {
+        console.warn(
+          `[board] session-open notify failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [vaultUnlocked, agentConnectionReady, connectorContextReady]);
 
   // Recover legacy "ask me" stubs only — thin "Morning briefing" / "is ready" lines must not re-fire.
   useEffect(() => {

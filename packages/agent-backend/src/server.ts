@@ -42,6 +42,7 @@ import { registerBrainAdminRoutes } from "./brainAdmin.js";
 import { BrainScheduler } from "./brainScheduler.js";
 import { registerPushAdminRoutes } from "./push/pushAdmin.js";
 import { createReadOnlyConnectorExecutor } from "./readOnlyConnectorExecutor.js";
+import { setConnectorCacheInvalidateListener } from "./connectorInvoke.js";
 import { loadVoiceBackend } from "./voice/stubVoiceBackend.js";
 import { registerVoiceAdminRoutes } from "./voice/voiceAdmin.js";
 import { ConnectorVault } from "./connectorVault.js";
@@ -800,6 +801,10 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       });
     },
   });
+  setConnectorCacheInvalidateListener((connectorId) => {
+    brainScheduler.noteConnectorChange(connectorId);
+    void brainScheduler.tick();
+  });
   registerBrainAdminRoutes(adminApp, { vault: connectorVault, scheduler: brainScheduler });
   registerPushAdminRoutes(adminApp, { vault: connectorVault });
   const voiceBackend = loadVoiceBackend();
@@ -1130,6 +1135,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       );
       const stopBrain = () => {
         brainScheduler.stop();
+        setConnectorCacheInvalidateListener(undefined);
         // Every inbound room message advances persisted chain state via a write
         // nobody awaits, so without this a clean shutdown can drop the position
         // it just recorded and re-admit those messages on restart.
