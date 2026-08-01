@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atom.qwixl.dev/schema/RoomReceipt",
+  "title": "RoomReceipt",
+  "description": "Host acceptance receipt payload (room:receipt).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["roomId", "objectId", "objectHash", "seq", "acceptedAt"],
+  "properties": {
+    "roomId": { "type": "string", "minLength": 1 },
+    "objectId": { "type": "string", "minLength": 1 },
+    "objectHash": { "type": "string", "minLength": 1 },
+    "seq": { "type": "integer", "minimum": 1 },
+    "acceptedAt": { "type": "string", "minLength": 1 }
+  }
+}
