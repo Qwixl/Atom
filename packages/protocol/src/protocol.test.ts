@@ -160,6 +160,29 @@ describe("replay rejection", () => {
     await expect(verifyDataObject(object, { replay })).rejects.toThrow(/replay/);
   });
 
+  it("rejects replay when verify uses a frozen now older than wall time", async () => {
+    // Retention is derived from object expiry. Without forwarding options.now to
+    // ReplayGuard.admit, a conformance vector whose frozen clock is in the past
+    // would re-admit because wall-clock Date.now() is past retainUntil.
+    const keyPair = await generateAgentKeyPair();
+    const issuedAt = new Date("2020-01-01T00:00:00.000Z");
+    const now = new Date("2020-01-01T00:30:00.000Z");
+    const object = await signDataObject(
+      {
+        semantic: { schema: "https://schema.org/Message" },
+        payload: { text: "frozen-clock" },
+        governance: { purpose: "action:capture", ttlSeconds: 3600 },
+        issuedAt: issuedAt.toISOString(),
+      },
+      keyPair,
+    );
+    const replay = new ReplayGuard();
+    await expect(verifyDataObject(object, { replay, now })).resolves.toMatchObject({
+      id: object.id,
+    });
+    await expect(verifyDataObject(object, { replay, now })).rejects.toThrow(/replay/);
+  });
+
   it("does not treat distinct ids as replay", async () => {
     const keyPair = await generateAgentKeyPair();
     const body = {
