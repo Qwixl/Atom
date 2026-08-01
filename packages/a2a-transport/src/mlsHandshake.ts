@@ -7,21 +7,33 @@ import { bytesToBase64, base64ToBytes, type MlsWireMessage } from "@qwixl/mls-se
 export interface AtomMlsHandshakeEnvelope {
   mediaType: typeof ATOM_MLS_HANDSHAKE_MEDIA_TYPE;
   initiatorDid: string;
-  welcome: string;
+  /** Welcome for the joining member (required for join; omit for commit-only fan-out). */
+  welcome?: string;
   ratchetTree: string;
+  /** D135 — public commit for existing members (add/remove fan-out). */
+  commit?: string;
   /** Optional A2A endpoint of the initiator so the responder can reply (demo peer, coordination). */
   initiatorEndpoint?: string;
+  /** Room membership list after the membership change (group joins). */
+  memberDids?: string[];
 }
 
 /** Structural check only; the media type is matched by the part codec. */
 function hasMlsHandshakeShape(value: unknown): value is AtomMlsHandshakeEnvelope {
   if (typeof value !== "object" || value === null) return false;
   const record = value as AtomMlsHandshakeEnvelope;
+  const hasWelcome = typeof record.welcome === "string";
+  const hasCommit = typeof record.commit === "string";
   return (
     typeof record.initiatorDid === "string" &&
-    typeof record.welcome === "string" &&
     typeof record.ratchetTree === "string" &&
-    (record.initiatorEndpoint === undefined || typeof record.initiatorEndpoint === "string")
+    (hasWelcome || hasCommit) &&
+    (record.initiatorEndpoint === undefined || typeof record.initiatorEndpoint === "string") &&
+    (record.memberDids === undefined ||
+      (Array.isArray(record.memberDids) &&
+        record.memberDids.every((did) => typeof did === "string"))) &&
+    (record.welcome === undefined || typeof record.welcome === "string") &&
+    (record.commit === undefined || typeof record.commit === "string")
   );
 }
 

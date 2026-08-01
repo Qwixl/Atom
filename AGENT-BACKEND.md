@@ -292,7 +292,7 @@ To join the network as a **peer** without running a second owner portal (no shel
 ## Security notes
 
 - Identity file contains the Ed25519 private key — restrict permissions (`0600`) and back up safely.
-- MLS live session state is in-memory; snapshots persist pair/group state — process restart may require re-handshake (D025).
+- MLS live session state is in-memory; pair/group snapshots persist to `mls-sessions.json` (D135 / MLS-01). Corrupt restore drops the session (fail-closed); re-join the room if keys are missing after a failed restore.
 - Admin API requires bearer token (M13.1): auto-generated on first start or set `ATOM_ADMIN_TOKEN`. Protect with TLS before exposing beyond localhost.
 
 ## V1 scope and production extensions

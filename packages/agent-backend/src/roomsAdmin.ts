@@ -18,6 +18,7 @@ import {
 } from "@qwixl/a2a-transport";
 import { base64ToBytes, ReplayGuard, type DataObject } from "@qwixl/protocol";
 import type { AgentKeyPair } from "@qwixl/protocol";
+import { isMlsPublicMessageWire } from "@qwixl/mls-session";
 import {
   adminBaseFromPeerUrl,
   encodeRoomObject,
@@ -187,18 +188,46 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
     memberName?: string;
     keyPackageWire: string;
   }) {
+    const room = rooms.getRoom(opts.roomId);
+    const existingMembers = [...(room?.members ?? [])];
     const handshake = await mlsStore.addRoomMember({
       roomId: opts.roomId,
       memberDid: opts.memberDid,
       keyPackageWire: base64ToBytes(opts.keyPackageWire),
     });
+    if (handshake.commitWire && existingMembers.length > 0) {
+      try {
+        await fanOutRoomWire({
+          roomId: opts.roomId,
+          senderDid: identity.did,
+          wire: handshake.commitWire,
+          members: existingMembers,
+          localDid: identity.did,
+          mlsStore,
+          strict: true,
+        });
+      } catch (error) {
+        try {
+          await mlsStore.removeRoomMember({
+            roomId: opts.roomId,
+            memberDid: opts.memberDid,
+          });
+        } catch (rollbackError) {
+          console.warn(
+            `[rooms] MLS add rollback failed for ${opts.memberDid}: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+          );
+        }
+        throw error;
+      }
+    }
     rooms.addMember(opts.roomId, {
       did: opts.memberDid,
       endpoint: opts.memberEndpoint,
       name: opts.memberName,
     });
+    const { commitWire: _commitWire, ...handshakeOut } = handshake;
     return {
-      handshake,
+      handshake: handshakeOut,
       hostEndpoint: `${publicBaseUrl.replace(/\/$/, "")}/a2a/jsonrpc`,
     };
   }
@@ -756,6 +785,30 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
           res.json({ left: roomId, alreadyLeft: true });
           return;
         }
+        const membersBefore = [...(rooms.getRoom(roomId)?.members ?? [])];
+        if (mlsStore.hasRoomSession(roomId) && memberDid !== identity.did) {
+          const removed = await mlsStore.removeRoomMember({ roomId, memberDid });
+          // Roster follows MLS once remove commits locally (D135 / A1).
+          rooms.removeMember(roomId, memberDid);
+          rooms.appendMessage(roomId, {
+            senderDid: memberDid,
+            kind: "activity",
+            activityKind: "leave",
+            payload: { memberDid },
+          });
+          await fanOutRoomWire({
+            roomId,
+            senderDid: identity.did,
+            wire: removed.commitWire,
+            // Leaving member does not need the remove commit; only remaining peers do.
+            members: membersBefore.filter((m) => m.did !== memberDid),
+            localDid: identity.did,
+            mlsStore,
+            strict: true,
+          });
+          res.json({ left: roomId });
+          return;
+        }
         rooms.removeMember(roomId, memberDid);
         rooms.appendMessage(roomId, {
           senderDid: memberDid,
@@ -1108,6 +1161,25 @@ export async function handleInboundRoomWire(opts: {
   const joined = room ? undefined : opts.rooms.getJoinedRoom(opts.roomId);
   if (!room && !joined) throw new Error(`Unknown room ${opts.roomId}`);
 
+  if (isMlsPublicMessageWire(opts.wire)) {
+    // Membership commits are host-authored; reject peer-injected public commits.
+    if (room && room.descriptor.hostDid !== opts.senderDid) {
+      throw new Error("MLS room commit must come from the host");
+    }
+    if (!room && joined && opts.senderDid) {
+      // Joined members only accept commits from the room host.
+      const hostDid = joined.descriptor.hostDid;
+      if (hostDid && hostDid !== opts.senderDid) {
+        throw new Error("MLS room commit must come from the host");
+      }
+    }
+    await opts.mlsStore.processRoomCommit({
+      roomId: opts.roomId,
+      commitWire: opts.wire,
+    });
+    return {};
+  }
+
   const { plaintext, senderDid: mlsSenderDid } = await opts.mlsStore.decryptRoom(
     opts.roomId,
     opts.wire,
@@ -1322,11 +1394,20 @@ async function fanOutRoomWire(opts: {
   members: Array<{ did: string; endpoint?: string; banned?: boolean }>;
   localDid: string;
   mlsStore: MlsSessionStore;
+  /**
+   * D135 — membership commits must reach every live member. Soft warn-only
+   * fan-out recreates N≥3 epoch skew; use `strict: true` for add/remove.
+   */
+  strict?: boolean;
 }): Promise<void> {
+  const failures: string[] = [];
   for (const member of opts.members) {
     if (member.banned || member.did === opts.senderDid) continue;
     if (member.did === opts.localDid) continue;
-    if (!member.endpoint?.trim()) continue;
+    if (!member.endpoint?.trim()) {
+      if (opts.strict) failures.push(`${member.did}: no endpoint`);
+      continue;
+    }
     // No pairwise-session gate here: the frame is already encrypted to the
     // group, and requiring a 1:1 session silently starved members who joined
     // via key package without ever opening a direct channel.
@@ -1341,9 +1422,15 @@ async function fanOutRoomWire(opts: {
         senderDid: opts.senderDid,
       });
     } catch (error) {
-      console.warn(
-        `[rooms] fan-out to ${member.did} failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      const detail = error instanceof Error ? error.message : String(error);
+      if (opts.strict) {
+        failures.push(`${member.did}: ${detail}`);
+      } else {
+        console.warn(`[rooms] fan-out to ${member.did} failed: ${detail}`);
+      }
     }
+  }
+  if (opts.strict && failures.length > 0) {
+    throw new Error(`MLS commit fan-out failed: ${failures.join("; ")}`);
   }
 }

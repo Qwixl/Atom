@@ -15,13 +15,14 @@ describe("MlsGroupSession snapshots", () => {
       });
 
     const snap = hostSession.exportSnapshot();
+    expect(snap.ratchetTreeB64).toBeTruthy();
     const restored = MlsGroupSession.restoreFromSnapshot(snap, {
       publicPackage,
       privatePackage,
     });
 
     const memberKp = await generateGroupMemberKeyPackage(member);
-    const welcomeWire = await restored.addMember({
+    const added = await restored.addMember({
       memberDid: member.did,
       keyPackageWire: memberKp.keyPackageWire,
     });
@@ -29,11 +30,11 @@ describe("MlsGroupSession snapshots", () => {
     const memberSession = await MlsGroupSession.joinFromWelcome({
       localDid: member.did,
       roomId,
-      welcomeWire,
+      welcomeWire: added.welcomeWire!,
       publicPackage: memberKp.publicPackage,
       privatePackage: memberKp.privatePackage,
       ratchetTree: restored.ratchetTree(),
-      memberDids: [host.did, member.did],
+      memberDids: added.memberDids,
     });
 
     const wire = await restored.encrypt(
