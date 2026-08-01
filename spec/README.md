@@ -18,6 +18,7 @@ test vectors they reference.
 | `draft-chapman-a2a-offline-delivery-00.txt` / `.xml` | Rendered `-00` snapshot |
 | `build.sh` | Renders and validates a draft: `./build.sh [draft-name]` |
 | `extensions/` | **A2A extension specs** — start with [Governed Object v1](./extensions/data-object-v1/) |
+| `profiles/` | **Local profiles** — start with [Transcript Accountability v1](./profiles/transcript-accountability-v1/) |
 | `vectors/` | 31 conformance test vectors — see `vectors/README.md` |
 | `second-impl/` | Minimal **Python** second implementation of encapsulation (`070`–`078`) + GO |
 | `hostile/` | Adversarial encapsulation mutations (D110 complement to the fixed corpus) |
