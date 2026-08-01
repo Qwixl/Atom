@@ -343,23 +343,20 @@ domain vocabulary; this document does not define a registry, but see
 The signature is computed over a canonical serialisation of the object's
 content, excluding `signatureAlgorithm` and `signature`.
 
-The canonical form is produced by serialising the JSON object consisting of
+The input to canonicalisation is the JSON object {{RFC8259}} consisting of
 exactly the members `version`, `id`, `issuerDid`, `issuedAt`, `semantic`,
-`payload`, and `governance`, such that:
+`payload`, and `governance`. Members that are not present in that abstract
+JSON object are omitted. The JSON value `null` is retained where present.
+JSON has no `undefined` value; implementations in languages that expose an
+undefined or missing-property concept MUST treat such properties as absent
+members (omit them) before canonicalisation, and MUST NOT emit a distinct
+undefined token.
 
-1. object members are ordered lexicographically by their UTF-16 code unit
-   sequence;
-2. members whose value is undefined or absent are omitted;
-3. array element order is preserved;
-4. no insignificant whitespace is emitted;
-5. strings and numbers are serialised as specified by {{RFC8259}}.
-
-Implementations SHOULD use JSON Canonicalization Scheme {{RFC8785}} where
-available; it satisfies the requirements above for the value space used by this
-specification.
-
-Nested objects within `semantic`, `payload`, and `governance` are canonicalised
-recursively by the same rules.
+The canonical form MUST be the JSON Canonicalization Scheme (JCS)
+serialisation of that object as specified in {{RFC8785}}. In particular, JCS
+orders object member names lexicographically by UTF-16 code unit sequence
+and emits no insignificant whitespace. Implementations MUST NOT invent a
+parallel key-order or whitespace rule set that diverges from {{RFC8785}}.
 
 Payload authors SHOULD avoid floating-point numbers, because canonical
 serialisation of floating-point values is a known source of cross-language
@@ -1014,6 +1011,8 @@ to prevent a recurrence.
   wire Commits remain authoritative for existing members.
 - Honest {{implementation-status}} for group persistence and three-agent
   proofs; deferred partial fan-out recovery and host self-leave without Remove.
+- Tightened {{canonical}}: MUST use {{RFC8785}} JCS; removed JS-specific
+  "undefined" wording; clarify absent members vs JSON `null`.
 
 # Changes from draft-chapman-a2a-mls-01
 
