@@ -1,0 +1,52 @@
+---
+description: Atom Grok execution protocol — mandatory independent reviews and authority classes
+alwaysApply: true
+---
+
+# Atom Grok protocol (non-negotiable)
+
+Authority and quality for this repo follow the Atom Grok execution protocol
+and the August execution plan.
+
+## Before claiming progress on a marker
+
+1. Classify the action **A–E**. Silence is not approval.
+2. Ensure a work-item contract exists (objective, acceptance_criteria,
+   out_of_scope, adversarial_cases). One marker IN_PROGRESS.
+3. Class **C**: design + **atom-design-challenger** + founder gate **before**
+   implementation code.
+4. Class **D/E**: prepare fully; founder approves the **exact** action.
+
+## Mandatory independent agents
+
+Use Task subagents (Composer 2.5 or separate Grok). Primary MUST NOT treat
+self-review as independent review.
+
+| When | Agent | Required |
+|---|---|---|
+| Before code for wire/signatures/identity/money/schemas/sandbox/fetch/public API | `atom-design-challenger` | Yes |
+| Before Done / merge on substantive diffs | `atom-diff-challenger` | Yes |
+| Before Done / merge / "we followed process" claims; when starting a marker | `atom-protocol-auditor` | Yes |
+
+Dispose every challenger finding as **fixed**, **rejected with evidence**, or
+**deferred under a new marker**.
+
+## Done bar
+
+Not Done because tests pass. Need acceptance evidence, required verification,
+challenger dispositions, honest status terms, backlog/session updates, and a
+handoff with the exact next command.
+
+## Public `/documents`
+
+- Howto / guidance / contracts only. No background debate, rejected-option
+  essays, or internal artefact-invention narrative.
+- No documents-only commits or PRs. Public docs ride with substantive work.
+- Do not dump guides at repo root.
+- Never publish private programme paths, derivation notes, or process
+  archaeology in tracked public files (including HTML comments).
+
+## Recent failure mode to avoid
+
+Shipping Class B honesty / draft PRs after a design gate **without** a diff
+challenger or protocol audit is a protocol violation — even if CI is green.

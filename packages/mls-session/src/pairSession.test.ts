@@ -1,22 +1,26 @@
 import { describe, expect, it } from "vitest";
+import { generateAgentKeyPair } from "@qwixl/protocol";
 import { establishPairSession, MlsPairSession } from "./pairSession.js";
 
 describe("MlsPairSession snapshots", () => {
   it("exports a versioned snapshot with group state", async () => {
-    const { initiator, responder } = await establishPairSession({
-      initiatorDid: "did:key:snap-init",
-      responderDid: "did:key:snap-resp",
+    const initiator = await generateAgentKeyPair();
+    const responder = await generateAgentKeyPair();
+    const { initiator: initSession, responder: respSession } = await establishPairSession({
+      initiator,
+      responder,
     });
 
-    const snap = initiator.exportSnapshot();
+    const snap = initSession.exportSnapshot();
     expect(snap.version).toBe(1);
-    expect(snap.localDid).toBe("did:key:snap-init");
-    expect(snap.peerDid).toBe("did:key:snap-resp");
+    expect(snap.localDid).toBe(initiator.did);
+    expect(snap.peerDid).toBe(responder.did);
     expect(snap.groupStateB64.length).toBeGreaterThan(16);
 
-    const wire = await initiator.encrypt(new TextEncoder().encode("live session"));
-    const decrypted = await responder.decrypt(wire);
-    expect(new TextDecoder().decode(decrypted)).toBe("live session");
+    const wire = await initSession.encrypt(new TextEncoder().encode("live session"));
+    const decrypted = await respSession.decrypt(wire);
+    expect(decrypted.senderDid).toBe(initiator.did);
+    expect(new TextDecoder().decode(decrypted.plaintext)).toBe("live session");
 
     expect(() =>
       MlsPairSession.restoreFromSnapshot(

@@ -1,39 +1,50 @@
 import { describe, expect, it } from "vitest";
+import { generateAgentKeyPair } from "@qwixl/protocol";
 import { generateGroupMemberKeyPackage, MlsGroupSession } from "./groupSession.js";
 
 describe("MlsGroupSession snapshots", () => {
   it("restores host state and can add a member after snapshot round-trip", async () => {
-    const hostDid = "did:key:coffee-host";
-    const memberDid = "did:key:coffee-member";
+    const host = await generateAgentKeyPair();
+    const member = await generateAgentKeyPair();
     const roomId = "room:coffeeshop";
 
-    const { session: host, publicPackage, privatePackage } = await MlsGroupSession.createHost({
-      localDid: hostDid,
-      roomId,
+    const { session: hostSession, publicPackage, privatePackage } =
+      await MlsGroupSession.createHost({
+        identity: host,
+        roomId,
+      });
+
+    const snap = hostSession.exportSnapshot();
+    expect(snap.ratchetTreeB64).toBeTruthy();
+    const restored = MlsGroupSession.restoreFromSnapshot(snap, {
+      publicPackage,
+      privatePackage,
     });
 
-    const snap = host.exportSnapshot();
-    const restored = MlsGroupSession.restoreFromSnapshot(snap, { publicPackage, privatePackage });
-
-    const memberKp = await generateGroupMemberKeyPackage(memberDid);
-    const welcomeWire = await restored.addMember({
-      memberDid,
+    const memberKp = await generateGroupMemberKeyPackage(member);
+    const added = await restored.addMember({
+      memberDid: member.did,
       keyPackageWire: memberKp.keyPackageWire,
     });
 
     const memberSession = await MlsGroupSession.joinFromWelcome({
-      localDid: memberDid,
+      localDid: member.did,
       roomId,
-      welcomeWire,
+      welcomeWire: added.welcomeWire!,
       publicPackage: memberKp.publicPackage,
       privatePackage: memberKp.privatePackage,
       ratchetTree: restored.ratchetTree(),
-      memberDids: [hostDid, memberDid],
+      memberDids: added.memberDids,
     });
 
-    const wire = await restored.encrypt(new TextEncoder().encode(JSON.stringify({ kind: "message", text: "hi" })));
-    const plaintext = await memberSession.decrypt(wire);
-    const parsed = JSON.parse(new TextDecoder().decode(plaintext)) as { text?: string };
+    const wire = await restored.encrypt(
+      new TextEncoder().encode(JSON.stringify({ kind: "message", text: "hi" })),
+    );
+    const decrypted = await memberSession.decrypt(wire);
+    expect(decrypted.senderDid).toBe(host.did);
+    const parsed = JSON.parse(new TextDecoder().decode(decrypted.plaintext)) as {
+      text?: string;
+    };
     expect(parsed.text).toBe("hi");
   });
 });

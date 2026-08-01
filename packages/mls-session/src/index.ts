@@ -9,6 +9,8 @@ export {
 export {
   MlsGroupSession,
   generateGroupMemberKeyPackage,
+  isMlsPublicMessageWire,
+  type MlsGroupMembershipChange,
 } from "./groupSession.js";
 export type { MlsPairSnapshot, MlsGroupSnapshot } from "./snapshot.js";
 export { generatePairKeyPackage, type GeneratedKeyPackage } from "./keyPackage.js";
@@ -19,3 +21,13 @@ export {
   deserializeKeyPackages,
   type SerializedKeyPackages,
 } from "./packageWire.js";
+export {
+  assertKeyPackageCredentialBinding,
+  credentialIdentityDid,
+  didCredential,
+  generateBoundKeyPackage,
+} from "./credential.js";
+export {
+  decryptApplicationMessage,
+  type DecryptedMlsApplication,
+} from "./decrypt.js";

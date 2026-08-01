@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { applyAtomSkin, isAtomSkinId, type AtomSkinId } from "@qwixl/skin-default/tokens";
 import { loadStringFromStorage, saveStringToStorage } from "@qwixl/shell-core";
-import { syncNativeChrome } from "../native/syncNativeChrome.js";
 import { IconMoon, IconSun } from "./ThemeIcons.js";
+import { syncThemeColorMeta } from "./syncThemeColorMeta.js";
 
 const SKIN_KEY = "atom-shell-skin";
 
 function syncDataTheme(skin: AtomSkinId) {
   document.documentElement.setAttribute("data-theme", skin === "dark" ? "dark" : "light");
-  void syncNativeChrome();
+  syncThemeColorMeta();
 }
 
 function readTheme(): AtomSkinId {

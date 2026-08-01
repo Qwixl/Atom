@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AgentKindConfig } from "./config.js";
+import { isAsleepQueueFullError } from "./asleepQueue.js";
+import { CommerceAbuseError } from "./commerceAbuse.js";
 
 export type ReachabilityMode = "session" | "sleep" | "hourly_wake" | "always_on";
 
@@ -187,27 +189,13 @@ async function readRawBody(req: IncomingMessage): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-/** Best-effort issuer DID from JSON-RPC body (opaque path — no decrypt). */
-export function extractFromDidFromRawBody(raw: Buffer): string | undefined {
-  try {
-    const parsed = JSON.parse(raw.toString("utf8")) as {
-      params?: Record<string, unknown>;
-    };
-    const params = parsed.params;
-    if (!params || typeof params !== "object") return undefined;
-    for (const value of Object.values(params)) {
-      if (value && typeof value === "object") {
-        const record = value as Record<string, unknown>;
-        const issuerDid = record.issuerDid;
-        if (typeof issuerDid === "string" && issuerDid.trim()) {
-          return issuerDid.trim();
-        }
-      }
-    }
-  } catch {
-    /* opaque blob */
-  }
-  return undefined;
+export type AsleepQueueFullHttpStatus = 429 | 507;
+
+/** Map queue-full kind → HTTP status (507 global, 429 per-peer). */
+export function asleepQueueFullHttpStatus(
+  kind: "messages" | "bytes" | "peer",
+): AsleepQueueFullHttpStatus {
+  return kind === "peer" ? 429 : 507;
 }
 
 export interface InboundReachabilityGateDeps {
@@ -216,7 +204,14 @@ export interface InboundReachabilityGateDeps {
   enqueue: (input: { blob: Buffer; fromDid?: string }) => void | Promise<void>;
 }
 
-/** Express middleware — rejects A2A POST when agent is asleep and queues ciphertext blob. */
+type RequestWithCallerDid = IncomingMessage & { atomCallerDid?: string };
+
+/**
+ * Express middleware — rejects A2A POST when agent is asleep and queues
+ * ciphertext. Uses verified transport DID for peer caps. Returns distinct
+ * `asleep_queue_full` when enqueue fails (never lies with `agent_asleep`).
+ * Store-and-forward REQUIRES `atomCallerDid` (no anonymous peer-cap bypass).
+ */
 export function createInboundReachabilityMiddleware(
   deps: InboundReachabilityGateDeps,
 ): (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void {
@@ -234,13 +229,24 @@ export function createInboundReachabilityMiddleware(
     void (async () => {
       try {
         const raw = await readRawBody(req);
-        await deps.enqueue({
-          blob: raw,
-          fromDid: extractFromDidFromRawBody(raw),
-        });
+        const fromDid = (req as RequestWithCallerDid).atomCallerDid?.trim() || undefined;
+        if (!fromDid) {
+          res.statusCode = 401;
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+          res.end(
+            JSON.stringify({
+              error: "asleep_enqueue_requires_auth",
+              message: "store-and-forward requires verified transport caller DID",
+              queued: false,
+            }),
+          );
+          return;
+        }
+        await deps.enqueue({ blob: raw, fromDid });
         const body: Record<string, unknown> = {
           error: verdict.error ?? "agent_asleep",
           message: verdict.message ?? "asleep, try later",
+          queued: true,
         };
         if (verdict.retryAfterSec !== undefined) {
           body.retryAfterSec = verdict.retryAfterSec;
@@ -250,6 +256,35 @@ export function createInboundReachabilityMiddleware(
         res.setHeader("Content-Type", "application/json; charset=utf-8");
         res.end(JSON.stringify(body));
       } catch (error) {
+        if (error instanceof CommerceAbuseError) {
+          const status =
+            error.code === "abuse_store" || error.code === "abuse_kill_unattested" ? 503 : 429;
+          res.statusCode = status;
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+          res.end(
+            JSON.stringify({
+              error: "commerce_rate_limited",
+              code: error.code,
+              message: error.message,
+              queued: false,
+            }),
+          );
+          return;
+        }
+        if (isAsleepQueueFullError(error)) {
+          const status = asleepQueueFullHttpStatus(error.kind);
+          res.statusCode = status;
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+          res.end(
+            JSON.stringify({
+              error: "asleep_queue_full",
+              message: error.message,
+              kind: error.kind,
+              queued: false,
+            }),
+          );
+          return;
+        }
         next(error);
       }
     })();

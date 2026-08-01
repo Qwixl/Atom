@@ -53,7 +53,7 @@ import {
   HostedLlmConnectionFields,
   type HostedLlmConnectionFieldsValue,
 } from "../settings/HostedLlmConnectionFields.js";
-import { resolveHostedLlmConnection } from "../settings/llmProviderPresets.js";
+import { resolveHostedLlmConnection, isHostedLlmProviderId } from "../settings/llmProviderPresets.js";
 import {
   claimEmailConfirmation,
   subscribeToEmailConfirmed,
@@ -391,9 +391,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
             ...prev,
             apiKey: p.llmApiKey ?? prev.apiKey,
             providerId:
-              p.llmProvider === "openrouter" ||
-              p.llmProvider === "custom" ||
-              p.llmProvider === "openai"
+              p.llmProvider && isHostedLlmProviderId(p.llmProvider)
                 ? p.llmProvider
                 : prev.providerId,
             baseUrl: p.llmBaseUrl ?? prev.baseUrl,
@@ -1142,7 +1140,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                 />
                 <span>
                   <strong>Personal</strong>
-                  <span>Everyday use — chat, messages, rooms</span>
+                  <span>Everyday use — chat, messages, rooms, and connectors (including MCP tools)</span>
                 </span>
               </label>
               <label className={`atom-radio-card${developer ? " is-selected" : ""}`}>
@@ -1154,7 +1152,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                 />
                 <span>
                   <strong>Developer</strong>
-                  <span>Build modules and connectors</span>
+                  <span>Build modules, connectors, and MCP tool servers</span>
                 </span>
               </label>
               <label className={`atom-radio-card${business ? " is-selected" : ""}`}>

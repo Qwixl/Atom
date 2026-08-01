@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { ClientFactory } from "@a2a-js/sdk/client";
 import { generateAgentKeyPair, type AgentKeyPair } from "@qwixl/protocol";
 import {
   AtomDataObjectExecutor,
@@ -12,6 +11,7 @@ import {
   COORDINATION_SHARED_LIST_PURPOSE,
   COORDINATION_SHARED_LIST_UPDATE_PURPOSE,
   COORDINATION_LOCATION_PIN_PURPOSE,
+  createAtomPeerClient,
   createPollRequest,
   createPollVote,
   createSharedList,
@@ -22,6 +22,7 @@ import {
   createTttState,
   GAME_TTT_MOVE_PURPOSE,
   GAME_TTT_STATE_PURPOSE,
+  rebindAtomAgentCard,
   sendDataObject,
   verifyPollRequest,
   verifyPollVote,
@@ -75,8 +76,7 @@ describe("M-ECO module A2A round-trips", () => {
 
     const addr = server.address() as AddressInfo;
     const baseUrl = `http://127.0.0.1:${addr.port}`;
-    agentCard.url = `${baseUrl}/a2a/jsonrpc`;
-    agentCard.additionalInterfaces = [{ url: agentCard.url, transport: "JSONRPC" }];
+    rebindAtomAgentCard(agentCard, baseUrl);
 
     try {
       await run({ sender, receiver, peerBaseUrl: baseUrl, received });
@@ -103,8 +103,7 @@ describe("M-ECO module A2A round-trips", () => {
         });
         await verifyPollRequest(poll);
 
-        const factory = new ClientFactory();
-        const client = await factory.createFromUrl(peerBaseUrl);
+        const client = await createAtomPeerClient(peerBaseUrl, { identity: sender });
         await sendDataObject(client, { object: poll, role: "user" });
 
         const vote = await createPollVote({
@@ -134,8 +133,7 @@ describe("M-ECO module A2A round-trips", () => {
         });
         await verifyTttState(state);
 
-        const factory = new ClientFactory();
-        const client = await factory.createFromUrl(peerBaseUrl);
+        const client = await createAtomPeerClient(peerBaseUrl, { identity: sender });
         await sendDataObject(client, { object: state, role: "user" });
 
         const move = await createTttMove({
@@ -164,8 +162,7 @@ describe("M-ECO module A2A round-trips", () => {
         });
         await verifySharedList(list);
 
-        const factory = new ClientFactory();
-        const client = await factory.createFromUrl(peerBaseUrl);
+        const client = await createAtomPeerClient(peerBaseUrl, { identity: sender });
         await sendDataObject(client, { object: list, role: "user" });
 
         const update = await createSharedListUpdate({
@@ -200,8 +197,7 @@ describe("M-ECO module A2A round-trips", () => {
       });
       await verifyLocationPin(pin);
 
-      const factory = new ClientFactory();
-      const client = await factory.createFromUrl(peerBaseUrl);
+      const client = await createAtomPeerClient(peerBaseUrl, { identity: sender });
       await sendDataObject(client, { object: pin, role: "user" });
 
       expect(received).toEqual([COORDINATION_LOCATION_PIN_PURPOSE]);
@@ -223,8 +219,7 @@ describe("M-ECO module A2A round-trips", () => {
       });
       await verifySplitProposal(split);
 
-      const factory = new ClientFactory();
-      const client = await factory.createFromUrl(peerBaseUrl);
+      const client = await createAtomPeerClient(peerBaseUrl, { identity: sender });
       await sendDataObject(client, { object: split, role: "user" });
 
       expect(received).toEqual([COMMERCE_SPLIT_PROPOSAL_PURPOSE]);

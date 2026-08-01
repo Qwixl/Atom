@@ -9,12 +9,17 @@ import {
   serializeRatchetTree,
   serializeKeyPackages,
   deserializeKeyPackages,
+  isMlsPublicMessageWire,
   type GeneratedKeyPackage,
-  type MlsGroupSnapshot,
-  type MlsPairSnapshot,
   type MlsWireMessage,
 } from "@qwixl/mls-session";
-import { ATOM_MLS_HANDSHAKE_MEDIA_TYPE, type AtomMlsHandshakeEnvelope } from "@qwixl/a2a-transport";
+import {
+  ATOM_MLS_HANDSHAKE_MEDIA_TYPE,
+  decodeEncryptedObjectPayload,
+  encodeEncryptedObjectPayload,
+  type AtomMlsHandshakeEnvelope,
+} from "@qwixl/a2a-transport";
+import type { AgentKeyPair, DataObject } from "@qwixl/protocol";
 import type { KeyPackage, PrivateKeyPackage } from "ts-mls";
 import type { MlsSessionRecordStore } from "./mlsSessionRecords.js";
 
@@ -52,6 +57,13 @@ export class MlsSessionStore {
   private pending: PendingKeyPackage | null = null;
   private records: MlsSessionRecordStore | null = null;
 
+  constructor(private readonly identity: AgentKeyPair) {}
+
+  /** Local agent keypair — used for MLS and outbound A2A transport auth. */
+  get localIdentity(): AgentKeyPair {
+    return this.identity;
+  }
+
   attachRecords(records: MlsSessionRecordStore): void {
     this.records = records;
   }
@@ -68,8 +80,9 @@ export class MlsSessionStore {
         this.pairPackages.set(entry.snapshot.peerDid, packages);
       } catch (error) {
         console.warn(
-          `[mls] failed to restore pair session for ${entry.snapshot.peerDid}: ${error instanceof Error ? error.message : String(error)}`,
+          `[mls] failed to restore pair session for ${entry.snapshot.peerDid}: ${error instanceof Error ? error.message : String(error)} — dropping; re-handshake required`,
         );
+        records.deletePairSession(entry.snapshot.peerDid);
       }
     }
     for (const entry of records.listGroupSessions()) {
@@ -80,8 +93,9 @@ export class MlsSessionStore {
         this.groupPackages.set(entry.snapshot.roomId, packages);
       } catch (error) {
         console.warn(
-          `[mls] failed to restore group session for ${entry.snapshot.roomId}: ${error instanceof Error ? error.message : String(error)}`,
+          `[mls] failed to restore group session for ${entry.snapshot.roomId}: ${error instanceof Error ? error.message : String(error)} — dropping; re-join required`,
         );
+        records.deleteGroupSession(entry.snapshot.roomId);
       }
     }
   }
@@ -140,18 +154,18 @@ export class MlsSessionStore {
     });
   }
 
-  async keyPackageForHandshake(localDid: string): Promise<{ did: string; wire: string }> {
+  async keyPackageForHandshake(): Promise<{ did: string; wire: string }> {
     if (!this.pending) {
-      this.pending = await generatePairKeyPackage(localDid);
+      this.pending = await generatePairKeyPackage(this.identity);
     }
-    return { did: localDid, wire: bytesToBase64(this.pending.keyPackageWire) };
+    return { did: this.identity.did, wire: bytesToBase64(this.pending.keyPackageWire) };
   }
 
-  async memberKeyPackage(localDid: string): Promise<{
+  async memberKeyPackage(): Promise<{
     wire: MlsWireMessage;
     packages: StoredPairPackages;
   }> {
-    const generated = await generateGroupMemberKeyPackage(localDid);
+    const generated = await generateGroupMemberKeyPackage(this.identity);
     return {
       wire: generated.keyPackageWire,
       packages: {
@@ -162,7 +176,6 @@ export class MlsSessionStore {
   }
 
   async connectAsInitiator(opts: {
-    localDid: string;
     peerDid: string;
     peerKeyPackageWire: MlsWireMessage;
     initiatorEndpoint?: string;
@@ -170,7 +183,7 @@ export class MlsSessionStore {
     if (this.sessions.has(opts.peerDid)) {
       throw new Error(`MLS session already exists for ${opts.peerDid}`);
     }
-    const { session, bundle } = await MlsPairSession.createInitiator(opts.localDid);
+    const { session, bundle } = await MlsPairSession.createInitiator(this.identity);
     const welcomeWire = await session.addPeerFromKeyPackage({
       peerDid: opts.peerDid,
       keyPackageWire: opts.peerKeyPackageWire,
@@ -183,7 +196,7 @@ export class MlsSessionStore {
     this.persistPair(opts.peerDid, session);
     return {
       mediaType: ATOM_MLS_HANDSHAKE_MEDIA_TYPE,
-      initiatorDid: opts.localDid,
+      initiatorDid: this.identity.did,
       welcome: bytesToBase64(welcomeWire),
       ratchetTree: serializeRatchetTree(session.ratchetTree()),
       ...(opts.initiatorEndpoint?.trim()
@@ -193,17 +206,19 @@ export class MlsSessionStore {
   }
 
   async acceptHandshake(opts: {
-    localDid: string;
     handshake: AtomMlsHandshakeEnvelope;
   }): Promise<void> {
     if (this.sessions.has(opts.handshake.initiatorDid)) {
       return;
     }
+    if (!opts.handshake.welcome) {
+      throw new Error("MLS handshake missing welcome");
+    }
     if (!this.pending) {
       throw new Error("No pending key package — fetch /mls/key-package first");
     }
     const session = await MlsPairSession.joinFromWelcome({
-      localDid: opts.localDid,
+      localDid: this.identity.did,
       welcomeWire: base64ToBytes(opts.handshake.welcome),
       ratchetTree: deserializeRatchetTree(opts.handshake.ratchetTree),
       publicPackage: this.pending.publicPackage,
@@ -219,11 +234,14 @@ export class MlsSessionStore {
     this.pending = null;
   }
 
-  async createRoomHost(opts: { localDid: string; roomId: string }): Promise<MlsGroupSession> {
+  async createRoomHost(opts: { roomId: string }): Promise<MlsGroupSession> {
     if (this.groupSessions.has(opts.roomId)) {
       return this.groupSessions.get(opts.roomId)!;
     }
-    const { session, publicPackage, privatePackage } = await MlsGroupSession.createHost(opts);
+    const { session, publicPackage, privatePackage } = await MlsGroupSession.createHost({
+      identity: this.identity,
+      roomId: opts.roomId,
+    });
     const packages = { publicPackage, privatePackage };
     this.groupSessions.set(opts.roomId, session);
     this.groupPackages.set(opts.roomId, packages);
@@ -235,27 +253,56 @@ export class MlsSessionStore {
     roomId: string;
     memberDid: string;
     keyPackageWire: MlsWireMessage;
-  }): Promise<AtomMlsHandshakeEnvelope & { memberDids: string[] }> {
+  }): Promise<AtomMlsHandshakeEnvelope & { memberDids: string[]; commitWire: MlsWireMessage }> {
     const session = this.groupSessions.get(opts.roomId);
     if (!session) {
       throw new Error(`No MLS group session for room ${opts.roomId}`);
     }
-    const welcomeWire = await session.addMember({
+    const change = await session.addMember({
       memberDid: opts.memberDid,
       keyPackageWire: opts.keyPackageWire,
     });
     this.persistGroup(opts.roomId, session);
+    if (!change.welcomeWire) {
+      throw new Error("MLS add did not produce Welcome");
+    }
     return {
       mediaType: ATOM_MLS_HANDSHAKE_MEDIA_TYPE,
       initiatorDid: session.localDid,
-      welcome: bytesToBase64(welcomeWire),
+      welcome: bytesToBase64(change.welcomeWire),
+      commit: bytesToBase64(change.commitWire),
       ratchetTree: serializeRatchetTree(session.ratchetTree()),
+      memberDids: [...session.memberDids],
+      commitWire: change.commitWire,
+    };
+  }
+
+  async removeRoomMember(opts: {
+    roomId: string;
+    memberDid: string;
+  }): Promise<{ commitWire: MlsWireMessage; memberDids: string[] }> {
+    const session = this.groupSessions.get(opts.roomId);
+    if (!session) {
+      throw new Error(`No MLS group session for room ${opts.roomId}`);
+    }
+    const change = await session.removeMember({ memberDid: opts.memberDid });
+    this.persistGroup(opts.roomId, session);
+    return {
+      commitWire: change.commitWire,
       memberDids: [...session.memberDids],
     };
   }
 
+  async processRoomCommit(opts: { roomId: string; commitWire: MlsWireMessage }): Promise<void> {
+    const session = this.groupSessions.get(opts.roomId);
+    if (!session) {
+      throw new Error(`No MLS group session for room ${opts.roomId}`);
+    }
+    await session.processCommit(opts.commitWire);
+    this.persistGroup(opts.roomId, session);
+  }
+
   async joinRoom(opts: {
-    localDid: string;
     roomId: string;
     handshake: AtomMlsHandshakeEnvelope & { memberDids?: string[] };
     memberPackages: StoredPairPackages;
@@ -263,28 +310,35 @@ export class MlsSessionStore {
     if (this.groupSessions.has(opts.roomId)) {
       return;
     }
+    if (!opts.handshake.welcome) {
+      throw new Error("Room MLS handshake missing welcome");
+    }
     const session = await MlsGroupSession.joinFromWelcome({
-      localDid: opts.localDid,
+      localDid: this.identity.did,
       roomId: opts.roomId,
       welcomeWire: base64ToBytes(opts.handshake.welcome),
       ratchetTree: deserializeRatchetTree(opts.handshake.ratchetTree),
       publicPackage: opts.memberPackages.publicPackage,
       privatePackage: opts.memberPackages.privatePackage,
-      memberDids: opts.handshake.memberDids ?? [opts.handshake.initiatorDid, opts.localDid],
+      memberDids:
+        opts.handshake.memberDids ?? [opts.handshake.initiatorDid, this.identity.did],
     });
     this.groupSessions.set(opts.roomId, session);
     this.groupPackages.set(opts.roomId, opts.memberPackages);
     this.persistGroup(opts.roomId, session);
   }
 
-  async decryptFrom(peerDid: string, wire: MlsWireMessage): Promise<Uint8Array> {
+  async decryptFrom(
+    peerDid: string,
+    wire: MlsWireMessage,
+  ): Promise<{ plaintext: Uint8Array; senderDid: string }> {
     const session = this.sessions.get(peerDid);
     if (!session) {
       throw new Error(`No MLS session for ${peerDid}`);
     }
-    const plaintext = await session.decrypt(wire);
+    const decrypted = await session.decrypt(wire);
     this.persistPair(peerDid, session);
-    return plaintext;
+    return decrypted;
   }
 
   async encryptFor(peerDid: string, plaintext: Uint8Array): Promise<MlsWireMessage> {
@@ -297,14 +351,20 @@ export class MlsSessionStore {
     return wire;
   }
 
-  async decryptRoom(roomId: string, wire: MlsWireMessage): Promise<Uint8Array> {
+  async decryptRoom(
+    roomId: string,
+    wire: MlsWireMessage,
+  ): Promise<{ plaintext: Uint8Array; senderDid: string }> {
     const session = this.groupSessions.get(roomId);
     if (!session) {
       throw new Error(`No MLS group session for room ${roomId}`);
     }
-    const plaintext = await session.decrypt(wire);
+    if (isMlsPublicMessageWire(wire)) {
+      throw new Error("Expected MLS application message, got public commit");
+    }
+    const decrypted = await session.decrypt(wire);
     this.persistGroup(roomId, session);
-    return plaintext;
+    return decrypted;
   }
 
   async encryptRoom(roomId: string, plaintext: Uint8Array): Promise<MlsWireMessage> {
@@ -323,12 +383,28 @@ export function adminBaseFromPeerUrl(peerUrl: string): string {
   return `${url.protocol}//${url.host}`;
 }
 
-export function parseRoomPayload(plaintext: Uint8Array): {
-  kind: "message" | "activity";
-  text?: string;
-  activityKind?: string;
-  payload?: Record<string, unknown>;
-} {
+/**
+ * RI-01/RI-04. Room MLS plaintext is a signed data object in the same
+ * encapsulation the pairwise path uses (`version: 2`). `version: 1` is the
+ * pre-migration bare record, readable so existing rooms do not empty out —
+ * acceptance of it is bounded by the room's cutoff, not by this reader.
+ */
+export type RoomPayload =
+  | { version: 2; object: DataObject }
+  | {
+      version: 1;
+      kind: "message" | "activity";
+      text?: string;
+      activityKind?: string;
+      payload?: Record<string, unknown>;
+    };
+
+export function parseRoomPayload(plaintext: Uint8Array): RoomPayload {
+  try {
+    return { version: 2, object: decodeEncryptedObjectPayload(plaintext) };
+  } catch {
+    // Not a signed-object envelope; fall through to the legacy shape.
+  }
   const parsed = JSON.parse(new TextDecoder().decode(plaintext)) as {
     kind?: string;
     text?: string;
@@ -338,15 +414,21 @@ export function parseRoomPayload(plaintext: Uint8Array): {
   if (parsed.kind !== "message" && parsed.kind !== "activity") {
     throw new Error("Invalid room payload kind");
   }
-  return parsed as {
-    kind: "message" | "activity";
-    text?: string;
-    activityKind?: string;
-    payload?: Record<string, unknown>;
+  return {
+    version: 1,
+    kind: parsed.kind,
+    text: parsed.text,
+    activityKind: parsed.activityKind,
+    payload: parsed.payload,
   };
 }
 
-export function encodeRoomPayload(payload: {
+export function encodeRoomObject(object: DataObject): Uint8Array {
+  return encodeEncryptedObjectPayload(object);
+}
+
+/** Legacy encoder, retained only so migration tests can produce v1 traffic. */
+export function encodeLegacyRoomPayload(payload: {
   kind: "message" | "activity";
   text?: string;
   activityKind?: string;

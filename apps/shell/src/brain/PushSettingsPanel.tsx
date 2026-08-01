@@ -3,7 +3,6 @@ import { ensureFreshChatSessionToken } from "../comms/chatSessionToken.js";
 import { useAgentConfig } from "../comms/useAgentConfig.js";
 import { SettingsToggle } from "../ui/SettingsToggle.js";
 import {
-  ensureCapacitorPush,
   ensureWebPushSubscription,
   loadPushOptIn,
   savePushOptIn,
@@ -35,11 +34,6 @@ export function PushSettingsPanel({
         return;
       }
       await ensureFreshChatSessionToken(config);
-      const native = await ensureCapacitorPush(config);
-      if (native === "subscribed") {
-        setNote("Android push registered.");
-        return;
-      }
       const web = await ensureWebPushSubscription(config);
       if (web === "subscribed") setNote("Browser push registered.");
       else if (web === "not-configured")

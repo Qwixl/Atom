@@ -1,7 +1,13 @@
-import type { McpHttpConnectOptions, McpStdioConnectOptions, McpTransportKind } from "./types.js";
+import type {
+  McpHttpConnectOptions,
+  McpStdioConnectOptions,
+  McpTransportKind,
+  McpToolDescriptor,
+  McpReadResourceResult,
+  McpResourceDescriptor,
+} from "./types.js";
 import { withMcpHttpSession } from "./httpSession.js";
 import { withMcpStdioSession } from "./stdioSession.js";
-import type { McpToolDescriptor } from "./types.js";
 
 export interface McpServerConnectOptions {
   transport?: McpTransportKind;
@@ -9,12 +15,16 @@ export interface McpServerConnectOptions {
   http?: McpHttpConnectOptions;
 }
 
+export interface McpSessionApi {
+  listTools(): Promise<McpToolDescriptor[]>;
+  listResources(): Promise<McpResourceDescriptor[]>;
+  readResource(uri: string): Promise<McpReadResourceResult>;
+  callTool(name: string, args: Record<string, unknown>): Promise<unknown>;
+}
+
 export async function withMcpServerSession<T>(
   options: McpServerConnectOptions,
-  fn: (session: {
-    listTools(): Promise<McpToolDescriptor[]>;
-    callTool(name: string, args: Record<string, unknown>): Promise<unknown>;
-  }) => Promise<T>,
+  fn: (session: McpSessionApi) => Promise<T>,
 ): Promise<T> {
   const transport = options.transport ?? "stdio";
   if (transport === "streamable-http") {

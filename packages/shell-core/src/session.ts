@@ -1,4 +1,5 @@
 import type { Composition, ConsequentialAction, JsonValue, UiEvent } from "./types.js";
+import type { SurfaceArrange, SurfacePin, SurfaceRelease } from "./persistentSurface.js";
 
 /**
  * A request from the agent to access guarded owner data. The shell renders
@@ -23,6 +24,9 @@ export type AgentOutput =
   | { type: "consequential-action"; surfaceId: string; action: ConsequentialAction }
   | { type: "data-request"; request: DataRequest }
   | { type: "game-move"; surfaceId: string; move: JsonValue }
+  | { type: "surface-pin"; pin: SurfacePin }
+  | { type: "surface-release"; release: SurfaceRelease }
+  | { type: "surface-arrange"; arrange: SurfaceArrange }
   | { type: "done" };
 
 export type AgentOutputListener = (output: AgentOutput) => void;

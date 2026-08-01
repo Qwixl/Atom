@@ -122,8 +122,47 @@ export {
   parseConsequentialPayload,
   parseDataRequestPayload,
   parseGameMovePayload,
+  parseSurfaceArrangePayload,
+  parseSurfacePinPayload,
+  parseSurfaceReleasePayload,
 } from "./agentOutput.js";
 export type { AgentWireResult, AgentWireReject } from "./agentOutput.js";
+
+export {
+  SURFACE_REFRESH_MIN_MINUTES,
+  SURFACE_BINDING_COLUMNS_MAX,
+  validateSurfaceArrange,
+  validateSurfacePin,
+  validateSurfacePinShape,
+  validateSurfaceRelease,
+} from "./persistentSurface.js";
+export {
+  BOARD_CALENDAR_SURFACE_ID,
+  buildCalendarBoardSurfacePin,
+  defaultCalendarQueryWindow,
+} from "./boardCalendarTile.js";
+export {
+  BOARD_MICROSOFT_CALENDAR_SURFACE_ID,
+  buildMicrosoftGraphBoardSurfacePin,
+} from "./boardMicrosoftGraphCalendarTile.js";
+export {
+  classifyMcpAppBridgeRequest,
+  classifyPermissionRequest,
+  quarantineMcpAppChatMessage,
+  type McpAppBridgeContext,
+  type McpAppBridgeDecision,
+  toolAllowsAppVisibility,
+} from "./mcpAppBridge.js";
+export type {
+  SurfaceArrange,
+  SurfaceBinding,
+  SurfacePin,
+  SurfacePlacement,
+  SurfaceRefresh,
+  SurfaceRefreshTrigger,
+  SurfaceRelease,
+  ValidateSurfacePinEntitlementOptions,
+} from "./persistentSurface.js";
 
 export { presentChatAgentError } from "./userFacingErrors.js";
 

@@ -1,0 +1,3 @@
+# Minimal second implementation dependencies.
+# Encapsulation is stdlib-only; Governed Object verify needs Ed25519.
+cryptography>=42

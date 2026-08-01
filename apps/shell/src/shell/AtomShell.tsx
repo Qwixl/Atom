@@ -44,7 +44,7 @@ type AtomShellProps = {
   onStartGame?: (moduleId: string) => void;
   composer?: React.ReactNode;
   lockedSections?: ShellNavPanel[];
-  /** When true, show Board nav (paid presentation-board module entitled). */
+  /** When true, show Board nav (system presentation-board module installed + active). */
   boardAvailable?: boolean;
   showDemoTag?: boolean;
   variant?: "default" | "demo";

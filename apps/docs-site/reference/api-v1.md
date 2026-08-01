@@ -8,4 +8,4 @@ Key surfaces:
 - **Module manifest** — `id`, `version`, `publisher`, `bundleUrl`, `bundleIntegrity`, `components[]`, `capabilities: []`.
 - **Sandbox** — `ready` / `init` / `event` postMessage bridge.
 
-See [API-v1.md](https://github.com/Qwixl/Atom/blob/main/API-v1.md) for the complete specification.
+See [API-v1.md](https://github.com/Qwixl/Atom/blob/main/documents/reference/API-v1.md) for the complete specification.

@@ -1,10 +1,11 @@
-import { ClientFactory } from "@a2a-js/sdk/client";
 import {
+  createAtomPeerClient,
   encodeEncryptedObjectPayload,
+  normalizePeerBaseUrl as normalizeTransportPeerBaseUrl,
   sendDataObject,
   sendMlsWire,
 } from "@qwixl/a2a-transport";
-import type { DataObject } from "@qwixl/protocol";
+import type { AgentKeyPair, DataObject } from "@qwixl/protocol";
 import { mlsContextId, type MlsSessionStore } from "./mlsSessions.js";
 
 export interface DeliverObjectParams {
@@ -14,6 +15,8 @@ export interface DeliverObjectParams {
   object: DataObject;
   encrypt?: boolean;
   contextId?: string;
+  /** Local identity for Atom DID Bearer transport auth; defaults to mlsStore. */
+  identity?: AgentKeyPair;
 }
 
 export interface DeliverObjectResult {
@@ -21,16 +24,14 @@ export interface DeliverObjectResult {
   encrypted: boolean;
 }
 
-/** Strip A2A JSON-RPC suffix so ClientFactory resolves the agent card at the host root. */
-export function normalizePeerBaseUrl(peerUrl: string): string {
-  return peerUrl.replace(/\/a2a\/jsonrpc\/?$/i, "").replace(/\/$/, "");
-}
+/** Strip A2A JSON-RPC suffix so the agent card resolves at the host root. */
+export const normalizePeerBaseUrl = normalizeTransportPeerBaseUrl;
 
 /** Send a signed data object to a peer (plain or MLS-encrypted). */
 export async function deliverSignedObject(params: DeliverObjectParams): Promise<DeliverObjectResult> {
-  const peerUrl = normalizePeerBaseUrl(params.peerUrl);
-  const factory = new ClientFactory();
-  const client = await factory.createFromUrl(peerUrl);
+  const client = await createAtomPeerClient(params.peerUrl, {
+    identity: params.identity ?? params.mlsStore.localIdentity,
+  });
 
   if (params.encrypt) {
     const peerDid = params.peerDid?.trim();

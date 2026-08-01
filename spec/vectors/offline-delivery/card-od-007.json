@@ -1,0 +1,24 @@
+{
+  "id": "card-od-007",
+  "kind": "agent-card-build",
+  "description": "buildAtomAgentCard declares extension when offlineDeliveryMode is set; omits when unset.",
+  "requires": [
+    "agent-card",
+    "offline-delivery-extension"
+  ],
+  "buildOptions": {
+    "baseUrl": "https://agent.example.test",
+    "name": "Vector Agent",
+    "description": "offline-delivery card vector"
+  },
+  "cases": [
+    {
+      "offlineDeliveryMode": "sleep",
+      "expectExtension": true,
+      "expectMode": "sleep"
+    },
+    {
+      "expectExtension": false
+    }
+  ]
+}

@@ -1,5 +1,11 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { Readable } from "node:stream";
 import {
+  createInboundReachabilityMiddleware,
   effectiveReachabilityMode,
   evaluateInboundReachability,
   hashWakeSeed,
@@ -9,6 +15,8 @@ import {
   resolveReachabilityConfig,
   secondsUntilHourlyWakeWindow,
 } from "./reachability.js";
+import { AsleepQueueFullError, AsleepQueueStore } from "./asleepQueue.js";
+import { CommerceAbuseError } from "./commerceAbuse.js";
 
 describe("resolveReachabilityConfig", () => {
   it("defaults to always_on for backward compatibility", () => {
@@ -106,6 +114,281 @@ describe("evaluateInboundReachability", () => {
     );
     expect(verdict.accept).toBe(false);
     expect(verdict.retryAfterSec).toBeGreaterThan(0);
+  });
+
+  it("accepts hourly_wake inside the wake window", () => {
+    const seed = "wake-accept";
+    const wakeMinute = hourlyWakeMinute(seed);
+    const now = new Date(Date.UTC(2026, 0, 1, 12, wakeMinute, 10));
+    const verdict = evaluateInboundReachability(
+      { mode: "hourly_wake", wakeSeed: seed, forceAlwaysOn: false },
+      now,
+    );
+    expect(verdict.accept).toBe(true);
+  });
+});
+
+describe("createInboundReachabilityMiddleware", () => {
+  function runMiddleware(opts: {
+    mode: "sleep" | "hourly_wake" | "always_on";
+    body: string;
+    now: Date;
+    wakeSeed?: string;
+    atomCallerDid?: string;
+    enqueue?: (input: { blob: Buffer; fromDid?: string }) => void | Promise<void>;
+  }): Promise<{
+    statusCode: number;
+    headers: Record<string, string>;
+    body: string;
+    enqueued: Array<{ blob: Buffer; fromDid?: string }>;
+  }> {
+    const enqueued: Array<{ blob: Buffer; fromDid?: string }> = [];
+    const middleware = createInboundReachabilityMiddleware({
+      config: {
+        mode: opts.mode,
+        wakeSeed: opts.wakeSeed ?? "mw-seed",
+        forceAlwaysOn: false,
+      },
+      now: () => opts.now,
+      enqueue:
+        opts.enqueue ??
+        ((input) => {
+          enqueued.push(input);
+        }),
+    });
+
+    const req = Readable.from([Buffer.from(opts.body)]) as IncomingMessage & {
+      atomCallerDid?: string;
+    };
+    req.method = "POST";
+    if (opts.atomCallerDid) req.atomCallerDid = opts.atomCallerDid;
+
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      const headers: Record<string, string> = {};
+      const res = {
+        statusCode: 200,
+        setHeader(name: string, value: string) {
+          headers[name.toLowerCase()] = value;
+        },
+        end(payload?: string | Buffer) {
+          if (payload) chunks.push(typeof payload === "string" ? Buffer.from(payload) : payload);
+          resolve({
+            statusCode: res.statusCode,
+            headers,
+            body: Buffer.concat(chunks).toString("utf8"),
+            enqueued,
+          });
+        },
+      } as unknown as ServerResponse & { statusCode: number };
+
+      middleware(req, res, (err?: unknown) => {
+        if (err) reject(err);
+        else {
+          resolve({
+            statusCode: res.statusCode,
+            headers,
+            body: "",
+            enqueued,
+          });
+        }
+      });
+    });
+  }
+
+  it("returns 503 agent_asleep and queues body when sleep", async () => {
+    const result = await runMiddleware({
+      mode: "sleep",
+      atomCallerDid: "did:key:caller",
+      body: JSON.stringify({ jsonrpc: "2.0", method: "message/send", params: {} }),
+      now: new Date("2026-07-21T10:00:00.000Z"),
+    });
+    expect(result.statusCode).toBe(503);
+    expect(JSON.parse(result.body)).toMatchObject({
+      error: "agent_asleep",
+      message: "asleep, try later",
+      queued: true,
+    });
+    expect(result.enqueued).toHaveLength(1);
+    expect(result.enqueued[0]?.blob.toString("utf8")).toContain("message/send");
+    expect(result.enqueued[0]?.fromDid).toBe("did:key:caller");
+  });
+
+  it("refuses store-and-forward without transport DID (no peer-cap bypass)", async () => {
+    const result = await runMiddleware({
+      mode: "sleep",
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        params: { message: { issuerDid: "did:key:forged" } },
+      }),
+      now: new Date("2026-07-21T10:00:00.000Z"),
+    });
+    expect(result.statusCode).toBe(401);
+    const parsed = JSON.parse(result.body) as { error: string; queued: boolean };
+    expect(parsed.error).toBe("asleep_enqueue_requires_auth");
+    expect(parsed.queued).toBe(false);
+    expect(parsed.error).not.toBe("agent_asleep");
+    expect(result.enqueued).toHaveLength(0);
+  });
+
+  it("binds peer identity to transport atomCallerDid, not body issuerDid", async () => {
+    const result = await runMiddleware({
+      mode: "sleep",
+      atomCallerDid: "did:key:transport",
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "message/send",
+        params: { message: { issuerDid: "did:key:forged" } },
+      }),
+      now: new Date("2026-07-21T10:00:00.000Z"),
+    });
+    expect(result.statusCode).toBe(503);
+    expect(result.enqueued[0]?.fromDid).toBe("did:key:transport");
+  });
+
+  it("returns 507 asleep_queue_full for global caps and never agent_asleep", async () => {
+    const result = await runMiddleware({
+      mode: "sleep",
+      atomCallerDid: "did:key:caller",
+      body: "{}",
+      now: new Date("2026-07-21T10:00:00.000Z"),
+      enqueue: () => {
+        throw new AsleepQueueFullError("messages", "asleep-inbox full (500 message cap)");
+      },
+    });
+    expect(result.statusCode).toBe(507);
+    const parsed = JSON.parse(result.body) as { error: string; kind: string; queued: boolean };
+    expect(parsed).toMatchObject({
+      error: "asleep_queue_full",
+      kind: "messages",
+      queued: false,
+    });
+    expect(parsed.error).not.toBe("agent_asleep");
+  });
+
+  it("returns 507 asleep_queue_full for byte caps", async () => {
+    const result = await runMiddleware({
+      mode: "sleep",
+      atomCallerDid: "did:key:caller",
+      body: "{}",
+      now: new Date("2026-07-21T10:00:00.000Z"),
+      enqueue: () => {
+        throw new AsleepQueueFullError("bytes", "asleep-inbox full (2MB total cap)");
+      },
+    });
+    expect(result.statusCode).toBe(507);
+    const parsed = JSON.parse(result.body) as { error: string; kind: string };
+    expect(parsed.kind).toBe("bytes");
+    expect(parsed.error).not.toBe("agent_asleep");
+  });
+
+  it("returns 429 commerce_rate_limited when enqueue throws CommerceAbuseError", async () => {
+    const result = await runMiddleware({
+      mode: "sleep",
+      atomCallerDid: "did:key:flood",
+      body: JSON.stringify({ purpose: "commerce:intent" }),
+      now: new Date("2026-07-21T10:00:00.000Z"),
+      enqueue: () => {
+        throw new CommerceAbuseError("Commerce rate limited (intent)", "rate_limited");
+      },
+    });
+    expect(result.statusCode).toBe(429);
+    expect(JSON.parse(result.body)).toMatchObject({
+      error: "commerce_rate_limited",
+      code: "rate_limited",
+      queued: false,
+    });
+    expect(JSON.parse(result.body).error).not.toBe("asleep_queue_full");
+  });
+
+  it("returns 429 asleep_queue_full for per-peer cap", async () => {
+    const result = await runMiddleware({
+      mode: "sleep",
+      atomCallerDid: "did:key:peer",
+      body: "{}",
+      now: new Date("2026-07-21T10:00:00.000Z"),
+      enqueue: () => {
+        throw new AsleepQueueFullError("peer", "asleep-inbox peer cap reached");
+      },
+    });
+    expect(result.statusCode).toBe(429);
+    expect(JSON.parse(result.body)).toMatchObject({
+      error: "asleep_queue_full",
+      kind: "peer",
+      queued: false,
+    });
+  });
+
+  it("integrates real AsleepQueueStore peer cap into middleware response", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "atom-asleep-mw-"));
+    try {
+      const store = new AsleepQueueStore({
+        dirPath: path.join(dir, "asleep-inbox"),
+        maxPendingPerPeer: 1,
+      });
+      const first = await runMiddleware({
+        mode: "sleep",
+        atomCallerDid: "did:key:peer",
+        body: "one",
+        now: new Date("2026-07-21T10:00:00.000Z"),
+        enqueue: (input) => {
+          store.enqueue(input);
+        },
+      });
+      expect(first.statusCode).toBe(503);
+      expect(JSON.parse(first.body).queued).toBe(true);
+
+      const second = await runMiddleware({
+        mode: "sleep",
+        atomCallerDid: "did:key:peer",
+        body: "two",
+        now: new Date("2026-07-21T10:00:00.000Z"),
+        enqueue: (input) => {
+          store.enqueue(input);
+        },
+      });
+      expect(second.statusCode).toBe(429);
+      const parsed = JSON.parse(second.body) as { error: string; kind: string; queued: boolean };
+      expect(parsed.error).toBe("asleep_queue_full");
+      expect(parsed.kind).toBe("peer");
+      expect(parsed.queued).toBe(false);
+      expect(parsed.error).not.toBe("agent_asleep");
+      expect(store.list()).toHaveLength(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns 503 with Retry-After outside hourly_wake window", async () => {
+    const seed = "mw-hourly";
+    const wakeMinute = hourlyWakeMinute(seed);
+    const now = new Date(Date.UTC(2026, 0, 1, 12, (wakeMinute + 30) % 60, 0));
+    const result = await runMiddleware({
+      mode: "hourly_wake",
+      wakeSeed: seed,
+      atomCallerDid: "did:key:caller",
+      body: "{}",
+      now,
+    });
+    expect(result.statusCode).toBe(503);
+    expect(result.headers["retry-after"]).toBeTruthy();
+    expect(JSON.parse(result.body).retryAfterSec).toBeGreaterThan(0);
+    expect(result.enqueued).toHaveLength(1);
+  });
+
+  it("passes through when hourly_wake is inside the window", async () => {
+    const seed = "mw-hourly-in";
+    const wakeMinute = hourlyWakeMinute(seed);
+    const now = new Date(Date.UTC(2026, 0, 1, 12, wakeMinute, 5));
+    const result = await runMiddleware({
+      mode: "hourly_wake",
+      wakeSeed: seed,
+      body: "should-not-queue",
+      now,
+    });
+    expect(result.statusCode).toBe(200);
+    expect(result.enqueued).toHaveLength(0);
+    expect(result.body).toBe("");
   });
 });
 

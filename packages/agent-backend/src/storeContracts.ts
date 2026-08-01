@@ -51,6 +51,18 @@ export const AGENT_STORE_REGISTRY: Record<string, AgentStoreMeta> = {
     productionBackend: "json",
     v1Note: "JSON file; intent queue survives restart (M13.6).",
   },
+  modeHOffers: {
+    id: "modeHOffers",
+    durability: "json-v1",
+    productionBackend: "json",
+    v1Note: "Pending Mode H Checkout sessions + outcome mint idempotency (BUS-01).",
+  },
+  commerceAbuse: {
+    id: "commerceAbuse",
+    durability: "json-v1",
+    productionBackend: "json",
+    v1Note: "Rate/mint budgets + Agent Shopping flag (BUS-ABUSE-01). Fail-closed on load error.",
+  },
   transactionCommit: {
     id: "transactionCommit",
     durability: "json-v1",
@@ -79,7 +91,7 @@ export const AGENT_STORE_REGISTRY: Record<string, AgentStoreMeta> = {
     id: "mlsSessions",
     durability: "json-v1",
     productionBackend: "encrypted-json",
-    v1Note: "Snapshots on disk; live sessions in memory (D025). Pair re-handshake on failure.",
+    v1Note: "Snapshots on disk (D135); live sessions in memory. Fail-closed restore drops bad group/pair sessions — re-join/re-handshake.",
   },
   connectorVault: {
     id: "connectorVault",

@@ -4,8 +4,8 @@ import { hasSessionScope, isAdminAuth, type AuthenticatedRequest } from "../admi
 import type { McpRuntime } from "./mcpRuntime.js";
 import type { McpServersStore } from "./mcpServersStore.js";
 import { toMcpServerPublicView, type StoredMcpServer } from "./types.js";
-import { mcpAppsToolToRegistryRef, type McpAppsToolDescriptor } from "../mcpAppsAdapter.js";
-import type { McpToolDescriptor } from "@qwixl/mcp-client";
+import type { McpAppsToolDescriptor } from "../mcpAppsAdapter.js";
+import { mcpAppsToolToRegistryRef } from "../mcpAppsAdapter.js";
 
 export interface McpAdminConfig {
   store: McpServersStore;
@@ -154,18 +154,37 @@ export function registerMcpAdminRoutes(adminApp: Express, config: McpAdminConfig
     try {
       const tools = await runtime.listTools(server);
       const withUiHints = tools.map((tool) => {
-        const meta = tool as McpToolDescriptor & {
-          _meta?: { ui?: McpAppsToolDescriptor["ui"] };
-          annotations?: { ui?: McpAppsToolDescriptor["ui"] };
-        };
-        const ui = meta._meta?.ui ?? meta.annotations?.ui;
-        const descriptor: McpAppsToolDescriptor = {
+        const uiMeta = tool.meta?.ui;
+        const uiObj =
+          uiMeta && typeof uiMeta === "object" && !Array.isArray(uiMeta)
+            ? (uiMeta as Record<string, unknown>)
+            : undefined;
+        const resourceUri =
+          typeof uiObj?.resourceUri === "string"
+            ? uiObj.resourceUri
+            : typeof uiObj?.uri === "string"
+              ? uiObj.uri
+              : undefined;
+        const mimeType = typeof uiObj?.mimeType === "string" ? uiObj.mimeType : undefined;
+        const forRegistry: McpAppsToolDescriptor = resourceUri
+          ? {
+              name: tool.name,
+              description: tool.description,
+              ui: { uri: resourceUri, mimeType },
+            }
+          : { name: tool.name, description: tool.description };
+        const registryRef = mcpAppsToolToRegistryRef(forRegistry);
+        const uiHint = resourceUri ? { uri: resourceUri, mimeType } : undefined;
+        const visibilityRaw = Array.isArray(uiObj?.visibility)
+          ? uiObj.visibility.map(String)
+          : undefined;
+        return {
           name: tool.name,
           description: tool.description,
-          ui,
+          ...(uiHint ? { ui: uiHint } : {}),
+          ...(visibilityRaw ? { visibility: visibilityRaw } : {}),
+          ...(registryRef ? { atomModule: registryRef } : {}),
         };
-        const registryRef = mcpAppsToolToRegistryRef(descriptor);
-        return registryRef ? { ...tool, atomModule: registryRef } : tool;
       });
       res.json({ serverId: server.id, tools: withUiHints });
     } catch (error) {
@@ -209,6 +228,44 @@ export function registerMcpAdminRoutes(adminApp: Express, config: McpAdminConfig
       res.json({ server: server ? toMcpServerPublicView(server) : null });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.post("/mcp/servers/:serverId/safe-tools", async (req, res) => {
+    if (!assertAdminWriteAuth(req, res)) return;
+    try {
+      assertMcpWriteApproval(req);
+      const id = serverIdParam(req);
+      const body = req.body as { safeTools?: string[] };
+      if (!Array.isArray(body.safeTools)) {
+        res.status(400).json({ error: "safeTools array required" });
+        return;
+      }
+      await store.updateSafeTools(id, body.safeTools.map(String));
+      const server = store.get(id);
+      res.json({ server: server ? toMcpServerPublicView(server) : null });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  adminApp.get("/mcp/servers/:serverId/ui-resource", async (req, res) => {
+    if (!assertMcpReadAuth(req, res)) return;
+    const server = store.get(serverIdParam(req));
+    if (!server) {
+      res.status(404).json({ error: "MCP server not found" });
+      return;
+    }
+    const uri = typeof req.query.uri === "string" ? req.query.uri.trim() : "";
+    if (!uri) {
+      res.status(400).json({ error: "uri query parameter required" });
+      return;
+    }
+    try {
+      const result = await runtime.readUiResource(server, uri);
+      res.json(result);
+    } catch (error) {
+      res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 

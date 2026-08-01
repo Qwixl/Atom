@@ -1,0 +1,16 @@
+Subject: Datatracker — draft-chapman-a2a-mls-03 UPLOADED
+Status: Done (founder 2026-08-01); ST-05 Class D closed
+
+PROVENANCE
+  https://datatracker.ietf.org/doc/draft-chapman-a2a-mls/
+  -00 / -01 / -02 / -03 on Datatracker
+  -03 = multi-party MLS group sessions (D136); F-7 JCS honesty (SHOULD JCS)
+
+CHECKLIST (-03)
+  [x] Author draft-chapman-a2a-mls-03.md (D136)
+  [x] F-7 disposition: SHOULD JCS; MUST deterministic profile; impl-status names stableStringify
+  [x] ./build.sh draft-chapman-a2a-mls-03 → OK
+  [x] Merged repo PR #158 + #160
+  [x] Founder uploaded -03.xml (2026-08-01)
+  [x] Confirm datatracker shows -03 (HTTP 200)
+  [ ] (Optional) mls@ietf.org note

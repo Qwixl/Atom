@@ -35,6 +35,23 @@ export const ASLEEP_QUEUE_MAX_MESSAGES = 500;
 export const ASLEEP_QUEUE_MAX_TOTAL_BYTES = 2 * 1024 * 1024;
 export const ASLEEP_QUEUE_MAX_PENDING_PER_PEER = 50;
 
+/** Why enqueue was refused — maps to HTTP 507 (global) vs 429 (peer). */
+export type AsleepQueueFullKind = "messages" | "bytes" | "peer";
+
+export class AsleepQueueFullError extends Error {
+  readonly kind: AsleepQueueFullKind;
+
+  constructor(kind: AsleepQueueFullKind, message: string) {
+    super(message);
+    this.name = "AsleepQueueFullError";
+    this.kind = kind;
+  }
+}
+
+export function isAsleepQueueFullError(error: unknown): error is AsleepQueueFullError {
+  return error instanceof AsleepQueueFullError;
+}
+
 export class AsleepQueueStore {
   private readonly dirPath: string;
   private readonly maxMessages: number;
@@ -110,10 +127,13 @@ export class AsleepQueueStore {
     const fromDid = input.fromDid?.trim() || undefined;
 
     if (live.length >= this.maxMessages) {
-      throw new Error("asleep-inbox full (500 message cap)");
+      throw new AsleepQueueFullError("messages", "asleep-inbox full (500 message cap)");
     }
     if (fromDid && this.countForPeer(live, fromDid) >= this.maxPendingPerPeer) {
-      throw new Error(`asleep-inbox peer cap reached for ${fromDid}`);
+      throw new AsleepQueueFullError(
+        "peer",
+        `asleep-inbox peer cap reached for ${fromDid}`,
+      );
     }
 
     const encoding = input.blobEncoding ?? "base64";
@@ -121,7 +141,7 @@ export class AsleepQueueStore {
       encoding === "hex" ? input.blob.toString("hex") : input.blob.toString("base64");
     const blobBytes = input.blob.byteLength;
     if (this.totalBytes(live) + blobBytes > this.maxTotalBytes) {
-      throw new Error("asleep-inbox full (2MB total cap)");
+      throw new AsleepQueueFullError("bytes", "asleep-inbox full (2MB total cap)");
     }
 
     const record: AsleepQueueMessage = {

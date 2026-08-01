@@ -5,6 +5,8 @@ import {
   modelSelectOptions,
   getLlmProviderPreset,
   resolveHostedLlmConnection,
+  rankModelsForPicker,
+  isHostedLlmProviderId,
 } from "./llmProviderPresets.js";
 
 describe("llmProviderPresets", () => {
@@ -13,7 +15,13 @@ describe("llmProviderPresets", () => {
     expect(matchLlmProviderPresetId("https://openrouter.ai/api/v1/")).toBe("openrouter");
     expect(matchLlmProviderPresetId("https://api.anthropic.com")).toBe("anthropic");
     expect(matchLlmProviderPresetId("http://127.0.0.1:11434/v1")).toBe("ollama");
-    expect(matchLlmProviderPresetId("https://api.groq.com/openai/v1")).toBe("custom");
+    expect(matchLlmProviderPresetId("https://api.groq.com/openai/v1")).toBe("groq");
+    expect(matchLlmProviderPresetId("https://generativelanguage.googleapis.com/v1beta/openai")).toBe(
+      "google",
+    );
+    expect(matchLlmProviderPresetId("https://api.mistral.ai/v1")).toBe("mistral");
+    expect(matchLlmProviderPresetId("https://api.deepseek.com/v1")).toBe("deepseek");
+    expect(matchLlmProviderPresetId("https://api.together.xyz/v1")).toBe("together");
   });
 
   it("openrouter shortlist stays small when API returns a flood", () => {
@@ -51,7 +59,28 @@ describe("llmProviderPresets", () => {
     });
   });
 
-  it("matchHostedLlmProviderId maps OpenRouter URLs", () => {
+  it("matchHostedLlmProviderId prefers stored provider then URL", () => {
     expect(matchHostedLlmProviderId("https://openrouter.ai/api/v1")).toBe("openrouter");
+    expect(matchHostedLlmProviderId("https://api.openai.com/v1", "anthropic")).toBe("anthropic");
+    expect(matchHostedLlmProviderId("https://api.groq.com/openai/v1")).toBe("groq");
+    expect(isHostedLlmProviderId("google")).toBe(true);
+    expect(isHostedLlmProviderId("ollama")).toBe(false);
+  });
+
+  it("rankModelsForPicker filters by query and pins suggestions when empty", () => {
+    const ranked = rankModelsForPicker({
+      presetId: "openrouter",
+      apiModels: ["zzz/other", "openai/gpt-4o-mini", "anthropic/claude-sonnet-4"],
+      currentModel: "",
+      query: "",
+    });
+    expect(ranked[0]).toBe("openai/gpt-4o-mini");
+    const filtered = rankModelsForPicker({
+      presetId: "openrouter",
+      apiModels: ["zzz/other", "openai/gpt-4o-mini"],
+      currentModel: "",
+      query: "zzz",
+    });
+    expect(filtered).toEqual(["zzz/other"]);
   });
 });

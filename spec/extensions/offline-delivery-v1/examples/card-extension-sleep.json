@@ -1,0 +1,8 @@
+{
+  "uri": "https://atom.qwixl.dev/a2a/offline-delivery/v1",
+  "description": "Offline delivery / reachability store-and-forward profile",
+  "required": false,
+  "params": {
+    "mode": "sleep"
+  }
+}

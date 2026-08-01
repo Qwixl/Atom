@@ -1,0 +1,14 @@
+Subject: Datatracker — draft-chapman-a2a-mls-02 UPLOADED
+Status: Done (founder 2026-08-01); ST-03 Class D closed
+
+PROVENANCE
+  https://datatracker.ietf.org/doc/draft-chapman-a2a-mls/
+  -00 / -01 / -02 on Datatracker
+  -02 = Purpose Value Registry (D132)
+
+CHECKLIST (-02)
+  [x] Author draft-chapman-a2a-mls-02.md (D132)
+  [x] ./build.sh → OK
+  [x] Merged repo PR #151
+  [x] Founder uploaded -02.xml (+ additional resources)
+  [ ] (Optional) mls@ietf.org note

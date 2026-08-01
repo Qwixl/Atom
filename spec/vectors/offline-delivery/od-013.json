@@ -1,0 +1,23 @@
+{
+  "id": "od-013",
+  "kind": "asleep-http-response",
+  "description": "GET during sleep → pass-through, no enqueue.",
+  "requires": [
+    "asleep-http"
+  ],
+  "config": {
+    "mode": "sleep",
+    "wakeSeed": "wake-vector-seed",
+    "forceAlwaysOn": false
+  },
+  "now": "2026-01-15T12:00:00.000Z",
+  "request": {
+    "method": "GET",
+    "body": ""
+  },
+  "expect": {
+    "passThrough": true,
+    "statusCode": 200,
+    "enqueued": false
+  }
+}

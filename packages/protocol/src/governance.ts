@@ -1,16 +1,24 @@
 import type { DataObject, DataObjectGovernance } from "./types.js";
 
+/**
+ * Effective expiry. When both ttlSeconds and expiresAt are present the earlier
+ * instant governs, so a sender cannot extend a short-lived object's life by also
+ * supplying a distant absolute expiry.
+ */
 export function resolveExpiry(
   governance: DataObjectGovernance,
   issuedAt: string,
 ): Date | undefined {
+  const candidates: Date[] = [];
+
   if (governance.expiresAt) {
     const absolute = new Date(governance.expiresAt);
     if (Number.isNaN(absolute.getTime())) {
       throw new Error("governance.expiresAt is not a valid ISO 8601 timestamp");
     }
-    return absolute;
+    candidates.push(absolute);
   }
+
   if (governance.ttlSeconds !== undefined) {
     if (!Number.isFinite(governance.ttlSeconds) || governance.ttlSeconds < 0) {
       throw new Error("governance.ttlSeconds must be a non-negative number");
@@ -19,9 +27,13 @@ export function resolveExpiry(
     if (Number.isNaN(issued.getTime())) {
       throw new Error("issuedAt is not a valid ISO 8601 timestamp");
     }
-    return new Date(issued.getTime() + governance.ttlSeconds * 1000);
+    candidates.push(new Date(issued.getTime() + governance.ttlSeconds * 1000));
   }
-  return undefined;
+
+  if (candidates.length === 0) return undefined;
+  return candidates.reduce((earliest, candidate) =>
+    candidate.getTime() < earliest.getTime() ? candidate : earliest,
+  );
 }
 
 export function isExpired(object: DataObject, now: Date = new Date()): boolean {

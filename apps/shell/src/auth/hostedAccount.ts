@@ -525,8 +525,66 @@ export type HostedLlmUpdateResult = {
   llmProbe?: { ok: boolean; model?: string; error?: string };
 };
 
+export type HostedLlmConnectionMeta = {
+  provider: string | null;
+  baseUrl: string | null;
+  model: string | null;
+  hasApiKey: boolean;
+};
+
+export async function fetchHostedLlmConnectionMeta(): Promise<HostedLlmConnectionMeta> {
+  const token = await supabaseAccessToken();
+  if (!token) throw new Error("Sign in required");
+
+  const { CONTROL_PLANE_URL } = await import("../hostConfig.js");
+  const resp = await fetch(`${CONTROL_PLANE_URL.replace(/\/$/, "")}/account/llm`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = (await resp.json()) as HostedLlmConnectionMeta & { error?: string };
+  if (!resp.ok) throw new Error(data.error ?? `Load LLM settings failed (${resp.status})`);
+  return {
+    provider: data.provider ?? null,
+    baseUrl: data.baseUrl ?? null,
+    model: data.model ?? null,
+    hasApiKey: Boolean(data.hasApiKey),
+  };
+}
+
+export async function listHostedLlmModels(input: {
+  apiKey?: string;
+  baseUrl?: string;
+  provider?: string;
+}): Promise<{ models: string[]; source: "api" | "curated" }> {
+  const token = await supabaseAccessToken();
+  if (!token) throw new Error("Sign in required");
+
+  const { CONTROL_PLANE_URL } = await import("../hostConfig.js");
+  const resp = await fetch(`${CONTROL_PLANE_URL.replace(/\/$/, "")}/account/llm/models`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      apiKey: input.apiKey?.trim() || undefined,
+      baseUrl: input.baseUrl?.trim() || undefined,
+      provider: input.provider?.trim() || undefined,
+    }),
+  });
+  const data = (await resp.json()) as {
+    models?: string[];
+    source?: "api" | "curated";
+    error?: string;
+  };
+  if (!resp.ok) throw new Error(data.error ?? `List models failed (${resp.status})`);
+  return {
+    models: Array.isArray(data.models) ? data.models : [],
+    source: data.source === "curated" ? "curated" : "api",
+  };
+}
+
 export async function updateHostedLlmConnection(input: {
-  llmApiKey: string;
+  llmApiKey?: string;
   llmProvider?: string;
   llmBaseUrl?: string;
   llmModel?: string;
@@ -534,8 +592,7 @@ export async function updateHostedLlmConnection(input: {
   const token = await supabaseAccessToken();
   if (!token) throw new Error("Sign in required");
 
-  const key = input.llmApiKey.trim();
-  if (!key) throw new Error("LLM API key is required");
+  const key = input.llmApiKey?.trim() ?? "";
 
   const { CONTROL_PLANE_URL } = await import("../hostConfig.js");
   const resp = await fetch(`${CONTROL_PLANE_URL.replace(/\/$/, "")}/account/llm-key`, {
@@ -545,7 +602,7 @@ export async function updateHostedLlmConnection(input: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      llmApiKey: key,
+      llmApiKey: key || undefined,
       llmProvider: input.llmProvider?.trim() || undefined,
       llmBaseUrl: input.llmBaseUrl?.trim() || undefined,
       llmModel: input.llmModel?.trim() || undefined,

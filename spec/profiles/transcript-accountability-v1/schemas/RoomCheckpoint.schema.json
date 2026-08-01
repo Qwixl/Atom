@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atom.qwixl.dev/schema/RoomCheckpoint",
+  "title": "RoomCheckpoint",
+  "description": "Host transcript checkpoint payload (room:checkpoint). Minimal JSON Schema shape only — implementers MUST also enforce SPEC mint rules: toSeq >= fromSeq; entries.length === toSeq - fromSeq + 1 and <= 500; entries[i].seq === fromSeq + i; every seq has a signed objectHash. Schema-alone validation is insufficient.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["roomId", "fromSeq", "toSeq", "entries"],
+  "properties": {
+    "roomId": { "type": "string", "minLength": 1 },
+    "fromSeq": { "type": "integer", "minimum": 1 },
+    "toSeq": { "type": "integer", "minimum": 1 },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["seq", "objectHash"],
+        "properties": {
+          "seq": { "type": "integer", "minimum": 1 },
+          "objectHash": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

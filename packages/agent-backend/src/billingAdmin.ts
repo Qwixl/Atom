@@ -7,6 +7,8 @@ import { resolveDataPath } from "./dataDir.js";
 import { ALWAYS_ON_BRAIN_PRICE, alwaysOnBrainPricePayload } from "./alwaysOnPricing.js";
 import { hostingSkusPayload } from "./hostingSkusPayload.js";
 import { stripeRequest } from "./payment/stripeClient.js";
+import { getConnectAccount, setConnectAccount } from "./connectAccounts.js";
+import { isHostedBusinessCommerceEligible } from "./commerceEligibility.js";
 
 const POLICIES_FILE = "spend-policies.json";
 
@@ -142,9 +144,15 @@ export function registerBillingAdminRoutes(app: Express, deps: BillingAdminDeps)
     res.json({ entries: deps.budgetLedger.list(workspaceId) });
   });
 
-  /** Stripe Connect onboarding URL placeholder — wired when workspace billing ships. */
-  app.post("/billing/connect/onboard", (req, res) => {
-    const workspaceId = (req.body as { workspaceId?: string }).workspaceId?.trim();
+  /** Stripe Connect Express onboarding for hosted Atom Business (BUS-01 / D139). */
+  app.post("/billing/connect/onboard", async (req, res) => {
+    const body = req.body as {
+      workspaceId?: string;
+      refreshUrl?: string;
+      returnUrl?: string;
+      email?: string;
+    };
+    const workspaceId = body.workspaceId?.trim();
     if (!workspaceId) {
       res.status(400).json({ error: "workspaceId required" });
       return;
@@ -153,11 +161,118 @@ export function registerBillingAdminRoutes(app: Express, deps: BillingAdminDeps)
       res.status(503).json({ error: "Stripe not configured on agent backend" });
       return;
     }
-    res.json({
-      workspaceId,
-      status: "pending_implementation",
-      message: "Connect Express onboarding will return accountLink.url when billing exits beta.",
-    });
+    if (!isHostedBusinessCommerceEligible()) {
+      res.status(403).json({
+        error:
+          "Connect onboarding requires hosted Atom Business (ATOM_COMMERCE_ELIGIBLE + ATOM_WORKSPACE_KIND=business + ATOM_HOSTED)",
+      });
+      return;
+    }
+    const refreshUrl =
+      body.refreshUrl?.trim() ||
+      deps.checkoutCancelUrl?.trim() ||
+      "https://atom.qwixl.com/app/";
+    const returnUrl =
+      body.returnUrl?.trim() ||
+      deps.checkoutSuccessUrl?.trim() ||
+      "https://atom.qwixl.com/app/";
+
+    try {
+      let record = getConnectAccount(workspaceId);
+      if (!record) {
+        const account = await stripeRequest<{ id: string }>(
+          { secretKey: deps.stripeSecretKey },
+          "POST",
+          "/accounts",
+          {
+            type: "express",
+            country: process.env.ATOM_CONNECT_COUNTRY?.trim() || "GB",
+            email: body.email?.trim() || undefined,
+            "capabilities[card_payments][requested]": true,
+            "capabilities[transfers][requested]": true,
+          },
+        );
+        record = setConnectAccount({
+          workspaceId,
+          stripeAccountId: account.id,
+          chargesEnabled: false,
+          detailsSubmitted: false,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      const link = await stripeRequest<{ url: string }>(
+        { secretKey: deps.stripeSecretKey },
+        "POST",
+        "/account_links",
+        {
+          account: record.stripeAccountId,
+          refresh_url: refreshUrl,
+          return_url: returnUrl,
+          type: "account_onboarding",
+        },
+      );
+
+      res.json({
+        workspaceId,
+        status: "onboarding",
+        stripeAccountId: record.stripeAccountId,
+        url: link.url,
+      });
+    } catch (error) {
+      res.status(502).json({
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  app.get("/billing/connect/:workspaceId", async (req, res) => {
+    const workspaceId = String(req.params.workspaceId ?? "").trim();
+    if (!workspaceId) {
+      res.status(400).json({ error: "workspaceId required" });
+      return;
+    }
+    const record = getConnectAccount(workspaceId);
+    if (!record) {
+      res.json({ workspaceId, status: "not_started" });
+      return;
+    }
+    if (!deps.stripeSecretKey?.trim()) {
+      res.json({
+        workspaceId,
+        status: "stored",
+        stripeAccountId: record.stripeAccountId,
+        chargesEnabled: record.chargesEnabled,
+      });
+      return;
+    }
+    try {
+      const account = await stripeRequest<{
+        id: string;
+        charges_enabled?: boolean;
+        details_submitted?: boolean;
+      }>(
+        { secretKey: deps.stripeSecretKey },
+        "GET",
+        `/accounts/${record.stripeAccountId}`,
+      );
+      const updated = setConnectAccount({
+        ...record,
+        chargesEnabled: Boolean(account.charges_enabled),
+        detailsSubmitted: Boolean(account.details_submitted),
+      });
+      res.json({
+        workspaceId,
+        status: updated.chargesEnabled ? "ready" : "pending",
+        stripeAccountId: updated.stripeAccountId,
+        chargesEnabled: updated.chargesEnabled,
+        detailsSubmitted: updated.detailsSubmitted,
+      });
+    } catch (error) {
+      res.status(502).json({
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   });
 
   /** Legacy always-on brain Checkout alias (D078). Full plan ladder: Atom-MC. */

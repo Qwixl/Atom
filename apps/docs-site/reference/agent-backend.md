@@ -8,7 +8,7 @@ npx @qwixl/agent-backend
 
 M13 admin routes require `Authorization: Bearer <token>` (printed on first start).
 
-See [AGENT-BACKEND.md](https://github.com/Qwixl/Atom/blob/main/AGENT-BACKEND.md) for Docker, export/import, WebCal connector, and coordination routes.
+See [AGENT-BACKEND.md](https://github.com/Qwixl/Atom/blob/main/documents/guides/AGENT-BACKEND.md) for Docker, export/import, WebCal connector, and coordination routes.
 
 Demo counterpart: [Demo peer guide](/guides/demo-peer).
 

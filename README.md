@@ -32,9 +32,48 @@ Two ways to use Atom — pick one and stay in it:
 
 Self-host with npm: `npx @qwixl/agent-backend` (terminal) or pair with [atom.qwixl.com](https://atom.qwixl.com) (browser).
 
-Try the **personal demo** (LLM + WebCal + scheduling): `pnpm dev:demo` — [PERSONAL-DEMO.md](./PERSONAL-DEMO.md). For MLS with a counterpart agent, see [DEMO-PEER.md](./DEMO-PEER.md).
+Try the **personal demo** (LLM + WebCal + scheduling): `pnpm dev:demo`. Guides and contracts: **[documents/](./documents/README.md)**.
 
-Developer docs (tutorial, playground, modules): run `pnpm dev:docs` or read [DEVELOPERS.md](./DEVELOPERS.md).
+Developer entry: [DEVELOPERS.md](./documents/guides/DEVELOPERS.md) (or `pnpm dev:docs`).
+
+## Governed Object A2A extension (v1)
+
+Atom publishes a self-service A2A extension for signed, purpose-scoped,
+TTL-bounded data objects (Governed Objects).
+
+- **Identifier:** `https://atom.qwixl.dev/a2a/data-object/v1`
+- **Specification:** https://github.com/Qwixl/Atom/tree/main/spec/extensions/data-object-v1
+- **Agent Card:** `required: false`, no GO `params`
+- **Security:** media type is authoritative; omitting `message.extensions` or
+  the `A2A-Extensions` header does not weaken signature, expiry, or replay checks
+- **Evidence:** shared draft corpus of 31 vectors (GO processing + encapsulation;
+  the same corpus also includes credential-binding and MLS *part* shapes used by
+  the broader Internet-Draft — those are not GO-extension MUSTs). Python second
+  implementation covers GO + encapsulation. Option A stamp / `A2A-Extensions`
+  behaviour is covered by TypeScript tests in `@qwixl/a2a-transport`.
+- **Document host:** human-readable SPEC is in the GitHub tree linked above.
+  The extension URI is a stable identifier; HTTP resolution at that host may
+  be configured later and does not change the identifier.
+- **Out of scope for this extension:** MLS, rooms, Atom DID Bearer transport auth
+
+Broader provenance (GO together with MLS) remains in Internet-Draft
+[`draft-chapman-a2a-mls`](https://datatracker.ietf.org/doc/draft-chapman-a2a-mls/).
+Official `a2aproject` sponsorship is a separate, later ask.
+
+## Offline delivery A2A extension (v1)
+
+Atom publishes a self-service A2A extension that advertises store-and-forward /
+reachability support on the Agent Card when the agent’s effective mode is
+`sleep` or `hourly_wake`.
+
+- **Identifier:** `https://atom.qwixl.dev/a2a/offline-delivery/v1`
+- **Specification:** https://github.com/Qwixl/Atom/tree/main/spec/extensions/offline-delivery-v1
+- **Agent Card:** `required: false`, `params.mode` ∈ {`sleep`, `hourly_wake`}
+- **Scope:** card discovery only — no media type; no `message.extensions` stamp
+- **Wire semantics:** Internet-Draft [`draft-chapman-a2a-offline-delivery`](https://datatracker.ietf.org/doc/draft-chapman-a2a-offline-delivery/) (`-00`); HTTP asleep / queue-full / auth responses remain authoritative over a stale card
+- **Evidence:** D110 corpus under `spec/vectors/offline-delivery/` (34 vectors) + CI runner
+- **Document host:** SPEC in the GitHub tree linked above; the URI is a stable identifier (HTTP resolution at that host may follow later)
+- **Out of scope for this extension:** MLS, rooms, Governed Object processing, push vendors
 
 ## Principles
 
@@ -74,27 +113,20 @@ pnpm add @qwixl/shell-core @qwixl/renderer-web react
 pnpm add @qwixl/a2ui-adapter @qwixl/ag-ui-adapter @qwixl/owner-store
 ```
 
-Build your app with any bundler that resolves the package `development` export condition in dev (Vite, etc.). See **[EMBED.md](./EMBED.md)** for a <1 hour integration guide.
+Build your app with any bundler that resolves the package `development` export condition in dev (Vite, etc.). Embed howto: see [documents/](./documents/README.md).
 
 ## Guides
+
+Canonical public howto index: **[documents/README.md](./documents/README.md)**.
 
 | Doc | Audience |
 |---|---|
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | How to contribute (issues, PRs, principles) |
 | [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) | Community standards |
-| [EMBED.md](./EMBED.md) | Third-party hosts embedding the engine |
-| [MODULES.md](./MODULES.md) | Module authors publishing to a registry |
-| [API-v1.md](./API-v1.md) | Frozen v1 contracts (composition, session, manifest, sandbox) |
-| [AGENT-BACKEND.md](./AGENT-BACKEND.md) | Self-hosting the owner agent backend |
-| [JOIN-AS-PEER.md](./JOIN-AS-PEER.md) | Join the network as an external peer (no shell portal) |
-| [DEVELOPERS.md](./DEVELOPERS.md) | M14 developer platform entry |
-| [MODEL-BEHAVIOR-ADMIN.md](./MODEL-BEHAVIOR-ADMIN.md) | Ops: model behavior classes + maintenance script (not product UI) |
-| [PERSONAL-DEMO.md](./PERSONAL-DEMO.md) | Guided personal demo (`pnpm dev:demo`) |
-| [DEMO-PEER.md](./DEMO-PEER.md) | Live demo counterpart agent (M14.6) |
-| [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md) | M16 public push gates |
-| [PROTOCOL-v1.md](./PROTOCOL-v1.md) | Frozen v1 data-object + did:key contracts |
 | [SECURITY.md](./SECURITY.md) | Threat model for shipped surface |
-| [SECRET-STORE.md](./SECRET-STORE.md) | Credential adapter priority for embedders |
+| [DEVELOPERS.md](./documents/guides/DEVELOPERS.md) | Developer platform entry |
+| [PROTOCOL-v1.md](./documents/protocol/PROTOCOL-v1.md) | Frozen v1 data-object + did:key contracts |
+| [AGENT-BACKEND.md](./documents/guides/AGENT-BACKEND.md) | Self-hosting the owner agent backend |
 
 Live hosts: [atom.qwixl.com](https://atom.qwixl.com) · [atom.registry.qwixl.com](https://atom.registry.qwixl.com)
 
@@ -112,7 +144,7 @@ pnpm atom rooms join room:coffeeshop --host http://127.0.0.1:5205
 pnpm atom rooms send room:coffeeshop --message "Hello"
 pnpm atom chat "what's on today?"
 pnpm dev:shell-only   # shell only (advanced; needs separate agent)
-pnpm dev:demo         # personal demo: shell + your agent (see PERSONAL-DEMO.md)
+pnpm dev:demo         # personal demo: shell + your agent (see documents/guides/PERSONAL-DEMO.md)
 pnpm dev:embed        # embed demo on http://localhost:5203 (?playground=1 for JSON editor)
 pnpm dev:docs         # docs site on http://localhost:5206
 pnpm dev:hosting      # control plane :5300 + stub hosted agent :5301
@@ -121,7 +153,7 @@ pnpm dev:hosting       # stub CP + stub agent :5301
 pnpm dev:agent-only   # agent backend only (terminal / advanced)
 pnpm dev:a2a          # alias for dev:agent-only
 pnpm start:agent      # run built atom-agent CLI (after build:packages)
-pnpm docker:agent     # Docker Compose self-host (see AGENT-BACKEND.md)
+pnpm docker:agent     # Docker Compose self-host (see documents/guides/AGENT-BACKEND.md)
 pnpm docker:demo-peer # demo peer agent on http://localhost:5205
 pnpm dev:registry     # module registry host on http://localhost:5202
 pnpm registry:verify  # verify index + manifest + bundle hashes

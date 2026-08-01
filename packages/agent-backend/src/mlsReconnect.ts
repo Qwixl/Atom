@@ -1,4 +1,4 @@
-import { ClientFactory } from "@a2a-js/sdk/client";
+import { createAtomPeerClient } from "@qwixl/a2a-transport";
 
 import { sendMlsHandshake } from "@qwixl/a2a-transport";
 
@@ -158,8 +158,6 @@ export async function connectMlsPeer(opts: {
 
     handshake = await opts.mlsStore.connectAsInitiator({
 
-      localDid: opts.localDid,
-
       peerDid: kp.did,
 
       peerKeyPackageWire: base64ToBytes(kp.wire),
@@ -188,9 +186,9 @@ export async function connectMlsPeer(opts: {
 
   try {
 
-    const factory = new ClientFactory();
-
-    const client = await factory.createFromUrl(normalizePeerBaseUrl(peerUrl));
+    const client = await createAtomPeerClient(peerUrl, {
+      identity: opts.mlsStore.localIdentity,
+    });
 
     await sendMlsHandshake(client, {
 

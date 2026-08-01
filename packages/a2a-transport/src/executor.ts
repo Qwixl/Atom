@@ -1,10 +1,10 @@
 import type { AgentCard, Message } from "@a2a-js/sdk";
-import type {
-  AgentExecutor,
-  ExecutionEventBus,
-  RequestContext,
+import {
+  AgentEvent,
+  type AgentExecutor,
+  type ExecutionEventBus,
+  type RequestContext,
 } from "@a2a-js/sdk/server";
-import { v4 as uuidv4 } from "uuid";
 import {
   signDataObject,
   type AgentKeyPair,
@@ -16,6 +16,7 @@ import { verifyMessageDataObjects } from "./parts.js";
 import { dataObjectToPart } from "./parts.js";
 import { parseMlsWireFromPart } from "./mlsWire.js";
 import { parseMlsHandshakeFromPart } from "./mlsHandshake.js";
+import { atomMessage, textPart } from "./message.js";
 import type { MlsWireMessage } from "@qwixl/mls-session";
 import type { AtomMlsHandshakeEnvelope } from "./mlsHandshake.js";
 
@@ -46,6 +47,8 @@ export interface AtomDataObjectExecutorOptions {
   onMlsHandshake?: (event: ReceivedMlsHandshakeEvent) => void | Promise<void>;
   /** When true, respond with a signed comms:receipt data object. Default true. */
   sendReceipt?: boolean;
+  /** Replay history for inbound Governed Objects (draft {{replay}}). */
+  replay?: VerifyDataObjectOptions["replay"];
 }
 
 /** A2A AgentExecutor that verifies inbound data objects and optionally sends receipts. */
@@ -56,6 +59,7 @@ export class AtomDataObjectExecutor implements AgentExecutor {
   private readonly onMlsWire: AtomDataObjectExecutorOptions["onMlsWire"];
   private readonly onMlsHandshake: AtomDataObjectExecutorOptions["onMlsHandshake"];
   private readonly sendReceipt: boolean;
+  private readonly replay: AtomDataObjectExecutorOptions["replay"];
 
   constructor(options: AtomDataObjectExecutorOptions) {
     this.identity = options.identity;
@@ -64,6 +68,7 @@ export class AtomDataObjectExecutor implements AgentExecutor {
     this.onMlsWire = options.onMlsWire;
     this.onMlsHandshake = options.onMlsHandshake;
     this.sendReceipt = options.sendReceipt ?? true;
+    this.replay = options.replay;
   }
 
   async execute(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
@@ -74,6 +79,7 @@ export class AtomDataObjectExecutor implements AgentExecutor {
 
     const verifyOptions: VerifyDataObjectOptions = {
       allowedPurposes: this.allowedPurposes,
+      ...(this.replay ? { replay: this.replay } : {}),
     };
     const objects = await verifyMessageDataObjects(userMessage, verifyOptions);
 
@@ -133,15 +139,16 @@ export class AtomDataObjectExecutor implements AgentExecutor {
       }
     }
 
-    const response: Message = {
-      kind: "message",
-      messageId: uuidv4(),
+    const responseParts = parts.length > 0 ? parts : [textPart("Received.")];
+    const response: Message = atomMessage({
       role: "agent",
       contextId: userMessage.contextId,
-      parts: parts.length > 0 ? parts : [{ kind: "text", text: "Received." }],
-    };
+      parts: responseParts,
+      // D130 Option A: stamp GO only when the response carries GO parts (receipts).
+      declareDataObjectExtension: parts.length > 0,
+    });
 
-    eventBus.publish(response);
+    eventBus.publish(AgentEvent.message(response));
     eventBus.finished();
   }
 

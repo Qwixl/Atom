@@ -18,6 +18,13 @@ import type {
 } from "./businessKnowledgeBackend.js";
 import type { BusinessStore } from "./businessStore.js";
 import type { BusinessVerificationStore } from "./businessVerificationStore.js";
+import {
+  assertHostedBusinessCommerceEligible,
+} from "./commerceEligibility.js";
+import {
+  CommerceAbuseError,
+  type CommerceAbuseStore,
+} from "./commerceAbuse.js";
 
 export interface BusinessAdminDeps {
   catalog: BusinessCatalogStore;
@@ -26,6 +33,7 @@ export interface BusinessAdminDeps {
   store: BusinessStore;
   verification: BusinessVerificationStore;
   vault: ConnectorVault;
+  abuse?: CommerceAbuseStore;
 }
 
 function readApprovalRef(req: { body?: unknown; query?: unknown }): string | undefined {
@@ -115,11 +123,14 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
 
   adminApp.post("/business/catalog", (req, res) => {
     try {
+      assertHostedBusinessCommerceEligible();
       const item = parseCatalogItem(req.body as Record<string, unknown>);
       deps.catalog.upsert(item);
       res.json({ item });
     } catch (error) {
-      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+      const message = error instanceof Error ? error.message : String(error);
+      const status = message.includes("hosted Business") ? 403 : 400;
+      res.status(status).json({ error: message });
     }
   });
 
@@ -130,10 +141,13 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
       return;
     }
     try {
+      assertHostedBusinessCommerceEligible();
       deps.catalog.replaceAll(body.items);
       res.json({ catalog: deps.catalog.list() });
     } catch (error) {
-      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+      const message = error instanceof Error ? error.message : String(error);
+      const status = message.includes("hosted Business") ? 403 : 400;
+      res.status(status).json({ error: message });
     }
   });
 
@@ -480,6 +494,49 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
     res.json({ verification: record ?? null });
   });
 
+  adminApp.get("/business/shopping", (_req, res) => {
+    if (!deps.abuse) {
+      res.status(503).json({ error: "Abuse/shopping store not configured" });
+      return;
+    }
+    res.json({
+      agentShoppingEnabled: deps.abuse.getAgentShoppingEnabled(),
+      suggestMutes: deps.abuse.listSuggestMutes(),
+    });
+  });
+
+  adminApp.post("/business/shopping", (req, res) => {
+    if (!deps.abuse) {
+      res.status(503).json({ error: "Abuse/shopping store not configured" });
+      return;
+    }
+    const body = req.body as { enabled?: boolean; attestAbuseKillSwitch?: boolean };
+    if (typeof body.enabled === "boolean") {
+      deps.abuse.setAgentShoppingEnabled(body.enabled);
+    }
+    if (body.attestAbuseKillSwitch === true) {
+      deps.abuse.attestAbuseKillSwitch();
+    }
+    res.json({
+      agentShoppingEnabled: deps.abuse.getAgentShoppingEnabled(),
+      suggestMutes: deps.abuse.listSuggestMutes(),
+    });
+  });
+
+  adminApp.post("/business/shopping/dismiss-suggest-mute", (req, res) => {
+    if (!deps.abuse) {
+      res.status(503).json({ error: "Abuse/shopping store not configured" });
+      return;
+    }
+    const peerDid = (req.body as { peerDid?: string }).peerDid?.trim();
+    if (!peerDid) {
+      res.status(400).json({ error: "peerDid required" });
+      return;
+    }
+    deps.abuse.dismissSuggestMute(peerDid);
+    res.json({ ok: true, suggestMutes: deps.abuse.listSuggestMutes() });
+  });
+
   adminApp.post("/business/intent", async (req, res) => {
     const body = req.body as {
       intentId?: string;
@@ -522,6 +579,16 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
       });
       res.json({ object });
     } catch (error) {
+      if (error instanceof CommerceAbuseError) {
+        const status =
+          error.code === "shopping_disabled" || error.code === "abuse_kill_unattested"
+            ? 403
+            : error.code === "abuse_store"
+              ? 503
+              : 429;
+        res.status(status).json({ error: error.message, code: error.code });
+        return;
+      }
       res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
@@ -538,6 +605,10 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
       res.status(400).json({ error: "intentId, catalogItemId, and peerUrl required" });
       return;
     }
+    if (!body.peerDid?.trim()) {
+      res.status(400).json({ error: "peerDid required for offer rate limits" });
+      return;
+    }
     try {
       const object = await deps.store.sendOffer({
         intentId: body.intentId.trim(),
@@ -548,6 +619,16 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
       });
       res.json({ object });
     } catch (error) {
+      if (error instanceof CommerceAbuseError) {
+        const status =
+          error.code === "shopping_disabled" || error.code === "abuse_kill_unattested"
+            ? 403
+            : error.code === "abuse_store"
+              ? 503
+              : 429;
+        res.status(status).json({ error: error.message, code: error.code });
+        return;
+      }
       res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });

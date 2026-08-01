@@ -1,0 +1,14 @@
+Subject: Datatracker — draft-chapman-a2a-offline-delivery-00 UPLOADED
+Status: Done (founder 2026-08-01); ST-04 Class D closed
+
+PROVENANCE
+  https://datatracker.ietf.org/doc/draft-chapman-a2a-offline-delivery/
+  -00 = Offline delivery / reachability profile (D133)
+
+CHECKLIST (-00)
+  [x] Author draft-chapman-a2a-offline-delivery-00.md (D133)
+  [x] Class B honesty: enqueue truth, asleep_queue_full, peer-cap DID
+  [x] ./build.sh → OK
+  [x] Merged repo PR #153
+  [x] Founder uploaded -00.xml (2026-08-01)
+  [x] Confirm datatracker shows -00 (HTTP 200)

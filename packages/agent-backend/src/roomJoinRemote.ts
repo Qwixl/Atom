@@ -67,7 +67,7 @@ export async function joinRemoteRoom(
       return { joined: roomId, descriptor: joinedLocal.descriptor, alreadyMember: true };
     }
   }
-  const memberKp = await mlsStore.memberKeyPackage(identity.did);
+  const memberKp = await mlsStore.memberKeyPackage();
   const joinResp = await fetch(`${adminBase}/rooms/${encodeURIComponent(roomId)}/join`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -90,8 +90,9 @@ export async function joinRemoteRoom(
     request?: unknown;
     handshake?: {
       initiatorDid: string;
-      welcome: string;
+      welcome?: string;
       ratchetTree: string;
+      commit?: string;
       memberDids?: string[];
     };
   };
@@ -105,14 +106,17 @@ export async function joinRemoteRoom(
       );
     }
   } else if (joined.handshake) {
+    if (!joined.handshake.welcome) {
+      throw new Error("Host join returned handshake without welcome");
+    }
     await mlsStore.joinRoom({
-      localDid: identity.did,
       roomId,
       handshake: {
         mediaType: "application/vnd.atom.mls-handshake+json;version=1",
         initiatorDid: joined.handshake.initiatorDid,
         welcome: joined.handshake.welcome,
         ratchetTree: joined.handshake.ratchetTree,
+        commit: joined.handshake.commit,
         memberDids: joined.handshake.memberDids,
       },
       memberPackages: memberKp.packages,

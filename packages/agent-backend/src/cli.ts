@@ -30,7 +30,7 @@ Environment:
 Shell setup:
   Open Comms in the reference shell and set "My agent" to PUBLIC_BASE_URL (admin API).
 
-Docs: https://github.com/Qwixl/Atom/blob/main/AGENT-BACKEND.md
+Docs: https://github.com/Qwixl/Atom/blob/main/documents/guides/AGENT-BACKEND.md
 `);
   process.exit(0);
 }

@@ -20,3 +20,14 @@ export {
 } from "./governance.js";
 export { signDataObject, verifyDataObject, verifyDataObjectSignature } from "./envelope.js";
 export { validateDataObject, validateUnsignedDataObject } from "./validate.js";
+export {
+  ReplayGuard,
+  type ReplayGuardEntry,
+  type ReplayGuardOptions,
+  type ReplayGuardSnapshot,
+} from "./replay.js";
+export {
+  assertCredentialBinding,
+  credentialBindingHolds,
+} from "./credentialBinding.js";
+export { assertMlsSenderMatchesIssuer } from "./mlsSender.js";

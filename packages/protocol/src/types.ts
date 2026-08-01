@@ -49,6 +49,27 @@ export interface AgentKeyPair {
 export interface VerifyDataObjectOptions {
   now?: Date;
   allowedPurposes?: string[];
+  /**
+   * When set, admit `(issuerDid, id)` after structural/signature/governance
+   * checks succeed. A duplicate presentation throws (draft {{replay}}).
+   * `now` is the same clock used for expiry so retention matches verification.
+   */
+  replay?: {
+    admit(
+      object: {
+        issuerDid: string;
+        id: string;
+        issuedAt?: string;
+        governance?: DataObjectGovernance;
+      },
+      now?: number,
+    ): boolean;
+  };
+  /**
+   * When the object arrived inside an MLS session, the Agent Identity from the
+   * sending member's MLS credential (draft {{processing}} check 3).
+   */
+  expectedMlsSenderDid?: string;
 }
 
 export type ValidationResult =

@@ -9,12 +9,18 @@ import {
   parseConsequentialPayload,
   parseDataRequestPayload,
   parseGameMovePayload,
+  parseSurfaceArrangePayload,
+  parseSurfacePinPayload,
+  parseSurfaceReleasePayload,
   validateComposition,
   type AgentOutput,
   type Composition,
   type ConsequentialAction,
   type DataRequest,
   type JsonValue,
+  type SurfaceArrange,
+  type SurfacePin,
+  type SurfaceRelease,
 } from "@qwixl/shell-core";
 
 const a2uiAssembler = new A2uiSurfaceAssembler();
@@ -36,6 +42,9 @@ export const ATOM_AGUI_EVENTS = {
   DATA_REQUEST: "atom.data-request",
   GAME_MOVE: "atom.game-move",
   CONNECTOR_INVOKE: "atom.connector-invoke",
+  SURFACE_PIN: "atom.surface-pin",
+  SURFACE_RELEASE: "atom.surface-release",
+  SURFACE_ARRANGE: "atom.surface-arrange",
 } as const;
 
 export type AtomAgUiEventName = (typeof ATOM_AGUI_EVENTS)[keyof typeof ATOM_AGUI_EVENTS];
@@ -76,6 +85,33 @@ export function atomGameMoveEvent(surfaceId: string, move: JsonValue): CustomEve
     type: EventType.CUSTOM,
     name: ATOM_AGUI_EVENTS.GAME_MOVE,
     value: { surfaceId, move },
+  };
+}
+
+/** Build a CUSTOM event to pin a persistent board surface. */
+export function atomSurfacePinEvent(pin: SurfacePin): CustomEvent {
+  return {
+    type: EventType.CUSTOM,
+    name: ATOM_AGUI_EVENTS.SURFACE_PIN,
+    value: pin,
+  };
+}
+
+/** Build a CUSTOM event to release a persistent board surface. */
+export function atomSurfaceReleaseEvent(release: SurfaceRelease): CustomEvent {
+  return {
+    type: EventType.CUSTOM,
+    name: ATOM_AGUI_EVENTS.SURFACE_RELEASE,
+    value: release,
+  };
+}
+
+/** Build a CUSTOM event to rearrange persistent board surfaces. */
+export function atomSurfaceArrangeEvent(arrange: SurfaceArrange): CustomEvent {
+  return {
+    type: EventType.CUSTOM,
+    name: ATOM_AGUI_EVENTS.SURFACE_ARRANGE,
+    value: arrange,
   };
 }
 
@@ -202,6 +238,14 @@ export function mapCustomEventToOutput(event: CustomEvent): AgentOutput | null {
       return wireResultToOutput(parseDataRequestPayload(event.value));
     case ATOM_AGUI_EVENTS.GAME_MOVE:
       return wireResultToOutput(parseGameMovePayload(event.value));
+    // Entitlement is unavailable here; parseSurfacePinPayload validates shape only.
+    // The shell re-validates connector entitlement when applying the pin.
+    case ATOM_AGUI_EVENTS.SURFACE_PIN:
+      return wireResultToOutput(parseSurfacePinPayload(event.value));
+    case ATOM_AGUI_EVENTS.SURFACE_RELEASE:
+      return wireResultToOutput(parseSurfaceReleasePayload(event.value));
+    case ATOM_AGUI_EVENTS.SURFACE_ARRANGE:
+      return wireResultToOutput(parseSurfaceArrangePayload(event.value));
     default:
       return null;
   }

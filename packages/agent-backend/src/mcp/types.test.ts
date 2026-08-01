@@ -22,5 +22,6 @@ describe("MCP trust helpers", () => {
       addedAt: 1,
     });
     expect(view.trusted).toBe(false);
+    expect(view.safeTools).toEqual([]);
   });
 });

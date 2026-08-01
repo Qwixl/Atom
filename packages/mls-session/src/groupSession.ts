@@ -1,37 +1,91 @@
+import type { AgentKeyPair } from "@qwixl/protocol";
 import {
   createApplicationMessage,
   createCommit,
   createGroup,
-  decodeGroupState,
   decodeMlsMessage,
-  defaultCapabilities,
-  defaultLifetime,
   emptyPskIndex,
-  encodeGroupState,
   encodeMlsMessage,
-  generateKeyPackage,
   joinGroup,
-  processPrivateMessage,
+  processPublicMessage,
   type ClientState,
-  type Credential,
   type GroupState,
   type KeyPackage,
   type PrivateKeyPackage,
   type Proposal,
   zeroOutUint8Array,
 } from "ts-mls";
+import {
+  decodeGroupState,
+  decodeGroupStateWithoutTree,
+  encodeGroupStateWithoutTree,
+} from "ts-mls/clientState.js";
+import {
+  getCredentialFromLeafIndex,
+} from "ts-mls/ratchetTree.js";
+import { toLeafIndex } from "ts-mls/treemath.js";
 import { defaultCiphersuite } from "./ciphersuite.js";
+import {
+  assertKeyPackageCredentialBinding,
+  credentialIdentityDid,
+  generateBoundKeyPackage,
+} from "./credential.js";
+import { decryptApplicationMessage, type DecryptedMlsApplication } from "./decrypt.js";
 import { hydrateClientState } from "./clientStateRestore.js";
 import { bytesToBase64, base64ToBytes } from "./pairSession.js";
+import { deserializeRatchetTree, serializeRatchetTree } from "./ratchetTree.js";
 import type { MlsGroupSnapshot } from "./snapshot.js";
 import type { MlsWireMessage } from "./types.js";
 
-function didCredential(did: string): Credential {
-  return { credentialType: "basic", identity: new TextEncoder().encode(did) };
-}
-
 function randomGroupId(): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(16));
+}
+
+export interface MlsGroupMembershipChange {
+  /** Welcome for the new member (add only). */
+  welcomeWire?: MlsWireMessage;
+  /** Public commit for existing members (D135 / MLS-01 fan-out). */
+  commitWire: MlsWireMessage;
+  memberDids: string[];
+}
+
+function findLeafIndexForDid(groupState: ClientState, did: string): number {
+  const tree = groupState.ratchetTree;
+  for (let nodeIndex = 0; nodeIndex < tree.length; nodeIndex += 2) {
+    const node = tree[nodeIndex];
+    if (!node || node.nodeType !== "leaf") continue;
+    const leafIndex = toLeafIndex(nodeIndex / 2);
+    try {
+      if (credentialIdentityDid(getCredentialFromLeafIndex(tree, leafIndex)) === did) {
+        return nodeIndex / 2;
+      }
+    } catch {
+      /* blank / unreadable leaf */
+    }
+  }
+  throw new Error(`No MLS leaf for DID ${did}`);
+}
+
+function memberDidsFromTree(groupState: ClientState): string[] {
+  const dids: string[] = [];
+  const tree = groupState.ratchetTree;
+  for (let nodeIndex = 0; nodeIndex < tree.length; nodeIndex += 2) {
+    const node = tree[nodeIndex];
+    if (!node || node.nodeType !== "leaf") continue;
+    const leafIndex = toLeafIndex(nodeIndex / 2);
+    try {
+      dids.push(credentialIdentityDid(getCredentialFromLeafIndex(tree, leafIndex)));
+    } catch {
+      /* blank / unreadable leaf */
+    }
+  }
+  return dids;
+}
+
+/** True when wire is an MLS public message (commit fan-out). */
+export function isMlsPublicMessageWire(wire: MlsWireMessage): boolean {
+  const decoded = decodeMlsMessage(wire, 0)?.[0];
+  return decoded?.wireformat === "mls_public_message";
 }
 
 export class MlsGroupSession {
@@ -60,7 +114,7 @@ export class MlsGroupSession {
 
   /** Host: create a new MLS group for a room (host is the first member). */
   static async createHost(opts: {
-    localDid: string;
+    identity: AgentKeyPair;
     roomId: string;
   }): Promise<{
     session: MlsGroupSession;
@@ -68,14 +122,8 @@ export class MlsGroupSession {
     publicPackage: KeyPackage;
     privatePackage: PrivateKeyPackage;
   }> {
+    const kp = await generateBoundKeyPackage(opts.identity);
     const impl = await defaultCiphersuite();
-    const kp = await generateKeyPackage(
-      didCredential(opts.localDid),
-      defaultCapabilities(),
-      defaultLifetime,
-      [],
-      impl,
-    );
     const groupState = await createGroup(
       randomGroupId(),
       kp.publicPackage,
@@ -83,59 +131,115 @@ export class MlsGroupSession {
       [],
       impl,
     );
-    const hostKeyPackageWire = encodeMlsMessage({
-      keyPackage: kp.publicPackage,
-      wireformat: "mls_key_package",
-      version: "mls10",
-    });
     return {
       session: new MlsGroupSession({
         groupState,
         publicPackage: kp.publicPackage,
         privatePackage: kp.privatePackage,
-        localDid: opts.localDid,
+        localDid: opts.identity.did,
         roomId: opts.roomId,
-        memberDids: [opts.localDid],
+        memberDids: [opts.identity.did],
       }),
-      hostKeyPackageWire,
+      hostKeyPackageWire: kp.keyPackageWire,
       publicPackage: kp.publicPackage,
       privatePackage: kp.privatePackage,
     };
   }
 
-  /** Host: add a member from their key package; returns Welcome for the new member. */
+  /**
+   * Host: add a member from their key package.
+   * Returns Welcome for the joiner and a public commit for existing members (D135).
+   */
   async addMember(opts: {
     memberDid: string;
     keyPackageWire: MlsWireMessage;
-  }): Promise<MlsWireMessage> {
+  }): Promise<MlsGroupMembershipChange> {
     if (this.memberDids.includes(opts.memberDid)) {
       throw new Error(`Member ${opts.memberDid} already in room`);
     }
-    this.groupState = hydrateClientState(this.groupState);
     const impl = await defaultCiphersuite();
     const decoded = decodeMlsMessage(opts.keyPackageWire, 0)?.[0];
     if (!decoded || decoded.wireformat !== "mls_key_package") {
       throw new Error("Expected MLS KeyPackage message");
     }
+    assertKeyPackageCredentialBinding(decoded.keyPackage, opts.memberDid);
     const addProposal: Proposal = {
       proposalType: "add",
       add: { keyPackage: decoded.keyPackage },
     };
     const commitResult = await createCommit(
       { state: this.groupState, cipherSuite: impl },
-      { extraProposals: [addProposal] },
+      { extraProposals: [addProposal], wireAsPublicMessage: true },
     );
-    this.groupState = hydrateClientState(commitResult.newState as ClientState);
+    this.groupState = commitResult.newState;
     commitResult.consumed.forEach(zeroOutUint8Array);
     if (!commitResult.welcome) {
       throw new Error("MLS commit did not produce Welcome");
     }
     (this.memberDids as string[]).push(opts.memberDid);
-    return encodeMlsMessage({
-      welcome: commitResult.welcome,
-      wireformat: "mls_welcome",
-      version: "mls10",
-    });
+    return {
+      welcomeWire: encodeMlsMessage({
+        welcome: commitResult.welcome,
+        wireformat: "mls_welcome",
+        version: "mls10",
+      }),
+      commitWire: encodeMlsMessage(commitResult.commit),
+      memberDids: [...this.memberDids],
+    };
+  }
+
+  /**
+   * Host: remove a member by DID (MLS remove proposal + public commit).
+   * Existing remaining members must process `commitWire` (D135 / 3B).
+   */
+  async removeMember(opts: { memberDid: string }): Promise<MlsGroupMembershipChange> {
+    if (opts.memberDid === this.localDid) {
+      throw new Error("Host cannot remove itself via removeMember");
+    }
+    if (!this.memberDids.includes(opts.memberDid)) {
+      throw new Error(`Member ${opts.memberDid} not in room`);
+    }
+    const impl = await defaultCiphersuite();
+    const removed = findLeafIndexForDid(this.groupState, opts.memberDid);
+    const removeProposal: Proposal = {
+      proposalType: "remove",
+      remove: { removed },
+    };
+    const commitResult = await createCommit(
+      { state: this.groupState, cipherSuite: impl },
+      { extraProposals: [removeProposal], wireAsPublicMessage: true },
+    );
+    this.groupState = commitResult.newState;
+    commitResult.consumed.forEach(zeroOutUint8Array);
+    const next = this.memberDids.filter((did) => did !== opts.memberDid);
+    (this.memberDids as string[]).length = 0;
+    (this.memberDids as string[]).push(...next);
+    return {
+      commitWire: encodeMlsMessage(commitResult.commit),
+      memberDids: [...this.memberDids],
+    };
+  }
+
+  /**
+   * Existing member: apply a public commit from the host (add/remove fan-out).
+   */
+  async processCommit(commitWire: MlsWireMessage): Promise<void> {
+    const impl = await defaultCiphersuite();
+    const decoded = decodeMlsMessage(commitWire, 0)?.[0];
+    if (!decoded || decoded.wireformat !== "mls_public_message") {
+      throw new Error("Expected MLS public commit message");
+    }
+    const processed = await processPublicMessage(
+      this.groupState,
+      decoded.publicMessage,
+      emptyPskIndex,
+      impl,
+    );
+    this.groupState = processed.newState;
+    processed.consumed.forEach(zeroOutUint8Array);
+    const next = memberDidsFromTree(this.groupState);
+    (this.memberDids as string[]).length = 0;
+    (this.memberDids as string[]).push(...next);
   }
 
   /** Member: join from Welcome after the host added this agent. */
@@ -187,24 +291,13 @@ export class MlsGroupSession {
     });
   }
 
-  async decrypt(wire: MlsWireMessage): Promise<Uint8Array> {
-    const impl = await defaultCiphersuite();
-    const decoded = decodeMlsMessage(wire, 0)?.[0];
-    if (!decoded || decoded.wireformat !== "mls_private_message") {
-      throw new Error("Expected MLS private message");
-    }
-    const result = await processPrivateMessage(
-      this.groupState,
-      decoded.privateMessage,
-      emptyPskIndex,
-      impl,
-    );
-    this.groupState = result.newState;
-    result.consumed.forEach(zeroOutUint8Array);
-    if (result.kind !== "applicationMessage") {
-      throw new Error(`Unexpected MLS message kind: ${String(result.kind)}`);
-    }
-    return result.message;
+  async decrypt(wire: MlsWireMessage): Promise<DecryptedMlsApplication> {
+    const { result, newState } = await decryptApplicationMessage({
+      groupState: this.groupState,
+      wire,
+    });
+    this.groupState = newState;
+    return result;
   }
 
   exportSnapshot(): MlsGroupSnapshot {
@@ -213,7 +306,8 @@ export class MlsGroupSession {
       localDid: this.localDid,
       roomId: this.roomId,
       memberDids: [...this.memberDids],
-      groupStateB64: bytesToBase64(encodeGroupState(this.groupState)),
+      groupStateB64: bytesToBase64(encodeGroupStateWithoutTree(this.groupState)),
+      ratchetTreeB64: serializeRatchetTree(this.groupState.ratchetTree),
     };
   }
 
@@ -224,41 +318,40 @@ export class MlsGroupSession {
     if (snap.version !== 1) {
       throw new Error(`Unsupported MLS group snapshot version ${snap.version}`);
     }
-    const decoded = decodeGroupState(base64ToBytes(snap.groupStateB64), 0);
-    if (!decoded) {
-      throw new Error("Invalid MLS group snapshot group state");
+    let groupState: ClientState;
+    if (snap.ratchetTreeB64) {
+      const tree = deserializeRatchetTree(snap.ratchetTreeB64);
+      const decoded = decodeGroupStateWithoutTree(tree)(
+        base64ToBytes(snap.groupStateB64),
+        0,
+      );
+      if (!decoded) {
+        throw new Error("Invalid MLS group snapshot group state (without tree)");
+      }
+      groupState = hydrateClientState(decoded[0] as ClientState);
+    } else {
+      const decoded = decodeGroupState(base64ToBytes(snap.groupStateB64), 0);
+      if (!decoded) {
+        throw new Error("Invalid MLS group snapshot group state");
+      }
+      groupState = hydrateClientState(decoded[0] as ClientState);
     }
+    const memberDids = memberDidsFromTree(groupState);
     return new MlsGroupSession({
-      groupState: hydrateClientState(decoded[0] as ClientState),
+      groupState,
       publicPackage: packages.publicPackage,
       privatePackage: packages.privatePackage,
       localDid: snap.localDid,
       roomId: snap.roomId,
-      memberDids: snap.memberDids,
+      memberDids: memberDids.length > 0 ? memberDids : snap.memberDids,
     });
   }
 }
 
-export async function generateGroupMemberKeyPackage(localDid: string): Promise<{
+export async function generateGroupMemberKeyPackage(identity: AgentKeyPair): Promise<{
   publicPackage: KeyPackage;
   privatePackage: PrivateKeyPackage;
   keyPackageWire: MlsWireMessage;
 }> {
-  const impl = await defaultCiphersuite();
-  const kp = await generateKeyPackage(
-    didCredential(localDid),
-    defaultCapabilities(),
-    defaultLifetime,
-    [],
-    impl,
-  );
-  return {
-    publicPackage: kp.publicPackage,
-    privatePackage: kp.privatePackage,
-    keyPackageWire: encodeMlsMessage({
-      keyPackage: kp.publicPackage,
-      wireformat: "mls_key_package",
-      version: "mls10",
-    }),
-  };
+  return generateBoundKeyPackage(identity);
 }

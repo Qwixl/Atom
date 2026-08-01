@@ -1,0 +1,56 @@
+{
+  "id": "051-distinct-ids-not-replay",
+  "kind": "data-object-sequence",
+  "description": "Two objects with identical content but distinct ids. Both MUST be accepted. Guards against replay protection implemented by hashing the payload, which would wrongly reject a legitimate repeat instruction.",
+  "requires": [
+    "replay"
+  ],
+  "now": "2026-01-15T12:00:00.000Z",
+  "permittedPurposes": [
+    "action:capture"
+  ],
+  "sequence": [
+    {
+      "expect": "accept",
+      "object": {
+        "version": 1,
+        "id": "01948f00-0000-7000-8000-000000000050",
+        "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+        "issuedAt": "2026-01-15T11:59:00.000Z",
+        "semantic": {
+          "schema": "https://atom.qwixl.dev/schema/CommsMessage"
+        },
+        "payload": {
+          "text": "hello"
+        },
+        "governance": {
+          "purpose": "action:capture",
+          "ttlSeconds": 3600
+        },
+        "signatureAlgorithm": "ed25519",
+        "signature": "HQ+Gpsha9ZIe6CBwcR/hsqTl8wL9QB30uqubAK/8ud57CYLrtUnI9mTHH4pJm7QlqUwVd7+HaMBXuG+TdQGmCQ=="
+      }
+    },
+    {
+      "expect": "accept",
+      "object": {
+        "version": 1,
+        "id": "01948f00-0000-7000-8000-000000000051",
+        "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+        "issuedAt": "2026-01-15T11:59:00.000Z",
+        "semantic": {
+          "schema": "https://atom.qwixl.dev/schema/CommsMessage"
+        },
+        "payload": {
+          "text": "hello"
+        },
+        "governance": {
+          "purpose": "action:capture",
+          "ttlSeconds": 3600
+        },
+        "signatureAlgorithm": "ed25519",
+        "signature": "gbx0gl7J1GhE6+Qv1yjJgtX6aXYV6ngotAJ5Fg/MvDA88iNZplHRXep+obMLfWw51LbNKVmNEfhnEGNPFx57Aw=="
+      }
+    }
+  ]
+}

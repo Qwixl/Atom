@@ -7,6 +7,7 @@ import type { HostedAgentRecord } from "./fleet/types.js";
 import { ensurePersonalWorkspaceId, provisionWorkspaceAgent } from "./workspaceRoutes.js";
 import { mintHostedOwnerSession } from "./hostedSessionMint.js";
 import { probeLlmConnection } from "./fleet/llmProbe.js";
+import { listProviderModels } from "./fleet/llmModels.js";
 
 type AccountType = "user" | "business" | "developer";
 
@@ -300,6 +301,76 @@ export function registerAccountRoutes(
     }
   });
 
+  app.get("/account/llm", async (req, res) => {
+    if (!isSupabaseConfigured()) {
+      res.status(503).json({ error: "Account service not configured" });
+      return;
+    }
+    const user = await requireUser(req, res);
+    if (!user) return;
+    try {
+      const { data, error } = await supabaseAdmin()
+        .from("user_llm_settings")
+        .select("provider, base_url, model, api_key")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      res.json({
+        provider: data?.provider?.trim() || null,
+        baseUrl: data?.base_url?.trim() || null,
+        model: data?.model?.trim() || null,
+        hasApiKey: Boolean(data?.api_key?.trim()),
+      });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.post("/account/llm/models", async (req, res) => {
+    if (!isSupabaseConfigured()) {
+      res.status(503).json({ error: "Account service not configured" });
+      return;
+    }
+    const user = await requireUser(req, res);
+    if (!user) return;
+
+    const body = req.body as {
+      apiKey?: string;
+      llmApiKey?: string;
+      baseUrl?: string;
+      llmBaseUrl?: string;
+      provider?: string;
+      llmProvider?: string;
+    };
+    try {
+      let apiKey = (body.apiKey ?? body.llmApiKey)?.trim() || "";
+      let baseUrl = (body.baseUrl ?? body.llmBaseUrl)?.trim() || "";
+      const provider = (body.provider ?? body.llmProvider)?.trim() || "";
+      if (!apiKey || !baseUrl) {
+        const { data, error } = await supabaseAdmin()
+          .from("user_llm_settings")
+          .select("api_key, base_url, provider")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (error) throw new Error(error.message);
+        if (!apiKey) apiKey = data?.api_key?.trim() || "";
+        if (!baseUrl) baseUrl = data?.base_url?.trim() || "";
+      }
+      if (!apiKey) {
+        res.status(400).json({ error: "LLM API key is required to list models" });
+        return;
+      }
+      const listed = await listProviderModels({
+        apiKey,
+        baseUrl: baseUrl || undefined,
+        provider: provider || undefined,
+      });
+      res.json(listed);
+    } catch (error) {
+      res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   app.post("/account/llm-key", async (req, res) => {
     if (!isSupabaseConfigured()) {
       res.status(503).json({ error: "Account service not configured" });
@@ -319,11 +390,6 @@ export function registerAccountRoutes(
       llmBaseUrl?: string;
       llmModel?: string;
     };
-    const llmKey = body.llmApiKey?.trim();
-    if (!llmKey) {
-      res.status(400).json({ error: "LLM API key is required" });
-      return;
-    }
     const provider = body.llmProvider?.trim() || "openai";
     const llmBaseUrl = body.llmBaseUrl?.trim() || null;
     const llmModel = body.llmModel?.trim() || null;
@@ -332,6 +398,21 @@ export function registerAccountRoutes(
       const hosted = await loadPersonalHostedAgent(user.id);
       if (!hosted?.control_plane_agent_id || hosted.status !== "active") {
         res.status(409).json({ error: "Hosted agent not ready" });
+        return;
+      }
+
+      let llmKey = body.llmApiKey?.trim() || "";
+      if (!llmKey) {
+        const { data: existing, error: existingError } = await supabaseAdmin()
+          .from("user_llm_settings")
+          .select("api_key")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (existingError) throw new Error(existingError.message);
+        llmKey = existing?.api_key?.trim() || "";
+      }
+      if (!llmKey) {
+        res.status(400).json({ error: "LLM API key is required" });
         return;
       }
 

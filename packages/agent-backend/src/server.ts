@@ -12,14 +12,24 @@ import {
   ROOM_INVITE_PURPOSE,
   createContactInvite,
   decodeEncryptedObjectPayload,
+  signAtomAgentCard,
   ACTION_PURPOSES,
   TRANSACTION_PURPOSES,
   QUALIFY_PURPOSES,
   CHANNEL_PURPOSES,
   COMMERCE_PURPOSES,
 } from "@qwixl/a2a-transport";
-import { createAtomA2aExpressApp } from "@qwixl/a2a-transport/server";
-import { base64ToBytes, signDataObject, verifyDataObject, type UnsignedDataObject } from "@qwixl/protocol";
+import {
+  createAtomA2aExpressApp,
+  createAtomTransportAuthMiddleware,
+} from "@qwixl/a2a-transport/server";
+import {
+  base64ToBytes,
+  ReplayGuard,
+  signDataObject,
+  verifyDataObject,
+  type UnsignedDataObject,
+} from "@qwixl/protocol";
 import { createRateLimiter } from "./rateLimit.js";
 import { loadAgentBackendConfig, type AgentBackendConfig } from "./config.js";
 import { publicBaseUrlForPort, resolvePortWithPrompt } from "./portConflict.js";
@@ -32,11 +42,13 @@ import { registerBrainAdminRoutes } from "./brainAdmin.js";
 import { BrainScheduler } from "./brainScheduler.js";
 import { registerPushAdminRoutes } from "./push/pushAdmin.js";
 import { createReadOnlyConnectorExecutor } from "./readOnlyConnectorExecutor.js";
+import { setConnectorCacheInvalidateListener } from "./connectorInvoke.js";
 import { loadVoiceBackend } from "./voice/stubVoiceBackend.js";
 import { registerVoiceAdminRoutes } from "./voice/voiceAdmin.js";
 import { ConnectorVault } from "./connectorVault.js";
 import { MlsPeerRecordStore } from "./mlsPeerRecords.js";
 import { MlsSessionRecordStore } from "./mlsSessionRecords.js";
+import { ReplayGuardStore } from "./replayGuardStore.js";
 import { RoomStore } from "./roomStore.js";
 import { registerRoomsAdminRoutes, handleInboundRoomWire } from "./roomsAdmin.js";
 import { seedCoffeeShopBrand, seedCoffeeShopKnowledge } from "./communityCoffeeShop.js";
@@ -47,6 +59,8 @@ import { TrustedAgentsStore } from "./trustedAgentsStore.js";
 import { HandleCacheStore } from "./handleCache.js";
 import { BudgetLedgerStore } from "./budgetLedger.js";
 import { evaluateSpend, registerBillingAdminRoutes } from "./billingAdmin.js";
+import { registerStripeModeHWebhook } from "./payment/stripeWebhook.js";
+import { CommerceAbuseStore } from "./commerceAbuse.js";
 import { connectMlsPeer, reconnectStoredMlsPeers } from "./mlsReconnect.js";
 import { bootstrapMeshPeers, meshBootstrapEnabled } from "./meshBootstrap.js";
 import { registerActionAdminRoutes } from "./actionAdmin.js";
@@ -91,13 +105,16 @@ import {
   roomIdFromContext,
 } from "./mlsSessions.js";
 import { AsleepQueueStore } from "./asleepQueue.js";
+import { dequeueAsleepMessages } from "./asleepDequeue.js";
 import {
   createInboundReachabilityMiddleware,
   effectiveReachabilityMode,
+  evaluateInboundReachability,
   isBrainReachable,
   runAsleepInboxWakeNotification,
   type ReachabilityConfig,
 } from "./reachability.js";
+import { a2aBlobLooksLikeCommerceIntent } from "./commerceAbuseAsleep.js";
 
 export interface StartAgentServerOptions {
   config?: AgentBackendConfig;
@@ -120,6 +137,8 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     };
   }
   const identity = await loadOrCreateIdentity();
+  const commerceAbuseStore = new CommerceAbuseStore();
+  await commerceAbuseStore.load();
   const reachabilityConfig: ReachabilityConfig = {
     ...config.reachabilityConfig,
     wakeSeed: identity.did || config.reachabilityConfig.wakeSeed,
@@ -141,7 +160,11 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     (process.env.ATOM_DATA_DIR ? path.basename(process.env.ATOM_DATA_DIR) : undefined);
   const inbox = new DataObjectInbox();
   await inbox.load();
-  const mlsStore = new MlsSessionStore();
+  const mlsStore = new MlsSessionStore(identity);
+  const replayGuard = new ReplayGuard();
+  const replayGuardStore = new ReplayGuardStore(replayGuard);
+  await replayGuardStore.load();
+  replayGuardStore.start();
   const sessionRecords = new MlsSessionRecordStore();
   await mlsStore.loadFromRecords(sessionRecords);
   const peerRecords = new MlsPeerRecordStore();
@@ -286,10 +309,39 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     mlsStore,
     catalog: catalogStore,
     businessMode: config.businessMode,
+    stripeSecretKey: config.stripeSecretKey,
+    commerceWorkspaceId: process.env.ATOM_WORKSPACE_ID?.trim() || "default",
+    checkoutSuccessUrl: process.env.ATOM_CHECKOUT_SUCCESS_URL?.trim() || null,
+    checkoutCancelUrl: process.env.ATOM_CHECKOUT_CANCEL_URL?.trim() || null,
+    abuse: commerceAbuseStore,
+    onSuggestMute: (peerDid) => {
+      console.warn(
+        `[commerce-abuse] suggest mute peer ${peerDid} — owner: GET /business/shopping`,
+      );
+    },
+    onCommerceOutcomePaid: ({ amountMinor, currency, description, offerId, checkoutSessionId }) => {
+      budgetLedger.append({
+        workspaceId: process.env.ATOM_WORKSPACE_ID?.trim() || "personal",
+        category: "commerce",
+        amountMinor,
+        currency,
+        description,
+      });
+      if (currency?.toLowerCase() === "gbp" && amountMinor > 0) {
+        void import("./controlPlaneCredits.js").then(({ reportAgentSpendToControlPlane }) => {
+          reportAgentSpendToControlPlane({
+            amountPence: amountMinor,
+            description: description ?? "commerce outcome",
+            idempotencyKey: `${offerId}:${checkoutSessionId}`,
+          });
+        });
+      }
+    },
   });
   await businessStore.load();
 
   const verification = verificationStore.get();
+  const reachMode = effectiveReachabilityMode(reachabilityConfig);
   const agentCard = buildAtomAgentCard({
     name: config.agentName,
     description:
@@ -302,6 +354,8 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
             : "Atom agent — signed data objects and MLS E2E over A2A.",
     baseUrl: config.publicBaseUrl,
     publisherDid: identity.did,
+    offlineDeliveryMode:
+      reachMode === "sleep" || reachMode === "hourly_wake" ? reachMode : undefined,
     business: verification
       ? {
           verificationTier: verification.tier,
@@ -314,6 +368,11 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
         ? config.agentKind
         : undefined,
   });
+
+  // Sign the card with the agent's own did:key. Without this the card is only as
+  // trustworthy as the transport that delivered it, which lets any host publish a
+  // card claiming any agent's DID (see `verifyWellKnownDomainControl`).
+  const signedAgentCard = await signAtomAgentCard(agentCard, identity);
 
   const inboxPurposes = [
     COMMS_MESSAGE_PURPOSE,
@@ -344,6 +403,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   const executor = new AtomDataObjectExecutor({
     identity,
     allowedPurposes: inboxPurposes,
+    replay: replayGuard,
     onReceive: (event) => {
       if (!trustedAgents.shouldAcceptInbound(event.object.issuerDid)) {
         console.log(`[contacts] dropped inbound from ${event.object.issuerDid} (block/mute policy)`);
@@ -378,7 +438,6 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     },
     onMlsHandshake: async (event) => {
       await mlsStore.acceptHandshake({
-        localDid: identity.did,
         handshake: event.handshake,
       });
       peerRecords.remember(event.handshake.initiatorDid, event.handshake.initiatorEndpoint);
@@ -410,6 +469,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
           mlsStore,
           rooms,
           localDid: identity.did,
+          replayGuard,
         });
         console.log(`[rooms/mls] message in ${roomId} from ${senderDid}`);
         return;
@@ -421,10 +481,15 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       if (!peerDid) {
         throw new Error("Cannot resolve peer DID for MLS message (set contextId to mls:<did>)");
       }
-      const plaintext = await mlsStore.decryptFrom(peerDid, event.wire);
+      const { plaintext, senderDid: mlsSenderDid } = await mlsStore.decryptFrom(
+        peerDid,
+        event.wire,
+      );
       const object = decodeEncryptedObjectPayload(plaintext);
       const verified = await verifyDataObject(object, {
         allowedPurposes: mlsPurposes,
+        replay: replayGuard,
+        expectedMlsSenderDid: mlsSenderDid,
       });
       if (!trustedAgents.shouldAcceptInbound(verified.issuerDid)) {
         console.log(`[contacts] dropped MLS inbound from ${verified.issuerDid} (block/mute policy)`);
@@ -463,21 +528,39 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     },
   });
 
-  const a2aApp = createAtomA2aExpressApp({ agentCard, executor });
+  const requireTransportAuth = process.env.ATOM_A2A_REQUIRE_TRANSPORT_AUTH !== "0";
+  const a2aApp = createAtomA2aExpressApp({
+    agentCard: signedAgentCard,
+    executor,
+    transportAuthAudience: config.publicBaseUrl,
+    requireTransportAuth,
+  });
   const app = express();
+
+  // Authenticate before asleep enqueue so unauthenticated traffic cannot fill the queue.
+  app.use(
+    "/a2a/jsonrpc",
+    createAtomTransportAuthMiddleware({
+      audience: config.publicBaseUrl,
+      required: requireTransportAuth,
+    }),
+  );
 
   app.use(
     "/a2a/jsonrpc",
     createInboundReachabilityMiddleware({
       config: reachabilityConfig,
+      // Do not swallow enqueue failures — middleware maps AsleepQueueFullError to
+      // asleep_queue_full (never agent_asleep with queued:false). D133 / ST-04a.
       enqueue: (input) => {
-        try {
-          asleepQueue.enqueue(input);
-        } catch (error) {
-          console.warn(
-            `[asleep-inbox] enqueue failed: ${error instanceof Error ? error.message : String(error)}`,
+        // BUS-ABUSE-01a: peek-only at enqueue (dequeue increments) — fail-closed.
+        if (input.fromDid && a2aBlobLooksLikeCommerceIntent(input.blob)) {
+          commerceAbuseStore.assertInboundIntentBudgetAvailable(input.fromDid);
+          commerceAbuseStore.assertSessionMintBudgetAvailable(
+            process.env.ATOM_WORKSPACE_ID?.trim() || "default",
           );
         }
+        asleepQueue.enqueue(input);
       },
     }),
   );
@@ -514,6 +597,12 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     config,
     rooms,
     businessDomain: verification?.businessDomain ?? config.businessDomain,
+  });
+  // Mode H: Stripe webhooks are public (signature-authenticated); raw body required.
+  registerStripeModeHWebhook(app, {
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET?.trim() || null,
+    assertWebhookIpAllowed: (ip) => commerceAbuseStore.assertWebhookIpAllowed(ip),
+    onCheckoutPaid: (input) => businessStore.mintOutcomeFromCheckoutPaid(input),
   });
 
   const adminApp = express();
@@ -574,6 +663,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     workspaceId: process.env.ATOM_WORKSPACE_ID?.trim() || "personal",
     applicationFeeMinor: 0,
     connectAccountId: process.env.ATOM_STRIPE_CONNECT_ACCOUNT_ID?.trim() || null,
+    isModeHHoldSubject: (subjectId) => businessStore.isModeHHoldSubject(subjectId),
     evaluateCommerceSpend: ({ amountMinor, currency }) =>
       evaluateSpend(
         { budgetLedger, stripeSecretKey: config.stripeSecretKey, platformFeeBps: 0 },
@@ -612,6 +702,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     store: businessStore,
     verification: verificationStore,
     vault: connectorVault,
+    abuse: commerceAbuseStore,
   });
   registerConnectorAdminRoutes(adminApp, {
     vault: connectorVault,
@@ -665,13 +756,58 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     vault: connectorVault,
     alwaysOn: () => isBrainReachable(reachabilityConfig),
     onReachabilityWake: () => {
-      runAsleepInboxWakeNotification(
-        () => asleepQueue.list(),
-        () => asleepQueue.purgeExpired(),
-      );
+      const pendingBefore = asleepQueue.list().length;
+      asleepQueue.purgeExpired();
+      const verdict = evaluateInboundReachability(reachabilityConfig, new Date());
+      if (!verdict.accept) {
+        if (pendingBefore > 0) {
+          runAsleepInboxWakeNotification(
+            () => asleepQueue.list(),
+            () => 0,
+          );
+        }
+        return;
+      }
+      void dequeueAsleepMessages({
+        queue: asleepQueue,
+        verifyOptions: {
+          allowedPurposes: inboxPurposes,
+          replay: replayGuard,
+        },
+        onAccept: async (event) => {
+          if (!trustedAgents.shouldAcceptInbound(event.object.issuerDid)) {
+            console.log(
+              `[contacts] dropped asleep-dequeue from ${event.object.issuerDid} (block/mute policy)`,
+            );
+            return;
+          }
+          inbox.push(event);
+          handleCalendarFeedInboxObject(calendarFeed, event.object);
+          void transactionStore.handleInboxObject(event.object).catch(() => undefined);
+          void qualifyStore.handleInboxObject(event.object).catch(() => undefined);
+          void channelStore.handleInboxObject(event.object).catch(() => undefined);
+          void businessStore.handleInboxObject(event.object).catch(() => undefined);
+          handleSwarmInboxObject(event.object);
+          console.log(
+            `[asleep-dequeue] accepted ${event.object.governance.purpose} from ${event.object.issuerDid} id=${event.object.id}`,
+          );
+        },
+      }).then((outcome) => {
+        if (outcome.processed > 0 || outcome.deferred > 0) {
+          console.log(
+            `[asleep-dequeue] processed=${outcome.processed} accepted=${outcome.accepted} rejected=${outcome.rejected} deferred=${outcome.deferred}`,
+          );
+        }
+      });
     },
     killSwitch: config.killSwitch,
     intervalMs: config.brainIntervalMs,
+    boardExecutor: (call) =>
+      readOnlyConnectorExecutor({
+        connectorId: call.connectorId as import("@qwixl/agent-llm").AtomConnectorInvokeInput["connectorId"],
+        operation: call.operation,
+        input: call.input,
+      }),
     resolveNotification: async (intent, firedAt) => {
       const { loadLlmAgUiConfigFromEnv } = await import("./agUi/llmRunner.js");
       const { runBrainTurn } = await import("./brainTurn.js");
@@ -712,6 +848,10 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       });
     },
   });
+  setConnectorCacheInvalidateListener((connectorId) => {
+    brainScheduler.noteConnectorChange(connectorId);
+    void brainScheduler.tick();
+  });
   registerBrainAdminRoutes(adminApp, { vault: connectorVault, scheduler: brainScheduler });
   registerPushAdminRoutes(adminApp, { vault: connectorVault });
   const voiceBackend = loadVoiceBackend();
@@ -723,6 +863,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     rooms,
     peerRecords,
     publicBaseUrl: config.publicBaseUrl,
+    replayGuard,
   });
   registerDiscoverAdminRoutes(adminApp, {
     identity,
@@ -756,7 +897,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
 
   adminApp.get("/mls/key-package", keyPackageRateLimit, async (_req, res) => {
     try {
-      const payload = await mlsStore.keyPackageForHandshake(identity.did);
+      const payload = await mlsStore.keyPackageForHandshake();
       res.json(payload);
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
@@ -955,6 +1096,14 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   return new Promise((resolve, reject) => {
     const server = createServer(app);
     server.on("error", reject);
+    // The snapshot timer outlives the request path, so it has to be tied to the
+    // server's lifetime — otherwise every embedded or test-hosted agent leaks a
+    // timer that keeps writing after its data directory is gone.
+    server.on("close", () => {
+      replayGuardStore.stop();
+      void replayGuardStore.flush().catch(() => undefined);
+      void rooms.flush().catch(() => undefined);
+    });
     server.listen(config.port, config.host, () => {
       console.log(`Atom agent ${identity.did}`);
       console.log(`  identity file: ${identityPath()}`);
@@ -1033,6 +1182,13 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       );
       const stopBrain = () => {
         brainScheduler.stop();
+        setConnectorCacheInvalidateListener(undefined);
+        // Every inbound room message advances persisted chain state via a write
+        // nobody awaits, so without this a clean shutdown can drop the position
+        // it just recorded and re-admit those messages on restart.
+        void rooms.flush().catch(() => undefined);
+        replayGuardStore.stop();
+        void replayGuardStore.flush().catch(() => undefined);
       };
       process.once("SIGINT", stopBrain);
       process.once("SIGTERM", stopBrain);

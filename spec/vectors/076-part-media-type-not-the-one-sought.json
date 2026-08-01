@@ -1,0 +1,19 @@
+{
+  "id": "076-part-media-type-not-the-one-sought",
+  "kind": "encapsulation-part",
+  "description": "A well-formed MLS wire part offered to a receiver looking for a Governed Object part. MUST be rejected. Guards against a receiver that dispatches on the shape of the data member and treats the media type as decoration.",
+  "requires": [
+    "encapsulation",
+    "media-type-placement"
+  ],
+  "expect": "reject",
+  "reason": "media-type-not-matched",
+  "readAs": "application/vnd.atom.data-object+json;version=1",
+  "part": {
+    "data": {
+      "mediaType": "application/vnd.atom.mls-wire+cbor;version=1",
+      "wire": "AAECAwQFBgcICQoLDA0ODw=="
+    },
+    "mediaType": "application/vnd.atom.mls-wire+cbor;version=1"
+  }
+}

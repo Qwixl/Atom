@@ -97,6 +97,7 @@ import {
   type McpToolExecutor,
 } from "@qwixl/agent-llm";
 import { AgUiAgentSession, type AgUiAgentConfig } from "@qwixl/ag-ui-adapter";
+import { McpAppHostDock, useMcpAppSurfaces } from "./mcp/McpAppHostDock.js";
 import {
   OwnerStore,
   activeContextTags,
@@ -134,11 +135,7 @@ import { BriefingSettingsPanel } from "./briefing/BriefingSettingsPanel.js";
 import { StandingIntentsPanel } from "./brain/StandingIntentsPanel.js";
 import { CreditsUsageTray } from "./billing/CreditsUsageTray.js";
 import { PushSettingsPanel } from "./brain/PushSettingsPanel.js";
-import {
-  ensureCapacitorPush,
-  ensureWebPushSubscription,
-  loadPushOptIn,
-} from "./brain/pushRegistration.js";
+import { ensureWebPushSubscription, loadPushOptIn } from "./brain/pushRegistration.js";
 import {
   VoicePushToTalk,
   VoiceSettingsPanel,
@@ -164,7 +161,7 @@ import {
   markSessionOpenBriefingRunToday,
 } from "./brain/briefingAutoFire.js";
 import { useBrainPendingPoll } from "./brain/useBrainPendingPoll.js";
-import { SpendPolicySettingsPanel } from "./billing/SpendPolicySettingsPanel.js";
+import { AgentShoppingSettingsPanel } from "./billing/AgentShoppingSettingsPanel.js";
 import { PlanLaneSettingsPanel } from "./billing/PlanLaneSettingsPanel.js";
 import { formatLocationContextForPrompt } from "./location/locationContext.js";
 import { loadLocationPreferences } from "./location/locationPreferences.js";
@@ -250,6 +247,7 @@ import {
   loadOwnerProposals,
   loadOwnerRecords,
   newStandingIntentId,
+  notifyBrainSessionOpen,
   saveAttestations,
   saveBrainIntents,
   saveChatFeed,
@@ -272,6 +270,7 @@ import {
 import {
   LLM_PROVIDER_PRESETS,
   getLlmProviderPreset,
+  matchHostedLlmProviderId,
   matchLlmProviderPresetId,
   modelSelectOptions,
   resolveHostedLlmConnection,
@@ -282,6 +281,7 @@ import {
   HostedLlmConnectionFields,
   type HostedLlmConnectionFieldsValue,
 } from "./settings/HostedLlmConnectionFields.js";
+import { LlmModelPicker } from "./settings/LlmModelPicker.js";
 import { loadCommsAgentConfig, loadCommsAgentConfigSecure, saveCommsAgentConfigSecure, clearCommsAdminToken, clearCommsAgentConfig, loadOwnerAgentKind, refreshCommsConfigCache, purgeStaleLocalAgentConfig, isLocalAgentUrl } from "./comms/storage.js";
 import { probeAgentConnection, reconcileAgentConnection } from "./comms/agentConnection.js";
 import { presentUserError } from "./comms/agentErrors.js";
@@ -317,6 +317,7 @@ import { validateProductionAgUiUrl } from "./productionGuard.js";
 import { applyAtomSkin, ATOM_SKINS, isAtomSkinId, type AtomSkinId } from "@qwixl/skin-default/tokens";
 import {
   updateHostedLlmConnection,
+  fetchHostedLlmConnectionMeta,
   signOutSupabase,
   fetchHostedAccountStatus,
   fetchHostedAgentConnection,
@@ -352,7 +353,6 @@ const DEFAULT_REGISTRY_URL = "/registry/index.json";
 const APP_STORE_URL_KEY = "atom-app-store-url";
 /** Atom App Store front-end (D073/D099). Owner-editable; any compatible store works. */
 const DEFAULT_APP_STORE_URL = "https://atom.apps.qwixl.com";
-const AGENT_SHOPPER_KEY = "atom-agent-shopper-enabled";
 const REVOCATION_REFRESH_MS = 5 * 60 * 1000;
 
 function loadRegistryUrl(): string {
@@ -937,6 +937,7 @@ export function App() {
   /** Set when user picks a provider that needs configuration first. */
   const [settingsIntent, setSettingsIntent] = useState<Provider | null>(null);
   const [input, setInput] = useState("");
+  const { surfaces: mcpAppSurfaces, dismiss: dismissMcpApp, openFromToolCall } = useMcpAppSurfaces();
   const [attestations, setAttestations] = useState<readonly AttestationEntry[]>(
     attestationLog.list(),
   );
@@ -950,21 +951,26 @@ export function App() {
   } | null>(null);
   const [custodyError, setCustodyError] = useState<string | null>(null);
   const [panel, setPanel] = useState<SidePanel>(() => (IS_DEMO_MODE ? "comms" : "none"));
+  // Muted unless the owner has explicitly unmuted (D127). Opening the Board enables
+  // push-to-talk, and the Board is now a system module present for every owner, so voice
+  // has to be opted into rather than inherited from what a paywall used to limit.
   const [boardVoiceMuted, setBoardVoiceMuted] = useState(() => {
     try {
       const rec = (ownerRecordsPersistence.load() ?? []).find(
         (r) =>
           r.category === PRESENTATION_BOARD_CATEGORY && r.label === PRESENTATION_BOARD_MUTE_LABEL,
       );
-      return Boolean(
-        rec &&
-          typeof rec.value === "object" &&
-          rec.value !== null &&
-          !Array.isArray(rec.value) &&
-          (rec.value as { muted?: unknown }).muted === true,
-      );
+      if (
+        !rec ||
+        typeof rec.value !== "object" ||
+        rec.value === null ||
+        Array.isArray(rec.value)
+      ) {
+        return true;
+      }
+      return (rec.value as { muted?: unknown }).muted !== false;
     } catch {
-      return false;
+      return true;
     }
   });
 
@@ -1552,6 +1558,8 @@ export function App() {
         call.toolName,
         call.arguments ?? {},
       );
+      // Attested open only after successful tools/call (D131 §14.1).
+      void openFromToolCall(client, call).catch(() => undefined);
       return response.result;
     };
     try {
@@ -1564,7 +1572,7 @@ export function App() {
       setChatSessionBearer(refreshed);
       return await invokeOnce();
     }
-  }, [vaultUnlocked]);
+  }, [vaultUnlocked, openFromToolCall]);
 
   const agUiSessionKey = provider === "ag-ui" ? agUiConfig.url : null;
   const agUiBearer =
@@ -1892,6 +1900,48 @@ export function App() {
     requestBriefingComposition,
   ]);
 
+  // Board on-open refresh (PS-05a): independent of briefing prefs. Once per tab session;
+  // server also debounces noteSessionOpen. Set the tab flag only after a successful notify
+  // (or after a deliberate skip when auth is unavailable).
+  useEffect(() => {
+    if (IS_DEMO_MODE || !vaultUnlocked || !agentConnectionReady || !connectorContextReady) return;
+    const flagKey = "atom:board-session-open-sent";
+    try {
+      if (sessionStorage.getItem(flagKey) === "1") return;
+    } catch {
+      /* sessionStorage unavailable — still attempt once this mount */
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const config = await loadCommsAgentConfigSecure();
+        if (!config.adminToken?.trim() && !usesSupabaseHostedAuth()) {
+          try {
+            sessionStorage.setItem(flagKey, "1");
+          } catch {
+            /* ignore */
+          }
+          return;
+        }
+        if (cancelled) return;
+        await notifyBrainSessionOpen(config);
+        if (cancelled) return;
+        try {
+          sessionStorage.setItem(flagKey, "1");
+        } catch {
+          /* ignore */
+        }
+      } catch (error) {
+        console.warn(
+          `[board] session-open notify failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [vaultUnlocked, agentConnectionReady, connectorContextReady]);
+
   // Recover legacy "ask me" stubs only — thin "Morning briefing" / "is ready" lines must not re-fire.
   useEffect(() => {
     if (IS_DEMO_MODE || !vaultUnlocked || !agentConnectionReady || !connectorContextReady) return;
@@ -1996,8 +2046,7 @@ export function App() {
           return;
         }
         await ensureFreshChatSessionToken(config);
-        const native = await ensureCapacitorPush(config);
-        if (cancelled || native === "subscribed") return;
+        if (cancelled) return;
         await ensureWebPushSubscription(config);
       } catch {
         /* soft-fail */
@@ -3178,6 +3227,28 @@ export function App() {
             })
           )}
           {busy ? <div className="feed-busy">agent working…</div> : null}
+          <McpAppHostDock
+            surfaces={mcpAppSurfaces}
+            onDismiss={dismissMcpApp}
+            onProxyTool={async (serverId, toolName, args) => {
+              const config = vaultUnlocked
+                ? await loadCommsAgentConfigSecure()
+                : loadCommsAgentConfig();
+              const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
+              const response = await client.invokeMcpTool(serverId, toolName, args);
+              return response.result;
+            }}
+            onProxyResource={async (serverId, uri) => {
+              const config = vaultUnlocked
+                ? await loadCommsAgentConfigSecure()
+                : loadCommsAgentConfig();
+              const client = new CommsAgentClient(config.adminUrl, commsClientAuth(config));
+              return client.readMcpUiResource(serverId, uri);
+            }}
+            onApprovedChatMessage={(text) => {
+              conversationRef.current?.appendUser(text);
+            }}
+          />
         </main>
         ) : null}
 
@@ -3959,9 +4030,6 @@ function SettingsDialog({
   const [appStoreUrl, setAppStoreUrl] = useState(
     () => loadStringFromStorage(APP_STORE_URL_KEY)?.trim() || DEFAULT_APP_STORE_URL,
   );
-  const [agentShopperOn, setAgentShopperOn] = useState(
-    () => loadBooleanFromStorage(AGENT_SHOPPER_KEY, false),
-  );
   const [requireIntegrity, setRequireIntegrity] = useState(trustInitial.requireIntegrity !== false);
   const [requireSignature, setRequireSignature] = useState(trustInitial.requireSignature === true);
   const [blockedIdsText, setBlockedIdsText] = useState(
@@ -4013,9 +4081,39 @@ function SettingsDialog({
   const [hostedLlm, setHostedLlm] = useState<HostedLlmConnectionFieldsValue>(() =>
     defaultHostedLlmConnectionFields("openai"),
   );
+  const [hostedLlmHasKey, setHostedLlmHasKey] = useState(false);
   const [hostedLlmBusy, setHostedLlmBusy] = useState(false);
   const [hostedLlmNote, setHostedLlmNote] = useState<string | null>(null);
   const [hostedLlmError, setHostedLlmError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isHostedAgent) return;
+    let cancelled = false;
+    void fetchHostedLlmConnectionMeta()
+      .then((meta) => {
+        if (cancelled) return;
+        setHostedLlmHasKey(meta.hasApiKey);
+        if (!meta.provider && !meta.baseUrl && !meta.model) return;
+        const providerId = matchHostedLlmProviderId(meta.baseUrl ?? "", meta.provider);
+        const resolved = resolveHostedLlmConnection({
+          providerId,
+          baseUrl: meta.baseUrl ?? undefined,
+          model: meta.model ?? undefined,
+        });
+        setHostedLlm({
+          providerId: resolved.provider,
+          baseUrl: meta.baseUrl?.trim() || resolved.baseUrl,
+          model: meta.model?.trim() || resolved.model,
+          apiKey: "",
+        });
+      })
+      .catch(() => {
+        /* Keep defaults if meta is unavailable (offline / CP down). */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isHostedAgent]);
+
   const [moduleCatalogNote, setModuleCatalogNote] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<
     | "profile"
@@ -4080,7 +4178,7 @@ function SettingsDialog({
       model: hostedLlm.model,
     });
     const key = hostedLlm.apiKey.trim();
-    if (!key) {
+    if (!key && !hostedLlmHasKey) {
       setHostedLlmError("Enter your LLM API key.");
       return;
     }
@@ -4097,13 +4195,14 @@ function SettingsDialog({
     setHostedLlmNote(null);
     try {
       const updateResult = await updateHostedLlmConnection({
-        llmApiKey: key,
+        llmApiKey: key || undefined,
         llmProvider: resolved.provider,
         llmBaseUrl: resolved.baseUrl,
         llmModel: resolved.model,
       });
       // Clear the password field only — key lives on the agent, not in the browser.
       setHostedLlm((prev) => ({ ...prev, apiKey: "" }));
+      setHostedLlmHasKey(true);
       if (MANAGED_HOSTING) {
         onSwitchChatProvider("ag-ui");
       }
@@ -4267,12 +4366,17 @@ function SettingsDialog({
         <>
           <p className="settings-note">
             {isHostedAgent
-              ? "Pick how your agent thinks — OpenAI, OpenRouter, or your own setup."
+              ? "Pick where your agent thinks — OpenAI, Claude, Gemini, OpenRouter, and more."
               : "Your agent runs on Atom hosting. Keys stay with your agent, not in this browser."}
           </p>
           {isHostedAgent ? (
             <>
-              <HostedLlmConnectionFields value={hostedLlm} onChange={setHostedLlm} />
+              <HostedLlmConnectionFields
+                value={hostedLlm}
+                onChange={setHostedLlm}
+                hasSavedKey={hostedLlmHasKey}
+                apiKeyOptional={hostedLlmHasKey}
+              />
               {hostedLlmError ? (
                 <p className="settings-note settings-error">{hostedLlmError}</p>
               ) : null}
@@ -4281,10 +4385,14 @@ function SettingsDialog({
                 <button
                   type="button"
                   className="chrome-approve"
-                  disabled={hostedLlmBusy || !hostedLlm.apiKey.trim()}
+                  disabled={
+                    hostedLlmBusy ||
+                    (!hostedLlm.apiKey.trim() && !hostedLlmHasKey) ||
+                    !hostedLlm.model.trim()
+                  }
                   onClick={() => void saveHostedLlmKey()}
                 >
-                  {hostedLlmBusy ? "Updating…" : "Update LLM connection"}
+                  {hostedLlmBusy ? "Saving…" : "Save chat connection"}
                 </button>
               </div>
             </>
@@ -4414,36 +4522,21 @@ function SettingsDialog({
                 />
               </label>
             )}
-            <label className="atom-field">
-              <span className="atom-field-label">Model</span>
-              {!hasApiKey ? (
-                <p className="settings-note">Please add your API Key</p>
-              ) : modelOptionsLoading ? (
-                <p className="settings-note">Loading models…</p>
-              ) : (
-                <div className="settings-inline-add">
-                  {modelSelectIds.length > 0 &&
-                  (providerPresetId !== "custom" ||
-                    (modelsFromApi === true && modelOptions.length > 0 && modelOptions.length <= 40)) ? (
-                    <select value={model} onChange={(e) => setModel(e.target.value)}>
-                      {!model.trim() ? (
-                        <option value="" disabled>
-                          Please select a model
-                        </option>
-                      ) : null}
-                      {modelSelectIds.map((id) => (
-                        <option key={id} value={id}>
-                          {id}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      value={model}
-                      placeholder="e.g. gpt-4o-mini or openai/gpt-4o-mini"
-                      onChange={(e) => setModel(e.target.value)}
-                    />
-                  )}
+            <div className="atom-field">
+              <LlmModelPicker
+                presetId={providerPresetId}
+                value={model}
+                onChange={setModel}
+                apiModels={
+                  modelsFromApi === true && modelOptions.length > 0 ? modelOptions : modelSelectIds
+                }
+                loading={modelOptionsLoading}
+                canLoadModels={hasApiKey}
+                listFailed={modelsFromApi === false}
+                fieldClassName="atom-field llm-model-picker-embedded"
+              />
+              {hasApiKey ? (
+                <div className="chrome-actions settings-section-actions">
                   <button
                     type="button"
                     className="chrome-approve"
@@ -4456,15 +4549,6 @@ function SettingsDialog({
                     Add
                   </button>
                 </div>
-              )}
-              {hasApiKey && modelsFromApi && modelOptions.length > 40 && providerPresetId !== "custom" ? (
-                <p className="settings-note">
-                  Showing a curated shortlist (this provider returns a large catalog). Switch Provider to
-                  Custom to type any model id.
-                </p>
-              ) : null}
-              {hasApiKey && !modelOptionsLoading && modelsFromApi && !model.trim() ? (
-                <p className="settings-note">Please select a model</p>
               ) : null}
               {hasApiKey && model.trim() ? (
                 capabilitiesLoading ? (
@@ -4481,7 +4565,7 @@ function SettingsDialog({
                   </p>
                 ) : null
               ) : null}
-            </label>
+            </div>
           </div>
         ) : (
           <div className="settings-agent-tab-panel" role="tabpanel">
@@ -4615,26 +4699,11 @@ function SettingsDialog({
         {!productionLocked ? (
           <>
             <hr className="settings-divider" />
-            <SettingsToggle
-              checked={agentShopperOn}
-              label="Allow Agent Shopping"
-              onChange={(next) => {
-                setAgentShopperOn(next);
-                saveStringToStorage(AGENT_SHOPPER_KEY, String(next));
-              }}
+            <AgentShoppingSettingsPanel
+              workspaceId={activeWorkspaceId}
+              vaultUnlocked={vaultUnlocked}
+              embedded
             />
-            <p className="settings-note">
-              When on, your agent may set up a confirmation of interest with a merchant within your
-              limits. Payment still happens between you and the merchant (their checkout page). When
-              off, the agent can only share product details for you to visit the merchant yourself.
-            </p>
-            {agentShopperOn ? (
-              <SpendPolicySettingsPanel
-                workspaceId={activeWorkspaceId}
-                vaultUnlocked={vaultUnlocked}
-                embedded
-              />
-            ) : null}
           </>
         ) : null}
       </div>

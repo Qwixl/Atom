@@ -1,0 +1,34 @@
+{
+  "id": "074-part-media-type-absent",
+  "kind": "encapsulation-part",
+  "description": "No media type in either position. MUST be rejected rather than inferred from the shape of the data member, which would let a sender have a payload interpreted under a media type it never declared.",
+  "requires": [
+    "encapsulation",
+    "media-type-placement"
+  ],
+  "expect": "reject",
+  "reason": "malformed",
+  "readAs": "application/vnd.atom.data-object+json;version=1",
+  "part": {
+    "data": {
+      "object": {
+        "version": 1,
+        "id": "01948f00-0000-7000-8000-000000000070",
+        "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+        "issuedAt": "2026-01-15T11:59:00.000Z",
+        "semantic": {
+          "schema": "https://atom.qwixl.dev/schema/CommsMessage"
+        },
+        "payload": {
+          "text": "hello"
+        },
+        "governance": {
+          "purpose": "comms:message",
+          "ttlSeconds": 3600
+        },
+        "signatureAlgorithm": "ed25519",
+        "signature": "ti4vkUKcn84E0YovTj/9SNh2She+rPCwcwYvCMUWfN84/xee7hgm3xEEdbqAeK9DzafrovQWG2FXhjVmpq7WCw=="
+      }
+    }
+  }
+}

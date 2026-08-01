@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createServer, type Server } from "node:http";
 import { AddressInfo } from "node:net";
-import { ClientFactory } from "@a2a-js/sdk/client";
 import {
   generateAgentKeyPair,
   signDataObject,
@@ -12,8 +11,10 @@ import {
   AtomDataObjectExecutor,
   buildAtomAgentCard,
   COMMS_MESSAGE_PURPOSE,
+  createAtomPeerClient,
   decodeEncryptedObjectPayload,
   encodeEncryptedObjectPayload,
+  rebindAtomAgentCard,
   sendMlsHandshake,
   sendMlsWire,
 } from "./index.js";
@@ -37,7 +38,7 @@ describe("MLS over A2A", () => {
 
     let aliceSession: MlsPairSession | undefined;
     let bobSession: MlsPairSession | undefined;
-    let bobPending = await generatePairKeyPackage(bobIdentity.did);
+    let bobPending = await generatePairKeyPackage(bobIdentity);
 
     const bobExecutor = new AtomDataObjectExecutor({
       identity: bobIdentity as AgentKeyPair,
@@ -45,6 +46,9 @@ describe("MLS over A2A", () => {
       sendReceipt: false,
       onReceive: () => {},
       onMlsHandshake: async (event) => {
+        if (!event.handshake.welcome) {
+          throw new Error("MLS handshake missing welcome");
+        }
         bobSession = await MlsPairSession.joinFromWelcome({
           localDid: bobIdentity.did,
           welcomeWire: base64ToBytes(event.handshake.welcome),
@@ -57,9 +61,10 @@ describe("MLS over A2A", () => {
       onMlsWire: async (event) => {
         if (!bobSession) throw new Error("missing bob session");
         const plain = await bobSession.decrypt(event.wire);
-        const object = decodeEncryptedObjectPayload(plain);
+        const object = decodeEncryptedObjectPayload(plain.plaintext);
         const verified = await verifyDataObject(object, {
           allowedPurposes: [COMMS_MESSAGE_PURPOSE],
+          expectedMlsSenderDid: plain.senderDid,
         });
         received.push(String(verified.payload.text));
       },
@@ -82,18 +87,16 @@ describe("MLS over A2A", () => {
     });
     const bobAddr = bobServer.address() as AddressInfo;
     const bobBase = `http://127.0.0.1:${bobAddr.port}`;
-    bobCard.url = `${bobBase}/a2a/jsonrpc`;
-    bobCard.additionalInterfaces = [{ url: bobCard.url, transport: "JSONRPC" }];
+    rebindAtomAgentCard(bobCard, bobBase);
 
-    const { session: initiator } = await MlsPairSession.createInitiator(aliceIdentity.did);
+    const { session: initiator } = await MlsPairSession.createInitiator(aliceIdentity);
     const welcomeWire = await initiator.addPeerFromKeyPackage({
       peerDid: bobIdentity.did,
       keyPackageWire: bobPending.keyPackageWire,
     });
     aliceSession = initiator;
 
-    const factory = new ClientFactory();
-    const client = await factory.createFromUrl(bobBase);
+    const client = await createAtomPeerClient(bobBase, { identity: aliceIdentity });
     await sendMlsHandshake(client, {
       handshake: {
         mediaType: ATOM_MLS_HANDSHAKE_MEDIA_TYPE,

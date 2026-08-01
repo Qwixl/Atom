@@ -2,7 +2,7 @@
 #
 # Evaluates unassessed bootstrap models and pending first-use queue rows.
 # Does not re-score already assessed exact model ids on a timer.
-# See MODEL-BEHAVIOR-ADMIN.md.
+# See documents/ops/MODEL-BEHAVIOR-ADMIN.md.
 
 name: model-behavior-admin
 
@@ -98,7 +98,7 @@ jobs:
             - [ ] Confirm family seeds were not deleted unexpectedly
             - [ ] Merge when satisfied (do not auto-merge)
 
-            See [MODEL-BEHAVIOR-ADMIN.md](../blob/main/MODEL-BEHAVIOR-ADMIN.md).
+            See [MODEL-BEHAVIOR-ADMIN.md](https://github.com/Qwixl/Atom/blob/main/documents/ops/MODEL-BEHAVIOR-ADMIN.md).
           branch: chore/model-behavior-admin
           base: staging
           delete-branch: true

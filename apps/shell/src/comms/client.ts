@@ -14,6 +14,46 @@ import type { InboxEntryWire, AgentContact } from "./types.js";
 import { formatAgentError } from "./agentErrors.js";
 import { assertProductionAgentUrl } from "../productionGuard.js";
 
+/**
+ * What this agent can say about a message its room host served it. `legacy` is
+ * a message from before the room started signing; `unsigned` is one that should
+ * have been signed and was not. `substituted` means the signature was genuine
+ * but the host served different content alongside it.
+ */
+export type RoomMessageVerification =
+  | "verified"
+  | "legacy"
+  | "unsigned"
+  | "invalid"
+  | "substituted"
+  | "omitted";
+
+export interface RoomVerificationSummary {
+  verified: number;
+  legacy: number;
+  unsigned: number;
+  invalid: number;
+  substituted: number;
+  omitted: number;
+}
+
+export type RoomVerificationReport =
+  /** We host this room, so there is no third party to check. */
+  | { role: "host" }
+  | {
+      role: "member";
+      summary: RoomVerificationSummary;
+      omissions: Array<{
+        objectId: string;
+        senderDid: string;
+        kind: "message" | "activity";
+        text?: string;
+        at: string;
+        n: number;
+      }>;
+      forks: Array<{ objectId: string; senderDid: string; n: number; at: string }>;
+    };
+
 export interface ResolvedDiscoverTarget {
   adminBase: string;
   agentCardUrl: string;
@@ -946,6 +986,7 @@ export class CommsAgentClient {
       url?: string;
       hasAuthHeaders: boolean;
       allowedTools: string[];
+      safeTools: string[];
       enabled: boolean;
       trusted: boolean;
       trustedAt?: number;
@@ -985,7 +1026,15 @@ export class CommsAgentClient {
     return resp.json() as Promise<{ ok: boolean }>;
   }
 
-  async listMcpTools(serverId: string): Promise<{ serverId: string; tools: Array<{ name: string; description?: string }> }> {
+  async listMcpTools(serverId: string): Promise<{
+    serverId: string;
+    tools: Array<{
+      name: string;
+      description?: string;
+      ui?: { uri: string; mimeType?: string };
+      visibility?: string[];
+    }>;
+  }> {
     return getJson(this.base(), `/mcp/servers/${encodeURIComponent(serverId)}/tools`, this.auth);
   }
 
@@ -1013,6 +1062,41 @@ export class CommsAgentClient {
       { allowedTools, approvalRef },
       this.auth,
       true,
+    );
+  }
+
+  async setMcpSafeTools(
+    serverId: string,
+    safeTools: string[],
+    approvalRef?: string,
+  ): Promise<{ server: { id: string; safeTools: string[] } | null }> {
+    return postJson(
+      this.base(),
+      `/mcp/servers/${encodeURIComponent(serverId)}/safe-tools`,
+      { safeTools, approvalRef },
+      this.auth,
+      true,
+    );
+  }
+
+  async readMcpUiResource(
+    serverId: string,
+    uri: string,
+  ): Promise<{
+    serverId: string;
+    uri: string;
+    mimeType: string;
+    html: string;
+    htmlWithCsp: string;
+    csp: string;
+    contentHash: string;
+    pinnedUris: string[];
+  }> {
+    const q = new URLSearchParams({ uri });
+    return getJson(
+      this.base(),
+      `/mcp/servers/${encodeURIComponent(serverId)}/ui-resource?${q}`,
+      this.auth,
     );
   }
 
@@ -1324,11 +1408,28 @@ export class CommsAgentClient {
       at: string;
       deleted?: boolean;
       editedAt?: string;
+      verification?: RoomMessageVerification;
+      verificationDetail?: string;
     }>;
+    verification?: RoomVerificationSummary;
   }> {
     return getJson(
       this.base(),
       `/rooms/${encodeURIComponent(roomId)}/messages?after=${afterSeq}`,
+      this.auth,
+      true,
+    );
+  }
+
+  /**
+   * Full-range audit of what the host has served against what we received
+   * directly. Separate from message polling, which is incremental and so cannot
+   * see omissions.
+   */
+  async getRoomVerification(roomId: string): Promise<RoomVerificationReport> {
+    return getJson(
+      this.base(),
+      `/rooms/${encodeURIComponent(roomId)}/verification`,
       this.auth,
       true,
     );
@@ -1447,6 +1548,36 @@ export class CommsAgentClient {
     }>;
   }> {
     return getJson(this.base(), `/billing/ledger/${encodeURIComponent(workspaceId)}`, this.auth, true);
+  }
+
+  async getBusinessShopping(): Promise<{
+    agentShoppingEnabled: boolean;
+    suggestMutes: Array<{ peerDid: string; count: number }>;
+  }> {
+    return getJson(this.base(), "/business/shopping", this.auth, true);
+  }
+
+  async setBusinessShopping(opts: {
+    enabled?: boolean;
+    attestAbuseKillSwitch?: boolean;
+  }): Promise<{
+    agentShoppingEnabled: boolean;
+    suggestMutes: Array<{ peerDid: string; count: number }>;
+  }> {
+    return postJson(this.base(), "/business/shopping", opts, this.auth, true);
+  }
+
+  async dismissSuggestMute(peerDid: string): Promise<{
+    ok: boolean;
+    suggestMutes: Array<{ peerDid: string; count: number }>;
+  }> {
+    return postJson(
+      this.base(),
+      "/business/shopping/dismiss-suggest-mute",
+      { peerDid },
+      this.auth,
+      true,
+    );
   }
 }
 

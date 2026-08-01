@@ -6,20 +6,28 @@ import {
   type VerifyDataObjectOptions,
 } from "@qwixl/protocol";
 import { ATOM_DATA_OBJECT_MEDIA_TYPE } from "./constants.js";
+import { readAtomDataPart, toAtomDataPart } from "./dataPart.js";
 
 export interface AtomDataObjectWireEnvelope {
   mediaType: typeof ATOM_DATA_OBJECT_MEDIA_TYPE;
   object: DataObject;
 }
 
-export function isAtomDataObjectWire(value: unknown): value is AtomDataObjectWireEnvelope {
+/**
+ * Structural check only. The media type is matched by the part codec, which
+ * accepts it on the part itself as well as in the envelope, so a v1.0 peer that
+ * sets only `Part.mediaType` is still understood here.
+ */
+function hasDataObjectShape(value: unknown): value is AtomDataObjectWireEnvelope {
   if (typeof value !== "object" || value === null) return false;
   const record = value as AtomDataObjectWireEnvelope;
-  return (
-    record.mediaType === ATOM_DATA_OBJECT_MEDIA_TYPE &&
-    typeof record.object === "object" &&
-    record.object !== null
-  );
+  return typeof record.object === "object" && record.object !== null;
+}
+
+/** True for a complete Atom data-object envelope, media-type key included. */
+export function isAtomDataObjectWire(value: unknown): value is AtomDataObjectWireEnvelope {
+  if (!hasDataObjectShape(value)) return false;
+  return (value as AtomDataObjectWireEnvelope).mediaType === ATOM_DATA_OBJECT_MEDIA_TYPE;
 }
 
 /** Encode a signed data object as an A2A `data` part. */
@@ -28,16 +36,12 @@ export function dataObjectToPart(object: DataObject): Part {
     mediaType: ATOM_DATA_OBJECT_MEDIA_TYPE,
     object,
   };
-  return {
-    kind: "data",
-    data: wire as unknown as Record<string, unknown>,
-  };
+  return toAtomDataPart(ATOM_DATA_OBJECT_MEDIA_TYPE, wire);
 }
 
 export function parseWireFromPart(part: Part): AtomDataObjectWireEnvelope | undefined {
-  if (part.kind !== "data") return undefined;
-  const data = part.data;
-  if (!isAtomDataObjectWire(data)) return undefined;
+  const data = readAtomDataPart(part, ATOM_DATA_OBJECT_MEDIA_TYPE);
+  if (!hasDataObjectShape(data)) return undefined;
   return data;
 }
 
