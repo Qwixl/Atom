@@ -1,0 +1,17 @@
+{
+  "id": "od-030",
+  "kind": "asleep-queue",
+  "description": "Enqueue opaque blob within default caps.",
+  "requires": [
+    "asleep-queue"
+  ],
+  "action": "enqueue",
+  "input": {
+    "blobBase64": "b3BhcXVlLW9r",
+    "fromDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG"
+  },
+  "expect": {
+    "accepted": true,
+    "listCount": 1
+  }
+}

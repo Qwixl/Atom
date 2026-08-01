@@ -1,0 +1,25 @@
+{
+  "id": "od-015",
+  "kind": "asleep-http-response",
+  "description": "sleep without atomCallerDid → 401 asleep_enqueue_requires_auth, not queued.",
+  "requires": [
+    "asleep-http",
+    "transport-auth"
+  ],
+  "config": {
+    "mode": "sleep",
+    "wakeSeed": "wake-vector-seed",
+    "forceAlwaysOn": false
+  },
+  "now": "2026-01-15T12:00:00.000Z",
+  "request": {
+    "method": "POST",
+    "body": "{\"jsonrpc\":\"2.0\",\"params\":{\"message\":{\"issuerDid\":\"did:key:z6Mkforged00000000000000000000000000000000001\"}}}"
+  },
+  "expect": {
+    "statusCode": 401,
+    "error": "asleep_enqueue_requires_auth",
+    "queued": false,
+    "enqueued": false
+  }
+}

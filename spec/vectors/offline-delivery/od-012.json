@@ -1,0 +1,25 @@
+{
+  "id": "od-012",
+  "kind": "asleep-http-response",
+  "description": "hourly_wake inside window → pass-through, no enqueue.",
+  "requires": [
+    "asleep-http",
+    "hourly-wake"
+  ],
+  "config": {
+    "mode": "hourly_wake",
+    "wakeSeed": "wake-vector-seed",
+    "forceAlwaysOn": false
+  },
+  "now": "2026-01-15T12:11:10.000Z",
+  "request": {
+    "method": "POST",
+    "body": "should-not-queue",
+    "atomCallerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG"
+  },
+  "expect": {
+    "passThrough": true,
+    "statusCode": 200,
+    "enqueued": false
+  }
+}

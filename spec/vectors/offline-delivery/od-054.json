@@ -1,0 +1,14 @@
+{
+  "id": "od-054",
+  "kind": "asleep-dequeue",
+  "description": "Opaque non-GO blob → deferred, not drained.",
+  "requires": [
+    "asleep-dequeue"
+  ],
+  "opaqueBlobBase64": "bm90LWEtZ292ZXJuZWQtb2JqZWN0",
+  "expect": {
+    "deferredMin": 1,
+    "processed": 0,
+    "queueCount": 1
+  }
+}

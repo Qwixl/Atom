@@ -1,0 +1,25 @@
+{
+  "id": "od-014",
+  "kind": "asleep-http-response",
+  "description": "session POST → pass-through, no enqueue (SessionOnly MUST NOT queue).",
+  "requires": [
+    "asleep-http",
+    "reachability"
+  ],
+  "config": {
+    "mode": "session",
+    "wakeSeed": "wake-vector-seed",
+    "forceAlwaysOn": false
+  },
+  "now": "2026-01-15T12:00:00.000Z",
+  "request": {
+    "method": "POST",
+    "body": "{\"jsonrpc\":\"2.0\",\"method\":\"message/send\",\"params\":{\"message\":{\"parts\":[]}}}",
+    "atomCallerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG"
+  },
+  "expect": {
+    "passThrough": true,
+    "statusCode": 200,
+    "enqueued": false
+  }
+}

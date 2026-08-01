@@ -1,0 +1,49 @@
+{
+  "id": "od-060",
+  "kind": "asleep-dequeue-restart",
+  "description": "Replay survives restart: dequeue+ReplayGuardStore.flush → new queue + loaded guard rejects re-enqueue.",
+  "requires": [
+    "asleep-dequeue",
+    "replay",
+    "persistence"
+  ],
+  "body": {
+    "jsonrpc": "2.0",
+    "method": "message/send",
+    "params": {
+      "message": {
+        "parts": [
+          {
+            "mediaType": "application/vnd.atom.data-object+json;version=1",
+            "object": {
+              "version": 1,
+              "id": "01948f00-0000-7000-8000-000000000160",
+              "issuerDid": "did:key:z6MkjchhfUsD6mmvni8mCdXHw216Xrm9bQe2mBH1P5RDjVJG",
+              "issuedAt": "2026-01-15T13:59:00.000Z",
+              "semantic": {
+                "schema": "https://atom.qwixl.dev/schema/CommsMessage"
+              },
+              "payload": {
+                "text": "offline-delivery vector"
+              },
+              "governance": {
+                "purpose": "comms:message",
+                "ttlSeconds": 63072000
+              },
+              "signatureAlgorithm": "ed25519",
+              "signature": "foUmI+h6r4pthdcMsokGs+UbrTicCAmuANTxtx6zTTLubmfQipEmddvGE8bxrV9H53EeoqoDK2y/QAmi+RdKDg=="
+            }
+          }
+        ]
+      }
+    }
+  },
+  "wakeNow": "2026-01-15T14:00:00.000Z",
+  "permittedPurposes": [
+    "comms:message"
+  ],
+  "expect": {
+    "firstAcceptedMin": 1,
+    "secondRejectedMin": 1
+  }
+}
