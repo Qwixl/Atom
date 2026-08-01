@@ -79,7 +79,11 @@ export async function verifyDataObject(
     assertMlsSenderMatchesIssuer(object.issuerDid, options.expectedMlsSenderDid);
   }
   assertUsableObject(object, options);
-  if (options.replay && !options.replay.admit(object)) {
+  // Pass the verifier clock so retention is not judged against wall time when
+  // callers freeze `now` (conformance vectors, tests). Production callers that
+  // omit `now` still get Date.now() inside ReplayGuard.admit.
+  const replayNow = options.now?.getTime();
+  if (options.replay && !options.replay.admit(object, replayNow)) {
     throw new Error(
       `Data object ${object.id} rejected as replay of (issuerDid, id)`,
     );

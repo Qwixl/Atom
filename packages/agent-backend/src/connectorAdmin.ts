@@ -787,6 +787,31 @@ export function registerConnectorAdminRoutes(adminApp: Express, config: Connecto
     }
   });
 
+  /** Shared-callback completion from atom.qwixl.com — no bearer (state + PKCE). */
+  adminApp.post("/connectors/microsoft/oauth/complete", async (req, res) => {
+    const body = req.body as { code?: string; state?: string; error?: string; error_description?: string };
+    const oauthError = body.error?.trim()
+      ? String(body.error_description || body.error)
+      : undefined;
+    if (oauthError) {
+      res.status(400).json({ error: oauthError });
+      return;
+    }
+    const code = body.code?.trim() ?? "";
+    const state = body.state?.trim() ?? "";
+    if (!code || !state) {
+      res.status(400).json({ error: "code and state required" });
+      return;
+    }
+    try {
+      await completeMicrosoftOAuth(config.vault, { code, state });
+      invalidateConnectorCache(MICROSOFT_GRAPH_CONNECTOR_ID);
+      res.json({ connectorId: MICROSOFT_GRAPH_CONNECTOR_ID, connected: true });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   /** Browser redirect from Microsoft — no bearer (public allowlist in adminAuth). */
   adminApp.get("/connectors/microsoft/callback", async (req, res) => {
     const code = typeof req.query.code === "string" ? req.query.code : "";

@@ -7,11 +7,42 @@ export const MICROSOFT_OAUTH_PROVIDER = "microsoft";
 /** Connector id for invoke / registry (docs: microsoft-graph). */
 export const MICROSOFT_GRAPH_CONNECTOR_ID = "microsoft-graph";
 
+/**
+ * Atom multi-tenant Entra application (client) ID.
+ * Public-client IDs are not secrets. Ships with the registered Atom app.
+ */
+export const ATOM_MICROSOFT_CLIENT_ID = "c673f99b-adad-4f64-a983-c21f10f8aa52";
+
+/** Sentinel used when no Atom/shared app is registered yet. */
+export const ATOM_MICROSOFT_CLIENT_ID_UNSET = "00000000-0000-0000-0000-000000000000";
+
+export const MICROSOFT_GRAPH_NOT_CONFIGURED_MESSAGE =
+  "Microsoft Graph not configured — set MICROSOFT_CLIENT_ID (or vault oauth client) first";
+
+export function isConfiguredMicrosoftClientId(clientId: string): boolean {
+  const trimmed = clientId.trim();
+  return trimmed.length > 0 && trimmed !== ATOM_MICROSOFT_CLIENT_ID_UNSET;
+}
+
+function looksLikeMicrosoftClientId(clientId: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    clientId.trim(),
+  );
+}
+
+export function resolveMicrosoftClientId(vault: ConnectorVault): string {
+  const fromVault = vault.getOAuthClient(MICROSOFT_OAUTH_PROVIDER)?.clientId?.trim();
+  const fromEnv = process.env.MICROSOFT_CLIENT_ID?.trim();
+  if (fromVault && looksLikeMicrosoftClientId(fromVault)) return fromVault;
+  if (fromEnv && looksLikeMicrosoftClientId(fromEnv)) return fromEnv;
+  return ATOM_MICROSOFT_CLIENT_ID.trim();
+}
+
 export const MICROSOFT_GRAPH_SCOPES = [
   "offline_access",
   "openid",
   "profile",
-  "Calendars.Read",
+  "Calendars.ReadWrite",
 ] as const;
 
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
@@ -41,20 +72,41 @@ export function resolveMicrosoftClient(vault: ConnectorVault): {
   clientSecret?: string;
 } {
   const fromVault = vault.getOAuthClient(MICROSOFT_OAUTH_PROVIDER);
-  const clientId =
-    fromVault?.clientId?.trim() || process.env.MICROSOFT_CLIENT_ID?.trim() || "";
+  const clientId = resolveMicrosoftClientId(vault);
   const clientSecret =
     fromVault?.clientSecret?.trim() || process.env.MICROSOFT_CLIENT_SECRET?.trim() || undefined;
-  if (!clientId) {
-    throw new Error(
-      "Microsoft Graph not configured — set MICROSOFT_CLIENT_ID (or vault oauth client) first",
-    );
+  if (!isConfiguredMicrosoftClientId(clientId)) {
+    throw new Error(MICROSOFT_GRAPH_NOT_CONFIGURED_MESSAGE);
   }
   return { clientId, clientSecret: clientSecret || undefined };
 }
 
 export function microsoftRedirectUri(publicBaseUrl: string): string {
+  const fromEnv =
+    process.env.ATOM_MICROSOFT_REDIRECT_URI?.trim() ||
+    process.env.MICROSOFT_REDIRECT_URI?.trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, "");
   return `${publicBaseUrl.replace(/\/$/, "")}/connectors/microsoft/callback`;
+}
+
+/** Encode agent public base into OAuth state so a shared callback page can POST complete. */
+export function encodeMicrosoftOAuthState(agentPublicBaseUrl: string): string {
+  const nonce = generateOAuthState();
+  const base = Buffer.from(agentPublicBaseUrl.replace(/\/$/, ""), "utf8").toString("base64url");
+  return `${nonce}.${base}`;
+}
+
+/** Parse agent public base from state produced by {@link encodeMicrosoftOAuthState}. */
+export function parseMicrosoftOAuthStateAgentBase(state: string): string | undefined {
+  const dot = state.indexOf(".");
+  if (dot <= 0 || dot === state.length - 1) return undefined;
+  try {
+    const decoded = Buffer.from(state.slice(dot + 1), "base64url").toString("utf8").trim();
+    if (!/^https?:\/\//i.test(decoded)) return undefined;
+    return decoded.replace(/\/$/, "");
+  } catch {
+    return undefined;
+  }
 }
 
 export function microsoftAuthorizeUrl(input: {
@@ -89,7 +141,7 @@ export function beginMicrosoftOAuth(vault: ConnectorVault, publicBaseUrl: string
   const { clientId } = resolveMicrosoftClient(vault);
   const redirectUri = microsoftRedirectUri(publicBaseUrl);
   const codeVerifier = generateCodeVerifier();
-  const state = generateOAuthState();
+  const state = encodeMicrosoftOAuthState(publicBaseUrl);
   pendingByState.set(state, { codeVerifier, createdAt: Date.now(), redirectUri });
   const authorizeUrl = microsoftAuthorizeUrl({
     clientId,

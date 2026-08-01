@@ -1,24 +1,172 @@
 import type { Express } from "express";
 import { createAtomPeerClient } from "@qwixl/a2a-transport";
-import { sendMlsWire, verifyRoomInvite } from "@qwixl/a2a-transport";
-import { base64ToBytes, type DataObject } from "@qwixl/protocol";
+import {
+  createRoomActivity,
+  createRoomMessage,
+  createRoomMutation,
+  createRoomReceipt,
+  roomObjectChainHash,
+  sendMlsWire,
+  verifyRoomInvite,
+  verifyRoomObject,
+  verifyRoomReceipt,
+  verifyRoomCheckpoint,
+  ROOM_ACTIVITY_PURPOSE,
+  ROOM_MESSAGE_PURPOSE,
+  ROOM_MUTATION_PURPOSE,
+  type VerifiedRoomObject,
+} from "@qwixl/a2a-transport";
+import { base64ToBytes, ReplayGuard, type DataObject } from "@qwixl/protocol";
 import type { AgentKeyPair } from "@qwixl/protocol";
 import {
   adminBaseFromPeerUrl,
-  encodeRoomPayload,
+  encodeRoomObject,
   parseRoomPayload,
   roomContextId,
   type MlsSessionStore,
 } from "./mlsSessions.js";
+import {
+  admitChainLink,
+  createRoomChainTracker,
+  type RoomChainTracker,
+  type RoomChainVerdict,
+} from "./roomChain.js";
 import { normalizePeerBaseUrl } from "./deliverObject.js";
 import type { MlsPeerRecordStore } from "./mlsPeerRecords.js";
 import { joinRemoteRoom } from "./roomJoinRemote.js";
 import { normalizeActivities } from "./roomActivities.js";
 import {
   ATOM_BASE_ROOM_POLICY_URL,
+  type RoomContinuity,
   type RoomDescriptor,
+  type RoomMessage,
   type RoomStore,
 } from "./roomStore.js";
+import { reconcileHostTranscript } from "./roomReconcile.js";
+import { mintRoomCheckpoint } from "./roomCheckpoint.js";
+
+/**
+ * Per-sender chain trackers. Accepted positions persist in the room store; the
+ * out-of-order buffer is deliberately in-memory only, because anything still
+ * buffered at shutdown is recoverable from host backfill on the next read.
+ */
+const chainTrackers = new Map<string, RoomChainTracker>();
+
+/**
+ * Verified objects whose chain link is buffered ahead of a gap, held until the
+ * gap fills and the classifier releases them. Keyed by object id, which is the
+ * only handle the classifier carries.
+ */
+const pendingRoomObjects = new Map<
+  string,
+  { verified: ChainedRoomObject; fields: ReturnType<typeof roomObjectFields> }
+>();
+
+/**
+ * The classifier evicts its own buffer, but it cannot tell us what it dropped,
+ * so this table would otherwise grow without bound behind a gap that never
+ * fills. Insertion order is arrival order, so the oldest entry is the one whose
+ * predecessors are least likely to still be coming.
+ */
+const PENDING_OBJECT_LIMIT = 500;
+
+function stashPendingObject(
+  objectId: string,
+  entry: { verified: ChainedRoomObject; fields: ReturnType<typeof roomObjectFields> },
+): void {
+  pendingRoomObjects.set(objectId, entry);
+  while (pendingRoomObjects.size > PENDING_OBJECT_LIMIT) {
+    const oldest = pendingRoomObjects.keys().next();
+    if (oldest.done) break;
+    pendingRoomObjects.delete(oldest.value);
+  }
+}
+
+function trackerFor(rooms: RoomStore, roomId: string, senderDid: string): RoomChainTracker {
+  const key = `${roomId}\u0000${senderDid}`;
+  let tracker = chainTrackers.get(key);
+  if (!tracker) {
+    const persisted = rooms.chainState(roomId).recv.find((r) => r.senderDid === senderDid);
+    tracker = createRoomChainTracker(
+      senderDid,
+      persisted ? { n: persisted.n, hash: persisted.hash } : undefined,
+    );
+    chainTrackers.set(key, tracker);
+  }
+  return tracker;
+}
+
+/** Test seam: chain buffers are process-local, so suites must be able to reset them. */
+export function resetRoomChainTrackers(): void {
+  chainTrackers.clear();
+  pendingRoomObjects.clear();
+}
+
+function continuityOf(verdict: RoomChainVerdict): RoomContinuity {
+  switch (verdict.status) {
+    case "ok":
+      return "ok";
+    case "pending":
+      return "pending";
+    case "fork":
+      return "fork";
+    default:
+      return "ok";
+  }
+}
+
+/**
+ * Only these three purposes carry a per-sender chain position, so only these
+ * three may enter a transcript. Moderation and member updates are host-authored
+ * control objects that ride their own route.
+ */
+type ChainedRoomObject = Extract<
+  VerifiedRoomObject,
+  { purpose: typeof ROOM_MESSAGE_PURPOSE | typeof ROOM_ACTIVITY_PURPOSE | typeof ROOM_MUTATION_PURPOSE }
+>;
+
+function asChainedRoomObject(verified: VerifiedRoomObject): ChainedRoomObject {
+  if (
+    verified.purpose === ROOM_MESSAGE_PURPOSE ||
+    verified.purpose === ROOM_ACTIVITY_PURPOSE ||
+    verified.purpose === ROOM_MUTATION_PURPOSE
+  ) {
+    return verified;
+  }
+  throw new Error(`Room object purpose ${verified.purpose} is not valid transcript traffic`);
+}
+
+/** Projection of a verified room object onto the stored transcript shape. */
+function roomObjectFields(verified: ChainedRoomObject): {
+  kind: "message" | "activity";
+  text?: string;
+  activityKind?: string;
+  payload?: Record<string, unknown>;
+  n: number;
+} {
+  switch (verified.purpose) {
+    case ROOM_MESSAGE_PURPOSE:
+      return { kind: "message", text: verified.payload.text, n: verified.payload.n };
+    case ROOM_ACTIVITY_PURPOSE:
+      return {
+        kind: "activity",
+        activityKind: verified.payload.activityKind,
+        payload: verified.payload.payload,
+        n: verified.payload.n,
+      };
+    case ROOM_MUTATION_PURPOSE:
+      return {
+        kind: "activity",
+        activityKind: verified.payload.action === "delete" ? "message_delete" : "message_edit",
+        payload: {
+          targetObjectId: verified.payload.targetObjectId,
+          ...(verified.payload.text === undefined ? {} : { text: verified.payload.text }),
+          ...(verified.payload.payload ?? {}),
+        },
+        n: verified.payload.n,
+      };
+  }
+}
 
 export interface RoomsAdminDeps {
   identity: AgentKeyPair;
@@ -26,10 +174,11 @@ export interface RoomsAdminDeps {
   rooms: RoomStore;
   peerRecords: MlsPeerRecordStore;
   publicBaseUrl: string;
+  replayGuard?: ReplayGuard;
 }
 
 export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): void {
-  const { identity, mlsStore, rooms, publicBaseUrl } = deps;
+  const { identity, mlsStore, rooms, publicBaseUrl, replayGuard } = deps;
 
   async function admitMember(opts: {
     roomId: string;
@@ -128,6 +277,7 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
         maxMembers: body.maxMembers,
         roomId: body.roomId,
         activities: normalizeActivities(body.activities),
+        hostEndpoint: `${publicBaseUrl.replace(/\/$/, "")}/a2a/jsonrpc`,
       });
       await mlsStore.createRoomHost({ roomId: descriptor.roomId });
       res.json({ room: descriptor });
@@ -203,6 +353,59 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
     }
   });
 
+  /**
+   * RI-07. A full-range audit, separate from the message poll because that poll
+   * is incremental — omission is only meaningful against the whole transcript,
+   * so riding the `after=` path would only ever catch a host that was already
+   * withholding when the room was opened.
+   */
+  app.get("/rooms/:roomId/verification", async (req, res) => {
+    const roomId = req.params.roomId;
+    if (rooms.getRoom(roomId)) {
+      res.json({ role: "host" });
+      return;
+    }
+    const joined = rooms.getJoinedRoom(roomId);
+    if (!joined) {
+      res.status(404).json({ error: "Room not found" });
+      return;
+    }
+    const local = rooms.listJoinedMessages(roomId);
+    try {
+      const resp = await fetch(
+        `${joined.hostUrl.replace(/\/$/, "")}/rooms/${encodeURIComponent(roomId)}/messages?after=0`,
+      );
+      if (!resp.ok) {
+        const err = (await resp.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? `Host messages failed (${resp.status})`);
+      }
+      const hosted = (await resp.json()) as { messages?: RoomMessage[] };
+      const reconciliation = await reconcileHostTranscript({
+        roomId,
+        hostMessages: hosted.messages ?? [],
+        local,
+        cutoff: rooms.v2Cutoff(roomId),
+        fullRange: true,
+      });
+      // Forks are decided locally from the sender's own signatures, so they hold
+      // whether or not the host is reachable.
+      const forks = local.filter((m) => m.continuity === "fork");
+      res.json({
+        role: "member",
+        summary: reconciliation.summary,
+        omissions: reconciliation.omissions,
+        forks: forks.map((f) => ({
+          objectId: f.objectId,
+          senderDid: f.senderDid,
+          n: f.n,
+          at: f.at,
+        })),
+      });
+    } catch (error) {
+      res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   app.get("/rooms/:roomId/messages", async (req, res) => {
     const roomId = req.params.roomId;
     const room = rooms.getRoom(roomId);
@@ -230,7 +433,98 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ memberDid: identity.did, attendance: "present" }),
       }).catch(() => undefined);
-      res.json(await resp.json());
+      const hosted = (await resp.json()) as { messages?: RoomMessage[] };
+      // RI-05. The host is the only source of order, but it is not a source of
+      // truth about content or completeness — check its claims against what we
+      // received directly before handing anything to the reader.
+      const reconciliation = await reconcileHostTranscript({
+        roomId,
+        hostMessages: hosted.messages ?? [],
+        local: rooms.listJoinedMessages(roomId),
+        cutoff: rooms.v2Cutoff(roomId),
+        fullRange: afterSeq === 0,
+      });
+      res.json({
+        messages: reconciliation.messages,
+        omissions: reconciliation.omissions,
+        verification: reconciliation.summary,
+      });
+    } catch (error) {
+      res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  /** RI-06. Host mints a flat signed checkpoint over a contiguous signed-object range. */
+  app.post("/rooms/:roomId/checkpoints", async (req, res) => {
+    try {
+      const roomId = req.params.roomId;
+      const room = rooms.getRoom(roomId);
+      if (!room) {
+        res.status(404).json({ error: "Room not found" });
+        return;
+      }
+      if (room.descriptor.hostDid !== identity.did) {
+        res.status(403).json({ error: "Only the host may mint checkpoints" });
+        return;
+      }
+      const body = req.body as { fromSeq?: number; toSeq?: number };
+      const fromSeq = Number(body.fromSeq);
+      const toSeq = Number(body.toSeq);
+      const checkpoint = await mintRoomCheckpoint({
+        rooms,
+        roomId,
+        fromSeq,
+        toSeq,
+        identity,
+      });
+      res.json({ checkpoint });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const status = /already minted with different hashes/.test(message) ? 409 : 400;
+      res.status(status).json({ error: message });
+    }
+  });
+
+  /** RI-06. List persisted checkpoints (host local or proxy to host). */
+  app.get("/rooms/:roomId/checkpoints", async (req, res) => {
+    const roomId = req.params.roomId;
+    const fromSeq = req.query.from !== undefined ? Number(req.query.from) : undefined;
+    const toSeq = req.query.to !== undefined ? Number(req.query.to) : undefined;
+    const room = rooms.getRoom(roomId);
+    if (room) {
+      const records = rooms.listCheckpoints(roomId, fromSeq, toSeq);
+      res.json({
+        checkpoints: records.map((r) => r.checkpoint),
+      });
+      return;
+    }
+    const joined = rooms.getJoinedRoom(roomId);
+    if (!joined) {
+      res.status(404).json({ error: "Room not found" });
+      return;
+    }
+    try {
+      const qs = new URLSearchParams();
+      if (fromSeq !== undefined && Number.isFinite(fromSeq)) qs.set("from", String(fromSeq));
+      if (toSeq !== undefined && Number.isFinite(toSeq)) qs.set("to", String(toSeq));
+      const url = `${joined.hostUrl.replace(/\/$/, "")}/rooms/${encodeURIComponent(roomId)}/checkpoints${
+        qs.size ? `?${qs}` : ""
+      }`;
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        const err = (await resp.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error ?? `Host checkpoints failed (${resp.status})`);
+      }
+      const body = (await resp.json()) as { checkpoints?: unknown[] };
+      const checkpoints = [];
+      for (const raw of body.checkpoints ?? []) {
+        const verified = await verifyRoomCheckpoint(raw, {
+          expectedHostDid: joined.descriptor.hostDid,
+          expectedRoomId: roomId,
+        });
+        checkpoints.push(verified.object);
+      }
+      res.json({ checkpoints });
     } catch (error) {
       res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
     }
@@ -516,56 +810,166 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
         text?: string;
         kind?: "message" | "activity";
         activityKind?: string;
+        targetObjectId?: string;
         payload?: Record<string, unknown>;
       };
       const kind = body.kind ?? "message";
-      const payload = encodeRoomPayload({
-        kind,
-        text: body.text?.trim(),
-        activityKind: body.activityKind?.trim(),
-        payload: body.payload,
-      });
+      const activityKind = body.activityKind?.trim();
+      const isMutation =
+        kind === "activity" &&
+        (activityKind === "message_edit" || activityKind === "message_delete");
       const room = rooms.getRoom(roomId);
-      if (room) {
-        if (!rooms.isMember(roomId, identity.did)) {
-          res.status(403).json({ error: "Not a member of this room" });
-          return;
-        }
-        if (!mlsStore.hasRoomSession(roomId)) {
-          res.status(409).json({ error: "No MLS group session — rejoin the room" });
-          return;
-        }
-        const wire = await mlsStore.encryptRoom(roomId, payload);
-        const parsed = parseRoomPayload(payload);
-        if (
-          parsed.kind === "activity" &&
-          (parsed.activityKind === "message_edit" || parsed.activityKind === "message_delete")
-        ) {
-          const targetSeq = Number(parsed.payload?.targetSeq);
+      const joined = room ? undefined : rooms.getJoinedRoom(roomId);
+      if (!room && !joined) {
+        res.status(404).json({ error: "Room not found" });
+        return;
+      }
+      if (room && !rooms.isMember(roomId, identity.did)) {
+        res.status(403).json({ error: "Not a member of this room" });
+        return;
+      }
+      if (!mlsStore.hasRoomSession(roomId)) {
+        res.status(409).json({ error: "No MLS group session — rejoin the room" });
+        return;
+      }
+
+      let targetSeq = 0;
+      let targetObjectId = typeof body.targetObjectId === "string" ? body.targetObjectId : "";
+      if (isMutation) {
+        targetSeq = Number(body.payload?.targetSeq);
+        if (!targetObjectId) {
           if (!Number.isFinite(targetSeq) || targetSeq < 1) {
-            res.status(400).json({ error: "payload.targetSeq required for message mutations" });
+            res
+              .status(400)
+              .json({ error: "targetObjectId or payload.targetSeq required for mutations" });
             return;
           }
-          const mutated = rooms.applyMessageMutation(roomId, {
-            action: parsed.activityKind === "message_delete" ? "delete" : "edit",
-            targetSeq,
-            actorDid: identity.did,
-            text: typeof parsed.payload?.text === "string" ? parsed.payload.text : parsed.text,
-            payload:
-              parsed.payload?.gif && typeof parsed.payload.gif === "object"
-                ? { gif: parsed.payload.gif as Record<string, unknown> }
-                : undefined,
+          targetObjectId = rooms.getMessage(roomId, targetSeq)?.object?.id ?? "";
+        }
+        if (!targetObjectId) {
+          res.status(409).json({
+            error: "Target message has no signed object — pre-migration messages cannot be edited",
           });
-          if (!mutated) {
-            res.status(404).json({ error: "Target message not found" });
+          return;
+        }
+      }
+
+      // RI-03. Allocate the chain position and sign before encrypting, so the
+      // position a peer verifies is the position we durably claimed. RI-05:
+      // do not advance the durable send chain until the host returns a verified
+      // receipt (member path) or local accept completes (host path).
+      const previousSend = rooms.chainState(roomId).send;
+      const send = previousSend;
+      const n = send ? send.n + 1 : 0;
+      const prevHash = send?.hash;
+      const text = body.text?.trim();
+      let object: DataObject;
+      if (isMutation) {
+        object = await createRoomMutation({
+          identity,
+          payload: {
+            roomId,
+            action: activityKind === "message_delete" ? "delete" : "edit",
+            targetObjectId,
+            ...(text ? { text } : {}),
+            ...(body.payload ? { payload: body.payload } : {}),
+            n,
+            ...(prevHash ? { prevHash } : {}),
+          },
+        });
+      } else if (kind === "activity") {
+        if (!activityKind) {
+          res.status(400).json({ error: "activityKind required for activity sends" });
+          return;
+        }
+        object = await createRoomActivity({
+          identity,
+          payload: {
+            roomId,
+            activityKind,
+            ...(body.payload ? { payload: body.payload } : {}),
+            n,
+            ...(prevHash ? { prevHash } : {}),
+          },
+        });
+      } else {
+        if (!text) {
+          res.status(400).json({ error: "text required for message sends" });
+          return;
+        }
+        object = await createRoomMessage({
+          identity,
+          payload: { roomId, text, n, ...(prevHash ? { prevHash } : {}) },
+        });
+      }
+      // Our own signed send is proof this room has moved to v2, whether we host
+      // it or not; from here on unsigned history is a downgrade, not a legacy.
+      rooms.markV2Cutoff(roomId, { at: object.issuedAt });
+
+      const wire = await mlsStore.encryptRoom(roomId, encodeRoomObject(object));
+      if (room) {
+        try {
+          if (isMutation) {
+            const mutated = rooms.applyMessageMutation(roomId, {
+              action: activityKind === "message_delete" ? "delete" : "edit",
+              targetSeq,
+              actorDid: identity.did,
+              text,
+              payload:
+                body.payload?.gif && typeof body.payload.gif === "object"
+                  ? { gif: body.payload.gif as Record<string, unknown> }
+                  : undefined,
+            });
+            if (!mutated) {
+              res.status(404).json({ error: "Target message not found" });
+              return;
+            }
+            const activity = rooms.appendMessage(roomId, {
+              senderDid: identity.did,
+              kind: "activity",
+              activityKind,
+              payload: { ...body.payload, targetSeq, targetObjectId },
+              object,
+            });
+            const receipt = await mintHostAcceptanceReceipt({
+              rooms,
+              roomId,
+              object,
+              seq: activity.seq,
+              acceptedAt: activity.at,
+              identity,
+            });
+            await rooms.flush();
+            rooms.setSendChain(roomId, { n, hash: roomObjectChainHash(object) });
+            await fanOutRoomWire({
+              roomId,
+              senderDid: identity.did,
+              wire,
+              members: room.members,
+              localDid: identity.did,
+              mlsStore,
+            });
+            res.json({ message: mutated, activity, receipt });
             return;
           }
-          const activity = rooms.appendMessage(roomId, {
+          const message = rooms.appendMessage(roomId, {
             senderDid: identity.did,
-            kind: "activity",
-            activityKind: parsed.activityKind,
-            payload: { ...parsed.payload, targetSeq },
+            kind: kind === "activity" ? "activity" : "message",
+            text,
+            activityKind,
+            payload: body.payload,
+            object,
           });
+          const receipt = await mintHostAcceptanceReceipt({
+            rooms,
+            roomId,
+            object,
+            seq: message.seq,
+            acceptedAt: message.at,
+            identity,
+          });
+          await rooms.flush();
+          rooms.setSendChain(roomId, { n, hash: roomObjectChainHash(object) });
           await fanOutRoomWire({
             roomId,
             senderDid: identity.did,
@@ -574,53 +978,61 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
             localDid: identity.did,
             mlsStore,
           });
-          res.json({ message: mutated, activity });
+          res.json({ message, receipt });
           return;
+        } catch (error) {
+          rooms.restoreSendChain(roomId, previousSend);
+          throw error;
         }
-        const message = rooms.appendMessage(roomId, {
-          senderDid: identity.did,
-          kind: parsed.kind,
-          text: parsed.text,
-          activityKind: parsed.activityKind,
-          payload: parsed.payload,
-        });
-        await fanOutRoomWire({
-          roomId,
-          senderDid: identity.did,
-          wire,
-          members: room.members,
-          localDid: identity.did,
-          mlsStore,
-        });
-        res.json({ message });
-        return;
       }
-      const joined = rooms.getJoinedRoom(roomId);
       if (!joined) {
         res.status(404).json({ error: "Room not found" });
         return;
       }
-      if (!mlsStore.hasRoomSession(roomId)) {
-        res.status(409).json({ error: "No MLS group session — rejoin the room" });
-        return;
+      try {
+        const relayResp = await fetch(
+          `${joined.hostUrl.replace(/\/$/, "")}/rooms/${encodeURIComponent(roomId)}/relay`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              senderDid: identity.did,
+              wireBase64: Buffer.from(wire).toString("base64"),
+            }),
+          },
+        );
+        if (!relayResp.ok) {
+          const err = (await relayResp.json().catch(() => ({}))) as { error?: string };
+          throw new Error(err.error ?? `Host relay failed (${relayResp.status})`);
+        }
+        const relayBody = (await relayResp.json()) as { ok?: boolean; receipt?: unknown };
+        if (!relayBody.receipt) {
+          throw new Error("Host relay succeeded without an acceptance receipt");
+        }
+        const objectHash = roomObjectChainHash(object);
+        const { object: receipt, payload: receiptPayload } = await verifyRoomReceipt(
+          relayBody.receipt,
+          {
+            expectedHostDid: joined.descriptor.hostDid,
+            expectedRoomId: roomId,
+            expectedObjectHash: objectHash,
+            expectedObjectId: object.id,
+          },
+        );
+        rooms.putSenderReceipt(roomId, {
+          objectId: object.id,
+          objectHash,
+          seq: receiptPayload.seq,
+          receipt,
+          object,
+        });
+        await rooms.flush();
+        rooms.setSendChain(roomId, { n, hash: objectHash });
+        res.json({ ok: true, roomId, receipt, objectId: object.id, seq: receiptPayload.seq });
+      } catch (error) {
+        rooms.restoreSendChain(roomId, previousSend);
+        throw error;
       }
-      const wire = await mlsStore.encryptRoom(roomId, payload);
-      const relayResp = await fetch(
-        `${joined.hostUrl.replace(/\/$/, "")}/rooms/${encodeURIComponent(roomId)}/relay`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            senderDid: identity.did,
-            wireBase64: Buffer.from(wire).toString("base64"),
-          }),
-        },
-      );
-      if (!relayResp.ok) {
-        const err = (await relayResp.json().catch(() => ({}))) as { error?: string };
-        throw new Error(err.error ?? `Host relay failed (${relayResp.status})`);
-      }
-      res.json({ pending: true, roomId });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
     }
@@ -640,15 +1052,19 @@ export function registerRoomsAdminRoutes(app: Express, deps: RoomsAdminDeps): vo
         res.status(400).json({ error: "senderDid and wireBase64 required" });
         return;
       }
-      await handleInboundRoomWire({
+      const result = await handleInboundRoomWire({
         roomId,
         senderDid: body.senderDid.trim(),
         wire: base64ToBytes(body.wireBase64.trim()),
         mlsStore,
         rooms,
         localDid: identity.did,
+        replayGuard,
       });
-      res.json({ ok: true });
+      if (!result.receipt) {
+        throw new Error("Host accepted the object without minting a receipt");
+      }
+      res.json({ ok: true, receipt: result.receipt });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
     }
@@ -686,14 +1102,12 @@ export async function handleInboundRoomWire(opts: {
   mlsStore: MlsSessionStore;
   rooms: RoomStore;
   localDid: string;
-}): Promise<void> {
+  replayGuard?: ReplayGuard;
+}): Promise<{ receipt?: DataObject }> {
   const room = opts.rooms.getRoom(opts.roomId);
-  if (!room) throw new Error(`Unknown room ${opts.roomId}`);
-  if (!opts.rooms.isMember(opts.roomId, opts.senderDid)) {
-    throw new Error("Sender is not a room member");
-  }
-  const isHost = room.descriptor.hostDid === opts.localDid;
-  if (!isHost) return;
+  const joined = room ? undefined : opts.rooms.getJoinedRoom(opts.roomId);
+  if (!room && !joined) throw new Error(`Unknown room ${opts.roomId}`);
+
   const { plaintext, senderDid: mlsSenderDid } = await opts.mlsStore.decryptRoom(
     opts.roomId,
     opts.wire,
@@ -704,45 +1118,201 @@ export async function handleInboundRoomWire(opts: {
     );
   }
   const parsed = parseRoomPayload(plaintext);
-  if (parsed.kind === "activity" && (parsed.activityKind === "message_edit" || parsed.activityKind === "message_delete")) {
-    const targetSeq = Number(parsed.payload?.targetSeq);
-    if (!Number.isFinite(targetSeq) || targetSeq < 1) {
-      throw new Error("message mutation requires payload.targetSeq");
+  if (parsed.version === 1) {
+    // RI-04. Live traffic is always at or above the cutoff, so an unsigned frame
+    // arriving now is a downgrade attempt, not history.
+    throw new Error("Unsigned room payloads are no longer accepted");
+  }
+
+  // RI-05. Idempotent accept: if this objectId was already accepted, return the
+  // stored receipt *before* replay rejection so honest retries succeed.
+  if (room && room.descriptor.hostDid === opts.localDid) {
+    const existing = opts.rooms.getAcceptanceReceipt(opts.roomId, parsed.object.id);
+    if (existing) {
+      let candidateHash: string;
+      try {
+        candidateHash = roomObjectChainHash(parsed.object);
+      } catch {
+        throw new Error("Accepted object id replayed with unhashable payload");
+      }
+      if (candidateHash !== existing.objectHash) {
+        throw new Error("objectId collision with different content");
+      }
+      return { receipt: existing.receipt };
     }
-    opts.rooms.applyMessageMutation(opts.roomId, {
-      action: parsed.activityKind === "message_delete" ? "delete" : "edit",
-      targetSeq,
-      actorDid: opts.senderDid,
-      text: typeof parsed.payload?.text === "string" ? parsed.payload.text : parsed.text,
-      payload:
-        parsed.payload?.gif && typeof parsed.payload.gif === "object"
-          ? { gif: parsed.payload.gif as Record<string, unknown> }
-          : undefined,
+  }
+
+  const verified = asChainedRoomObject(
+    await verifyRoomObject(parsed.object, {
+      expectedMlsSenderDid: mlsSenderDid,
+      replay: opts.replayGuard,
+    }),
+  );
+  if (verified.payload.roomId !== opts.roomId) {
+    throw new Error(
+      `Room object is bound to ${verified.payload.roomId}, not ${opts.roomId} — cross-room replay`,
+    );
+  }
+  const fields = roomObjectFields(verified);
+
+  if (room) {
+    if (room.descriptor.hostDid !== opts.localDid) return {};
+    // The host still enforces the roster; MLS membership alone does not imply
+    // the sender is un-banned.
+    if (!opts.rooms.isMember(opts.roomId, opts.senderDid)) {
+      throw new Error("Sender is not a room member");
+    }
+    opts.rooms.markV2Cutoff(opts.roomId);
+    let accepted: RoomMessage;
+    if (verified.purpose === ROOM_MUTATION_PURPOSE) {
+      const target = opts.rooms
+        .listMessages(opts.roomId)
+        .find((m) => m.object?.id === verified.payload.targetObjectId);
+      if (!target) throw new Error("Mutation target not found");
+      if (target.senderDid !== opts.senderDid) {
+        throw new Error("Only the author may edit or delete a message");
+      }
+      opts.rooms.applyMessageMutation(opts.roomId, {
+        action: verified.payload.action,
+        targetSeq: target.seq,
+        actorDid: opts.senderDid,
+        text: verified.payload.text,
+        payload:
+          verified.payload.payload?.gif && typeof verified.payload.payload.gif === "object"
+            ? { gif: verified.payload.payload.gif as Record<string, unknown> }
+            : undefined,
+      });
+      // Keep an activity trail so append-only clients can reconcile.
+      accepted = opts.rooms.appendMessage(opts.roomId, {
+        senderDid: opts.senderDid,
+        kind: "activity",
+        activityKind: fields.activityKind,
+        payload: { ...fields.payload, targetSeq: target.seq },
+        object: verified.object,
+      });
+    } else {
+      accepted = opts.rooms.appendMessage(opts.roomId, {
+        senderDid: opts.senderDid,
+        kind: fields.kind,
+        text: fields.text,
+        activityKind: fields.activityKind,
+        payload: fields.payload,
+        object: verified.object,
+      });
+    }
+    const receipt = await mintHostAcceptanceReceipt({
+      rooms: opts.rooms,
+      roomId: opts.roomId,
+      object: verified.object,
+      seq: accepted.seq,
+      acceptedAt: accepted.at,
+      identity: opts.mlsStore.localIdentity,
     });
-    // Also keep an activity trail so clients that only append can reconcile.
-    opts.rooms.appendMessage(opts.roomId, {
+    await opts.rooms.flush();
+    await fanOutRoomWire({
+      roomId: opts.roomId,
       senderDid: opts.senderDid,
-      kind: "activity",
-      activityKind: parsed.activityKind,
-      payload: { ...parsed.payload, targetSeq },
+      wire: opts.wire,
+      members: room.members,
+      localDid: opts.localDid,
+      mlsStore: opts.mlsStore,
     });
+    return { receipt };
+  }
+
+  // RI-02 member path. Decryption already proves the sender is in the MLS group,
+  // and members hold no roster, so there is no membership check to make here.
+  opts.rooms.markV2Cutoff(opts.roomId, { at: verified.object.issuedAt });
+  const tracker = trackerFor(opts.rooms, opts.roomId, opts.senderDid);
+  const { verdict, admitted } = admitChainLink(tracker, {
+    n: verified.payload.n,
+    prevHash: verified.payload.prevHash,
+    hash: roomObjectChainHash(verified.object),
+    objectId: verified.object.id,
+  });
+  if (verdict.status === "duplicate") return {};
+  stashPendingObject(verified.object.id, { verified, fields });
+
+  const write = (
+    entry: { verified: ChainedRoomObject; fields: ReturnType<typeof roomObjectFields> },
+    continuity: RoomContinuity,
+  ) => {
+    opts.rooms.appendJoinedMessage(opts.roomId, {
+      objectId: entry.verified.object.id,
+      roomId: opts.roomId,
+      senderDid: opts.senderDid,
+      kind: entry.fields.kind,
+      text: entry.fields.text,
+      activityKind: entry.fields.activityKind,
+      payload: entry.fields.payload,
+      at: entry.verified.object.issuedAt,
+      n: entry.fields.n,
+      continuity,
+      object: entry.verified.object,
+    });
+  };
+
+  if (verdict.status === "fork") {
+    // A fork never advances the chain, so it is never "admitted" — but it is the
+    // one conclusive artefact of a sender signing two histories, and dropping it
+    // would discard the only evidence that anything went wrong.
+    write({ verified, fields }, "fork");
+    pendingRoomObjects.delete(verified.object.id);
+    return {};
+  }
+  if (verdict.status === "pending") {
+    // Buffered ahead of a gap. Persist it anyway so the hole is visible in the
+    // transcript rather than silently swallowed until the gap fills.
+    write({ verified, fields }, "pending");
   } else {
-    opts.rooms.appendMessage(opts.roomId, {
-      senderDid: opts.senderDid,
-      kind: parsed.kind,
-      text: parsed.text,
-      activityKind: parsed.activityKind,
-      payload: parsed.payload,
+    // `admitted` is the current link plus anything its arrival unblocked, in
+    // chain order; each was stashed when it was first buffered.
+    for (const link of admitted) {
+      const entry = pendingRoomObjects.get(link.objectId);
+      if (!entry) continue;
+      write(entry, continuityOf(verdict));
+      pendingRoomObjects.delete(link.objectId);
+    }
+  }
+  const accepted = tracker.accepted;
+  if (accepted) {
+    opts.rooms.setRecvChain(opts.roomId, opts.senderDid, {
+      n: accepted.n,
+      hash: accepted.hash,
     });
   }
-  await fanOutRoomWire({
-    roomId: opts.roomId,
-    senderDid: opts.senderDid,
-    wire: opts.wire,
-    members: room.members,
-    localDid: opts.localDid,
-    mlsStore: opts.mlsStore,
+  return {};
+}
+
+async function mintHostAcceptanceReceipt(opts: {
+  rooms: RoomStore;
+  roomId: string;
+  object: DataObject;
+  seq: number;
+  acceptedAt: string;
+  identity: AgentKeyPair;
+}): Promise<DataObject> {
+  const existing = opts.rooms.getAcceptanceReceipt(opts.roomId, opts.object.id);
+  if (existing) return existing.receipt;
+  const objectHash = roomObjectChainHash(opts.object);
+  const receipt = await createRoomReceipt({
+    identity: opts.identity,
+    payload: {
+      roomId: opts.roomId,
+      objectId: opts.object.id,
+      objectHash,
+      seq: opts.seq,
+      acceptedAt: opts.acceptedAt,
+    },
   });
+  opts.rooms.putAcceptanceReceipt(opts.roomId, {
+    objectId: opts.object.id,
+    objectHash,
+    seq: opts.seq,
+    receipt,
+    object: opts.object,
+  });
+  return receipt;
 }
 
 async function fanOutRoomWire(opts: {
@@ -757,7 +1327,9 @@ async function fanOutRoomWire(opts: {
     if (member.banned || member.did === opts.senderDid) continue;
     if (member.did === opts.localDid) continue;
     if (!member.endpoint?.trim()) continue;
-    if (!opts.mlsStore.hasSession(member.did)) continue;
+    // No pairwise-session gate here: the frame is already encrypted to the
+    // group, and requiring a 1:1 session silently starved members who joined
+    // via key package without ever opening a direct channel.
     try {
       const client = await createAtomPeerClient(member.endpoint, {
         identity: opts.mlsStore.localIdentity,
