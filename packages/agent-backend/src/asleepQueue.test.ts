@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   ASLEEP_QUEUE_DEFAULT_TTL_MS,
+  AsleepQueueFullError,
   AsleepQueueStore,
 } from "./asleepQueue.js";
 
@@ -61,9 +62,13 @@ describe("AsleepQueueStore", () => {
     });
     small.enqueue({ blob: Buffer.from("a"), fromDid: "did:key:bob" });
     small.enqueue({ blob: Buffer.from("b"), fromDid: "did:key:bob" });
-    expect(() =>
-      small.enqueue({ blob: Buffer.from("c"), fromDid: "did:key:bob" }),
-    ).toThrow(/peer cap/);
+    try {
+      small.enqueue({ blob: Buffer.from("c"), fromDid: "did:key:bob" });
+      expect.unreachable("expected peer cap");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AsleepQueueFullError);
+      expect((error as AsleepQueueFullError).kind).toBe("peer");
+    }
   });
 
   it("enforces total byte cap", () => {
@@ -73,7 +78,13 @@ describe("AsleepQueueStore", () => {
       now: () => now,
     });
     small.enqueue({ blob: Buffer.alloc(20) });
-    expect(() => small.enqueue({ blob: Buffer.alloc(20) })).toThrow(/2MB total cap|full/);
+    try {
+      small.enqueue({ blob: Buffer.alloc(20) });
+      expect.unreachable("expected byte cap");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AsleepQueueFullError);
+      expect((error as AsleepQueueFullError).kind).toBe("bytes");
+    }
   });
 
   it("reloads persisted messages after a process restart", () => {

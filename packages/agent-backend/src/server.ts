@@ -514,14 +514,10 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     "/a2a/jsonrpc",
     createInboundReachabilityMiddleware({
       config: reachabilityConfig,
+      // Do not swallow enqueue failures — middleware maps AsleepQueueFullError to
+      // asleep_queue_full (never agent_asleep with queued:false). D133 / ST-04a.
       enqueue: (input) => {
-        try {
-          asleepQueue.enqueue(input);
-        } catch (error) {
-          console.warn(
-            `[asleep-inbox] enqueue failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
+        asleepQueue.enqueue(input);
       },
     }),
   );

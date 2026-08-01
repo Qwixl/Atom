@@ -12,6 +12,7 @@ import {
   resolveReachabilityConfig,
   secondsUntilHourlyWakeWindow,
 } from "./reachability.js";
+import { AsleepQueueFullError } from "./asleepQueue.js";
 
 describe("resolveReachabilityConfig", () => {
   it("defaults to always_on for backward compatibility", () => {
@@ -129,6 +130,8 @@ describe("createInboundReachabilityMiddleware", () => {
     body: string;
     now: Date;
     wakeSeed?: string;
+    atomCallerDid?: string;
+    enqueue?: (input: { blob: Buffer; fromDid?: string }) => void | Promise<void>;
   }): Promise<{
     statusCode: number;
     headers: Record<string, string>;
@@ -143,13 +146,18 @@ describe("createInboundReachabilityMiddleware", () => {
         forceAlwaysOn: false,
       },
       now: () => opts.now,
-      enqueue: (input) => {
-        enqueued.push(input);
-      },
+      enqueue:
+        opts.enqueue ??
+        ((input) => {
+          enqueued.push(input);
+        }),
     });
 
-    const req = Readable.from([Buffer.from(opts.body)]) as IncomingMessage;
+    const req = Readable.from([Buffer.from(opts.body)]) as IncomingMessage & {
+      atomCallerDid?: string;
+    };
     req.method = "POST";
+    if (opts.atomCallerDid) req.atomCallerDid = opts.atomCallerDid;
 
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
@@ -194,9 +202,60 @@ describe("createInboundReachabilityMiddleware", () => {
     expect(JSON.parse(result.body)).toMatchObject({
       error: "agent_asleep",
       message: "asleep, try later",
+      queued: true,
     });
     expect(result.enqueued).toHaveLength(1);
     expect(result.enqueued[0]?.blob.toString("utf8")).toContain("message/send");
+  });
+
+  it("binds peer identity to transport atomCallerDid, not body issuerDid", async () => {
+    const result = await runMiddleware({
+      mode: "sleep",
+      atomCallerDid: "did:key:transport",
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "message/send",
+        params: { message: { issuerDid: "did:key:forged" } },
+      }),
+      now: new Date("2026-07-21T10:00:00.000Z"),
+    });
+    expect(result.statusCode).toBe(503);
+    expect(result.enqueued[0]?.fromDid).toBe("did:key:transport");
+  });
+
+  it("returns 507 asleep_queue_full for global caps and never agent_asleep", async () => {
+    const result = await runMiddleware({
+      mode: "sleep",
+      body: "{}",
+      now: new Date("2026-07-21T10:00:00.000Z"),
+      enqueue: () => {
+        throw new AsleepQueueFullError("messages", "asleep-inbox full (500 message cap)");
+      },
+    });
+    expect(result.statusCode).toBe(507);
+    expect(JSON.parse(result.body)).toMatchObject({
+      error: "asleep_queue_full",
+      kind: "messages",
+      queued: false,
+    });
+  });
+
+  it("returns 429 asleep_queue_full for per-peer cap", async () => {
+    const result = await runMiddleware({
+      mode: "sleep",
+      atomCallerDid: "did:key:peer",
+      body: "{}",
+      now: new Date("2026-07-21T10:00:00.000Z"),
+      enqueue: () => {
+        throw new AsleepQueueFullError("peer", "asleep-inbox peer cap reached");
+      },
+    });
+    expect(result.statusCode).toBe(429);
+    expect(JSON.parse(result.body)).toMatchObject({
+      error: "asleep_queue_full",
+      kind: "peer",
+      queued: false,
+    });
   });
 
   it("returns 503 with Retry-After outside hourly_wake window", async () => {
