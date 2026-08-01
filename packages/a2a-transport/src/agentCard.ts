@@ -7,7 +7,9 @@ import {
   ATOM_COMMERCE_SKILL_ID,
   ATOM_COORDINATION_SKILL_ID,
   ATOM_BUSINESS_EXTENSION,
+  ATOM_OFFLINE_DELIVERY_EXTENSION,
   ATOM_SWARM_EXTENSION,
+  type AtomOfflineDeliveryCardMode,
 } from "./constants.js";
 import { ATOM_TRANSPORT_AUTH_SCHEME } from "./transportAuth.js";
 
@@ -30,6 +32,11 @@ export interface AtomAgentCardOptions {
   business?: AtomBusinessProfile;
   /** D087 — labeled swarm roles for Discover / peers. */
   swarmKind?: AtomSwarmAgentKind;
+  /**
+   * D134 — when effective reachability is sleep/hourly_wake, advertise the
+   * offline-delivery extension with that mode. Omit for always_on/session.
+   */
+  offlineDeliveryMode?: AtomOfflineDeliveryCardMode;
   /**
    * Advertise the v0.3 interface alongside v1.0 so peers still on the old
    * protocol keep talking to this agent. Defaults to true for the duration of
@@ -134,6 +141,17 @@ export function buildAtomAgentCard(options: AtomAgentCardOptions): AgentCard {
           required: false,
           params: undefined,
         },
+        ...(options.offlineDeliveryMode
+          ? [
+              {
+                uri: ATOM_OFFLINE_DELIVERY_EXTENSION,
+                description:
+                  "Offline delivery / reachability store-and-forward profile",
+                required: false,
+                params: { mode: options.offlineDeliveryMode },
+              },
+            ]
+          : []),
         ...(options.business
           ? [
               {
