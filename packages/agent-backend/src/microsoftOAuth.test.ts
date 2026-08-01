@@ -105,7 +105,11 @@ describe("resolveMicrosoftClient", () => {
       path.join(dir, "vault.enc"),
     );
     await vault.load();
-    await vault.setOAuthClient("microsoft", { clientId: ATOM_MICROSOFT_CLIENT_ID_UNSET });
+    await vault.setOAuthClient("microsoft", {
+      clientId: ATOM_MICROSOFT_CLIENT_ID_UNSET,
+      clientSecret: "",
+      configuredAt: Date.now(),
+    });
     expect(() => resolveMicrosoftClient(vault)).toThrow(MICROSOFT_GRAPH_NOT_CONFIGURED_MESSAGE);
   });
 

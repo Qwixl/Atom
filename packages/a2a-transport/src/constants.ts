@@ -112,6 +112,50 @@ export const GAME_PURPOSES = [
 export const ROOM_INVITE_PURPOSE = "room:invite";
 export const ROOM_INVITE_SCHEMA = "https://atom.qwixl.dev/schema/RoomInvite";
 
+/** M17.2 — signed room chat message (member). */
+export const ROOM_MESSAGE_PURPOSE = "room:message";
+export const ROOM_MESSAGE_SCHEMA = "https://atom.qwixl.dev/schema/RoomMessage";
+
+/** M17.2 — signed room activity (member). */
+export const ROOM_ACTIVITY_PURPOSE = "room:activity";
+export const ROOM_ACTIVITY_SCHEMA = "https://atom.qwixl.dev/schema/RoomActivity";
+
+/** M17.2 — signed edit/delete mutation (member). */
+export const ROOM_MUTATION_PURPOSE = "room:mutation";
+export const ROOM_MUTATION_SCHEMA = "https://atom.qwixl.dev/schema/RoomMutation";
+
+/** M17.2 — signed moderation action (host). */
+export const ROOM_MODERATION_PURPOSE = "room:moderation";
+export const ROOM_MODERATION_SCHEMA = "https://atom.qwixl.dev/schema/RoomModeration";
+
+/** M17.2 — signed membership delta (host). */
+export const ROOM_MEMBER_UPDATE_PURPOSE = "room:member-update";
+export const ROOM_MEMBER_UPDATE_SCHEMA = "https://atom.qwixl.dev/schema/RoomMemberUpdate";
+
+/**
+ * M17.3 / RI-05 — host acceptance receipt (franking for delivery accountability).
+ * Not a transcript message: deliberately excluded from ROOM_PURPOSES / fan-out verify.
+ */
+export const ROOM_RECEIPT_PURPOSE = "room:receipt";
+export const ROOM_RECEIPT_SCHEMA = "https://atom.qwixl.dev/schema/RoomReceipt";
+
+/**
+ * M17.3 / RI-06 — host transcript checkpoint (flat signed ordering claim).
+ * Not a transcript message: deliberately excluded from ROOM_PURPOSES / fan-out verify.
+ */
+export const ROOM_CHECKPOINT_PURPOSE = "room:checkpoint";
+export const ROOM_CHECKPOINT_SCHEMA = "https://atom.qwixl.dev/schema/RoomCheckpoint";
+
+/** All room data-object purposes (receiver allowlists). */
+export const ROOM_PURPOSES = [
+  ROOM_MESSAGE_PURPOSE,
+  ROOM_ACTIVITY_PURPOSE,
+  ROOM_MUTATION_PURPOSE,
+  ROOM_MODERATION_PURPOSE,
+  ROOM_MEMBER_UPDATE_PURPOSE,
+  ROOM_INVITE_PURPOSE,
+] as const;
+
 /** All M8 coordination purposes (receiver allowlists). */
 export const COORDINATION_PURPOSES = [
   COORDINATION_PROPOSAL_PURPOSE,

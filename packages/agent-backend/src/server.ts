@@ -47,6 +47,7 @@ import { registerVoiceAdminRoutes } from "./voice/voiceAdmin.js";
 import { ConnectorVault } from "./connectorVault.js";
 import { MlsPeerRecordStore } from "./mlsPeerRecords.js";
 import { MlsSessionRecordStore } from "./mlsSessionRecords.js";
+import { ReplayGuardStore } from "./replayGuardStore.js";
 import { RoomStore } from "./roomStore.js";
 import { registerRoomsAdminRoutes, handleInboundRoomWire } from "./roomsAdmin.js";
 import { seedCoffeeShopBrand, seedCoffeeShopKnowledge } from "./communityCoffeeShop.js";
@@ -155,6 +156,9 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   await inbox.load();
   const mlsStore = new MlsSessionStore(identity);
   const replayGuard = new ReplayGuard();
+  const replayGuardStore = new ReplayGuardStore(replayGuard);
+  await replayGuardStore.load();
+  replayGuardStore.start();
   const sessionRecords = new MlsSessionRecordStore();
   await mlsStore.loadFromRecords(sessionRecords);
   const peerRecords = new MlsPeerRecordStore();
@@ -428,6 +432,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
           mlsStore,
           rooms,
           localDid: identity.did,
+          replayGuard,
         });
         console.log(`[rooms/mls] message in ${roomId} from ${senderDid}`);
         return;
@@ -806,6 +811,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     rooms,
     peerRecords,
     publicBaseUrl: config.publicBaseUrl,
+    replayGuard,
   });
   registerDiscoverAdminRoutes(adminApp, {
     identity,
@@ -1038,6 +1044,14 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   return new Promise((resolve, reject) => {
     const server = createServer(app);
     server.on("error", reject);
+    // The snapshot timer outlives the request path, so it has to be tied to the
+    // server's lifetime — otherwise every embedded or test-hosted agent leaks a
+    // timer that keeps writing after its data directory is gone.
+    server.on("close", () => {
+      replayGuardStore.stop();
+      void replayGuardStore.flush().catch(() => undefined);
+      void rooms.flush().catch(() => undefined);
+    });
     server.listen(config.port, config.host, () => {
       console.log(`Atom agent ${identity.did}`);
       console.log(`  identity file: ${identityPath()}`);
@@ -1116,6 +1130,12 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
       );
       const stopBrain = () => {
         brainScheduler.stop();
+        // Every inbound room message advances persisted chain state via a write
+        // nobody awaits, so without this a clean shutdown can drop the position
+        // it just recorded and re-admit those messages on restart.
+        void rooms.flush().catch(() => undefined);
+        replayGuardStore.stop();
+        void replayGuardStore.flush().catch(() => undefined);
       };
       process.once("SIGINT", stopBrain);
       process.once("SIGTERM", stopBrain);
