@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { atomicWriteJson, readJsonFile } from "@qwixl/owner-store/file-persistence";
+import { roomObjectChainHash } from "@qwixl/a2a-transport";
+import type { DataObject } from "@qwixl/protocol";
 import { resolveDataPath } from "./dataDir.js";
 import {
   activitiesForRoomId,
@@ -77,6 +79,73 @@ export interface RoomMessage {
   /** Soft-delete: message hidden but seq retained for sync. */
   deleted?: boolean;
   editedAt?: string;
+  /**
+   * RI-04. The signed object this message was decoded from, retained so members
+   * can verify history fetched over HTTP — that path carries no MLS framing, so
+   * without this, backfill and late-join history are unverifiable forever.
+   */
+  object?: DataObject;
+  /**
+   * RI-05. Host acceptance receipt for this object, mirrored from the acceptance
+   * index so idempotent retries survive index eviction while the message remains
+   * in the rolling window.
+   */
+  receipt?: DataObject;
+}
+
+/**
+ * RI-05. Host-signed acceptance receipt retained for idempotent retries and
+ * sender-side attribution evidence. Keyed by objectId. Mirrored onto the
+ * accepted `RoomMessage.receipt` while that message remains in the rolling
+ * window; the index may retain entries after roll-off for recent retries.
+ */
+export interface RoomAcceptanceReceipt {
+  objectId: string;
+  objectHash: string;
+  seq: number;
+  receipt: DataObject;
+  /** Sender-retained copy of the accepted object (member send path). */
+  object?: DataObject;
+}
+
+/** RI-06 persisted host checkpoint (signed DataObject + range index). */
+export interface RoomCheckpointRecord {
+  fromSeq: number;
+  toSeq: number;
+  checkpoint: DataObject;
+  mintedAt: string;
+}
+
+/** Continuity of a sender's own chain at the point this object was accepted (RI-03). */
+export type RoomContinuity = "ok" | "gap" | "fork" | "pending";
+
+/**
+ * A member's own verified transcript entry. Distinct from `RoomMessage` because
+ * live fan-out arrives before the host has assigned a `seq`, so order is not
+ * known at receipt and must not be invented.
+ */
+export interface JoinedRoomMessage {
+  objectId: string;
+  roomId: string;
+  senderDid: string;
+  kind: "message" | "activity";
+  text?: string;
+  activityKind?: string;
+  payload?: Record<string, unknown>;
+  at: string;
+  /** Host-assigned order, once known from backfill. Presentation only. */
+  seq?: number;
+  /** Sender's own position in its chain. */
+  n: number;
+  continuity: RoomContinuity;
+  object: DataObject;
+}
+
+/** Our send position and each sender's receive position, per room (RI-03). */
+export interface RoomChainState {
+  roomId: string;
+  send?: { n: number; hash: string };
+  recv: Array<{ senderDid: string; n: number; hash: string }>;
 }
 
 interface RoomsFile {
@@ -87,12 +156,20 @@ interface RoomsFile {
     messages: RoomMessage[];
     nextSeq: number;
     joinRequests?: RoomJoinRequest[];
+    v2FromSeq?: number;
+    acceptanceReceipts?: RoomAcceptanceReceipt[];
+    checkpoints?: RoomCheckpointRecord[];
   }>;
   joinedRooms: Array<{
     roomId: string;
     hostUrl: string;
     descriptor: RoomDescriptor;
+    messages?: JoinedRoomMessage[];
+    v2FromSeq?: number;
+    v2FromAt?: string;
+    senderReceipts?: RoomAcceptanceReceipt[];
   }>;
+  chains?: RoomChainState[];
 }
 
 function normalizeDescriptor(raw: RoomDescriptor): RoomDescriptor {
@@ -121,12 +198,28 @@ export class RoomStore {
       messages: RoomMessage[];
       nextSeq: number;
       joinRequests: RoomJoinRequest[];
+      /** First seq that must carry a signed object. See `markV2Cutoff`. */
+      v2FromSeq?: number;
+      /** RI-05 host acceptance index (survives message window roll-off). */
+      acceptanceReceipts: RoomAcceptanceReceipt[];
+      /** RI-06 signed ordering claims. */
+      checkpoints: RoomCheckpointRecord[];
     }
   >();
   private joinedRooms = new Map<
     string,
-    { roomId: string; hostUrl: string; descriptor: RoomDescriptor }
+    {
+      roomId: string;
+      hostUrl: string;
+      descriptor: RoomDescriptor;
+      messages: JoinedRoomMessage[];
+      v2FromSeq?: number;
+      v2FromAt?: string;
+      /** RI-05 receipts this member holds for its own sends. */
+      senderReceipts: RoomAcceptanceReceipt[];
+    }
   >();
+  private chains = new Map<string, RoomChainState>();
   private readonly filePath: string;
   private persistQueue: Promise<void> = Promise.resolve();
 
@@ -139,18 +232,41 @@ export class RoomStore {
     if (!file) return;
     this.rooms.clear();
     this.joinedRooms.clear();
+    this.chains.clear();
     for (const room of file.rooms ?? []) {
+      const members = room.members ?? [];
+      // Rooms created before the host was seeded onto its own roster: without
+      // this their host stays locked out of sending for the room's lifetime.
+      if (!members.some((m) => m.did === room.descriptor.hostDid)) {
+        members.unshift({
+          did: room.descriptor.hostDid,
+          joinedAt: room.descriptor.createdAt ?? new Date().toISOString(),
+          attendance: "present",
+        });
+      }
       this.rooms.set(room.descriptor.roomId, {
         ...room,
+        members,
         descriptor: normalizeDescriptor(room.descriptor),
         joinRequests: room.joinRequests ?? [],
+        // First boot after the RI-04 upgrade: everything already stored predates
+        // signing, so the cutoff is wherever the log has reached. Nothing written
+        // from here on is allowed to be unsigned.
+        v2FromSeq: room.v2FromSeq ?? room.nextSeq,
+        acceptanceReceipts: room.acceptanceReceipts ?? [],
+        checkpoints: room.checkpoints ?? [],
       });
     }
     for (const joined of file.joinedRooms ?? []) {
       this.joinedRooms.set(joined.roomId, {
         ...joined,
         descriptor: normalizeDescriptor(joined.descriptor),
+        messages: joined.messages ?? [],
+        senderReceipts: joined.senderReceipts ?? [],
       });
+    }
+    for (const chain of file.chains ?? []) {
+      this.chains.set(chain.roomId, { ...chain, recv: chain.recv ?? [] });
     }
   }
 
@@ -169,6 +285,7 @@ export class RoomStore {
     maxMembers?: number;
     roomId?: string;
     activities?: RoomActivityDef[];
+    hostEndpoint?: string;
   }): RoomDescriptor {
     const roomId = opts.roomId?.trim() || `room:${randomUUID()}`;
     const policyUrl = opts.policyUrl?.trim() || ATOM_BASE_ROOM_POLICY_URL;
@@ -194,10 +311,24 @@ export class RoomStore {
     });
     this.rooms.set(roomId, {
       descriptor,
-      members: [],
+      // A host is a member of its own room: it is in the MLS group, it sends,
+      // and every send path gates on `isMember`. Leaving the roster empty meant
+      // a host could create a room it was then forbidden to post in.
+      members: [
+        {
+          did: opts.hostDid,
+          endpoint: opts.hostEndpoint?.trim() || undefined,
+          joinedAt: new Date().toISOString(),
+          attendance: "present",
+        },
+      ],
       messages: [],
       nextSeq: 1,
       joinRequests: [],
+      // Rooms created after RI-04 are v2-only; there is no legacy history to admit.
+      v2FromSeq: 1,
+      acceptanceReceipts: [],
+      checkpoints: [],
     });
     void this.persist();
     return descriptor;
@@ -540,7 +671,14 @@ export class RoomStore {
   }
 
   rememberJoinedRoom(entry: { roomId: string; hostUrl: string; descriptor: RoomDescriptor }): void {
-    this.joinedRooms.set(entry.roomId, entry);
+    const existing = this.joinedRooms.get(entry.roomId);
+    this.joinedRooms.set(entry.roomId, {
+      ...entry,
+      messages: existing?.messages ?? [],
+      v2FromSeq: existing?.v2FromSeq,
+      v2FromAt: existing?.v2FromAt,
+      senderReceipts: existing?.senderReceipts ?? [],
+    });
     void this.persist();
   }
 
@@ -550,25 +688,222 @@ export class RoomStore {
     return this.joinedRooms.get(roomId);
   }
 
+  /**
+   * RI-02. A member's own verified transcript, keyed by object id because live
+   * fan-out has no `seq` and the same object can arrive twice (fan-out plus
+   * backfill). Re-delivery updates in place; it is not a new message.
+   */
+  appendJoinedMessage(roomId: string, entry: JoinedRoomMessage): JoinedRoomMessage {
+    const joined = this.joinedRooms.get(roomId);
+    if (!joined) throw new Error(`Not a joined room ${roomId}`);
+    const index = joined.messages.findIndex((m) => m.objectId === entry.objectId);
+    if (index >= 0) {
+      joined.messages[index] = { ...joined.messages[index], ...entry };
+    } else {
+      joined.messages.push(entry);
+      if (joined.messages.length > 500) {
+        joined.messages = joined.messages.slice(-500);
+      }
+    }
+    void this.persist();
+    return entry;
+  }
+
+  listJoinedMessages(roomId: string): JoinedRoomMessage[] {
+    return this.joinedRooms.get(roomId)?.messages ?? [];
+  }
+
+  /**
+   * RI-04. The first position that must carry a signed object. Everything below
+   * it is pre-migration and renders as legacy; everything at or above it must
+   * verify. Without this boundary a host can strip signatures and re-serve
+   * forged history as "legacy", which is indistinguishable from the real thing.
+   */
+  markV2Cutoff(roomId: string, opts: { seq?: number; at?: string } = {}): void {
+    const room = this.rooms.get(roomId);
+    if (room) {
+      if (room.v2FromSeq === undefined) {
+        room.v2FromSeq = opts.seq ?? room.nextSeq;
+        void this.persist();
+      }
+      return;
+    }
+    const joined = this.joinedRooms.get(roomId);
+    if (!joined || joined.v2FromSeq !== undefined || joined.v2FromAt !== undefined) return;
+    joined.v2FromSeq = opts.seq;
+    joined.v2FromAt = opts.at ?? new Date().toISOString();
+    void this.persist();
+  }
+
+  v2Cutoff(roomId: string): { seq?: number; at?: string } | undefined {
+    const room = this.rooms.get(roomId);
+    if (room) return room.v2FromSeq === undefined ? undefined : { seq: room.v2FromSeq };
+    const joined = this.joinedRooms.get(roomId);
+    if (!joined) return undefined;
+    if (joined.v2FromSeq === undefined && joined.v2FromAt === undefined) return undefined;
+    return { seq: joined.v2FromSeq, at: joined.v2FromAt };
+  }
+
+  /** RI-03 chain positions. Buffered out-of-order objects stay in memory only. */
+  chainState(roomId: string): RoomChainState {
+    let state = this.chains.get(roomId);
+    if (!state) {
+      state = { roomId, recv: [] };
+      this.chains.set(roomId, state);
+    }
+    return state;
+  }
+
+  setSendChain(roomId: string, position: { n: number; hash: string }): void {
+    this.chainState(roomId).send = position;
+    void this.persist();
+  }
+
+  /**
+   * RI-05. Roll back a speculative send-chain advance when host acceptance fails,
+   * so a failed relay does not manufacture an RI-03 gap that looks like omission.
+   */
+  restoreSendChain(roomId: string, position: { n: number; hash: string } | undefined): void {
+    const state = this.chainState(roomId);
+    if (position) state.send = position;
+    else delete state.send;
+    void this.persist();
+  }
+
+  setRecvChain(roomId: string, senderDid: string, position: { n: number; hash: string }): void {
+    const state = this.chainState(roomId);
+    const existing = state.recv.find((r) => r.senderDid === senderDid);
+    if (existing) {
+      existing.n = position.n;
+      existing.hash = position.hash;
+    } else {
+      state.recv.push({ senderDid, ...position });
+    }
+    void this.persist();
+  }
+
+  findMessageByObjectId(roomId: string, objectId: string): RoomMessage | undefined {
+    const room = this.rooms.get(roomId);
+    if (!room) return undefined;
+    return room.messages.find((m) => m.object?.id === objectId);
+  }
+
+  getAcceptanceReceipt(roomId: string, objectId: string): RoomAcceptanceReceipt | undefined {
+    const room = this.rooms.get(roomId);
+    if (!room) return undefined;
+    const indexed = room.acceptanceReceipts.find((r) => r.objectId === objectId);
+    if (indexed) return indexed;
+    // Fall back to the in-window message mirror after index eviction.
+    const message = room.messages.find((m) => m.object?.id === objectId && m.receipt);
+    if (!message?.object || !message.receipt) return undefined;
+    return {
+      objectId,
+      objectHash: roomObjectChainHash(message.object),
+      seq: message.seq,
+      receipt: message.receipt,
+      object: message.object,
+    };
+  }
+
+  putAcceptanceReceipt(roomId: string, entry: RoomAcceptanceReceipt): void {
+    const room = this.rooms.get(roomId);
+    if (!room) throw new Error(`Unknown room ${roomId}`);
+    const index = room.acceptanceReceipts.findIndex((r) => r.objectId === entry.objectId);
+    if (index >= 0) room.acceptanceReceipts[index] = entry;
+    else room.acceptanceReceipts.push(entry);
+    // Bound like the message window for rolled-off evidence; in-window messages
+    // also mirror `receipt` so idempotent retries survive index eviction.
+    if (room.acceptanceReceipts.length > 500) {
+      room.acceptanceReceipts = room.acceptanceReceipts.slice(-500);
+    }
+    const message = room.messages.find((m) => m.object?.id === entry.objectId);
+    if (message) message.receipt = entry.receipt;
+    void this.persist();
+  }
+
+  getSenderReceipt(roomId: string, objectId: string): RoomAcceptanceReceipt | undefined {
+    const joined = this.joinedRooms.get(roomId);
+    if (joined) return joined.senderReceipts.find((r) => r.objectId === objectId);
+    // Host self-send: acceptance index is the sender's own evidence store.
+    return this.getAcceptanceReceipt(roomId, objectId);
+  }
+
+  putSenderReceipt(roomId: string, entry: RoomAcceptanceReceipt): void {
+    const joined = this.joinedRooms.get(roomId);
+    if (joined) {
+      const index = joined.senderReceipts.findIndex((r) => r.objectId === entry.objectId);
+      if (index >= 0) joined.senderReceipts[index] = entry;
+      else joined.senderReceipts.push(entry);
+      if (joined.senderReceipts.length > 500) {
+        joined.senderReceipts = joined.senderReceipts.slice(-500);
+      }
+      void this.persist();
+      return;
+    }
+    this.putAcceptanceReceipt(roomId, entry);
+  }
+
+  listCheckpoints(roomId: string, fromSeq?: number, toSeq?: number): RoomCheckpointRecord[] {
+    const room = this.rooms.get(roomId);
+    if (!room) return [];
+    return room.checkpoints.filter((c) => {
+      if (fromSeq !== undefined && c.toSeq < fromSeq) return false;
+      if (toSeq !== undefined && c.fromSeq > toSeq) return false;
+      return true;
+    });
+  }
+
+  findCheckpoint(roomId: string, fromSeq: number, toSeq: number): RoomCheckpointRecord | undefined {
+    const room = this.rooms.get(roomId);
+    if (!room) return undefined;
+    return room.checkpoints.find((c) => c.fromSeq === fromSeq && c.toSeq === toSeq);
+  }
+
+  putCheckpoint(roomId: string, entry: RoomCheckpointRecord): void {
+    const room = this.rooms.get(roomId);
+    if (!room) throw new Error(`Unknown room ${roomId}`);
+    const index = room.checkpoints.findIndex(
+      (c) => c.fromSeq === entry.fromSeq && c.toSeq === entry.toSeq,
+    );
+    if (index >= 0) room.checkpoints[index] = entry;
+    else room.checkpoints.push(entry);
+    if (room.checkpoints.length > 64) {
+      room.checkpoints = room.checkpoints.slice(-64);
+    }
+    void this.persist();
+  }
+
   forgetJoinedRoom(roomId: string): boolean {
     const removed = this.joinedRooms.delete(roomId);
     if (removed) void this.persist();
     return removed;
   }
 
+  /**
+   * Wait for queued writes to reach disk. Every mutator fires `persist()` and
+   * moves on, which is right for request latency but means a fast shutdown — or
+   * a test tearing down its data directory — can race the write it just caused.
+   * RI-05: callers that return acceptance receipts MUST await flush and treat
+   * rejection as accept failure (do not acknowledge a receipt that is not durable).
+   */
+  async flush(): Promise<void> {
+    await this.persistQueue;
+  }
+
   private persist(): void {
+    // Recover the chain after a failed write so later mutators can retry;
+    // callers that await flush() still see the rejection from the failed hop.
     this.persistQueue = this.persistQueue
+      .catch(() => {
+        /* recovered */
+      })
       .then(async () => {
         await atomicWriteJson(this.filePath, {
           schemaVersion: SCHEMA_VERSION,
           rooms: [...this.rooms.values()],
           joinedRooms: [...this.joinedRooms.values()],
+          chains: [...this.chains.values()],
         } satisfies RoomsFile);
-      })
-      .catch((error) => {
-        console.warn(
-          `[rooms] persist failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
       });
   }
 }
