@@ -1,23 +1,14 @@
-Subject: Datatracker upload — draft-chapman-a2a-mls-01
-Status: founder Class D — upload XML; mailing-list email is optional after publish
+Subject: Datatracker — upload draft-chapman-a2a-mls-02 (Class D)
+Status: local -02 ready (D132); founder upload when authorised
 
-WHAT RECORDS PROVENANCE
-  https://datatracker.ietf.org/submit/
-  Upload ONLY: spec/draft-chapman-a2a-mls-01.xml
-  (after ./build.sh draft-chapman-a2a-mls-01 reports zero errors)
+PROVENANCE
+  https://datatracker.ietf.org/doc/draft-chapman-a2a-mls/
+  -00 / -01 = already on Datatracker
+  -02 = Purpose Value Registry (five provisional payment action:* ) — LOCAL READY
 
-WHY -01
-  -00 is already on Datatracker and must stay the first-submission snapshot.
-  -01 clarifies Extension Declaration (MLS-only MUST NOT stamp the GO URI)
-  and cross-links the GO-only A2A extension SPEC.
-
-OPTIONAL AFTER DATATRACKER PUBLISHES -01
-  Announce on mls@ietf.org with a narrow review ask (credential-binding).
-  Email does not create the draft record.
-
-CHECKLIST
-  [ ] ./build.sh draft-chapman-a2a-mls-01 → OK: zero errors
-  [ ] Upload draft-chapman-a2a-mls-01.xml at datatracker.ietf.org/submit/
-  [ ] Confirm emailed link
-  [ ] Verify https://datatracker.ietf.org/doc/draft-chapman-a2a-mls/ shows -01
+CHECKLIST (-02)
+  [x] Author draft-chapman-a2a-mls-02.md (D132)
+  [x] ./build.sh draft-chapman-a2a-mls-02 → OK: zero errors
+  [ ] Founder uploads draft-chapman-a2a-mls-02.xml at datatracker.ietf.org/submit/
+  [ ] Confirm emailed link; verify -02 on datatracker
   [ ] (Optional) mls@ietf.org note
