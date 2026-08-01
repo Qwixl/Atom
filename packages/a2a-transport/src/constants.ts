@@ -12,6 +12,13 @@ export const ATOM_MLS_HANDSHAKE_MEDIA_TYPE =
 
 export const ATOM_A2A_EXTENSION = "https://atom.qwixl.dev/a2a/data-object/v1";
 
+/** Offline delivery / reachability discovery (D134 / ST-04c). Card-only. */
+export const ATOM_OFFLINE_DELIVERY_EXTENSION =
+  "https://atom.qwixl.dev/a2a/offline-delivery/v1";
+
+/** Effective modes that MAY advertise ATOM_OFFLINE_DELIVERY_EXTENSION. */
+export type AtomOfflineDeliveryCardMode = "sleep" | "hourly_wake";
+
 /** Default A2A skill id for comms data-object exchange. */
 export const ATOM_COMMS_SKILL_ID = "atom-comms";
 

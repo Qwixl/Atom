@@ -14,6 +14,7 @@ import {
   A2A_EXTENSIONS_HEADER,
   assertRequiredExtensionsSupported,
   ATOM_A2A_EXTENSION,
+  ATOM_OFFLINE_DELIVERY_EXTENSION,
   atomMessage,
   buildAtomAgentCard,
   createA2aExtensionsObserveMiddleware,
@@ -149,6 +150,45 @@ describe("ST-02b GO extension boundary (D130)", () => {
       ATOM_A2A_EXTENSION,
       "https://example.com/required-ext",
     ]);
+  });
+
+  it("declares offline-delivery extension only for sleep/hourly_wake", () => {
+    const sleepCard = buildAtomAgentCard({
+      name: "a",
+      description: "d",
+      baseUrl: "https://example.test",
+      offlineDeliveryMode: "sleep",
+    });
+    expect(
+      sleepCard.capabilities?.extensions?.find((e) => e.uri === ATOM_OFFLINE_DELIVERY_EXTENSION)
+        ?.params,
+    ).toEqual({ mode: "sleep" });
+
+    const hourlyCard = buildAtomAgentCard({
+      name: "a",
+      description: "d",
+      baseUrl: "https://example.test",
+      offlineDeliveryMode: "hourly_wake",
+    });
+    expect(
+      hourlyCard.capabilities?.extensions?.find((e) => e.uri === ATOM_OFFLINE_DELIVERY_EXTENSION)
+        ?.params,
+    ).toEqual({ mode: "hourly_wake" });
+
+    const alwaysCard = buildAtomAgentCard({
+      name: "a",
+      description: "d",
+      baseUrl: "https://example.test",
+    });
+    expect(
+      alwaysCard.capabilities?.extensions?.some((e) => e.uri === ATOM_OFFLINE_DELIVERY_EXTENSION),
+    ).toBe(false);
+  });
+
+  it("does not stamp offline-delivery URI on messages or default A2A-Extensions", () => {
+    const msg = atomMessage({ parts: [textPart("hi")] });
+    expect(msg.extensions ?? []).not.toContain(ATOM_OFFLINE_DELIVERY_EXTENSION);
+    expect(defaultAtomA2aExtensionUris()).not.toContain(ATOM_OFFLINE_DELIVERY_EXTENSION);
   });
 
   it("omitting message.extensions does not weaken GO verify (media type wins)", async () => {

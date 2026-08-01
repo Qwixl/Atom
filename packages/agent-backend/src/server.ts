@@ -308,6 +308,7 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
   await businessStore.load();
 
   const verification = verificationStore.get();
+  const reachMode = effectiveReachabilityMode(reachabilityConfig);
   const agentCard = buildAtomAgentCard({
     name: config.agentName,
     description:
@@ -320,6 +321,8 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
             : "Atom agent — signed data objects and MLS E2E over A2A.",
     baseUrl: config.publicBaseUrl,
     publisherDid: identity.did,
+    offlineDeliveryMode:
+      reachMode === "sleep" || reachMode === "hourly_wake" ? reachMode : undefined,
     business: verification
       ? {
           verificationTier: verification.tier,
