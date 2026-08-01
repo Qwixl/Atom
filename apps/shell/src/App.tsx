@@ -950,21 +950,26 @@ export function App() {
   } | null>(null);
   const [custodyError, setCustodyError] = useState<string | null>(null);
   const [panel, setPanel] = useState<SidePanel>(() => (IS_DEMO_MODE ? "comms" : "none"));
+  // Muted unless the owner has explicitly unmuted (D127). Opening the Board enables
+  // push-to-talk, and the Board is now a system module present for every owner, so voice
+  // has to be opted into rather than inherited from what a paywall used to limit.
   const [boardVoiceMuted, setBoardVoiceMuted] = useState(() => {
     try {
       const rec = (ownerRecordsPersistence.load() ?? []).find(
         (r) =>
           r.category === PRESENTATION_BOARD_CATEGORY && r.label === PRESENTATION_BOARD_MUTE_LABEL,
       );
-      return Boolean(
-        rec &&
-          typeof rec.value === "object" &&
-          rec.value !== null &&
-          !Array.isArray(rec.value) &&
-          (rec.value as { muted?: unknown }).muted === true,
-      );
+      if (
+        !rec ||
+        typeof rec.value !== "object" ||
+        rec.value === null ||
+        Array.isArray(rec.value)
+      ) {
+        return true;
+      }
+      return (rec.value as { muted?: unknown }).muted !== false;
     } catch {
-      return false;
+      return true;
     }
   });
 
