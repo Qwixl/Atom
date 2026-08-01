@@ -14,6 +14,30 @@ import {
   installTestAdminToken,
 } from "./testHelpers.js";
 import { a2aBlobLooksLikeCommerceIntent } from "./commerceAbuseAsleep.js";
+import {
+  encodeUrlsafeB64,
+  signCommerceEntitlementCert,
+} from "./commerceEntitlementCert.js";
+
+async function installTestCommerceEntitlement(): Promise<void> {
+  const kp = await generateAgentKeyPair();
+  const issuedAt = new Date().toISOString();
+  const renewBy = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  process.env.ATOM_COMMERCE_ENTITLEMENT = await signCommerceEntitlementCert(
+    {
+      workspaceKind: "business",
+      commerceEligible: true,
+      hosted: true,
+      issuedAt,
+      renewBy,
+    },
+    kp.privateKey,
+  );
+  process.env.ATOM_COMMERCE_MC_PUBLIC_KEY_B64 = encodeUrlsafeB64(kp.publicKey);
+  process.env.ATOM_COMMERCE_ELIGIBLE = "1";
+  process.env.ATOM_WORKSPACE_KIND = "business";
+  process.env.ATOM_HOSTED = "1";
+}
 
 async function writeIdentityFile(filePath: string): Promise<string> {
   const keyPair = await generateAgentKeyPair();
@@ -253,6 +277,8 @@ describe("BUS-ABUSE-01c/d wire proofs", () => {
       ATOM_COMMERCE_ABUSE: process.env.ATOM_COMMERCE_ABUSE,
       ATOM_COMMERCE_OFFER_RATE: process.env.ATOM_COMMERCE_OFFER_RATE,
       ATOM_COMMERCE_ELIGIBLE: process.env.ATOM_COMMERCE_ELIGIBLE,
+      ATOM_COMMERCE_ENTITLEMENT: process.env.ATOM_COMMERCE_ENTITLEMENT,
+      ATOM_COMMERCE_MC_PUBLIC_KEY_B64: process.env.ATOM_COMMERCE_MC_PUBLIC_KEY_B64,
       ATOM_WORKSPACE_KIND: process.env.ATOM_WORKSPACE_KIND,
       ATOM_HOSTED: process.env.ATOM_HOSTED,
     };
@@ -366,9 +392,7 @@ describe("BUS-ABUSE-01c/d wire proofs", () => {
   });
 
   it("POST /business/offer flood hits per-pair rate before Stripe", async () => {
-    process.env.ATOM_COMMERCE_ELIGIBLE = "1";
-    process.env.ATOM_WORKSPACE_KIND = "business";
-    process.env.ATOM_HOSTED = "1";
+    await installTestCommerceEntitlement();
     process.env.ATOM_COMMERCE_OFFER_RATE = "1";
     const ctx = await startIsolated({ businessMode: true });
     try {

@@ -3,6 +3,7 @@ import type { MonetaryAmount } from "@qwixl/a2a-transport";
 import type { PaymentRail } from "./payment/types.js";
 import { createStripePaymentRail, resolveStripeSecretKey } from "./payment/stripeRail.js";
 import type { TransactionCommitStore } from "./transactionCommitStore.js";
+import { MODE_H_HOLD_REFUSED, shouldRefuseModeHHold } from "./modeHHoldRefuse.js";
 
 export interface TransactionAdminDeps {
   stripeSecretKey: string | null;
@@ -14,7 +15,7 @@ export interface TransactionAdminDeps {
     amountMinor: number;
     currency: string;
   }) => { allowed: boolean; reason?: string; requiresChrome: boolean };
-  /** BUS-01-HOLD-GATE — true when subjectId is a known pending Mode H offer/session. */
+  /** BUS-01-HOLD-GATE — true when subjectId is a known Mode H offer/session/intent (or quarantine). */
   isModeHHoldSubject?: (subjectId: string) => boolean;
   /** Platform application fee in minor units (0 during beta). */
   applicationFeeMinor?: number;
@@ -106,18 +107,14 @@ export function registerTransactionAdminRoutes(adminApp: Express, deps: Transact
     // BUS-01 / D139 Mode H — catalog commerce must use Checkout, never hold.
     const subjectId = body.subjectId?.trim() ?? "";
     const settlementMode = body.settlementMode?.trim();
-    const knownModeH =
-      typeof deps.isModeHHoldSubject === "function" && deps.isModeHHoldSubject(subjectId);
     if (
-      settlementMode === "merchant-checkout" ||
-      /^offer[-_]/i.test(subjectId) ||
-      subjectId.startsWith("offer") ||
-      knownModeH
+      shouldRefuseModeHHold({
+        settlementMode,
+        subjectId,
+        isModeHHoldSubject: deps.isModeHHoldSubject,
+      })
     ) {
-      res.status(409).json({
-        error:
-          "Mode H commerce offers must use merchant Checkout (commerce:offer settlementMode=merchant-checkout). Authorization hold is not allowed.",
-      });
+      res.status(409).json({ error: MODE_H_HOLD_REFUSED });
       return;
     }
     try {

@@ -9,6 +9,7 @@ import {
 import type { AgentKeyPair } from "@qwixl/protocol";
 import { deliverSignedObject } from "./deliverObject.js";
 import type { MlsSessionStore } from "./mlsSessions.js";
+import { MODE_H_HOLD_REFUSED, shouldRefuseModeHHold } from "./modeHHoldRefuse.js";
 import { createStripePaymentRail, resolveStripeSecretKey } from "./payment/stripeRail.js";
 import type { PaymentRail } from "./payment/types.js";
 
@@ -19,6 +20,8 @@ export interface PaymentAdminDeps {
   stripePublishableKey: string | null;
   stripeProductId: string | null;
   paymentRail?: PaymentRail;
+  /** BUS-01-HOLD-EVICT / PAYMENTS-HOLD — Mode H subject quarantine. */
+  isModeHHoldSubject?: (subjectId: string) => boolean;
 }
 
 interface PeerSendBody {
@@ -68,12 +71,24 @@ export function registerPaymentAdminRoutes(adminApp: Express, deps: PaymentAdmin
       currency?: string;
       subjectId?: string;
       label?: string;
+      settlementMode?: string;
       stripeSecretKey?: string;
     };
     if (!body.transactionId?.trim() || !body.attestationRef?.trim() || !body.paymentMethodId?.trim()) {
       res.status(400).json({
         error: "transactionId, attestationRef, and paymentMethodId required",
       });
+      return;
+    }
+    // BUS-01-HOLD-EVICT / PAYMENTS-HOLD — parity with /transactions/offer.
+    if (
+      shouldRefuseModeHHold({
+        settlementMode: body.settlementMode,
+        subjectId: body.subjectId,
+        isModeHHoldSubject: deps.isModeHHoldSubject,
+      })
+    ) {
+      res.status(409).json({ error: MODE_H_HOLD_REFUSED });
       return;
     }
     try {

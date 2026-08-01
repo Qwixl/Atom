@@ -222,32 +222,32 @@ describe("BUS-01 adversarial — A4 application fees", () => {
 });
 
 describe("BUS-01 adversarial — A5 non-Business merchants", () => {
-  it("rejects ATOM_BUSINESS_MODE alone", () => {
+  it("rejects ATOM_BUSINESS_MODE alone", async () => {
     expect(
-      isHostedBusinessCommerceEligible({
+      await isHostedBusinessCommerceEligible({
         ATOM_BUSINESS_MODE: "true",
         ATOM_HOSTED: "1",
       } as NodeJS.ProcessEnv),
     ).toBe(false);
   });
 
-  it("rejects incomplete triad", () => {
+  it("rejects env triad without signed entitlement", async () => {
     expect(
-      isHostedBusinessCommerceEligible({
-        ATOM_COMMERCE_ELIGIBLE: "1",
-        ATOM_WORKSPACE_KIND: "business",
-      } as NodeJS.ProcessEnv),
-    ).toBe(false);
-  });
-
-  it("accepts full hosted Business triad", () => {
-    expect(
-      isHostedBusinessCommerceEligible({
+      await isHostedBusinessCommerceEligible({
         ATOM_COMMERCE_ELIGIBLE: "1",
         ATOM_WORKSPACE_KIND: "business",
         ATOM_HOSTED: "1",
       } as NodeJS.ProcessEnv),
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it("rejects incomplete triad", async () => {
+    expect(
+      await isHostedBusinessCommerceEligible({
+        ATOM_COMMERCE_ELIGIBLE: "1",
+        ATOM_WORKSPACE_KIND: "business",
+      } as NodeJS.ProcessEnv),
+    ).toBe(false);
   });
 });
 
