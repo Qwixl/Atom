@@ -1,27 +1,49 @@
 /**
- * BUS-01 / D139 — Atom Business commerce eligibility.
+ * BUS-01 / D139 / BUS-01-ELIG-01 — Atom Business commerce eligibility.
  *
- * Network merchants MUST be Atom-hosted Business workspaces.
- * Self-host MAY set ATOM_BUSINESS_MODE for local experiments — that alone
- * MUST NOT pass this check.
- *
- * Control plane sets ATOM_COMMERCE_ELIGIBLE=1 (and typically
- * ATOM_WORKSPACE_KIND=business) at provision for hosted Business agents.
+ * Network merchants MUST present a valid Atom-MC signed commerce entitlement.
+ * Env triad alone is not sufficient (spoofable on self-host).
+ * Buyers (personal/developer workspaces) do not need this — they pay merchants.
  */
-export function isHostedBusinessCommerceEligible(env: NodeJS.ProcessEnv = process.env): boolean {
-  const eligible = env.ATOM_COMMERCE_ELIGIBLE?.trim() === "1" || env.ATOM_COMMERCE_ELIGIBLE === "true";
-  const kind = env.ATOM_WORKSPACE_KIND?.trim().toLowerCase();
-  const hosted =
-    env.ATOM_HOSTED?.trim() === "1" ||
-    env.ATOM_HOSTED === "true" ||
-    env.ATOM_MANAGED_HOSTING?.trim() === "1";
-  return eligible && kind === "business" && hosted;
+import { verifyCommerceEntitlementCert } from "./commerceEntitlementCert.js";
+
+export function readCommerceEntitlementCompact(env: NodeJS.ProcessEnv = process.env): string {
+  return env.ATOM_COMMERCE_ENTITLEMENT?.trim() ?? "";
 }
 
-export function assertHostedBusinessCommerceEligible(env: NodeJS.ProcessEnv = process.env): void {
-  if (!isHostedBusinessCommerceEligible(env)) {
+export async function isHostedBusinessCommerceEligible(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<boolean> {
+  const compact = readCommerceEntitlementCompact(env);
+  if (!compact) return false;
+  try {
+    await verifyCommerceEntitlementCert(compact, {
+      publicKeyB64: env.ATOM_COMMERCE_MC_PUBLIC_KEY_B64?.trim() || undefined,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function assertHostedBusinessCommerceEligible(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<void> {
+  const compact = readCommerceEntitlementCompact(env);
+  if (!compact) {
     throw new Error(
-      "Atom Business commerce requires a hosted Business workspace (ATOM_COMMERCE_ELIGIBLE + ATOM_WORKSPACE_KIND=business + ATOM_HOSTED). Self-host ATOM_BUSINESS_MODE alone is not eligible.",
+      "Atom Business commerce requires ATOM_COMMERCE_ENTITLEMENT (MC-signed). Env triad alone is not eligible.",
+    );
+  }
+  try {
+    await verifyCommerceEntitlementCert(compact, {
+      publicKeyB64: env.ATOM_COMMERCE_MC_PUBLIC_KEY_B64?.trim() || undefined,
+    });
+  } catch (error) {
+    throw new Error(
+      error instanceof Error
+        ? `Atom Business commerce entitlement failed: ${error.message}`
+        : "Atom Business commerce entitlement failed",
     );
   }
 }

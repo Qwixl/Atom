@@ -161,7 +161,7 @@ export class BusinessStore {
     peerDid?: string;
     encrypt?: boolean;
   }): Promise<DataObject> {
-    assertHostedBusinessCommerceEligible();
+    await assertHostedBusinessCommerceEligible();
     if (params.peerDid?.trim()) {
       this.abuse.assertOfferPairAllowed(this.deps.identity.did, params.peerDid.trim());
     }
@@ -453,7 +453,7 @@ export class BusinessStore {
     }
 
     try {
-      assertHostedBusinessCommerceEligible();
+      await assertHostedBusinessCommerceEligible();
     } catch (error) {
       return deliverDecline(
         "policy",

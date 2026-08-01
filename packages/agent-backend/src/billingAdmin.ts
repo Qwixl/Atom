@@ -161,10 +161,10 @@ export function registerBillingAdminRoutes(app: Express, deps: BillingAdminDeps)
       res.status(503).json({ error: "Stripe not configured on agent backend" });
       return;
     }
-    if (!isHostedBusinessCommerceEligible()) {
+    if (!(await isHostedBusinessCommerceEligible())) {
       res.status(403).json({
         error:
-          "Connect onboarding requires hosted Atom Business (ATOM_COMMERCE_ELIGIBLE + ATOM_WORKSPACE_KIND=business + ATOM_HOSTED)",
+          "Connect onboarding requires hosted Atom Business (valid ATOM_COMMERCE_ENTITLEMENT)",
       });
       return;
     }

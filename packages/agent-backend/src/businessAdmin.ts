@@ -121,32 +121,32 @@ export function registerBusinessAdminRoutes(adminApp: Express, deps: BusinessAdm
     res.json({ catalog: deps.catalog.list() });
   });
 
-  adminApp.post("/business/catalog", (req, res) => {
+  adminApp.post("/business/catalog", async (req, res) => {
     try {
-      assertHostedBusinessCommerceEligible();
+      await assertHostedBusinessCommerceEligible();
       const item = parseCatalogItem(req.body as Record<string, unknown>);
       deps.catalog.upsert(item);
       res.json({ item });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const status = message.includes("hosted Business") ? 403 : 400;
+      const status = message.includes("hosted Business") || message.includes("entitlement") ? 403 : 400;
       res.status(status).json({ error: message });
     }
   });
 
-  adminApp.post("/business/catalog/sync", (req, res) => {
+  adminApp.post("/business/catalog/sync", async (req, res) => {
     const body = req.body as { items?: BusinessCatalogItemValue[] };
     if (!Array.isArray(body.items)) {
       res.status(400).json({ error: "items array required" });
       return;
     }
     try {
-      assertHostedBusinessCommerceEligible();
+      await assertHostedBusinessCommerceEligible();
       deps.catalog.replaceAll(body.items);
       res.json({ catalog: deps.catalog.list() });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const status = message.includes("hosted Business") ? 403 : 400;
+      const status = message.includes("hosted Business") || message.includes("entitlement") ? 403 : 400;
       res.status(status).json({ error: message });
     }
   });
