@@ -188,33 +188,6 @@ async function readRawBody(req: IncomingMessage): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-/**
- * Best-effort issuer DID from JSON-RPC body (opaque path — no decrypt).
- * MUST NOT be used for per-peer queue caps (D133 / RC-4); prefer
- * `atomCallerDid` from transport auth.
- */
-export function extractFromDidFromRawBody(raw: Buffer): string | undefined {
-  try {
-    const parsed = JSON.parse(raw.toString("utf8")) as {
-      params?: Record<string, unknown>;
-    };
-    const params = parsed.params;
-    if (!params || typeof params !== "object") return undefined;
-    for (const value of Object.values(params)) {
-      if (value && typeof value === "object") {
-        const record = value as Record<string, unknown>;
-        const issuerDid = record.issuerDid;
-        if (typeof issuerDid === "string" && issuerDid.trim()) {
-          return issuerDid.trim();
-        }
-      }
-    }
-  } catch {
-    /* opaque blob */
-  }
-  return undefined;
-}
-
 export type AsleepQueueFullHttpStatus = 429 | 507;
 
 /** Map queue-full kind → HTTP status (507 global, 429 per-peer). */
@@ -236,6 +209,7 @@ type RequestWithCallerDid = IncomingMessage & { atomCallerDid?: string };
  * Express middleware — rejects A2A POST when agent is asleep and queues
  * ciphertext. Uses verified transport DID for peer caps. Returns distinct
  * `asleep_queue_full` when enqueue fails (never lies with `agent_asleep`).
+ * Store-and-forward REQUIRES `atomCallerDid` (no anonymous peer-cap bypass).
  */
 export function createInboundReachabilityMiddleware(
   deps: InboundReachabilityGateDeps,
@@ -255,6 +229,18 @@ export function createInboundReachabilityMiddleware(
       try {
         const raw = await readRawBody(req);
         const fromDid = (req as RequestWithCallerDid).atomCallerDid?.trim() || undefined;
+        if (!fromDid) {
+          res.statusCode = 401;
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+          res.end(
+            JSON.stringify({
+              error: "asleep_enqueue_requires_auth",
+              message: "store-and-forward requires verified transport caller DID",
+              queued: false,
+            }),
+          );
+          return;
+        }
         await deps.enqueue({ blob: raw, fromDid });
         const body: Record<string, unknown> = {
           error: verdict.error ?? "agent_asleep",
