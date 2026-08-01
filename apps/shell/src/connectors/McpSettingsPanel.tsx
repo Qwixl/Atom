@@ -13,12 +13,14 @@ type McpServerSummary = {
   url?: string;
   hasAuthHeaders?: boolean;
   allowedTools: string[];
+  safeTools: string[];
   trusted: boolean;
 };
 
 type McpToolSummary = {
   name: string;
   description?: string;
+  ui?: { uri: string };
 };
 
 export function McpSettingsPanel({
@@ -172,6 +174,26 @@ export function McpSettingsPanel({
     }
   }
 
+  async function markSafeTools(serverId: string, toolNames: string[]) {
+    if (toolNames.length === 0) return;
+    setBusy(true);
+    setNote("Saving safe tools (auto-proxy from MCP Apps)…");
+    try {
+      const approvalRef = await approvalRefForConnectorWrite(
+        "Update MCP safe tools",
+        { serverId, tools: toolNames.join(", ") },
+        config,
+      );
+      await client.setMcpSafeTools(serverId, toolNames, approvalRef);
+      setNote("Safe tools saved — these auto-proxy from MCP App views without a confirm prompt.");
+      await refresh();
+    } catch (error) {
+      setNote(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const canSave =
     label.trim() &&
     ((transport === "stdio" && command.trim()) || (transport === "streamable-http" && url.trim()));
@@ -266,6 +288,9 @@ export function McpSettingsPanel({
             ) : (
               <span> · allowlist: all tools</span>
             )}
+            {server.safeTools?.length ? (
+              <span> · safe (auto-proxy): {server.safeTools.join(", ")}</span>
+            ) : null}
             <div className="settings-inline-actions">
               {!server.trusted ? (
                 <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void trustServer(server.id, server.label)}>
@@ -285,6 +310,17 @@ export function McpSettingsPanel({
                   Allowlist listed tools
                 </button>
               ) : null}
+              {selectedId === server.id && server.allowedTools.length > 0 ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={busy}
+                  onClick={() => void markSafeTools(server.id, server.allowedTools)}
+                  title="Safe tools auto-proxy from MCP App views without confirm"
+                >
+                  Mark allowlist as safe
+                </button>
+              ) : null}
               <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void removeServer(server.id)}>
                 Remove
               </button>
@@ -298,6 +334,12 @@ export function McpSettingsPanel({
             <li key={tool.name}>
               <code>{tool.name}</code>
               {tool.description ? ` — ${tool.description}` : null}
+              {tool.ui?.uri ? (
+                <span>
+                  {" "}
+                  · UI <code>{tool.ui.uri}</code>
+                </span>
+              ) : null}
             </li>
           ))}
         </ul>
