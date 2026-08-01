@@ -46,6 +46,9 @@ describe("MLS over A2A", () => {
       sendReceipt: false,
       onReceive: () => {},
       onMlsHandshake: async (event) => {
+        if (!event.handshake.welcome) {
+          throw new Error("MLS handshake missing welcome");
+        }
         bobSession = await MlsPairSession.joinFromWelcome({
           localDid: bobIdentity.did,
           welcomeWire: base64ToBytes(event.handshake.welcome),

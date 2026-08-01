@@ -9,6 +9,7 @@ import {
   serializeRatchetTree,
   serializeKeyPackages,
   deserializeKeyPackages,
+  isMlsPublicMessageWire,
   type GeneratedKeyPackage,
   type MlsWireMessage,
 } from "@qwixl/mls-session";
@@ -79,8 +80,9 @@ export class MlsSessionStore {
         this.pairPackages.set(entry.snapshot.peerDid, packages);
       } catch (error) {
         console.warn(
-          `[mls] failed to restore pair session for ${entry.snapshot.peerDid}: ${error instanceof Error ? error.message : String(error)}`,
+          `[mls] failed to restore pair session for ${entry.snapshot.peerDid}: ${error instanceof Error ? error.message : String(error)} — dropping; re-handshake required`,
         );
+        records.deletePairSession(entry.snapshot.peerDid);
       }
     }
     for (const entry of records.listGroupSessions()) {
@@ -91,8 +93,9 @@ export class MlsSessionStore {
         this.groupPackages.set(entry.snapshot.roomId, packages);
       } catch (error) {
         console.warn(
-          `[mls] failed to restore group session for ${entry.snapshot.roomId}: ${error instanceof Error ? error.message : String(error)}`,
+          `[mls] failed to restore group session for ${entry.snapshot.roomId}: ${error instanceof Error ? error.message : String(error)} — dropping; re-join required`,
         );
+        records.deleteGroupSession(entry.snapshot.roomId);
       }
     }
   }
@@ -208,6 +211,9 @@ export class MlsSessionStore {
     if (this.sessions.has(opts.handshake.initiatorDid)) {
       return;
     }
+    if (!opts.handshake.welcome) {
+      throw new Error("MLS handshake missing welcome");
+    }
     if (!this.pending) {
       throw new Error("No pending key package — fetch /mls/key-package first");
     }
@@ -247,23 +253,53 @@ export class MlsSessionStore {
     roomId: string;
     memberDid: string;
     keyPackageWire: MlsWireMessage;
-  }): Promise<AtomMlsHandshakeEnvelope & { memberDids: string[] }> {
+  }): Promise<AtomMlsHandshakeEnvelope & { memberDids: string[]; commitWire: MlsWireMessage }> {
     const session = this.groupSessions.get(opts.roomId);
     if (!session) {
       throw new Error(`No MLS group session for room ${opts.roomId}`);
     }
-    const welcomeWire = await session.addMember({
+    const change = await session.addMember({
       memberDid: opts.memberDid,
       keyPackageWire: opts.keyPackageWire,
     });
     this.persistGroup(opts.roomId, session);
+    if (!change.welcomeWire) {
+      throw new Error("MLS add did not produce Welcome");
+    }
     return {
       mediaType: ATOM_MLS_HANDSHAKE_MEDIA_TYPE,
       initiatorDid: session.localDid,
-      welcome: bytesToBase64(welcomeWire),
+      welcome: bytesToBase64(change.welcomeWire),
+      commit: bytesToBase64(change.commitWire),
       ratchetTree: serializeRatchetTree(session.ratchetTree()),
       memberDids: [...session.memberDids],
+      commitWire: change.commitWire,
     };
+  }
+
+  async removeRoomMember(opts: {
+    roomId: string;
+    memberDid: string;
+  }): Promise<{ commitWire: MlsWireMessage; memberDids: string[] }> {
+    const session = this.groupSessions.get(opts.roomId);
+    if (!session) {
+      throw new Error(`No MLS group session for room ${opts.roomId}`);
+    }
+    const change = await session.removeMember({ memberDid: opts.memberDid });
+    this.persistGroup(opts.roomId, session);
+    return {
+      commitWire: change.commitWire,
+      memberDids: [...session.memberDids],
+    };
+  }
+
+  async processRoomCommit(opts: { roomId: string; commitWire: MlsWireMessage }): Promise<void> {
+    const session = this.groupSessions.get(opts.roomId);
+    if (!session) {
+      throw new Error(`No MLS group session for room ${opts.roomId}`);
+    }
+    await session.processCommit(opts.commitWire);
+    this.persistGroup(opts.roomId, session);
   }
 
   async joinRoom(opts: {
@@ -273,6 +309,9 @@ export class MlsSessionStore {
   }): Promise<void> {
     if (this.groupSessions.has(opts.roomId)) {
       return;
+    }
+    if (!opts.handshake.welcome) {
+      throw new Error("Room MLS handshake missing welcome");
     }
     const session = await MlsGroupSession.joinFromWelcome({
       localDid: this.identity.did,
@@ -319,6 +358,9 @@ export class MlsSessionStore {
     const session = this.groupSessions.get(roomId);
     if (!session) {
       throw new Error(`No MLS group session for room ${roomId}`);
+    }
+    if (isMlsPublicMessageWire(wire)) {
+      throw new Error("Expected MLS application message, got public commit");
     }
     const decrypted = await session.decrypt(wire);
     this.persistGroup(roomId, session);
