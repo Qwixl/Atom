@@ -172,9 +172,9 @@ describe("replay rejection", () => {
         semantic: { schema: "https://schema.org/Message" },
         payload: { text: "frozen-clock" },
         governance: { purpose: "action:capture", ttlSeconds: 3600 },
-        issuedAt: issuedAt.toISOString(),
       },
       keyPair,
+      { issuedAt: issuedAt.toISOString() },
     );
     const replay = new ReplayGuard();
     await expect(verifyDataObject(object, { replay, now })).resolves.toMatchObject({
