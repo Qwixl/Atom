@@ -2053,14 +2053,9 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
             </label>
             {handleStatus ? <p className="atom-note">{handleStatus}</p> : null}
 
-            {mode === "register" && hosting === "hosted" && billingLane === "standard" ? (
-              <p className="atom-note">
-                You’re all set for chat — no AI key needed. Next you’ll verify your email and pay,
-                then we finish setup.
-              </p>
-            ) : mode === "register" && hosting === "hosted" && billingLane === "byok" ? (
+            {mode === "register" && hosting === "hosted" && billingLane === "byok" ? (
               <HostedLlmConnectionFields value={llmConnection} onChange={setLlmConnection} />
-            ) : (
+            ) : mode === "register" && hosting === "hosted" ? null : (
               <>
                 <label className="atom-field">
                   <span className="atom-field-label">Where Atom is running</span>
