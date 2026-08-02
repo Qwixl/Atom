@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { SUPABASE_ANON_KEY, SUPABASE_URL, isSupabaseConfigured } from "../hostConfig.js";
 import { bareOwnerHandle } from "../ownerHandle.js";
+import { friendlyHandleWriteError, maySetProfileHandle } from "./signupHandle.js";
 
 let client: SupabaseClient | null = null;
 
@@ -389,13 +390,28 @@ export async function persistSignupProfileIntent(input: {
   const supabase = getSupabaseClient();
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth.user?.id) throw new Error("Sign in required");
+  const { data: existing, error: readError } = await supabase
+    .from("profiles")
+    .select("handle")
+    .eq("id", auth.user.id)
+    .maybeSingle();
+  if (readError) throw new Error(friendlyHandleWriteError(readError.message));
+
   const patch: Record<string, string> = { account_type: input.accountType };
   const handle = input.handle?.trim();
   if (handle) {
-    patch.handle = bareOwnerHandle(handle);
+    const gate = maySetProfileHandle({
+      existingHandle: existing?.handle ? String(existing.handle) : null,
+      requestedHandle: handle,
+    });
+    if (!gate.ok) throw new Error(friendlyHandleWriteError("handle_immutable"));
+    const existingBare = (existing?.handle ? String(existing.handle) : "").trim();
+    if (!existingBare) {
+      patch.handle = bareOwnerHandle(handle);
+    }
   }
   const { error } = await supabase.from("profiles").update(patch).eq("id", auth.user.id);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(friendlyHandleWriteError(error.message));
 }
 
 /** True only when CP reports Stripe-backed provisionable (ignore bare `active`). */
