@@ -315,6 +315,24 @@
   color: var(--shell-text);
 }
 
+.auth-chooser {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.auth-chooser-actions {
+  flex-direction: column;
+  align-items: stretch;
+  margin-top: 8px;
+}
+
+.auth-chooser-actions .atom-btn {
+  width: 100%;
+}
+
 .auth-slide .auth-spinner {
   margin-top: 12px;
 }
