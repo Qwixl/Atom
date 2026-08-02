@@ -36,6 +36,7 @@ import {
   shouldShowRegisterChooser,
   type ChooserAction,
 } from "./accountChooser.js";
+import { buildHandleCheckUrl, friendlyHandleWriteError } from "./signupHandle.js";
 import { saveAccountType } from "../accountType.js";
 import { AccountTypeSelection } from "./accountTypeSelection.js";
 import {
@@ -400,19 +401,42 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       setHandleStatus(validationError);
       return;
     }
+    const emailForCheck = email.trim().toLowerCase();
+    if (!emailForCheck.includes("@")) {
+      setHandleStatus("Enter your email before choosing a username.");
+      return;
+    }
+    // Clear stale “available” immediately when handle or email changes (diff F-1).
+    setHandleStatus("Checking username…");
     let cancelled = false;
     const timer = setTimeout(() => {
       void (async () => {
         try {
-          const resp = await fetch(
-            `${CONTROL_PLANE_URL.replace(/\/$/, "")}/handles/check?handle=${encodeURIComponent(normalizeOwnerHandle(handle))}`,
-          );
-          const data = (await resp.json()) as { available?: boolean; handle?: string };
+          const url = buildHandleCheckUrl({
+            controlPlaneBase: CONTROL_PLANE_URL,
+            handle: normalizeOwnerHandle(handle),
+            email: emailForCheck,
+          });
+          const headers: Record<string, string> = { Accept: "application/json" };
+          try {
+            const { data } = await getSupabaseClient().auth.getSession();
+            const token = data.session?.access_token;
+            if (token) headers.Authorization = `Bearer ${token}`;
+          } catch {
+            /* pre-session Profile step */
+          }
+          const resp = await fetch(url, { headers });
+          const data = (await resp.json()) as {
+            available?: boolean;
+            handle?: string;
+            error?: string;
+            code?: string;
+          };
           if (cancelled) return;
           if (data.available) {
             setHandleStatus(`${data.handle ?? normalizeOwnerHandle(handle)} is available`);
           } else {
-            setHandleStatus("That username is already taken");
+            setHandleStatus(data.error ?? "That username is already taken");
           }
         } catch {
           if (!cancelled) {
@@ -425,7 +449,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [handle, hosting]);
+  }, [handle, hosting, email]);
 
   useEffect(() => {
     if (!usesSupabaseHostedAuth()) {
@@ -1219,8 +1243,11 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
               accountType: selection.primaryAccountType(),
               handle,
             });
-          } catch {
-            /* handle uniqueness may wait until bootstrap */
+          } catch (err) {
+            setError(
+              friendlyHandleWriteError(err instanceof Error ? err.message : String(err)),
+            );
+            return;
           }
           if (pendingLane === "standard" || pendingLane === "byok") {
             goTo("pay");
@@ -1242,8 +1269,11 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
               accountType: selection.primaryAccountType(),
               handle,
             });
-          } catch {
-            /* optional until session stable */
+          } catch (err) {
+            setError(
+              friendlyHandleWriteError(err instanceof Error ? err.message : String(err)),
+            );
+            return;
           }
           if (pendingLane === "standard" || pendingLane === "byok") {
             goTo("pay");
@@ -1466,8 +1496,16 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
           return false;
         }
       }
-      if (handleStatus?.includes("taken")) {
-        setError("Choose a different handle.");
+      if (!handleStatus?.includes("is available")) {
+        setError(
+          !handleStatus || handleStatus === "Checking username…"
+            ? "Wait for the username check to finish."
+            : handleStatus.includes("Enter your email")
+              ? handleStatus
+              : handleStatus.includes("Couldn’t check")
+                ? handleStatus
+                : "Choose a different handle.",
+        );
         return false;
       }
     } else if (!adminUrl.trim() || !adminToken.trim()) {
@@ -1541,13 +1579,44 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       const planReadiness = locked
         ? businessHostingDefaults().readinessSkuId
         : clampReadinessForAccount(selection.primaryAccountType(), readinessSkuId);
+
+      // SIGNUP-HANDLE-01: re-check handle vs register email before writing profile / Checkout.
+      if (handle.trim() && email.trim().includes("@")) {
+        try {
+          const url = buildHandleCheckUrl({
+            controlPlaneBase: CONTROL_PLANE_URL,
+            handle: normalizeOwnerHandle(handle),
+            email: email.trim(),
+          });
+          const headers: Record<string, string> = { Accept: "application/json" };
+          try {
+            const { data } = await getSupabaseClient().auth.getSession();
+            const token = data.session?.access_token;
+            if (token) headers.Authorization = `Bearer ${token}`;
+          } catch {
+            /* ignore */
+          }
+          const resp = await fetch(url, { headers });
+          const data = (await resp.json()) as { available?: boolean; error?: string };
+          if (!data.available) {
+            setError(data.error ?? "That username is already taken");
+            return;
+          }
+        } catch {
+          setError("Couldn’t check that username right now — try again in a moment.");
+          return;
+        }
+      }
+
       try {
         await persistSignupProfileIntent({
           accountType: selection.primaryAccountType(),
           handle,
         });
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(
+          friendlyHandleWriteError(err instanceof Error ? err.message : String(err)),
+        );
         return;
       }
       savePendingHostedAuth({
