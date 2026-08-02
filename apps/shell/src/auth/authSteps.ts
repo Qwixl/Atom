@@ -62,3 +62,28 @@ export function stepLabel(step: AuthStepId): string {
 export function stepIndex(steps: AuthStepId[], step: AuthStepId): number {
   return steps.indexOf(step);
 }
+
+/** Profile primary button when Pay is still ahead of Setup. */
+export function profilePrimaryLabel(opts: {
+  mode: AuthWizardMode;
+  needsPay: boolean;
+}): string {
+  if (opts.mode === "login") return "Log in";
+  if (opts.needsPay) return "Continue";
+  return "Create account";
+}
+
+/** Modal title honesty for hosted Pay-ahead signup. */
+export function registerWizardTitle(opts: {
+  step: AuthStepId;
+  needsPay: boolean;
+}): string {
+  if (
+    opts.step === "pay" ||
+    opts.step === "confirm-email" ||
+    (opts.step === "profile" && opts.needsPay)
+  ) {
+    return "Finish signup";
+  }
+  return "Create account";
+}
