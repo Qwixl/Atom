@@ -21,10 +21,17 @@ const STANDARD_INCLUDED_CREDITS: Record<ReadinessSkuId, string> = {
   open_for_business: "£20",
 };
 
-function creditsBenefit(lane: "standard" | "byok", skuId: ReadinessSkuId): string {
+function creditsBenefit(
+  accountType: AtomAccountType,
+  lane: "standard" | "byok",
+  skuId: ReadinessSkuId,
+): string {
+  if (accountType === "business") {
+    return "Agent Credits included for Customer Chat & Orders.";
+  }
   if (lane === "standard") {
     const amount = STANDARD_INCLUDED_CREDITS[skuId];
-    return `${amount}/month Agent Credits included for chat and speech (and Agent Spend on Standard).`;
+    return `${amount}/month Agent Credits included for chat and speech.`;
   }
   return "You bring your own AI key for chat; subscription covers hosting. Top up separately for speech and Agent Spend.";
 }
@@ -39,7 +46,7 @@ export function payPitchFor(input: {
   readinessSkuId: ReadinessSkuId;
 }): PayPitch {
   const { accountType, lane, readinessSkuId } = input;
-  const credits = creditsBenefit(lane, readinessSkuId);
+  const credits = creditsBenefit(accountType, lane, readinessSkuId);
   const notify = `Notifications: ${notificationLabel(readinessSkuId)} — ${notificationHint(readinessSkuId)}`;
 
   if (accountType === "business") {

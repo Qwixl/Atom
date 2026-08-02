@@ -16,7 +16,10 @@ describe("payPitchFor", () => {
     expect(p.benefits.some((b) => /Brand|Policies|FAQ|Catalog/i.test(b))).toBe(true);
     expect(p.benefits.some((b) => /Stripe Checkout/i.test(b))).toBe(true);
     expect(p.benefits.some((b) => /transaction fee/i.test(b))).toBe(true);
-    expect(p.benefits.join(" ")).not.toMatch(/ebay|amazon|not a shop|marketplace listing/i);
+    expect(p.benefits.some((b) => /Agent Credits included for Customer Chat & Orders/i.test(b))).toBe(
+      true,
+    );
+    expect(p.benefits.join(" ")).not.toMatch(/Agent Spend on Standard|ebay|amazon|not a shop/i);
   });
 
   it("sells Personal with notification framing", () => {
