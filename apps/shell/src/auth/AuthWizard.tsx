@@ -17,6 +17,11 @@ import {
   signOutSupabase,
   signupHostedDevAccount,
   startHostedPlanCheckout,
+  startPendingPlanCheckout,
+  mintPendingSignup,
+  sendPendingSignupOtp,
+  verifyPendingSignupOtp,
+  claimPendingSignup,
   persistSignupProfileIntent,
   waitForHostedSubscription,
   isHostedSubscriptionProvisionable,
@@ -97,8 +102,10 @@ import {
   clearSignupAtProvision,
   isSignupAtProvision,
   loadPendingHostedAuth,
+  loadPendingSignupPassword,
   markSignupAtProvision,
   savePendingHostedAuth,
+  savePendingSignupPassword,
 } from "./pendingHostedAuth.js";
 import {
   PASSWORD_REQUIREMENTS_HINT,
@@ -357,6 +364,8 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
   const [provisionTasks, setProvisionTasks] = useState<ProvisionTask[]>([]);
   const [emailConfirmedThanks, setEmailConfirmedThanks] = useState(false);
   const [resendNote, setResendNote] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState("");
+  const [payOrderPendingId, setPayOrderPendingId] = useState<string | null>(null);
   const confirmHandledRef = useRef(false);
   /** Prevents register interstitial re-fire after Remove/Create this mount. */
   const chooserResolvedRef = useRef(false);
@@ -508,8 +517,9 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         return;
       }
 
-      if (billing === "plan-success" && mode === "register" && pending && hasSession) {
+      if (billing === "plan-success" && mode === "register" && pending) {
         restorePending(pending);
+        if (pending.pendingSignupId) setPayOrderPendingId(pending.pendingSignupId);
         setHosting("hosted");
         setChooserPhase("done");
         void (async () => {
@@ -517,23 +527,57 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
           setError(null);
           goTo("pay");
           setProvisionTasks([
-            { id: "auth", label: "Creating your account", state: "done" },
-            { id: "agent", label: "Confirming payment…", state: "active" },
+            { id: "auth", label: "Creating your account", state: "active" },
+            { id: "agent", label: "Confirming payment…", state: "pending" },
             { id: "connect", label: "Opening Atom", state: "pending" },
           ]);
-          const ok = await waitForHostedSubscription();
-          if (!ok) {
-            setError("We’re still confirming payment. Wait a moment, then try again.");
-            setProvisionTasks((prev) =>
-              prev.map((t) => (t.state === "active" ? { ...t, state: "error" } : t)),
-            );
+          try {
+            const sessionId = params.get("session_id")?.trim() ?? "";
+            if (pending.pendingSignupId && sessionId) {
+              const pwd = loadPendingSignupPassword() ?? password;
+              if (!pwd || pwd.length < 8) {
+                setError("Enter the password you chose, then continue — payment is confirmed.");
+                setBusy(false);
+                goTo("credentials");
+                return;
+              }
+              await claimPendingSignup({
+                pendingSignupId: pending.pendingSignupId,
+                email: pending.email,
+                password: pwd,
+                checkoutSessionId: sessionId,
+                handle: pending.handle,
+              });
+              await signInSupabaseAccount(pending.email, pwd);
+              setProvisionTasks([
+                { id: "auth", label: "Creating your account", state: "done" },
+                { id: "agent", label: "Confirming payment…", state: "active" },
+                { id: "connect", label: "Opening Atom", state: "pending" },
+              ]);
+            } else if (!hasSession) {
+              setError("Sign in to finish setup after payment.");
+              setBusy(false);
+              goTo("credentials");
+              return;
+            }
+            const ok = await waitForHostedSubscription();
+            if (!ok) {
+              setError("We’re still confirming payment. Wait a moment, then try again.");
+              setProvisionTasks((prev) =>
+                prev.map((t) => (t.state === "active" ? { ...t, state: "error" } : t)),
+              );
+              setBusy(false);
+              goTo("pay");
+              return;
+            }
+            setBusy(false);
+            goTo("provisioning");
+            await runHostedSupabaseProvisioning();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
             setBusy(false);
             goTo("pay");
-            return;
           }
-          setBusy(false);
-          goTo("provisioning");
-          await runHostedSupabaseProvisioning();
         })();
         return;
       }
@@ -636,6 +680,16 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
   }, [mode]);
 
   useEffect(() => {
+    if (hosting !== "self-hosted") return;
+    const pending = loadPendingHostedAuth();
+    if (!pending?.pendingSignupId) return;
+    const { pendingSignupId: _drop, emailVerifiedForPay: _v, ...rest } = pending;
+    savePendingHostedAuth(rest);
+    setPayOrderPendingId(null);
+    setOtpCode("");
+  }, [hosting]);
+
+  useEffect(() => {
     if (hosting !== "self-hosted" || !SHOW_DEV_WORKFLOWS) return;
     void probeLocalDevAgentBase().then((url) => {
       if (url) setAdminUrl(url);
@@ -644,6 +698,8 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
 
   useEffect(() => {
     if (step !== "confirm-email" || !usesSupabaseHostedAuth()) return;
+    // Paid path uses OTP on pending — not Supabase magic-link confirmation.
+    if (needsPay || payOrderPendingId || loadPendingHostedAuth()?.pendingSignupId) return;
 
     let cancelled = false;
 
@@ -1237,6 +1293,51 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         topUpPence,
       });
       try {
+        // SIGNUP-PAY-ORDER-01: paid lanes mint pending + OTP — no auth.users until claim.
+        if (pendingLane === "standard" || pendingLane === "byok") {
+          if (password) savePendingSignupPassword(password);
+          if (await hasSupabaseSession()) {
+            await signOutSupabase();
+          }
+          const minted = await mintPendingSignup({
+            email: email.trim(),
+            accountType: selection.primaryAccountType(),
+            lane: pendingLane,
+            readinessSkuId: pendingReadiness,
+            handle,
+          });
+          setPayOrderPendingId(minted.pendingSignupId);
+          savePendingHostedAuth({
+            kind: "register",
+            email: minted.email,
+            handle,
+            accountType: selection.primaryAccountType(),
+            accountTypes: selection.toAccountTypes(),
+            llmApiKey: llmConnection.apiKey,
+            llmProvider: llmConnection.providerId,
+            llmBaseUrl: llmConnection.baseUrl,
+            llmModel: llmConnection.model,
+            billingLane: pendingLane,
+            readinessSkuId: pendingReadiness,
+            modelTierId: pendingLane === "standard" ? modelTierId : undefined,
+            topUpPence,
+            pendingSignupId: minted.pendingSignupId,
+          });
+          const sent = await sendPendingSignupOtp({
+            pendingSignupId: minted.pendingSignupId,
+            email: minted.email,
+          });
+          setEmailConfirmedThanks(false);
+          setOtpCode("");
+          goTo("confirm-email");
+          setResendNote(
+            sent.devOtp
+              ? `Dev OTP: ${sent.devOtp}`
+              : "Enter the code we emailed you.",
+          );
+          return;
+        }
+
         if (await hasSupabaseSession()) {
           try {
             await persistSignupProfileIntent({
@@ -1247,10 +1348,6 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
             setError(
               friendlyHandleWriteError(err instanceof Error ? err.message : String(err)),
             );
-            return;
-          }
-          if (pendingLane === "standard" || pendingLane === "byok") {
-            goTo("pay");
             return;
           }
           goTo("provisioning");
@@ -1273,10 +1370,6 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
             setError(
               friendlyHandleWriteError(err instanceof Error ? err.message : String(err)),
             );
-            return;
-          }
-          if (pendingLane === "standard" || pendingLane === "byok") {
-            goTo("pay");
             return;
           }
           goTo("provisioning");
@@ -1307,6 +1400,17 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
     setError(null);
     try {
       const pending = loadPendingHostedAuth();
+      const pendingId = pending?.pendingSignupId ?? payOrderPendingId;
+      if (pendingId && (needsPay || pending?.pendingSignupId)) {
+        const sent = await sendPendingSignupOtp({
+          pendingSignupId: pendingId,
+          email: (pending?.email ?? email).trim(),
+        });
+        setResendNote(
+          sent.devOtp ? `Dev OTP: ${sent.devOtp}` : "Code sent — check your inbox.",
+        );
+        return;
+      }
       const authKind = pending?.kind ?? (mode === "login" ? "login" : "register");
       await resendSignupConfirmation(email, authKind);
       setResendNote("Confirmation email sent — check your inbox.");
@@ -1317,6 +1421,38 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         return;
       }
       setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function submitPendingOtp(): Promise<void> {
+    setBusy(true);
+    setError(null);
+    try {
+      const pending = loadPendingHostedAuth();
+      const pendingId = pending?.pendingSignupId ?? payOrderPendingId;
+      if (!pendingId) throw new Error("Registration session expired — start again.");
+      await verifyPendingSignupOtp({
+        pendingSignupId: pendingId,
+        email: (pending?.email ?? email).trim(),
+        code: otpCode.trim(),
+      });
+      savePendingHostedAuth({
+        ...(pending ?? {
+          kind: "register",
+          email: email.trim(),
+        }),
+        pendingSignupId: pendingId,
+        emailVerifiedForPay: true,
+        email: (pending?.email ?? email).trim(),
+      });
+      setEmailConfirmedThanks(true);
+      window.setTimeout(() => {
+        goTo("pay");
+      }, 600);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -1540,6 +1676,9 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         goTo("provisioning");
         void runProvisioning();
       } else {
+        if (needsPay && password) {
+          savePendingSignupPassword(password);
+        }
         goNext();
       }
       return;
@@ -1608,17 +1747,8 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         }
       }
 
-      try {
-        await persistSignupProfileIntent({
-          accountType: selection.primaryAccountType(),
-          handle,
-        });
-      } catch (err) {
-        setError(
-          friendlyHandleWriteError(err instanceof Error ? err.message : String(err)),
-        );
-        return;
-      }
+      const existingPending = loadPendingHostedAuth();
+      const pendingId = existingPending?.pendingSignupId ?? payOrderPendingId;
       savePendingHostedAuth({
         kind: "register",
         email: email.trim(),
@@ -1633,14 +1763,56 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         readinessSkuId: planReadiness,
         modelTierId: planLane === "standard" ? modelTierId : undefined,
         topUpPence,
+        pendingSignupId: pendingId ?? undefined,
+        emailVerifiedForPay: existingPending?.emailVerifiedForPay,
       });
       const origin = window.location.origin;
+      const successUrl = `${origin}/app/?billing=plan-success&auth=register`;
+      const cancelUrl = `${origin}/app/?billing=plan-cancel&auth=register`;
+
+      // Guest Checkout when pay-before-auth pending exists (no Bearer user yet).
+      if (pendingId) {
+        const result = await startPendingPlanCheckout({
+          pendingSignupId: pendingId,
+          email: email.trim(),
+          topUpPence: topUpPence > 0 ? topUpPence : undefined,
+          successUrl,
+          cancelUrl,
+        });
+        if (result.status === "already_subscribed" || !result.checkoutUrl) {
+          setError("Payment already recorded — return from Checkout or claim with session_id.");
+          return;
+        }
+        try {
+          if (window.top) {
+            window.top.location.href = result.checkoutUrl;
+            return;
+          }
+        } catch {
+          /* cross-origin top */
+        }
+        window.location.href = result.checkoutUrl;
+        return;
+      }
+
+      // Logged-in plan change / legacy Bearer subscribe.
+      try {
+        await persistSignupProfileIntent({
+          accountType: selection.primaryAccountType(),
+          handle,
+        });
+      } catch (err) {
+        setError(
+          friendlyHandleWriteError(err instanceof Error ? err.message : String(err)),
+        );
+        return;
+      }
       const result = await startHostedPlanCheckout({
         lane: planLane,
         readinessSkuId: planReadiness,
         topUpPence: topUpPence > 0 ? topUpPence : undefined,
-        successUrl: `${origin}/app/?billing=plan-success&auth=register`,
-        cancelUrl: `${origin}/app/?billing=plan-cancel&auth=register`,
+        successUrl,
+        cancelUrl,
       });
       if (result.status === "already_subscribed" || !result.checkoutUrl) {
         goTo("provisioning");
@@ -1928,6 +2100,25 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
             </p>
             <span className="auth-spinner" aria-hidden="true" />
           </>
+        ) : needsPay || payOrderPendingId || loadPendingHostedAuth()?.pendingSignupId ? (
+          <>
+            <h3 className="auth-slide-title">Verify your email</h3>
+            <p className="auth-slide-desc">
+              Enter the code we sent to <strong>{email}</strong> before paying.
+            </p>
+            <label className="atom-field">
+              <span>Verification code</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                placeholder="8-digit code"
+              />
+            </label>
+            {resendNote ? <p className="atom-note">{resendNote}</p> : null}
+          </>
         ) : (
           <>
             <h3 className="auth-slide-title">Check your email</h3>
@@ -2158,13 +2349,25 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
             </div>
           ) : step === "confirm-email" && !emailConfirmedThanks ? (
             <div className="auth-actions">
+              {needsPay || payOrderPendingId || loadPendingHostedAuth()?.pendingSignupId ? (
+                <button
+                  type="button"
+                  className="atom-btn atom-btn-primary"
+                  disabled={busy || otpCode.trim().length < 8}
+                  onClick={() => void submitPendingOtp()}
+                >
+                  Verify code
+                </button>
+              ) : null}
               <button
                 type="button"
-                className="atom-btn atom-btn-primary"
+                className="atom-btn atom-btn-secondary"
                 disabled={busy}
                 onClick={() => void resendConfirmationEmail()}
               >
-                Resend email
+                {needsPay || payOrderPendingId || loadPendingHostedAuth()?.pendingSignupId
+                  ? "Resend code"
+                  : "Resend email"}
               </button>
               {slideIndex > 0 ? (
                 <button type="button" className="atom-btn atom-btn-secondary" onClick={goBack}>

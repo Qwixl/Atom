@@ -329,6 +329,119 @@ export async function bootstrapHostedAccount(input: BootstrapHostedAccountInput)
   throwIfBootstrapFailed(resp.status, data);
 }
 
+async function controlPlaneJson<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const { CONTROL_PLANE_URL } = await import("../hostConfig.js");
+  const resp = await fetch(`${CONTROL_PLANE_URL.replace(/\/$/, "")}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+  const data = (await resp.json().catch(() => ({}))) as T & {
+    error?: string;
+    message?: string;
+  };
+  if (!resp.ok) {
+    throw new Error(
+      (typeof data.message === "string" && data.message.trim()) ||
+        (typeof data.error === "string" && data.error.trim()) ||
+        `Request failed (${resp.status})`,
+    );
+  }
+  return data;
+}
+
+/** SIGNUP-PAY-ORDER-01 — mint server pending (no auth.users). */
+export async function mintPendingSignup(input: {
+  email: string;
+  accountType: AtomAccountType;
+  lane: "standard" | "byok";
+  readinessSkuId: string;
+  handle?: string;
+}): Promise<{ pendingSignupId: string; email: string }> {
+  const data = await controlPlaneJson<{
+    pendingSignupId: string;
+    email: string;
+  }>("/billing/pending-signup", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!data.pendingSignupId) throw new Error("pendingSignupId missing");
+  return data;
+}
+
+export async function sendPendingSignupOtp(input: {
+  pendingSignupId: string;
+  email: string;
+}): Promise<{ status: string; devOtp?: string }> {
+  return controlPlaneJson("/billing/pending-signup/send-otp", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function verifyPendingSignupOtp(input: {
+  pendingSignupId: string;
+  email: string;
+  code: string;
+}): Promise<{ status: string }> {
+  return controlPlaneJson("/billing/pending-signup/verify-otp", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/** Guest Checkout — no Bearer. Requires verified pending. */
+export async function startPendingPlanCheckout(input: {
+  pendingSignupId: string;
+  email: string;
+  topUpPence?: number;
+  successUrl?: string;
+  cancelUrl?: string;
+}): Promise<{ checkoutUrl: string | null; status: string; dueTodayPence?: number }> {
+  const data = await controlPlaneJson<{
+    checkoutUrl?: string | null;
+    status?: string;
+    dueTodayPence?: number;
+  }>("/billing/plans/subscribe-pending", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (data.status === "already_subscribed") {
+    return { checkoutUrl: null, status: "already_subscribed", dueTodayPence: 0 };
+  }
+  const checkoutUrl = data.checkoutUrl?.trim();
+  if (!checkoutUrl) throw new Error("Checkout URL was not returned");
+  return {
+    checkoutUrl,
+    status: data.status ?? "checkout",
+    dueTodayPence: data.dueTodayPence,
+  };
+}
+
+export async function claimPendingSignup(input: {
+  pendingSignupId: string;
+  email: string;
+  password: string;
+  checkoutSessionId: string;
+  handle?: string;
+}): Promise<{ accountId: string }> {
+  const data = await controlPlaneJson<{ accountId?: string }>(
+    "/billing/pending-signup/claim",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+  if (!data.accountId) throw new Error("claim did not return accountId");
+  return { accountId: data.accountId };
+}
+
 export async function startHostedPlanCheckout(input: {
   lane: "standard" | "byok";
   readinessSkuId: string;
