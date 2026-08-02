@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  chooserActionButtonLabel,
   chooserActions,
+  chooserConflictCopy,
   emailsEqualIgnoreCase,
   mayClearLocalSignupState,
   resolveChooserIdentity,
@@ -62,7 +64,7 @@ describe("resolveChooserIdentity", () => {
 });
 
 describe("chooserActions", () => {
-  it("unpaid register session offers Complete + Different", () => {
+  it("unpaid register session offers Continue as + Different (not Complete signup)", () => {
     const actions = chooserActions({
       mode: "register",
       hasSession: true,
@@ -70,6 +72,7 @@ describe("chooserActions", () => {
       provisionable: false,
     });
     expect(actions.map((a) => a.id)).toEqual(["complete_signup", "different_account"]);
+    expect(actions[0]?.label).toBe("Continue as");
   });
 
   it("pending-only offers Resume + Start over, not Log in as", () => {
@@ -82,7 +85,7 @@ describe("chooserActions", () => {
     expect(actions.map((a) => a.id)).toEqual(["resume_pending", "start_over"]);
   });
 
-  it("unpaid login session offers Finish payment then Different", () => {
+  it("unpaid login session offers Continue as then Different", () => {
     const actions = chooserActions({
       mode: "login",
       hasSession: true,
@@ -90,6 +93,28 @@ describe("chooserActions", () => {
       provisionable: false,
     });
     expect(actions.map((a) => a.id)).toEqual(["complete_signup", "different_account"]);
+    expect(actions[0]?.label).toBe("Continue as");
+  });
+});
+
+describe("chooserConflictCopy", () => {
+  it("explains signed-in wins and draft is discarded", () => {
+    const copy = chooserConflictCopy("a@x.com", "b@y.com");
+    expect(copy).toContain("signed in as a@x.com");
+    expect(copy).toContain("b@y.com");
+    expect(copy).toContain("discards that draft");
+    expect(copy.toLowerCase()).not.toContain("complete signup");
+  });
+});
+
+describe("chooserActionButtonLabel", () => {
+  it("uses Continue as email for signed-in primary", () => {
+    expect(
+      chooserActionButtonLabel({
+        action: { id: "complete_signup", label: "Continue as", primary: true },
+        primaryEmail: "a@x.com",
+      }),
+    ).toBe("Continue as a@x.com");
   });
 });
 
