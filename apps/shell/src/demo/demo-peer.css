@@ -205,7 +205,7 @@
   text-underline-offset: 3px;
 }
 
-.atom-beta-badge {
+.atom-demo-badge {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
@@ -218,7 +218,7 @@
   color: #fff;
 }
 
-.atom-beta-badge--large {
+.atom-demo-badge--large {
   padding: 6px 14px;
   font-size: 12px;
 }

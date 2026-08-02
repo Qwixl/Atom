@@ -314,7 +314,7 @@ Many subsystems ship **v1 engines** to prove product loops before production sca
 - Transaction/dispute/qualify/inbox/commerce-intent stores: **JSON files** beside identity (`transaction-commit.json`, etc.) — M13.6.
 - Export bundle: identity + business data + MLS peers + commerce state + vault + MLS sessions + rooms + contacts — restart agent after import.
 - Shell owner store + memory: **localStorage** — quota-sensitive; IndexedDB planned.
-- Module store: beta-free flag; no in-app billing yet.
+- Module store: paid listings use external checkout URL; no in-app billing yet.
 - Hosted signup in this repo: local control-plane stub only (`pnpm dev:hosting`).
 
 Production hardening is incremental per subsystem; see **Known v1 limits** above for the shipped scope.

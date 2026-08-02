@@ -14,6 +14,8 @@ import {
   signInSupabaseAccount,
   signupHostedDevAccount,
   startHostedPlanCheckout,
+  persistSignupProfileIntent,
+  waitForHostedSubscription,
   SubscriptionRequiredError,
   type AtomAccountType,
 } from "./hostedAccount.js";
@@ -282,6 +284,10 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
   const supabaseHostedRegister =
     mode === "register" && hosting === "hosted" && usesSupabaseHostedAuth();
   const supabaseHostedLogin = mode === "login" && usesSupabaseHostedAuth();
+  const needsPay =
+    mode === "register" &&
+    hosting === "hosted" &&
+    (billingLane === "standard" || billingLane === "byok" || isBusinessAccountType(accountKind));
 
   const steps = useMemo(
     () =>
@@ -291,8 +297,9 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
             supabaseHostedRegister,
             supabaseHostedLogin,
             skipHosting: isBusinessAccountType(accountKind),
+            needsPay,
           }),
-    [mode, supabaseHostedRegister, supabaseHostedLogin, loginNeedsConfirm, accountKind],
+    [mode, supabaseHostedRegister, supabaseHostedLogin, loginNeedsConfirm, accountKind, needsPay],
   );
 
   const [step, setStep] = useState<AuthStepId>(() => steps[0] ?? "credentials");
@@ -365,11 +372,11 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
           if (data.available) {
             setHandleStatus(`${data.handle ?? normalizeOwnerHandle(handle)} is available`);
           } else {
-            setHandleStatus("Handle is already taken");
+            setHandleStatus("That username is already taken");
           }
         } catch {
           if (!cancelled) {
-            setHandleStatus("Handle check unavailable — is the control plane running?");
+            setHandleStatus("Couldn’t check that username right now — try again in a moment.");
           }
         }
       })();
@@ -422,16 +429,8 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       if (billing === "plan-cancel" && mode === "register") {
         if (pending) restorePending(pending);
         setHosting("hosted");
-        const pendingType =
-          pending?.accountType ??
-          (pending?.accountTypes?.[0] as AtomAccountType | undefined) ??
-          accountKind;
-        goTo(isBusinessAccountType(pendingType) ? "credentials" : "hosting");
-        setError(
-          isBusinessAccountType(pendingType)
-            ? "Payment was cancelled. Your plan was not charged — continue when ready."
-            : "Payment was cancelled. Your plan was not charged — pick a plan and continue when ready.",
-        );
+        goTo("pay");
+        setError("Payment cancelled — nothing was charged. Continue when you’re ready.");
         return;
       }
 
@@ -439,13 +438,48 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         restorePending(pending);
         setHosting("hosted");
         goTo("provisioning");
-        void runHostedSupabaseProvisioning();
+        void (async () => {
+          setBusy(true);
+          setProvisionTasks([
+            { id: "auth", label: "Creating your account", state: "done" },
+            { id: "agent", label: "Confirming payment…", state: "active" },
+            { id: "connect", label: "Opening Atom", state: "pending" },
+          ]);
+          const ok = await waitForHostedSubscription();
+          if (!ok) {
+            setError("We’re still confirming payment. Wait a moment, then try again.");
+            setProvisionTasks((prev) =>
+              prev.map((t) => (t.state === "active" ? { ...t, state: "error" } : t)),
+            );
+            setBusy(false);
+            goTo("pay");
+            return;
+          }
+          setBusy(false);
+          await runHostedSupabaseProvisioning();
+        })();
         return;
       }
 
       if (hasSession && !loadFirstRunDone() && mode === "register") {
         if (pending) restorePending(pending);
         setHosting("hosted");
+        const pendingLane =
+          pending?.billingLane === "byok"
+            ? "byok"
+            : pending?.billingLane === "standard" ||
+                isBusinessAccountType(
+                  pending?.accountType ??
+                    (pending?.accountTypes?.[0] as AtomAccountType | undefined) ??
+                    accountKind,
+                )
+              ? "standard"
+              : pending?.billingLane;
+        if (pendingLane === "standard" || pendingLane === "byok") {
+          // May already be paid (return from Checkout handled above). Otherwise land on Pay.
+          goTo("pay");
+          return;
+        }
         goTo("provisioning");
         void resumeHostedSupabaseSetup();
         return;
@@ -505,12 +539,21 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       setError(null);
       window.setTimeout(() => {
         if (cancelled) return;
-        goTo("provisioning");
         if (mode === "login") {
+          goTo("provisioning");
           void finishHostedSupabaseLogin();
-        } else {
-          void runHostedSupabaseProvisioning();
+          return;
         }
+        const paidLane =
+          billingLane === "standard" ||
+          billingLane === "byok" ||
+          isBusinessAccountType(accountKind);
+        if (paidLane && hosting === "hosted") {
+          goTo("pay");
+          return;
+        }
+        goTo("provisioning");
+        void runHostedSupabaseProvisioning();
       }, 800);
     };
 
@@ -557,17 +600,17 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
   function initProvisionTasks(): ProvisionTask[] {
     if (ATOM_BROWSER_MODE || (mode === "register" && hosting === "self-hosted")) {
       return [
-        { id: "agent", label: "Validating agent connection", state: "active" },
-        { id: "connect", label: "Connecting shell", state: "pending" },
+        { id: "agent", label: "Checking your connection", state: "active" },
+        { id: "connect", label: "Opening Atom", state: "pending" },
       ];
     }
     if (mode === "login") {
-      return [{ id: "connect", label: "Connecting to your agent", state: "active" }];
+      return [{ id: "connect", label: "Signing you in", state: "active" }];
     }
     return [
-      { id: "auth", label: "Creating account", state: "active" },
-      { id: "agent", label: "Provisioning agent", state: "pending" },
-      { id: "connect", label: "Connecting shell", state: "pending" },
+      { id: "auth", label: "Creating your account", state: "active" },
+      { id: "agent", label: "Getting things ready", state: "pending" },
+      { id: "connect", label: "Opening Atom", state: "pending" },
     ];
   }
 
@@ -582,16 +625,16 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
 
   async function resumeHostedSupabaseSetup(): Promise<void> {
     if (!tryAcquireProvisioningLock()) {
-      setError("Setup is already in progress. Wait a moment, then click Try again.");
+      setError("Setup is already running. Wait a moment, then try again.");
       return;
     }
 
     setBusy(true);
     setError(null);
     setProvisionTasks([
-      { id: "auth", label: "Creating account", state: "done" },
-      { id: "agent", label: "Provisioning agent", state: "done" },
-      { id: "connect", label: "Connecting shell", state: "active" },
+      { id: "auth", label: "Creating your account", state: "done" },
+      { id: "agent", label: "Getting things ready", state: "done" },
+      { id: "connect", label: "Opening Atom", state: "active" },
     ]);
 
     try {
@@ -649,7 +692,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
 
   async function runHostedSupabaseProvisioning(): Promise<void> {
     if (!tryAcquireProvisioningLock()) {
-      setError("Setup is already in progress. Wait a moment, then click Try again.");
+      setError("Setup is already running. Wait a moment, then try again.");
       return;
     }
 
@@ -741,67 +784,12 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       navigateAfterAuthSuccess();
     } catch (err) {
       if (err instanceof SubscriptionRequiredError) {
-        try {
-          const selection = (() => {
-            try {
-              return currentAccountSelection();
-            } catch {
-              if (pending?.accountTypes?.length) {
-                return AccountTypeSelection.fromAccountTypes(pending.accountTypes);
-              }
-              if (pending?.accountType) {
-                return AccountTypeSelection.fromAccountTypes([pending.accountType]);
-              }
-              throw new Error("Account type missing — go back and try again.");
-            }
-          })();
-          savePendingHostedAuth({
-            kind: "register",
-            email: (pending?.email ?? email).trim(),
-            handle: pending?.handle ?? handle,
-            accountType: selection.primaryAccountType(),
-            accountTypes: selection.toAccountTypes(),
-            llmApiKey: pending?.llmApiKey ?? llmConnection.apiKey,
-            llmProvider: pending?.llmProvider ?? llmConnection.providerId,
-            llmBaseUrl: pending?.llmBaseUrl ?? llmConnection.baseUrl,
-            llmModel: pending?.llmModel ?? llmConnection.model,
-            billingLane: planLane,
-            readinessSkuId: planReadinessSkuId,
-            modelTierId: planLane === "standard" ? planModelTierId : undefined,
-            topUpPence: planTopUpPence,
-          });
-          markSignupAtProvision();
-          setProvisionTasks([
-            { id: "auth", label: "Creating account", state: "done" },
-            { id: "agent", label: "Redirecting to payment…", state: "active" },
-            { id: "connect", label: "Connecting shell", state: "pending" },
-          ]);
-          const origin = window.location.origin;
-          const { checkoutUrl } = await startHostedPlanCheckout({
-            lane: planLane,
-            readinessSkuId: planReadinessSkuId,
-            topUpPence: planTopUpPence > 0 ? planTopUpPence : undefined,
-            successUrl: `${origin}/app/?billing=plan-success&auth=register`,
-            cancelUrl: `${origin}/app/?billing=plan-cancel&auth=register`,
-          });
-          try {
-            if (window.top) {
-              window.top.location.href = checkoutUrl;
-              return;
-            }
-          } catch {
-            /* cross-origin top — fall through */
-          }
-          window.location.href = checkoutUrl;
-          return;
-        } catch (checkoutErr) {
-          const raw =
-            checkoutErr instanceof Error ? checkoutErr.message : String(checkoutErr);
-          setError(friendlyHostedProvisionError(raw));
-          setProvisionTasks((prev) =>
-            prev.map((t) => (t.state === "active" ? { ...t, state: "error" } : t)),
-          );
-        }
+        // Do not open a second Checkout (webhook lag). Send user to Pay / poll.
+        setError("Complete payment to continue.");
+        setProvisionTasks((prev) =>
+          prev.map((t) => (t.state === "active" ? { ...t, state: "error" } : t)),
+        );
+        goTo("pay");
         return;
       }
       const raw = err instanceof Error ? err.message : String(err);
@@ -817,13 +805,13 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
 
   async function finishHostedSupabaseLogin(): Promise<void> {
     if (!tryAcquireProvisioningLock()) {
-      setError("Setup is already in progress. Wait a moment, then click Try again.");
+      setError("Setup is already running. Wait a moment, then try again.");
       return;
     }
 
     setBusy(true);
     setError(null);
-    setProvisionTasks([{ id: "connect", label: "Connecting to your agent", state: "active" }]);
+    setProvisionTasks([{ id: "connect", label: "Signing you in", state: "active" }]);
 
     try {
       const connection = await fetchHostedAgentConnection();
@@ -909,6 +897,18 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       });
       try {
         if (await hasSupabaseSession()) {
+          try {
+            await persistSignupProfileIntent({
+              accountType: selection.primaryAccountType(),
+              handle,
+            });
+          } catch {
+            /* handle uniqueness may wait until bootstrap */
+          }
+          if (pendingLane === "standard" || pendingLane === "byok") {
+            goTo("pay");
+            return;
+          }
           goTo("provisioning");
           await runHostedSupabaseProvisioning();
           return;
@@ -920,6 +920,18 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
           goTo("confirm-email");
           if (note) setResendNote(note);
         } else {
+          try {
+            await persistSignupProfileIntent({
+              accountType: selection.primaryAccountType(),
+              handle,
+            });
+          } catch {
+            /* optional until session stable */
+          }
+          if (pendingLane === "standard" || pendingLane === "byok") {
+            goTo("pay");
+            return;
+          }
           goTo("provisioning");
           await runHostedSupabaseProvisioning();
         }
@@ -1025,7 +1037,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         }
       } else {
         if (!adminUrl.trim() || !adminToken.trim()) {
-          throw new Error("Agent URL and connection token are required.");
+          throw new Error("Where Atom is running and your access token are required.");
         }
         advanceTask("agent", "connect");
         await completeAgentSetup({
@@ -1094,7 +1106,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
     }
     if (mode === "register" && hosting === "hosted" && !isHostedSignupAvailable()) {
       setError(
-        "Hosted signup is unavailable. Choose Self hosted, or add Supabase keys to .env.local and run pnpm dev:hosting.",
+        "Online signup is unavailable right now. Choose “Run it yourself”, or try again later.",
       );
       return false;
     }
@@ -1112,7 +1124,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
     }
     if (mode === "login") {
       if (!adminUrl.trim() || !adminToken.trim()) {
-        setError("Agent URL and connection token are required.");
+        setError("Where Atom is running and your access token are required.");
         return false;
       }
       return true;
@@ -1120,7 +1132,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
     if (hosting === "hosted") {
       if (billingLane === "byok") {
         if (!llmConnection.apiKey.trim()) {
-          setError("Add your LLM API key to continue.");
+          setError("Add your AI key to continue.");
           return false;
         }
         const resolved = resolveHostedLlmConnection({
@@ -1132,7 +1144,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
           setError(
             llmConnection.providerId === "custom"
               ? "Add an endpoint base URL and model id."
-              : "Choose a model for your provider.",
+              : "Choose a model to continue.",
           );
           return false;
         }
@@ -1142,7 +1154,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         return false;
       }
     } else if (!adminUrl.trim() || !adminToken.trim()) {
-      setError("Agent URL and connection token are required.");
+      setError("Where Atom is running and your access token are required.");
       return false;
     }
     return true;
@@ -1187,9 +1199,102 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       }
       return;
     }
+    if (step === "pay") {
+      void submitPayStep();
+    }
+  }
+
+  async function submitPayStep(): Promise<void> {
+    setBusy(true);
+    setError(null);
+    try {
+      let selection: AccountTypeSelection;
+      try {
+        selection = currentAccountSelection();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        return;
+      }
+      const locked = isBusinessAccountType(selection.primaryAccountType());
+      const planLane: "standard" | "byok" = locked
+        ? "standard"
+        : billingLane === "byok"
+          ? "byok"
+          : "standard";
+      const planReadiness = locked
+        ? businessHostingDefaults().readinessSkuId
+        : readinessSkuId;
+      try {
+        await persistSignupProfileIntent({
+          accountType: selection.primaryAccountType(),
+          handle,
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        return;
+      }
+      savePendingHostedAuth({
+        kind: "register",
+        email: email.trim(),
+        handle,
+        accountType: selection.primaryAccountType(),
+        accountTypes: selection.toAccountTypes(),
+        llmApiKey: llmConnection.apiKey,
+        llmProvider: llmConnection.providerId,
+        llmBaseUrl: llmConnection.baseUrl,
+        llmModel: llmConnection.model,
+        billingLane: planLane,
+        readinessSkuId: planReadiness,
+        modelTierId: planLane === "standard" ? modelTierId : undefined,
+        topUpPence,
+      });
+      const origin = window.location.origin;
+      const result = await startHostedPlanCheckout({
+        lane: planLane,
+        readinessSkuId: planReadiness,
+        topUpPence: topUpPence > 0 ? topUpPence : undefined,
+        successUrl: `${origin}/app/?billing=plan-success&auth=register`,
+        cancelUrl: `${origin}/app/?billing=plan-cancel&auth=register`,
+      });
+      if (result.status === "already_subscribed" || !result.checkoutUrl) {
+        goTo("provisioning");
+        await runHostedSupabaseProvisioning();
+        return;
+      }
+      try {
+        if (window.top) {
+          window.top.location.href = result.checkoutUrl;
+          return;
+        }
+      } catch {
+        /* cross-origin top */
+      }
+      window.location.href = result.checkoutUrl;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
   }
 
   const title = mode === "register" ? "Create account" : "Log in";
+
+  const payPrimaryLabel = (() => {
+    const locked = isBusinessAccountType(accountKind);
+    const lane: "standard" | "byok" = locked
+      ? "standard"
+      : billingLane === "byok"
+        ? "byok"
+        : "standard";
+    const skuId = locked ? businessHostingDefaults().readinessSkuId : readinessSkuId;
+    const sku =
+      remoteCatalog?.lanes[lane]?.skus?.[skuId] ??
+      (lane === "standard"
+        ? standardReadiness.find((s) => s.id === skuId)
+        : byokReadiness.find((s) => s.id === skuId));
+    const listPrice = sku?.displayPrice ?? "";
+    return listPrice ? `Pay ${listPrice}` : "Pay";
+  })();
 
   function renderStepPanel(stepId: AuthStepId) {
     switch (stepId) {
@@ -1197,9 +1302,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         return (
           <>
             <h3 className="auth-slide-title">What kind of account?</h3>
-            <p className="auth-slide-desc">
-              Pick one. You can add another account type later.
-            </p>
+            <p className="auth-slide-desc">Choose one to continue.</p>
             <div className="auth-radio-stack">
               <label className={`atom-radio-card${accountKind === "user" ? " is-selected" : ""}`}>
                 <input
@@ -1210,7 +1313,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                 />
                 <span>
                   <strong>Personal</strong>
-                  <span>Everyday use — chat, messages, rooms, and connectors (including MCP tools)</span>
+                  <span>For you — chat, messages, and everyday tools</span>
                 </span>
               </label>
               <label className={`atom-radio-card${accountKind === "developer" ? " is-selected" : ""}`}>
@@ -1222,7 +1325,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                 />
                 <span>
                   <strong>Developer</strong>
-                  <span>Build modules, connectors, and MCP tool servers</span>
+                  <span>For building and sharing add-ons</span>
                 </span>
               </label>
               <label className={`atom-radio-card${accountKind === "business" ? " is-selected" : ""}`}>
@@ -1234,7 +1337,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                 />
                 <span>
                   <strong>Business</strong>
-                  <span>Brand, catalog, and business agent — Atom-hosted Standard (Always-On)</span>
+                  <span>For your company — shop, brand, and customers</span>
                 </span>
               </label>
             </div>
@@ -1243,12 +1346,8 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       case "hosting":
         return (
           <>
-            <h3 className="auth-slide-title">Choose your plan</h3>
-            <p className="auth-slide-desc">
-              {isBusinessAccountType(accountKind)
-                ? "Atom Business is Atom-hosted Standard only — Always-On. BYOK and self-host are not available."
-                : "Standard includes Atom Credits. BYOK is hosting only with your LLM key. Self-hosted is free — optional top-ups for Agent Spend."}
-            </p>
+            <h3 className="auth-slide-title">Choose a plan</h3>
+            <p className="auth-slide-desc">Pick one to continue.</p>
             <div className="auth-radio-stack">
               <label className={`atom-radio-card${billingLane === "standard" ? " is-selected" : ""}`}>
                 <input
@@ -1261,8 +1360,8 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                 <span>
                   <strong>Standard</strong>
                   <span>
-                    {remoteCatalog?.lanes.standard.displayFrom ?? "Hosted"} — agent + credits for
-                    chat, speech, and Agent Spend
+                    {remoteCatalog?.lanes.standard.displayFrom ?? "From host"} — we run Atom for you,
+                    with usage included
                   </span>
                 </span>
               </label>
@@ -1277,10 +1376,10 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                       disabled={!isHostedSignupAvailable()}
                     />
                     <span>
-                      <strong>BYOK</strong>
+                      <strong>Bring your own key</strong>
                       <span>
-                        {remoteCatalog?.lanes.byok.displayFrom ?? "Hosted"} — you bring your LLM key;
-                        top-ups for speech &amp; Agent Spend
+                        {remoteCatalog?.lanes.byok.displayFrom ?? "From host"} — we run Atom; you add
+                        your own AI key
                       </span>
                     </span>
                   </label>
@@ -1294,8 +1393,8 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                       onChange={() => selectBillingLane("self_hosted")}
                     />
                     <span>
-                      <strong>Self-hosted</strong>
-                      <span>Free — run your own agent; optional top-ups for Agent Spend with Atom</span>
+                      <strong>Run it yourself</strong>
+                      <span>Free — you install and run Atom on your own machine</span>
                     </span>
                   </label>
                 </>
@@ -1304,7 +1403,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
 
             {billingLane === "standard" || billingLane === "byok" ? (
               <>
-                <h4 className="auth-slide-subtitle">Readiness</h4>
+                <h4 className="auth-slide-subtitle">How available should it be?</h4>
                 <div className="auth-radio-stack">
                   {(isBusinessAccountType(accountKind)
                     ? standardReadiness.filter((sku) => sku.id === "open_for_business")
@@ -1342,7 +1441,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
 
             {billingLane === "standard" ? (
               <>
-                <h4 className="auth-slide-subtitle">Agent level</h4>
+                <h4 className="auth-slide-subtitle">Reply quality</h4>
                 <div className="auth-radio-stack">
                   {MODEL_TIER_OPTIONS.map((tier) => (
                     <label
@@ -1365,7 +1464,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
               </>
             ) : null}
 
-            <h4 className="auth-slide-subtitle">Optional top-up</h4>
+            <h4 className="auth-slide-subtitle">Add credit now? (optional)</h4>
             <p className="atom-note">{topUpHint(billingLane)}</p>
             <div className="auth-radio-stack">
               {topUpOptions.map((pence) => (
@@ -1391,14 +1490,16 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         return (
           <>
             <h3 className="auth-slide-title">
-              {mode === "register" ? "Your account" : "Welcome back"}
+              {mode === "register" ? "Create your login" : "Welcome back"}
             </h3>
             <p className="auth-slide-desc">
               {mode === "register" && hosting === "self-hosted"
-                ? "Optional for self-hosted — your agent credentials are on the next step."
+                ? "Email is optional here — you’ll connect your own Atom on the next step."
                 : IS_LOCAL_DEV && hosting === "hosted" && !usesSupabaseHostedAuth()
-                  ? "Email for your hosted dev account. Password is not used locally."
-                  : "Email and password for your Atom identity."}
+                  ? "Enter an email to continue."
+                  : mode === "register"
+                    ? "Enter an email and password to continue."
+                    : "Enter your email and password to continue."}
             </p>
             <label className="atom-field">
               <span className="atom-field-label">Email</span>
@@ -1442,23 +1543,23 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         return (
           <>
             <h3 className="auth-slide-title">
-              {mode === "login" ? "Welcome back" : "Profile & keys"}
+              {mode === "login" ? "Almost there" : "Choose a username"}
             </h3>
             <p className="auth-slide-desc">
               {mode === "login"
                 ? ATOM_BROWSER_MODE
-                  ? "Confirm your handle and reconnect to your local agent."
-                  : "Reconnect your self-hosted agent."
+                  ? "Confirm your username, then continue."
+                  : "Enter your connection details to continue."
                 : hosting === "hosted"
                   ? billingLane === "standard"
-                    ? "Your public handle. Chat models are included — no API key needed."
-                    : "Your public handle and LLM provider key."
+                    ? "Pick a username people will see. Then continue."
+                    : "Pick a username, then add your AI key to continue."
                   : ATOM_BROWSER_MODE
-                    ? "Your handle and local agent connection (pre-filled for this dev session)."
-                    : "Your handle and agent connection details."}
+                    ? "Pick a username to continue."
+                    : "Pick a username and enter where Atom is running."}
             </p>
             <label className="atom-field">
-              <span className="atom-field-label">Handle</span>
+              <span className="atom-field-label">Username</span>
               <input
                 value={handle}
                 onChange={(e) => setHandle(normalizeOwnerHandle(e.target.value))}
@@ -1469,15 +1570,15 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
 
             {mode === "register" && hosting === "hosted" && billingLane === "standard" ? (
               <p className="atom-note">
-                Standard uses Atom’s included models (Efficient / Balanced / Maximum). You can change
-                the level later in Settings. BYOK keys are not available on this plan.
+                You’re all set for chat — no AI key needed. You can change reply quality later in
+                Settings.
               </p>
             ) : mode === "register" && hosting === "hosted" && billingLane === "byok" ? (
               <HostedLlmConnectionFields value={llmConnection} onChange={setLlmConnection} />
             ) : (
               <>
                 <label className="atom-field">
-                  <span className="atom-field-label">Agent URL</span>
+                  <span className="atom-field-label">Where Atom is running</span>
                   <input
                     value={adminUrl}
                     onChange={(e) => setAdminUrl(e.target.value)}
@@ -1486,7 +1587,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                   />
                 </label>
                 <label className="atom-field">
-                  <span className="atom-field-label">Connection token</span>
+                  <span className="atom-field-label">Access token</span>
                   <input
                     type="password"
                     value={adminToken}
@@ -1495,13 +1596,10 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                   />
                 </label>
                 {ATOM_BROWSER_MODE ? (
-                  <p className="atom-note">
-                    Connected via <code>{BROWSER_AGENT_API}</code>. Set Chat provider and LLM key in
-                    Settings after setup.
-                  </p>
+                  <p className="atom-note">Connection details are ready. Continue to finish.</p>
                 ) : SHOW_DEV_WORKFLOWS ? (
                   <p className="atom-note">
-                    Local dev: run <code>pnpm start:agent</code> then paste URL and token.
+                    Local setup: start Atom, then paste the address and access token.
                   </p>
                 ) : null}
               </>
@@ -1513,7 +1611,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
           <>
             <h3 className="auth-slide-title">Email confirmed</h3>
             <p className="auth-slide-desc auth-confirm-thanks">
-              Thanks — your email is verified. Setting up your account now…
+              Email confirmed. Continuing…
             </p>
             <span className="auth-spinner" aria-hidden="true" />
           </>
@@ -1521,21 +1619,44 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
           <>
             <h3 className="auth-slide-title">Check your email</h3>
             <p className="auth-slide-desc">
-              We sent a confirmation link to <strong>{email}</strong>. Open it to continue — this
-              page will pick up automatically once you confirm.
+              We sent a link to <strong>{email}</strong>. Open it to continue — this page will update
+              on its own.
             </p>
-            <p className="atom-note">
-              The link returns you here. You can leave this tab open while you check your inbox.
-            </p>
+            <p className="atom-note">You can leave this tab open while you check your inbox.</p>
             {resendNote ? <p className="atom-note">{resendNote}</p> : null}
           </>
         );
+      case "pay": {
+        const locked = isBusinessAccountType(accountKind);
+        const lane: "standard" | "byok" = locked
+          ? "standard"
+          : billingLane === "byok"
+            ? "byok"
+            : "standard";
+        const skuId = locked ? businessHostingDefaults().readinessSkuId : readinessSkuId;
+        const sku =
+          remoteCatalog?.lanes[lane]?.skus?.[skuId] ??
+          (lane === "standard"
+            ? standardReadiness.find((s) => s.id === skuId)
+            : byokReadiness.find((s) => s.id === skuId));
+        const listPrice = sku?.displayPrice ?? "See plan";
+        return (
+          <>
+            <h3 className="auth-slide-title">Pay</h3>
+            <p className="auth-slide-desc">
+              {sku?.displayName ?? "Your plan"} · {listPrice}
+            </p>
+            <p className="atom-note">{listPrice} due today</p>
+            <p className="atom-note">You’ll confirm on the next screen, then we finish setup.</p>
+          </>
+        );
+      }
       case "provisioning":
         return (
           <>
             <h3 className="auth-slide-title">Setting up</h3>
             <p className="auth-slide-desc">
-              {busy ? "This usually takes a few seconds." : "Ready to connect."}
+              {busy ? "This usually takes a few seconds." : "Ready when you are."}
             </p>
             {provisionTasks.length > 0 ? (
               <ul className="auth-provision-list">
@@ -1609,11 +1730,13 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                 disabled={busy}
                 onClick={handlePrimary}
               >
-                {step === "profile" || (step === "credentials" && mode === "login")
-                  ? mode === "login"
-                    ? "Log in"
-                    : "Create account"
-                  : "Continue"}
+                {step === "pay"
+                  ? payPrimaryLabel
+                  : step === "profile" || (step === "credentials" && mode === "login")
+                    ? mode === "login"
+                      ? "Log in"
+                      : "Create account"
+                    : "Continue"}
               </button>
               {slideIndex > 0 ? (
                 <button type="button" className="atom-btn atom-btn-secondary" onClick={goBack}>

@@ -31,7 +31,7 @@ export interface PaymentHoldRequest {
   customerId?: string;
   /** Stripe Connect destination account for split payments. */
   connectAccountId?: string;
-  /** Platform fee in minor units (application_fee_amount). 0 during beta. */
+  /** Platform fee in minor units (application_fee_amount). 0 = none. */
   applicationFeeMinor?: number;
   idempotencyKey?: string;
   metadata?: Record<string, string>;

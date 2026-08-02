@@ -41,7 +41,7 @@ export {
   normalizeModulePricing,
   formatModulePrice,
   modulePriceLabel,
-  MODULE_STORE_BETA_FREE,
+  MODULE_STORE_PAID_REQUIRES_CHECKOUT,
 } from "./registry/pricing.js";
 export type { ModulePricing } from "./registry/pricing.js";
 export {

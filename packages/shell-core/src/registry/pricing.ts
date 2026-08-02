@@ -49,13 +49,9 @@ export function formatModulePrice(pricing?: ModulePricing): string {
   return `$${dollars.toFixed(dollars % 1 === 0 ? 0 : 2)}`;
 }
 
-/** During beta all paid modules install without checkout (D028). */
-export const MODULE_STORE_BETA_FREE = true;
+/** Paid modules require checkout (purchaseUrl) — no free pass. */
+export const MODULE_STORE_PAID_REQUIRES_CHECKOUT = true;
 
 export function modulePriceLabel(pricing?: ModulePricing): string {
-  const base = formatModulePrice(pricing);
-  if (normalizeModulePricing(pricing).model === "paid" && MODULE_STORE_BETA_FREE) {
-    return `${base} · free during beta`;
-  }
-  return base;
+  return formatModulePrice(pricing);
 }

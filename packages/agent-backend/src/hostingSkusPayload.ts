@@ -7,7 +7,6 @@ import { HOSTING_SKUS, alwaysOnBrainPricePayload } from "./alwaysOnPricing.js";
 export function hostingSkusPayload() {
   return {
     currency: "gbp" as const,
-    betaChargesWaived: true,
     listingFeeAtLaunch: 0,
     skus: {
       sleep: { ...HOSTING_SKUS.sleep, reachability: "sleep" as const },

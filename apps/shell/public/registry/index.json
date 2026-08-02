@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "updatedAt": "2026-07-31T21:14:14.976Z",
+  "updatedAt": "2026-08-02T08:38:06.343Z",
   "revocationsUrl": "revocations.json",
   "ratingsUrl": "ratings.json",
   "modules": [
@@ -11,24 +11,6 @@
       "integrity": "sha256:da5ea6ee817974ba15f86bbc4d59ce5357affa2e22806b24f5a16202a1656d96",
       "bundleIntegrity": "sha256:fd80be0b74b1c053e1c566dbaf747662c86e138df0122597e41e8fcad90d901c",
       "publisher": "did:key:z6Mkatomexamples01",
-      "categories": [
-        "commerce"
-      ],
-      "signatureUrl": "signature.sigstore.json"
-    },
-    {
-      "id": "commerce/offer-comparison-pro",
-      "version": "1.0.0",
-      "manifestUrl": "commerce/offer-comparison-pro/manifest.json",
-      "integrity": "sha256:e420921849e231b4d7ee7e449dd33a49fba58f7f7f3c16e4f33968ee62f6de80",
-      "bundleIntegrity": "sha256:9c5d374ddda832460951a8183740efe46e27bd5a2d6a84e5525f28143c0d6cac",
-      "publisher": "did:key:z6Mkatomexamples01",
-      "pricing": {
-        "model": "paid",
-        "priceCents": 499,
-        "currency": "USD",
-        "purchaseUrl": "https://qwixl.dev/store/offer-comparison-pro"
-      },
       "categories": [
         "commerce"
       ],
@@ -286,6 +268,24 @@
         "productivity"
       ],
       "tier": "system",
+      "signatureUrl": "signature.sigstore.json"
+    },
+    {
+      "id": "commerce/offer-comparison-pro",
+      "version": "1.0.0",
+      "manifestUrl": "commerce/offer-comparison-pro/manifest.json",
+      "integrity": "sha256:9b897c20202e68d2306da69790e122d0185ce7dd8f9a4b51518d598d36c55fdd",
+      "bundleIntegrity": "sha256:615fa8ab44c428f8ad3e1f6f115d05d91885d69b873376a9e96313e4f751e489",
+      "publisher": "did:key:z6Mkatomexamples01",
+      "pricing": {
+        "model": "paid",
+        "priceCents": 499,
+        "currency": "USD",
+        "purchaseUrl": "https://qwixl.dev/store/offer-comparison-pro"
+      },
+      "categories": [
+        "commerce"
+      ],
       "signatureUrl": "signature.sigstore.json"
     }
   ]

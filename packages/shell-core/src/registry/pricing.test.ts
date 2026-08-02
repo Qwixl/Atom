@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   formatModulePrice,
   modulePriceLabel,
-  MODULE_STORE_BETA_FREE,
   normalizeModulePricing,
   validateModulePricing,
 } from "./pricing.js";
@@ -32,8 +31,7 @@ describe("module pricing", () => {
     ).toThrow(/purchaseUrl/);
   });
 
-  it("shows beta free label for paid modules during beta", () => {
-    expect(MODULE_STORE_BETA_FREE).toBe(true);
+  it("labels paid modules with the list price only", () => {
     expect(
       modulePriceLabel({
         model: "paid",
@@ -41,6 +39,6 @@ describe("module pricing", () => {
         currency: "USD",
         purchaseUrl: "https://store.example.com/x",
       }),
-    ).toContain("free during beta");
+    ).toBe("$9.99");
   });
 });

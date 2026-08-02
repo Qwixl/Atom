@@ -1487,12 +1487,11 @@ export class CommsAgentClient {
   }
 
   async billingStatus(): Promise<{
-    betaFree: boolean;
     platformFeeBps: number;
     stripeConfigured: boolean;
     connectOnboarding?: string;
     alwaysOnBrain?: boolean;
-    alwaysOnBrainTier?: "beta" | "subscribed" | "duty-cycled";
+    alwaysOnBrainTier?: "subscribed" | "duty-cycled";
     alwaysOnBrainPriceCents?: number;
     alwaysOnBrainCurrency?: string;
     alwaysOnBrainInterval?: string;

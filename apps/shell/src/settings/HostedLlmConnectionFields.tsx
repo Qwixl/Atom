@@ -97,7 +97,7 @@ export function HostedLlmConnectionFields({
   return (
     <>
       <label className={fieldClassName}>
-        <span className="atom-field-label">Provider</span>
+        <span className="atom-field-label">AI provider</span>
         <select
           value={value.providerId}
           onChange={(e) => applyProvider(e.target.value as HostedLlmProviderId)}
@@ -126,13 +126,13 @@ export function HostedLlmConnectionFields({
       ) : null}
       {hasSavedKey && !value.apiKey.trim() ? (
         <div className="settings-saved-key">
-          <span className="settings-saved-key-label">API key</span>
-          <span className="settings-saved-key-value">Saved on your agent</span>
+          <span className="settings-saved-key-label">AI key</span>
+          <span className="settings-saved-key-value">Already saved</span>
         </div>
       ) : null}
       <label className={fieldClassName}>
         <FieldLabelWithHint
-          label={hasSavedKey && !value.apiKey.trim() ? "New LLM API key (optional)" : "LLM API key"}
+          label={hasSavedKey && !value.apiKey.trim() ? "New AI key (optional)" : "AI key"}
           hint={<LlmApiKeyHintContent />}
         />
         <input
@@ -141,7 +141,7 @@ export function HostedLlmConnectionFields({
           value={value.apiKey}
           onChange={(e) => onChange({ ...value, apiKey: e.target.value })}
           placeholder={
-            apiKeyOptional || hasSavedKey ? "sk-… (leave blank to keep saved key)" : "sk-…"
+            apiKeyOptional || hasSavedKey ? "Leave blank to keep your saved key" : "Paste your key"
           }
         />
       </label>
@@ -154,10 +154,10 @@ export function HostedLlmConnectionFields({
         canLoadModels={canLoadModels}
         listFailed={listFailed}
         fieldClassName={fieldClassName}
-        label={value.providerId === "openrouter" ? "Model (provider/model id)" : "Model"}
+        label="Model"
         placeholder={
           value.providerId === "openrouter"
-            ? "Search e.g. anthropic/claude…"
+            ? "Search for a model…"
             : "Search or type a model…"
         }
       />
