@@ -1352,7 +1352,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                 />
                 <span>
                   <strong>Business</strong>
-                  <span>For your company — shop, brand, and customers</span>
+                  <span>Agent Commerce — shop, brand, and customers</span>
                 </span>
               </label>
             </div>
