@@ -76,35 +76,19 @@ export function chooserActions(opts: {
   const actions: ChooserAction[] = [];
 
   if (opts.hasSession) {
-    if (opts.mode === "register") {
-      if (unpaid) {
-        actions.push({
-          id: "complete_signup",
-          label: "Complete signup",
-          primary: true,
-        });
-      } else {
-        actions.push({
-          id: "continue_session",
-          label: "Continue setup",
-          primary: true,
-        });
-      }
+    // Already signed in — never say "Complete signup for …" (reads as register again).
+    if (unpaid) {
+      actions.push({
+        id: "complete_signup",
+        label: "Continue as",
+        primary: true,
+      });
     } else {
-      // login
-      if (unpaid) {
-        actions.push({
-          id: "complete_signup",
-          label: "Finish payment",
-          primary: true,
-        });
-      } else {
-        actions.push({
-          id: "continue_session",
-          label: "Continue",
-          primary: true,
-        });
-      }
+      actions.push({
+        id: "continue_session",
+        label: "Continue as",
+        primary: true,
+      });
     }
     actions.push({ id: "different_account", label: "Use a different account" });
     return actions;
@@ -114,12 +98,37 @@ export function chooserActions(opts: {
   if (opts.pendingKind === "register") {
     actions.push({
       id: "resume_pending",
-      label: "Resume signup",
+      label: "Resume signup for",
       primary: true,
     });
   }
   actions.push({ id: "start_over", label: "Start over", primary: actions.length === 0 });
   return actions;
+}
+
+/** Body copy when signed-in email ≠ unfinished local draft. */
+export function chooserConflictCopy(sessionEmail: string, draftEmail: string): string {
+  return (
+    `You’re signed in as ${sessionEmail}. This device also has an unfinished signup draft ` +
+    `for ${draftEmail}. Continuing uses the signed-in account and discards that draft.`
+  );
+}
+
+/** Button caption: session actions use the email after “Continue as”. */
+export function chooserActionButtonLabel(opts: {
+  action: ChooserAction;
+  primaryEmail: string;
+}): string {
+  const email = opts.primaryEmail.trim();
+  if (!email) return opts.action.label;
+  if (
+    opts.action.id === "complete_signup" ||
+    opts.action.id === "continue_session" ||
+    opts.action.id === "resume_pending"
+  ) {
+    return `${opts.action.label} ${email}`;
+  }
+  return opts.action.label;
 }
 
 /** Fail-closed: only clear local signup state after sign-out succeeded. */

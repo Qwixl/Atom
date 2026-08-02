@@ -24,7 +24,9 @@ import {
   type AtomAccountType,
 } from "./hostedAccount.js";
 import {
+  chooserActionButtonLabel,
   chooserActions,
+  chooserConflictCopy,
   emailsEqualIgnoreCase,
   mayClearLocalSignupState,
   resolveChooserIdentity,
@@ -1950,15 +1952,20 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                 {chooserPrimaryEmail || "Your account"}
               </h3>
               {chooserConflictEmail ? (
-                <p className="atom-note">
-                  Signed in as <strong>{chooserPrimaryEmail}</strong>. A different
-                  unfinished signup for <strong>{chooserConflictEmail}</strong> will
-                  be discarded if you continue.
-                </p>
+                <>
+                  <p className="atom-note">
+                    {chooserConflictCopy(chooserPrimaryEmail, chooserConflictEmail)}
+                  </p>
+                  {chooserFinishPayHint ? (
+                    <p className="auth-slide-desc">
+                      You’re signed in — finish payment to open Atom.
+                    </p>
+                  ) : null}
+                </>
               ) : (
                 <p className="auth-slide-desc">
                   {chooserFinishPayHint
-                    ? "Payment isn’t finished for this account."
+                    ? "You’re signed in — finish payment to open Atom."
                     : "You’re already signed in on this device."}
                 </p>
               )}
@@ -1976,14 +1983,10 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                     disabled={chooserBusy}
                     onClick={() => void handleChooserAction(action.id)}
                   >
-                    {action.label}
-                    {action.id === "complete_signup" && chooserPrimaryEmail
-                      ? ` for ${chooserPrimaryEmail}`
-                      : action.id === "continue_session" && chooserPrimaryEmail
-                        ? ` as ${chooserPrimaryEmail}`
-                        : action.id === "resume_pending" && chooserPrimaryEmail
-                          ? ` for ${chooserPrimaryEmail}`
-                          : ""}
+                    {chooserActionButtonLabel({
+                      action,
+                      primaryEmail: chooserPrimaryEmail,
+                    })}
                   </button>
                 ))}
               </div>
