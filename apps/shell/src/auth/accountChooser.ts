@@ -1,15 +1,16 @@
 import type { AuthWizardMode } from "./authSteps.js";
 
 export type ChooserActionId =
-  | "complete_signup"
-  | "continue_session"
-  | "resume_pending"
-  | "different_account"
-  | "start_over";
+  | "login_with_session"
+  | "continue_registration"
+  | "remove_registration"
+  | "create_new_account";
 
 export type ChooserAction = {
   id: ChooserActionId;
   label: string;
+  /** Email shown on the button when set. */
+  email?: string;
   primary?: boolean;
 };
 
@@ -24,13 +25,39 @@ export function shouldBypassChooser(opts: {
   return false;
 }
 
-export function shouldShowChooser(opts: {
+/**
+ * Register-only interstitial (SIGNUP-CHOOSER-02).
+ * Login must never show this — mode must be register.
+ */
+export function shouldShowRegisterChooser(opts: {
+  mode: AuthWizardMode;
   bypass: boolean;
   hasSession: boolean;
   hasPending: boolean;
+  chooserResolved: boolean;
 }): boolean {
-  if (opts.bypass) return false;
+  if (opts.mode !== "register") return false;
+  if (opts.bypass || opts.chooserResolved) return false;
   return opts.hasSession || opts.hasPending;
+}
+
+/** Render gate: stale register mount must not paint chooser on Login. */
+export function shouldRenderRegisterChooser(opts: {
+  mode: AuthWizardMode;
+  chooserPhase: "pending" | "show" | "done";
+}): boolean {
+  return opts.mode === "register" && opts.chooserPhase === "show";
+}
+
+/**
+ * login_with_session may clear a conflicting pending draft only after a live
+ * session email is confirmed (diff F-2).
+ */
+export function mayDiscardPendingAfterLoginWithSession(opts: {
+  hasLiveSession: boolean;
+  sessionEmail: string | null | undefined;
+}): boolean {
+  return opts.hasLiveSession && Boolean((opts.sessionEmail ?? "").trim());
 }
 
 export function emailsEqualIgnoreCase(a: string | null | undefined, b: string | null | undefined): boolean {
@@ -40,95 +67,114 @@ export function emailsEqualIgnoreCase(a: string | null | undefined, b: string | 
   return left === right;
 }
 
-/** Session email wins; flag conflict when pending differs. */
-export function resolveChooserIdentity(opts: {
+export function resolveRegisterChooserIdentity(opts: {
   sessionEmail: string | null;
   pendingEmail: string | null;
 }): {
-  primaryEmail: string;
-  conflictEmail: string | null;
+  sessionEmail: string | null;
+  pendingEmail: string | null;
   emailsMatch: boolean;
 } {
-  const session = (opts.sessionEmail ?? "").trim();
-  const pending = (opts.pendingEmail ?? "").trim();
-  if (session && pending && !emailsEqualIgnoreCase(session, pending)) {
-    return {
-      primaryEmail: session,
-      conflictEmail: pending,
-      emailsMatch: false,
-    };
-  }
-  const primary = session || pending || "";
-  return { primaryEmail: primary, conflictEmail: null, emailsMatch: true };
+  const session = (opts.sessionEmail ?? "").trim() || null;
+  const pending = (opts.pendingEmail ?? "").trim() || null;
+  // emailsMatch is true only when both sides are present and equal; otherwise false (not N/A).
+  return {
+    sessionEmail: session,
+    pendingEmail: pending,
+    emailsMatch: Boolean(session && pending && emailsEqualIgnoreCase(session, pending)),
+  };
 }
 
 /**
- * Visible chooser actions from mode × session × pending × provisionable.
- * provisionable null = unknown (treat unpaid-safe for complete/continue labels).
+ * Register interstitial actions — never used for login mode.
  */
-export function chooserActions(opts: {
-  mode: AuthWizardMode;
+export function registerChooserActions(opts: {
   hasSession: boolean;
+  sessionEmail: string | null;
   pendingKind: "register" | "login" | null;
-  provisionable: boolean | null;
+  pendingEmail: string | null;
 }): ChooserAction[] {
-  const unpaid = opts.provisionable !== true;
   const actions: ChooserAction[] = [];
+  const session = (opts.sessionEmail ?? "").trim() || null;
+  const pendingEmail = (opts.pendingEmail ?? "").trim() || null;
+  const sameEmail =
+    Boolean(session && pendingEmail && emailsEqualIgnoreCase(session, pendingEmail));
 
-  if (opts.hasSession) {
-    // Already signed in — never say "Complete signup for …" (reads as register again).
-    if (unpaid) {
-      actions.push({
-        id: "complete_signup",
-        label: "Continue as",
-        primary: true,
-      });
-    } else {
-      actions.push({
-        id: "continue_session",
-        label: "Continue as",
-        primary: true,
-      });
-    }
-    actions.push({ id: "different_account", label: "Use a different account" });
-    return actions;
-  }
-
-  // Pending only — no session
-  if (opts.pendingKind === "register") {
+  if (opts.hasSession && session) {
     actions.push({
-      id: "resume_pending",
-      label: "Resume signup for",
+      id: "login_with_session",
+      label: "Log in with this account",
+      email: session,
       primary: true,
     });
   }
-  actions.push({ id: "start_over", label: "Start over", primary: actions.length === 0 });
+
+  // Continue registration only for register-kind pending; omit when same email as session
+  // (Log in with this account already covers finishing that identity).
+  if (opts.pendingKind === "register" && pendingEmail && !sameEmail) {
+    actions.push({
+      id: "continue_registration",
+      label: "Continue this registration",
+      email: pendingEmail,
+      primary: !opts.hasSession,
+    });
+  }
+
+  if (opts.pendingKind === "register" || opts.pendingKind === "login") {
+    if (pendingEmail || opts.pendingKind) {
+      actions.push({
+        id: "remove_registration",
+        label: pendingEmail
+          ? `Remove this registration`
+          : "Remove this registration",
+        email: pendingEmail ?? undefined,
+      });
+    }
+  }
+
+  actions.push({
+    id: "create_new_account",
+    label: "Create a new account",
+    primary: actions.length === 0,
+  });
+
   return actions;
 }
 
-/** Body copy when signed-in email ≠ unfinished local draft. */
-export function chooserConflictCopy(sessionEmail: string, draftEmail: string): string {
-  return (
-    `You’re signed in as ${sessionEmail}. This device also has an unfinished signup draft ` +
-    `for ${draftEmail}. Continuing uses the signed-in account and discards that draft.`
-  );
-}
-
-/** Button caption: session actions use the email after “Continue as”. */
 export function chooserActionButtonLabel(opts: {
   action: ChooserAction;
-  primaryEmail: string;
 }): string {
-  const email = opts.primaryEmail.trim();
+  const email = opts.action.email?.trim();
   if (!email) return opts.action.label;
-  if (
-    opts.action.id === "complete_signup" ||
-    opts.action.id === "continue_session" ||
-    opts.action.id === "resume_pending"
-  ) {
-    return `${opts.action.label} ${email}`;
+  if (opts.action.id === "login_with_session") {
+    return `${opts.action.label} (${email})`;
+  }
+  if (opts.action.id === "continue_registration" || opts.action.id === "remove_registration") {
+    return `${opts.action.label} (${email})`;
   }
   return opts.action.label;
+}
+
+export function registerChooserBody(opts: {
+  sessionEmail: string | null;
+  pendingEmail: string | null;
+  emailsMatch: boolean;
+}): string {
+  const session = opts.sessionEmail?.trim() || null;
+  const pending = opts.pendingEmail?.trim() || null;
+  if (session && pending && !opts.emailsMatch) {
+    return (
+      `You’re currently logged in as ${session}. There’s also an unfinished registration ` +
+      `for ${pending} on this device. Choose what to do next.`
+    );
+  }
+  if (session) {
+    return `You’re currently logged in as ${session}. Log in with this account, or create a new one.`;
+  }
+  if (pending) {
+    return `There’s an unfinished registration for ${pending} on this device.`;
+  }
+  return "Choose how to continue.";
 }
 
 /** Fail-closed: only clear local signup state after sign-out succeeded. */
