@@ -13,26 +13,24 @@ describe("AccountTypeSelection", () => {
     expect(selection.wantsBusinessWorkspace()).toBe(false);
   });
 
-  it("allows personal + business", () => {
-    const selection = AccountTypeSelection.fromFlags({
-      personal: true,
-      developer: false,
-      business: true,
-    });
-    expect(selection.primaryAccountType()).toBe("user");
-    expect(selection.toAccountTypes()).toEqual(["user", "business"]);
-    expect(selection.wantsBusinessWorkspace()).toBe(true);
+  it("rejects personal + business", () => {
+    expect(() =>
+      AccountTypeSelection.fromFlags({
+        personal: true,
+        developer: false,
+        business: true,
+      }),
+    ).toThrow(/one account type at a time/);
   });
 
-  it("allows developer + business", () => {
-    const selection = AccountTypeSelection.fromFlags({
-      personal: false,
-      developer: true,
-      business: true,
-    });
-    expect(selection.primaryAccountType()).toBe("developer");
-    expect(selection.toAccountTypes()).toEqual(["developer", "business"]);
-    expect(selection.wantsDeveloperWorkspace()).toBe(true);
+  it("rejects developer + business", () => {
+    expect(() =>
+      AccountTypeSelection.fromFlags({
+        personal: false,
+        developer: true,
+        business: true,
+      }),
+    ).toThrow(/one account type at a time/);
   });
 
   it("allows business only", () => {
@@ -52,7 +50,7 @@ describe("AccountTypeSelection", () => {
         developer: true,
         business: false,
       }),
-    ).toThrow(/Personal or Developer/);
+    ).toThrow(/one account type at a time/);
   });
 
   it("rejects empty selection", () => {
@@ -62,13 +60,13 @@ describe("AccountTypeSelection", () => {
         developer: false,
         business: false,
       }),
-    ).toThrow(/at least one/);
+    ).toThrow(/Select one/);
   });
 
   it("round-trips via fromAccountTypes", () => {
-    const selection = AccountTypeSelection.fromAccountTypes(["developer", "business"]);
+    const selection = AccountTypeSelection.fromAccountTypes(["developer"]);
     expect(selection.persona).toBe("developer");
-    expect(selection.business).toBe(true);
-    expect(selection.toAccountTypes()).toEqual(["developer", "business"]);
+    expect(selection.business).toBe(false);
+    expect(selection.toAccountTypes()).toEqual(["developer"]);
   });
 });

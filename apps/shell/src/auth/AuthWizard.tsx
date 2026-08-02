@@ -19,6 +19,11 @@ import {
 } from "./hostedAccount.js";
 import { saveAccountType } from "../accountType.js";
 import { AccountTypeSelection } from "./accountTypeSelection.js";
+import {
+  assertBusinessHosting,
+  businessHostingDefaults,
+  isBusinessAccountType,
+} from "./businessHostingPolicy.js";
 import { completeAgentSetup } from "./completeSetup.js";
 import { loadFirstRunDone } from "../firstRunStorage.js";
 import { AuthStepper } from "./AuthStepper.js";
@@ -106,9 +111,7 @@ type ProvisionTask = {
 
 function applyPendingAccountTypes(
   pending: { accountTypes?: AtomAccountType[]; accountType?: AtomAccountType },
-  setPersonal: (v: boolean) => void,
-  setDeveloper: (v: boolean) => void,
-  setBusiness: (v: boolean) => void,
+  setAccountKind: (v: AtomAccountType) => void,
 ): void {
   try {
     const selection =
@@ -118,11 +121,13 @@ function applyPendingAccountTypes(
           ? AccountTypeSelection.fromAccountTypes([pending.accountType])
           : null;
     if (!selection) return;
-    setPersonal(selection.persona === "user");
-    setDeveloper(selection.persona === "developer");
-    setBusiness(selection.business);
+    setAccountKind(selection.primaryAccountType());
   } catch {
-    /* keep defaults */
+    /* Stale multi-type pending from pre-SIGNUP-UX-01 — drop to single primary if possible. */
+    const first = pending.accountTypes?.[0] ?? pending.accountType;
+    if (first === "user" || first === "developer" || first === "business") {
+      setAccountKind(first);
+    }
   }
 }
 
@@ -163,11 +168,32 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
     hostingTypeForLane(initialLane ?? (isHostedSignupAvailable() ? "standard" : "self_hosted")),
   );
   const [loginNeedsConfirm, setLoginNeedsConfirm] = useState(false);
-  const [personal, setPersonal] = useState(true);
-  const [developer, setDeveloper] = useState(false);
-  const [business, setBusiness] = useState(false);
+  const [accountKind, setAccountKind] = useState<AtomAccountType>("user");
 
   const [remoteCatalog, setRemoteCatalog] = useState<RemotePlanCatalog | null>(null);
+
+  function applyBusinessHostingLock() {
+    const d = businessHostingDefaults();
+    setBillingLane(d.billingLane);
+    setReadinessSkuId(d.readinessSkuId);
+    setHosting(d.hosting);
+  }
+
+  function chooseAccountKind(kind: AtomAccountType) {
+    setAccountKind(kind);
+    if (isBusinessAccountType(kind)) {
+      const d = businessHostingDefaults();
+      setBillingLane(d.billingLane);
+      setReadinessSkuId(d.readinessSkuId);
+      setHosting(d.hosting);
+    }
+  }
+
+  useEffect(() => {
+    if (isBusinessAccountType(accountKind)) {
+      applyBusinessHostingLock();
+    }
+  }, [accountKind]);
 
   useEffect(() => {
     if (mode !== "register") return;
@@ -199,7 +225,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
   }, [embedded, onClose]);
 
   function currentAccountSelection(): AccountTypeSelection {
-    return AccountTypeSelection.fromFlags({ personal, developer, business });
+    return AccountTypeSelection.fromAccountTypes([accountKind]);
   }
 
   function navigateAfterAuthSuccess() {
@@ -220,28 +246,16 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
     window.location.replace("/app/");
   }
 
-  function togglePersonal(checked: boolean) {
-    if (checked) {
-      setPersonal(true);
-      setDeveloper(false);
-    } else {
-      setPersonal(false);
-    }
-  }
-
-  function toggleDeveloper(checked: boolean) {
-    if (checked) {
-      setDeveloper(true);
-      setPersonal(false);
-    } else {
-      setDeveloper(false);
-    }
-  }
-
   function selectBillingLane(lane: BillingLane) {
+    if (isBusinessAccountType(accountKind) && lane !== "standard") {
+      applyBusinessHostingLock();
+      return;
+    }
     setBillingLane(lane);
     setHosting(hostingTypeForLane(lane));
-    setReadinessSkuId("on_when_needed");
+    setReadinessSkuId(
+      isBusinessAccountType(accountKind) ? businessHostingDefaults().readinessSkuId : "on_when_needed",
+    );
     setTopUpPence(0);
   }
 
@@ -273,8 +287,12 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
     () =>
       loginNeedsConfirm && mode === "login"
         ? (["credentials", "confirm-email", "provisioning"] as AuthStepId[])
-        : authSteps(mode, { supabaseHostedRegister, supabaseHostedLogin }),
-    [mode, supabaseHostedRegister, supabaseHostedLogin, loginNeedsConfirm],
+        : authSteps(mode, {
+            supabaseHostedRegister,
+            supabaseHostedLogin,
+            skipHosting: isBusinessAccountType(accountKind),
+          }),
+    [mode, supabaseHostedRegister, supabaseHostedLogin, loginNeedsConfirm, accountKind],
   );
 
   const [step, setStep] = useState<AuthStepId>(() => steps[0] ?? "credentials");
@@ -378,7 +396,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       const restorePending = (p: NonNullable<typeof pending>) => {
         setEmail(p.email);
         if (p.handle) setHandle(p.handle);
-        applyPendingAccountTypes(p, setPersonal, setDeveloper, setBusiness);
+        applyPendingAccountTypes(p, setAccountKind);
         applyPendingPlanFields(p, {
           setBillingLane,
           setReadinessSkuId,
@@ -404,8 +422,16 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       if (billing === "plan-cancel" && mode === "register") {
         if (pending) restorePending(pending);
         setHosting("hosted");
-        goTo("hosting");
-        setError("Payment was cancelled. Your plan was not charged — pick a plan and continue when ready.");
+        const pendingType =
+          pending?.accountType ??
+          (pending?.accountTypes?.[0] as AtomAccountType | undefined) ??
+          accountKind;
+        goTo(isBusinessAccountType(pendingType) ? "credentials" : "hosting");
+        setError(
+          isBusinessAccountType(pendingType)
+            ? "Payment was cancelled. Your plan was not charged — continue when ready."
+            : "Payment was cancelled. Your plan was not charged — pick a plan and continue when ready.",
+        );
         return;
       }
 
@@ -632,15 +658,23 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
     setProvisionTasks(initProvisionTasks());
 
     const pending = loadPendingHostedAuth();
-    const planLane: "standard" | "byok" =
-      pending?.billingLane === "byok"
+    const pendingAccountType =
+      pending?.accountType ??
+      (pending?.accountTypes?.[0] as AtomAccountType | undefined) ??
+      accountKind;
+    const businessLocked = isBusinessAccountType(pendingAccountType);
+    const planLane: "standard" | "byok" = businessLocked
+      ? "standard"
+      : pending?.billingLane === "byok"
         ? "byok"
         : pending?.billingLane === "standard"
           ? "standard"
           : billingLane === "byok"
             ? "byok"
             : "standard";
-    const planReadinessSkuId = pending?.readinessSkuId ?? readinessSkuId;
+    const planReadinessSkuId = businessLocked
+      ? businessHostingDefaults().readinessSkuId
+      : (pending?.readinessSkuId ?? readinessSkuId);
     const planModelTierId = pending?.modelTierId ?? modelTierId;
     const planTopUpPence = pending?.topUpPence ?? topUpPence;
 
@@ -836,6 +870,28 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       }
       setBusy(true);
       setError(null);
+      const hostingErr = assertBusinessHosting({
+        accountType: selection.primaryAccountType(),
+        billingLane,
+        readinessSkuId,
+      });
+      if (hostingErr) {
+        setError(hostingErr);
+        applyBusinessHostingLock();
+        setBusy(false);
+        return;
+      }
+      const locked = isBusinessAccountType(selection.primaryAccountType());
+      const pendingLane = locked
+        ? "standard"
+        : billingLane === "byok"
+          ? "byok"
+          : billingLane === "standard"
+            ? "standard"
+            : "self_hosted";
+      const pendingReadiness = locked
+        ? businessHostingDefaults().readinessSkuId
+        : readinessSkuId;
       savePendingHostedAuth({
         kind: "register",
         email: email.trim(),
@@ -846,9 +902,9 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         llmProvider: llmConnection.providerId,
         llmBaseUrl: llmConnection.baseUrl,
         llmModel: llmConnection.model,
-        billingLane: billingLane === "byok" ? "byok" : billingLane === "standard" ? "standard" : "self_hosted",
-        readinessSkuId,
-        modelTierId: billingLane === "standard" ? modelTierId : undefined,
+        billingLane: pendingLane,
+        readinessSkuId: pendingReadiness,
+        modelTierId: pendingLane === "standard" ? modelTierId : undefined,
         topUpPence,
       });
       try {
@@ -1025,6 +1081,17 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         }
       }
     }
+    if (mode === "register") {
+      const hostingErr = assertBusinessHosting({
+        accountType: accountKind,
+        billingLane,
+        readinessSkuId,
+      });
+      if (hostingErr) {
+        setError(hostingErr);
+        return false;
+      }
+    }
     if (mode === "register" && hosting === "hosted" && !isHostedSignupAvailable()) {
       setError(
         "Hosted signup is unavailable. Choose Self hosted, or add Supabase keys to .env.local and run pnpm dev:hosting.",
@@ -1090,6 +1157,9 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         setError(err instanceof Error ? err.message : String(err));
         return;
       }
+      if (isBusinessAccountType(accountKind)) {
+        applyBusinessHostingLock();
+      }
       goNext();
       return;
     }
@@ -1128,43 +1198,43 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
           <>
             <h3 className="auth-slide-title">What kind of account?</h3>
             <p className="auth-slide-desc">
-              Personal or Developer (pick one). Add Business if you also want a brand agent.
+              Pick one. You can add another account type later.
             </p>
             <div className="auth-radio-stack">
-              <label className={`atom-radio-card${personal ? " is-selected" : ""}`}>
+              <label className={`atom-radio-card${accountKind === "user" ? " is-selected" : ""}`}>
                 <input
-                  type="checkbox"
-                  name="accountPersona"
-                  checked={personal}
-                  onChange={(e) => togglePersonal(e.target.checked)}
+                  type="radio"
+                  name="accountKind"
+                  checked={accountKind === "user"}
+                  onChange={() => chooseAccountKind("user")}
                 />
                 <span>
                   <strong>Personal</strong>
                   <span>Everyday use — chat, messages, rooms, and connectors (including MCP tools)</span>
                 </span>
               </label>
-              <label className={`atom-radio-card${developer ? " is-selected" : ""}`}>
+              <label className={`atom-radio-card${accountKind === "developer" ? " is-selected" : ""}`}>
                 <input
-                  type="checkbox"
-                  name="accountPersona"
-                  checked={developer}
-                  onChange={(e) => toggleDeveloper(e.target.checked)}
+                  type="radio"
+                  name="accountKind"
+                  checked={accountKind === "developer"}
+                  onChange={() => chooseAccountKind("developer")}
                 />
                 <span>
                   <strong>Developer</strong>
                   <span>Build modules, connectors, and MCP tool servers</span>
                 </span>
               </label>
-              <label className={`atom-radio-card${business ? " is-selected" : ""}`}>
+              <label className={`atom-radio-card${accountKind === "business" ? " is-selected" : ""}`}>
                 <input
-                  type="checkbox"
-                  name="accountBusiness"
-                  checked={business}
-                  onChange={(e) => setBusiness(e.target.checked)}
+                  type="radio"
+                  name="accountKind"
+                  checked={accountKind === "business"}
+                  onChange={() => chooseAccountKind("business")}
                 />
                 <span>
                   <strong>Business</strong>
-                  <span>Optional — brand, catalog, and business agent</span>
+                  <span>Brand, catalog, and business agent — Atom-hosted Standard (Always-On)</span>
                 </span>
               </label>
             </div>
@@ -1175,8 +1245,9 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
           <>
             <h3 className="auth-slide-title">Choose your plan</h3>
             <p className="auth-slide-desc">
-              Standard includes Atom Credits. BYOK is hosting only with your LLM key. Self-hosted is
-              free — optional top-ups for Agent Spend.
+              {isBusinessAccountType(accountKind)
+                ? "Atom Business is Atom-hosted Standard only — Always-On. BYOK and self-host are not available."
+                : "Standard includes Atom Credits. BYOK is hosting only with your LLM key. Self-hosted is free — optional top-ups for Agent Spend."}
             </p>
             <div className="auth-radio-stack">
               <label className={`atom-radio-card${billingLane === "standard" ? " is-selected" : ""}`}>
@@ -1195,43 +1266,52 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                   </span>
                 </span>
               </label>
-              <label className={`atom-radio-card${billingLane === "byok" ? " is-selected" : ""}`}>
-                <input
-                  type="radio"
-                  name="billingLane"
-                  checked={billingLane === "byok"}
-                  onChange={() => selectBillingLane("byok")}
-                  disabled={!isHostedSignupAvailable()}
-                />
-                <span>
-                  <strong>BYOK</strong>
-                  <span>
-                    {remoteCatalog?.lanes.byok.displayFrom ?? "Hosted"} — you bring your LLM key;
-                    top-ups for speech &amp; Agent Spend
-                  </span>
-                </span>
-              </label>
-              <label
-                className={`atom-radio-card${billingLane === "self_hosted" ? " is-selected" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="billingLane"
-                  checked={billingLane === "self_hosted"}
-                  onChange={() => selectBillingLane("self_hosted")}
-                />
-                <span>
-                  <strong>Self-hosted</strong>
-                  <span>Free — run your own agent; optional top-ups for Agent Spend with Atom</span>
-                </span>
-              </label>
+              {!isBusinessAccountType(accountKind) ? (
+                <>
+                  <label className={`atom-radio-card${billingLane === "byok" ? " is-selected" : ""}`}>
+                    <input
+                      type="radio"
+                      name="billingLane"
+                      checked={billingLane === "byok"}
+                      onChange={() => selectBillingLane("byok")}
+                      disabled={!isHostedSignupAvailable()}
+                    />
+                    <span>
+                      <strong>BYOK</strong>
+                      <span>
+                        {remoteCatalog?.lanes.byok.displayFrom ?? "Hosted"} — you bring your LLM key;
+                        top-ups for speech &amp; Agent Spend
+                      </span>
+                    </span>
+                  </label>
+                  <label
+                    className={`atom-radio-card${billingLane === "self_hosted" ? " is-selected" : ""}`}
+                  >
+                    <input
+                      type="radio"
+                      name="billingLane"
+                      checked={billingLane === "self_hosted"}
+                      onChange={() => selectBillingLane("self_hosted")}
+                    />
+                    <span>
+                      <strong>Self-hosted</strong>
+                      <span>Free — run your own agent; optional top-ups for Agent Spend with Atom</span>
+                    </span>
+                  </label>
+                </>
+              ) : null}
             </div>
 
             {billingLane === "standard" || billingLane === "byok" ? (
               <>
                 <h4 className="auth-slide-subtitle">Readiness</h4>
                 <div className="auth-radio-stack">
-                  {(billingLane === "standard" ? standardReadiness : byokReadiness).map((sku) => (
+                  {(isBusinessAccountType(accountKind)
+                    ? standardReadiness.filter((sku) => sku.id === "open_for_business")
+                    : billingLane === "standard"
+                      ? standardReadiness
+                      : byokReadiness
+                  ).map((sku) => (
                     <label
                       key={sku.id}
                       className={`atom-radio-card${readinessSkuId === sku.id ? " is-selected" : ""}`}
@@ -1240,7 +1320,13 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                         type="radio"
                         name="readiness"
                         checked={readinessSkuId === sku.id}
-                        onChange={() => setReadinessSkuId(sku.id)}
+                        onChange={() =>
+                          setReadinessSkuId(
+                            isBusinessAccountType(accountKind)
+                              ? businessHostingDefaults().readinessSkuId
+                              : sku.id,
+                          )
+                        }
                       />
                       <span>
                         <strong>

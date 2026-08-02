@@ -192,7 +192,7 @@ export interface BootstrapHostedAccountInput {
   handle: string;
   /** Primary account type (profiles.account_type) — back-compat. */
   accountType: AtomAccountType;
-  /** Full selection list when Personal/Developer + optional Business. */
+  /** Exactly one account type at signup (Personal, Developer, or Business). */
   accountTypes?: AtomAccountType[];
   llmApiKey: string;
   llmProvider?: string;
