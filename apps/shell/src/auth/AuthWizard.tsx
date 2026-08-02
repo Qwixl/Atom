@@ -25,13 +25,15 @@ import {
 } from "./hostedAccount.js";
 import {
   chooserActionButtonLabel,
-  chooserActions,
-  chooserConflictCopy,
   emailsEqualIgnoreCase,
   mayClearLocalSignupState,
-  resolveChooserIdentity,
+  mayDiscardPendingAfterLoginWithSession,
+  registerChooserActions,
+  registerChooserBody,
+  resolveRegisterChooserIdentity,
   shouldBypassChooser,
-  shouldShowChooser,
+  shouldRenderRegisterChooser,
+  shouldShowRegisterChooser,
   type ChooserAction,
 } from "./accountChooser.js";
 import { saveAccountType } from "../accountType.js";
@@ -355,12 +357,14 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
   const [emailConfirmedThanks, setEmailConfirmedThanks] = useState(false);
   const [resendNote, setResendNote] = useState<string | null>(null);
   const confirmHandledRef = useRef(false);
-  /** pending = mounting; show = Continue as overlay; done = normal wizard */
+  /** Prevents register interstitial re-fire after Remove/Create this mount. */
+  const chooserResolvedRef = useRef(false);
+  /** pending = mounting; show = register interstitial; done = normal wizard */
   const [chooserPhase, setChooserPhase] = useState<"pending" | "show" | "done">("pending");
-  const [chooserPrimaryEmail, setChooserPrimaryEmail] = useState("");
-  const [chooserConflictEmail, setChooserConflictEmail] = useState<string | null>(null);
+  const [chooserSessionEmail, setChooserSessionEmail] = useState<string | null>(null);
+  const [chooserPendingEmail, setChooserPendingEmail] = useState<string | null>(null);
+  const [chooserEmailsMatch, setChooserEmailsMatch] = useState(true);
   const [chooserActionList, setChooserActionList] = useState<ChooserAction[]>([]);
-  const [chooserFinishPayHint, setChooserFinishPayHint] = useState(false);
   const [chooserBusy, setChooserBusy] = useState(false);
 
   const labels = useMemo(
@@ -429,6 +433,11 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       return;
     }
 
+    let cancelled = false;
+    // Reset resolution when switching Login ↔ Register.
+    chooserResolvedRef.current = false;
+    setChooserPhase("pending");
+
     void (async () => {
       const params = new URLSearchParams(window.location.search);
       const resumeSetup = params.get("resume") === "1";
@@ -437,6 +446,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       const isReload = nav?.type === "reload";
       const reloadMidSetup = isReload && isSignupAtProvision();
       const hasSession = await hasSupabaseSession();
+      if (cancelled) return;
       const pending = loadPendingHostedAuth();
 
       const restorePending = (p: NonNullable<typeof pending>) => {
@@ -510,50 +520,48 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         reloadMidSetup,
       });
 
+      // SIGNUP-CHOOSER-02: register-only interstitial. Login never shows it.
       if (
-        shouldShowChooser({
+        shouldShowRegisterChooser({
+          mode,
           bypass,
           hasSession,
           hasPending: Boolean(pending),
+          chooserResolved: chooserResolvedRef.current,
         })
       ) {
+        if (cancelled || mode !== "register") return;
         const sessionEmail = hasSession ? await fetchSupabaseSessionEmail() : null;
-        const identity = resolveChooserIdentity({
+        if (cancelled || mode !== "register") return;
+        const identity = resolveRegisterChooserIdentity({
           sessionEmail,
           pendingEmail: pending?.email ?? null,
         });
-        let provisionable: boolean | null = null;
-        let provisionCheckFailed = false;
-        if (hasSession) {
-          try {
-            provisionable = await isHostedSubscriptionProvisionable();
-          } catch {
-            provisionable = null;
-            provisionCheckFailed = true;
-          }
-        }
-        setChooserPrimaryEmail(identity.primaryEmail);
-        setChooserConflictEmail(identity.conflictEmail);
-        // RC-9: omit payment hint when CP check errored (advisory only).
-        setChooserFinishPayHint(
-          hasSession && !provisionCheckFailed && provisionable !== true,
-        );
+        setChooserSessionEmail(identity.sessionEmail);
+        setChooserPendingEmail(identity.pendingEmail);
+        setChooserEmailsMatch(identity.emailsMatch);
         setChooserActionList(
-          chooserActions({
-            mode,
+          registerChooserActions({
             hasSession,
+            sessionEmail: identity.sessionEmail,
             pendingKind: pending?.kind ?? null,
-            provisionable,
+            pendingEmail: identity.pendingEmail,
           }),
         );
+        // Final cancel/mode check — stale register async must not paint after Login switch.
+        if (cancelled || mode !== "register") return;
         setChooserPhase("show");
         return;
       }
 
+      if (cancelled) return;
       setChooserPhase("done");
 
       if (!resumeSetup && !reloadMidSetup) {
-        if (!hasSession) {
+        if (!hasSession && mode === "login") {
+          // Login: do not clear register pending just because login opened without session.
+          confirmHandledRef.current = false;
+        } else if (!hasSession && mode === "register" && !pending) {
           clearPendingHostedAuth();
           clearSignupAtProvision();
           confirmHandledRef.current = false;
@@ -596,6 +604,10 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         goTo("confirm-email");
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
@@ -697,10 +709,9 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
     return pending;
   }
 
-  async function discardConflictingPending(): Promise<void> {
+  async function discardConflictingPendingForSession(sessionEmail: string): Promise<void> {
     const pending = loadPendingHostedAuth();
-    const sessionEmail = await fetchSupabaseSessionEmail();
-    if (!pending || !sessionEmail) return;
+    if (!pending?.email) return;
     if (!emailsEqualIgnoreCase(pending.email, sessionEmail)) {
       clearPendingHostedAuth();
     }
@@ -710,7 +721,16 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
     setChooserBusy(true);
     setError(null);
     try {
-      if (actionId === "different_account" || actionId === "start_over") {
+      if (actionId === "remove_registration") {
+        clearPendingHostedAuth();
+        clearSignupAtProvision();
+        chooserResolvedRef.current = true;
+        setChooserPhase("done");
+        goTo("account-type");
+        return;
+      }
+
+      if (actionId === "create_new_account") {
         let signOutSucceeded = true;
         if (await hasSupabaseSession()) {
           try {
@@ -738,44 +758,82 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         setEmail("");
         setPassword("");
         setConfirmPassword("");
-        setHandle(mode === "login" ? (loadOwnerHandle() ?? "") : "");
+        setHandle("");
+        chooserResolvedRef.current = true;
         setChooserPhase("done");
-        goTo(mode === "login" ? "credentials" : "account-type");
+        goTo("account-type");
         return;
       }
 
-      if (actionId === "resume_pending") {
+      if (actionId === "continue_registration") {
+        const pending = loadPendingHostedAuth();
+        const pendingEmail = pending?.email?.trim() ?? "";
+        const sessionEmail = (await fetchSupabaseSessionEmail()) ?? "";
+        if (
+          sessionEmail &&
+          pendingEmail &&
+          !emailsEqualIgnoreCase(sessionEmail, pendingEmail)
+        ) {
+          try {
+            await signOutSupabase();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+            return;
+          }
+          if (await hasSupabaseSession()) {
+            setError("Could not sign out of the current account. Try again.");
+            return;
+          }
+        }
         applyPendingFromStorage();
+        chooserResolvedRef.current = true;
         setChooserPhase("done");
-        goTo(mode === "login" ? "credentials" : "credentials");
-        return;
-      }
-
-      if (actionId === "complete_signup" || actionId === "continue_session") {
-        await discardConflictingPending();
-        const pending = applyPendingFromStorage();
-        setChooserPhase("done");
-
-        if (mode === "login" && actionId === "complete_signup") {
-          // Unpaid login → register Pay recovery (GATE-01).
-          window.location.replace("/app/?auth=register");
-          return;
-        }
-
-        if (!(await hasSupabaseSession())) {
-          goTo("credentials");
-          return;
-        }
-
-        if (pending?.billingLane === "self_hosted") {
+        const pendingAfter = loadPendingHostedAuth();
+        if (pendingAfter?.billingLane === "self_hosted") {
           setHosting("self-hosted");
-          if (!loadFirstRunDone()) {
+          if (await hasSupabaseSession()) {
             goTo("provisioning");
-            void resumeHostedSupabaseSetup();
+            void runHostedSupabaseProvisioning();
+          } else {
+            goTo("credentials");
           }
           return;
         }
+        if (await hasSupabaseSession()) {
+          if (!(await isSupabaseEmailConfirmed())) {
+            goTo("confirm-email");
+            return;
+          }
+          if (await isHostedSubscriptionProvisionable()) {
+            goTo("provisioning");
+            void runHostedSupabaseProvisioning();
+            return;
+          }
+          goTo("pay");
+          return;
+        }
+        goTo("credentials");
+        return;
+      }
 
+      if (actionId === "login_with_session") {
+        // Confirm live session before discarding any conflicting pending draft.
+        const hasLiveSession = await hasSupabaseSession();
+        const sessionEmail = hasLiveSession
+          ? ((await fetchSupabaseSessionEmail()) ?? "")
+          : "";
+        if (
+          !mayDiscardPendingAfterLoginWithSession({
+            hasLiveSession,
+            sessionEmail,
+          })
+        ) {
+          setError("Session expired. Create a new account or try Log in.");
+          return;
+        }
+        await discardConflictingPendingForSession(sessionEmail);
+        chooserResolvedRef.current = true;
+        setChooserPhase("done");
         setHosting("hosted");
 
         if (!(await isSupabaseEmailConfirmed())) {
@@ -786,11 +844,9 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         if (await isHostedSubscriptionProvisionable()) {
           if (!loadFirstRunDone()) {
             goTo("provisioning");
-            if (pending?.kind === "login" || mode === "login") {
-              void finishHostedSupabaseLogin();
-            } else {
-              void resumeHostedSupabaseSetup();
-            }
+            void finishHostedSupabaseLogin();
+          } else {
+            navigateAfterAuthSuccess();
           }
           return;
         }
@@ -1538,9 +1594,15 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
     }
   }
 
+  // Stale register mount must never paint the interstitial on Login (diff F-1).
+  const showRegisterChooser = shouldRenderRegisterChooser({ mode, chooserPhase });
+  const showWizardBody =
+    chooserPhase === "done" || (chooserPhase === "show" && mode !== "register");
+  const showChooserPending = chooserPhase === "pending" && !showWizardBody;
+
   const title =
-    chooserPhase === "show"
-      ? "Continue as…"
+    showRegisterChooser
+      ? "Create account"
       : mode === "login"
         ? "Log in"
         : registerWizardTitle({ step, needsPay: hostedRegisterNeedsPay() });
@@ -1942,33 +2004,20 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         </div>
 
         <div className="auth-modal-body">
-          {chooserPhase === "pending" ? (
+          {showChooserPending ? (
             <p className="auth-slide-desc">Checking signed-in account…</p>
           ) : null}
 
-          {chooserPhase === "show" ? (
+          {showRegisterChooser ? (
             <div className="auth-chooser">
-              <h3 className="auth-slide-title">
-                {chooserPrimaryEmail || "Your account"}
-              </h3>
-              {chooserConflictEmail ? (
-                <>
-                  <p className="atom-note">
-                    {chooserConflictCopy(chooserPrimaryEmail, chooserConflictEmail)}
-                  </p>
-                  {chooserFinishPayHint ? (
-                    <p className="auth-slide-desc">
-                      You’re signed in — finish payment to open Atom.
-                    </p>
-                  ) : null}
-                </>
-              ) : (
-                <p className="auth-slide-desc">
-                  {chooserFinishPayHint
-                    ? "You’re signed in — finish payment to open Atom."
-                    : "You’re already signed in on this device."}
-                </p>
-              )}
+              <h3 className="auth-slide-title">Already started?</h3>
+              <p className="auth-slide-desc">
+                {registerChooserBody({
+                  sessionEmail: chooserSessionEmail,
+                  pendingEmail: chooserPendingEmail,
+                  emailsMatch: chooserEmailsMatch,
+                })}
+              </p>
               {error ? <p className="atom-note atom-note-error">{error}</p> : null}
               <div className="auth-actions auth-chooser-actions">
                 {chooserActionList.map((action) => (
@@ -1983,17 +2032,14 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                     disabled={chooserBusy}
                     onClick={() => void handleChooserAction(action.id)}
                   >
-                    {chooserActionButtonLabel({
-                      action,
-                      primaryEmail: chooserPrimaryEmail,
-                    })}
+                    {chooserActionButtonLabel({ action })}
                   </button>
                 ))}
               </div>
             </div>
           ) : null}
 
-          {chooserPhase === "done" ? (
+          {showWizardBody ? (
             <>
           <AuthStepper steps={steps} current={step} labels={labels} />
 

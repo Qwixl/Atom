@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   chooserActionButtonLabel,
-  chooserActions,
-  chooserConflictCopy,
   emailsEqualIgnoreCase,
   mayClearLocalSignupState,
-  resolveChooserIdentity,
+  mayDiscardPendingAfterLoginWithSession,
+  registerChooserActions,
+  registerChooserBody,
+  resolveRegisterChooserIdentity,
   shouldBypassChooser,
-  shouldShowChooser,
+  shouldRenderRegisterChooser,
+  shouldShowRegisterChooser,
 } from "./accountChooser.js";
 
 describe("shouldBypassChooser", () => {
@@ -30,91 +32,176 @@ describe("shouldBypassChooser", () => {
   });
 });
 
-describe("shouldShowChooser", () => {
-  it("shows for session or pending unless bypassed", () => {
-    expect(shouldShowChooser({ bypass: true, hasSession: true, hasPending: true })).toBe(false);
-    expect(shouldShowChooser({ bypass: false, hasSession: true, hasPending: false })).toBe(true);
-    expect(shouldShowChooser({ bypass: false, hasSession: false, hasPending: true })).toBe(true);
-    expect(shouldShowChooser({ bypass: false, hasSession: false, hasPending: false })).toBe(false);
-  });
-});
-
-describe("resolveChooserIdentity", () => {
-  it("prefers session and flags pending conflict", () => {
+describe("shouldShowRegisterChooser", () => {
+  it("never shows for login even with session and pending", () => {
     expect(
-      resolveChooserIdentity({
-        sessionEmail: "a@example.com",
-        pendingEmail: "b@example.com",
+      shouldShowRegisterChooser({
+        mode: "login",
+        bypass: false,
+        hasSession: true,
+        hasPending: true,
+        chooserResolved: false,
       }),
-    ).toEqual({
-      primaryEmail: "a@example.com",
-      conflictEmail: "b@example.com",
-      emailsMatch: false,
-    });
+    ).toBe(false);
+  });
+
+  it("shows for register with session or pending unless bypassed or resolved", () => {
     expect(
-      resolveChooserIdentity({
-        sessionEmail: "A@Example.com",
-        pendingEmail: "a@example.com",
-      }).emailsMatch,
+      shouldShowRegisterChooser({
+        mode: "register",
+        bypass: false,
+        hasSession: true,
+        hasPending: false,
+        chooserResolved: false,
+      }),
     ).toBe(true);
     expect(
-      resolveChooserIdentity({ sessionEmail: null, pendingEmail: "p@x.com" }).primaryEmail,
-    ).toBe("p@x.com");
+      shouldShowRegisterChooser({
+        mode: "register",
+        bypass: true,
+        hasSession: true,
+        hasPending: true,
+        chooserResolved: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowRegisterChooser({
+        mode: "register",
+        bypass: false,
+        hasSession: true,
+        hasPending: true,
+        chooserResolved: true,
+      }),
+    ).toBe(false);
   });
 });
 
-describe("chooserActions", () => {
-  it("unpaid register session offers Continue as + Different (not Complete signup)", () => {
-    const actions = chooserActions({
-      mode: "register",
-      hasSession: true,
-      pendingKind: "register",
-      provisionable: false,
-    });
-    expect(actions.map((a) => a.id)).toEqual(["complete_signup", "different_account"]);
-    expect(actions[0]?.label).toBe("Continue as");
+describe("shouldRenderRegisterChooser", () => {
+  it("never renders on login even if phase is show (stale mount)", () => {
+    expect(shouldRenderRegisterChooser({ mode: "login", chooserPhase: "show" })).toBe(false);
   });
 
-  it("pending-only offers Resume + Start over, not Log in as", () => {
-    const actions = chooserActions({
-      mode: "register",
+  it("renders only for register + show", () => {
+    expect(shouldRenderRegisterChooser({ mode: "register", chooserPhase: "show" })).toBe(true);
+    expect(shouldRenderRegisterChooser({ mode: "register", chooserPhase: "done" })).toBe(false);
+  });
+});
+
+describe("mayDiscardPendingAfterLoginWithSession", () => {
+  it("requires live session and non-empty email before discard", () => {
+    expect(
+      mayDiscardPendingAfterLoginWithSession({ hasLiveSession: false, sessionEmail: "a@x.com" }),
+    ).toBe(false);
+    expect(
+      mayDiscardPendingAfterLoginWithSession({ hasLiveSession: true, sessionEmail: "" }),
+    ).toBe(false);
+    expect(
+      mayDiscardPendingAfterLoginWithSession({ hasLiveSession: true, sessionEmail: "a@x.com" }),
+    ).toBe(true);
+  });
+});
+
+describe("registerChooserActions", () => {
+  it("conflict X≠Y offers four distinct actions", () => {
+    const actions = registerChooserActions({
+      hasSession: true,
+      sessionEmail: "a@x.com",
+      pendingKind: "register",
+      pendingEmail: "b@y.com",
+    });
+    expect(actions.map((a) => a.id)).toEqual([
+      "login_with_session",
+      "continue_registration",
+      "remove_registration",
+      "create_new_account",
+    ]);
+  });
+
+  it("same email omits duplicate Continue registration", () => {
+    const actions = registerChooserActions({
+      hasSession: true,
+      sessionEmail: "a@x.com",
+      pendingKind: "register",
+      pendingEmail: "a@x.com",
+    });
+    expect(actions.map((a) => a.id)).toEqual([
+      "login_with_session",
+      "remove_registration",
+      "create_new_account",
+    ]);
+  });
+
+  it("pending-only offers Continue Remove Create new", () => {
+    const actions = registerChooserActions({
       hasSession: false,
+      sessionEmail: null,
       pendingKind: "register",
-      provisionable: null,
+      pendingEmail: "p@x.com",
     });
-    expect(actions.map((a) => a.id)).toEqual(["resume_pending", "start_over"]);
+    expect(actions.map((a) => a.id)).toEqual([
+      "continue_registration",
+      "remove_registration",
+      "create_new_account",
+    ]);
   });
 
-  it("unpaid login session offers Continue as then Different", () => {
-    const actions = chooserActions({
-      mode: "login",
-      hasSession: true,
-      pendingKind: null,
-      provisionable: false,
+  it("login-kind pending on register offers Remove + Create new only", () => {
+    const actions = registerChooserActions({
+      hasSession: false,
+      sessionEmail: null,
+      pendingKind: "login",
+      pendingEmail: "p@x.com",
     });
-    expect(actions.map((a) => a.id)).toEqual(["complete_signup", "different_account"]);
-    expect(actions[0]?.label).toBe("Continue as");
+    expect(actions.map((a) => a.id)).toEqual(["remove_registration", "create_new_account"]);
   });
 });
 
-describe("chooserConflictCopy", () => {
-  it("explains signed-in wins and draft is discarded", () => {
-    const copy = chooserConflictCopy("a@x.com", "b@y.com");
-    expect(copy).toContain("signed in as a@x.com");
+describe("resolveRegisterChooserIdentity", () => {
+  it("exposes both emails without preferring discard", () => {
+    expect(
+      resolveRegisterChooserIdentity({
+        sessionEmail: "a@x.com",
+        pendingEmail: "b@y.com",
+      }),
+    ).toEqual({
+      sessionEmail: "a@x.com",
+      pendingEmail: "b@y.com",
+      emailsMatch: false,
+    });
+  });
+
+  it("emailsMatch is false when only one side is present", () => {
+    expect(
+      resolveRegisterChooserIdentity({ sessionEmail: "a@x.com", pendingEmail: null }).emailsMatch,
+    ).toBe(false);
+  });
+});
+
+describe("registerChooserBody", () => {
+  it("explains logged-in vs unfinished registration without Complete signup", () => {
+    const copy = registerChooserBody({
+      sessionEmail: "a@x.com",
+      pendingEmail: "b@y.com",
+      emailsMatch: false,
+    });
+    expect(copy).toContain("logged in as a@x.com");
     expect(copy).toContain("b@y.com");
-    expect(copy).toContain("discards that draft");
     expect(copy.toLowerCase()).not.toContain("complete signup");
   });
 });
 
 describe("chooserActionButtonLabel", () => {
-  it("uses Continue as email for signed-in primary", () => {
+  it("includes email for login_with_session", () => {
     expect(
       chooserActionButtonLabel({
-        action: { id: "complete_signup", label: "Continue as", primary: true },
-        primaryEmail: "a@x.com",
+        action: {
+          id: "login_with_session",
+          label: "Log in with this account",
+          email: "a@x.com",
+          primary: true,
+        },
       }),
-    ).toBe("Continue as a@x.com");
+    ).toBe("Log in with this account (a@x.com)");
   });
 });
 
@@ -129,18 +216,6 @@ describe("mayClearLocalSignupState", () => {
 describe("emailsEqualIgnoreCase", () => {
   it("trims and ignores case", () => {
     expect(emailsEqualIgnoreCase(" A@x.com ", "a@x.com")).toBe(true);
-    expect(emailsEqualIgnoreCase("a@x.com", "b@x.com")).toBe(false);
-  });
-});
-
-describe("self_hosted continue semantics", () => {
-  it("paid login continue is continue_session not complete_signup", () => {
-    const actions = chooserActions({
-      mode: "login",
-      hasSession: true,
-      pendingKind: null,
-      provisionable: true,
-    });
-    expect(actions[0]?.id).toBe("continue_session");
+    expect(emailsEqualIgnoreCase("a@x.com", "b@y.com")).toBe(false);
   });
 });
