@@ -3,6 +3,7 @@ import {
   bootstrapHostedAccount,
   fetchHostedAgentConnection,
   getSupabaseClient,
+  type AtomAccountType,
 } from "./hostedAccount.js";
 import { AccountTypeSelection } from "./accountTypeSelection.js";
 import { completeAgentSetup } from "./completeSetup.js";
@@ -26,32 +27,12 @@ export function HostedAuthScreen({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [handle, setHandle] = useState("");
-  const [personal, setPersonal] = useState(true);
-  const [developer, setDeveloper] = useState(false);
-  const [business, setBusiness] = useState(false);
+  const [accountKind, setAccountKind] = useState<AtomAccountType>("user");
   const [llmConnection, setLlmConnection] = useState<HostedLlmConnectionFieldsValue>(() =>
     defaultHostedLlmConnectionFields("openai"),
   );
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-
-  function togglePersonal(checked: boolean) {
-    if (checked) {
-      setPersonal(true);
-      setDeveloper(false);
-    } else {
-      setPersonal(false);
-    }
-  }
-
-  function toggleDeveloper(checked: boolean) {
-    if (checked) {
-      setDeveloper(true);
-      setPersonal(false);
-    } else {
-      setDeveloper(false);
-    }
-  }
 
   async function wireAgentAfterAuth() {
     const connection = await fetchHostedAgentConnection();
@@ -69,7 +50,11 @@ export function HostedAuthScreen({
   async function submitSignup() {
     let selection: AccountTypeSelection;
     try {
-      selection = AccountTypeSelection.fromFlags({ personal, developer, business });
+      if (accountKind === "business") {
+        setStatus("Atom Business requires Atom-hosted Standard signup — use Create account from the site.");
+        return;
+      }
+      selection = AccountTypeSelection.fromAccountTypes([accountKind]);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
       return;
@@ -196,14 +181,13 @@ export function HostedAuthScreen({
         <>
           <fieldset className="field">
             <legend>Account type</legend>
-            <p className="muted">
-              Personal or Developer (pick one). Add Business if you also want a brand agent.
-            </p>
+            <p className="muted">Personal or Developer. Atom Business signup uses Create account (Standard hosted only).</p>
             <label className="radio-row">
               <input
-                type="checkbox"
-                checked={personal}
-                onChange={(e) => togglePersonal(e.target.checked)}
+                type="radio"
+                name="accountKind"
+                checked={accountKind === "user"}
+                onChange={() => setAccountKind("user")}
               />
               <span>
                 <strong>Personal</strong> — Everyday use — Standard (credits) or BYOK hosting
@@ -211,22 +195,13 @@ export function HostedAuthScreen({
             </label>
             <label className="radio-row">
               <input
-                type="checkbox"
-                checked={developer}
-                onChange={(e) => toggleDeveloper(e.target.checked)}
+                type="radio"
+                name="accountKind"
+                checked={accountKind === "developer"}
+                onChange={() => setAccountKind("developer")}
               />
               <span>
                 <strong>Developer</strong> — Build and ship modules
-              </span>
-            </label>
-            <label className="radio-row">
-              <input
-                type="checkbox"
-                checked={business}
-                onChange={(e) => setBusiness(e.target.checked)}
-              />
-              <span>
-                <strong>Business</strong> — Brand, catalog, and business agent (optional)
               </span>
             </label>
           </fieldset>

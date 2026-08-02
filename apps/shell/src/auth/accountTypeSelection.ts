@@ -1,6 +1,7 @@
 /**
  * Signup account-type selection (product law):
- * Personal XOR Developer; Business optional; at least one kind required.
+ * Exactly one of Personal, Developer, or Business at create time.
+ * Users may add another workspace later — not during this signup.
  */
 import type { AtomAccountType } from "./hostedAccount.js";
 
@@ -15,12 +16,12 @@ export class AccountTypeSelection {
     this.business = business;
   }
 
-  static personal(business = false): AccountTypeSelection {
-    return new AccountTypeSelection("user", business);
+  static personal(): AccountTypeSelection {
+    return new AccountTypeSelection("user", false);
   }
 
-  static developer(business = false): AccountTypeSelection {
-    return new AccountTypeSelection("developer", business);
+  static developer(): AccountTypeSelection {
+    return new AccountTypeSelection("developer", false);
   }
 
   static businessOnly(): AccountTypeSelection {
@@ -32,14 +33,15 @@ export class AccountTypeSelection {
     developer: boolean;
     business: boolean;
   }): AccountTypeSelection {
-    if (input.personal && input.developer) {
-      throw new Error("Choose Personal or Developer, not both.");
+    const n = Number(input.personal) + Number(input.developer) + Number(input.business);
+    if (n === 0) {
+      throw new Error("Select one account type.");
     }
-    if (!input.personal && !input.developer && !input.business) {
-      throw new Error("Select at least one account type.");
+    if (n > 1) {
+      throw new Error("Create one account type at a time.");
     }
-    if (input.personal) return AccountTypeSelection.personal(input.business);
-    if (input.developer) return AccountTypeSelection.developer(input.business);
+    if (input.personal) return AccountTypeSelection.personal();
+    if (input.developer) return AccountTypeSelection.developer();
     return AccountTypeSelection.businessOnly();
   }
 
@@ -58,10 +60,7 @@ export class AccountTypeSelection {
   }
 
   toAccountTypes(): AtomAccountType[] {
-    const out: AtomAccountType[] = [];
-    if (this.persona) out.push(this.persona);
-    if (this.business) out.push("business");
-    return out;
+    return [this.primaryAccountType()];
   }
 
   static fromAccountTypes(types: readonly AtomAccountType[]): AccountTypeSelection {
@@ -71,19 +70,5 @@ export class AccountTypeSelection {
       developer: set.has("developer"),
       business: set.has("business"),
     });
-  }
-
-  withPersona(persona: PersonaKind | null): AccountTypeSelection {
-    if (persona === null && !this.business) {
-      throw new Error("Select at least one account type.");
-    }
-    return new AccountTypeSelection(persona, this.business);
-  }
-
-  withBusiness(business: boolean): AccountTypeSelection {
-    if (!business && this.persona === null) {
-      throw new Error("Select at least one account type.");
-    }
-    return new AccountTypeSelection(this.persona, business);
   }
 }

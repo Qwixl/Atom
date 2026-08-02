@@ -12,14 +12,21 @@ export type HostingType = "hosted" | "self-hosted";
 
 export function authSteps(
   mode: AuthWizardMode,
-  options?: { supabaseHostedRegister?: boolean; supabaseHostedLogin?: boolean },
+  options?: {
+    supabaseHostedRegister?: boolean;
+    supabaseHostedLogin?: boolean;
+    /** Business: hosting is fixed (Standard Always-On) — do not show a hosting step. */
+    skipHosting?: boolean;
+  },
 ): AuthStepId[] {
   if (mode === "login") {
     if (options?.supabaseHostedLogin) return ["credentials", "provisioning"];
     // Self-hosted / local browser mode: reconnect agent (no Supabase credentials).
     return ["profile", "provisioning"];
   }
-  const steps: AuthStepId[] = ["account-type", "hosting", "credentials", "profile"];
+  const steps: AuthStepId[] = options?.skipHosting
+    ? ["account-type", "credentials", "profile"]
+    : ["account-type", "hosting", "credentials", "profile"];
   if (options?.supabaseHostedRegister) {
     steps.push("confirm-email");
   }
