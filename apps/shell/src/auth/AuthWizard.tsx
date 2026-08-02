@@ -7,11 +7,14 @@ import {
   friendlyHostedProvisionError,
   getSupabaseClient,
   hasSupabaseSession,
+  fetchSupabaseSessionEmail,
+  isSupabaseEmailConfirmed,
   isEmailNotConfirmedError,
   isEmailRateLimitError,
   registerSupabaseAccount,
   resendSignupConfirmation,
   signInSupabaseAccount,
+  signOutSupabase,
   signupHostedDevAccount,
   startHostedPlanCheckout,
   persistSignupProfileIntent,
@@ -20,6 +23,15 @@ import {
   SubscriptionRequiredError,
   type AtomAccountType,
 } from "./hostedAccount.js";
+import {
+  chooserActions,
+  emailsEqualIgnoreCase,
+  mayClearLocalSignupState,
+  resolveChooserIdentity,
+  shouldBypassChooser,
+  shouldShowChooser,
+  type ChooserAction,
+} from "./accountChooser.js";
 import { saveAccountType } from "../accountType.js";
 import { AccountTypeSelection } from "./accountTypeSelection.js";
 import {
@@ -341,6 +353,13 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
   const [emailConfirmedThanks, setEmailConfirmedThanks] = useState(false);
   const [resendNote, setResendNote] = useState<string | null>(null);
   const confirmHandledRef = useRef(false);
+  /** pending = mounting; show = Continue as overlay; done = normal wizard */
+  const [chooserPhase, setChooserPhase] = useState<"pending" | "show" | "done">("pending");
+  const [chooserPrimaryEmail, setChooserPrimaryEmail] = useState("");
+  const [chooserConflictEmail, setChooserConflictEmail] = useState<string | null>(null);
+  const [chooserActionList, setChooserActionList] = useState<ChooserAction[]>([]);
+  const [chooserFinishPayHint, setChooserFinishPayHint] = useState(false);
+  const [chooserBusy, setChooserBusy] = useState(false);
 
   const labels = useMemo(
     () =>
@@ -403,7 +422,10 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
   }, [handle, hosting]);
 
   useEffect(() => {
-    if (!usesSupabaseHostedAuth()) return;
+    if (!usesSupabaseHostedAuth()) {
+      setChooserPhase("done");
+      return;
+    }
 
     void (async () => {
       const params = new URLSearchParams(window.location.search);
@@ -441,9 +463,10 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         if (p.kind === "register") setHosting("hosted");
       };
 
-      if (billing === "plan-cancel" && mode === "register") {
+      if (billing === "plan-cancel" && (mode === "register" || mode === "login")) {
         if (pending) restorePending(pending);
         setHosting("hosted");
+        setChooserPhase("done");
         goTo("pay");
         setError("Payment cancelled — nothing was charged. Continue when you’re ready.");
         return;
@@ -452,6 +475,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       if (billing === "plan-success" && mode === "register" && pending && hasSession) {
         restorePending(pending);
         setHosting("hosted");
+        setChooserPhase("done");
         void (async () => {
           setBusy(true);
           setError(null);
@@ -478,39 +502,53 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         return;
       }
 
-      if (hasSession && mode === "register") {
-        if (pending) restorePending(pending);
-        setHosting("hosted");
-        const pendingLane =
-          pending?.billingLane === "byok"
-            ? "byok"
-            : pending?.billingLane === "standard" ||
-                isBusinessAccountType(
-                  pending?.accountType ??
-                    (pending?.accountTypes?.[0] as AtomAccountType | undefined) ??
-                    accountKind,
-                )
-              ? "standard"
-              : pending?.billingLane;
-        if (pendingLane === "self_hosted") {
-          if (!loadFirstRunDone()) {
-            goTo("provisioning");
-            void resumeHostedSupabaseSetup();
+      const bypass = shouldBypassChooser({
+        billing,
+        resumeSetup,
+        reloadMidSetup,
+      });
+
+      if (
+        shouldShowChooser({
+          bypass,
+          hasSession,
+          hasPending: Boolean(pending),
+        })
+      ) {
+        const sessionEmail = hasSession ? await fetchSupabaseSessionEmail() : null;
+        const identity = resolveChooserIdentity({
+          sessionEmail,
+          pendingEmail: pending?.email ?? null,
+        });
+        let provisionable: boolean | null = null;
+        let provisionCheckFailed = false;
+        if (hasSession) {
+          try {
+            provisionable = await isHostedSubscriptionProvisionable();
+          } catch {
+            provisionable = null;
+            provisionCheckFailed = true;
           }
-          return;
         }
-        // Hosted: Pay until Stripe entitlement exists (ignore stale firstRunDone).
-        if (await isHostedSubscriptionProvisionable()) {
-          if (!loadFirstRunDone()) {
-            goTo("provisioning");
-            void resumeHostedSupabaseSetup();
-          }
-          return;
-        }
-        resetFirstRunDone();
-        goTo("pay");
+        setChooserPrimaryEmail(identity.primaryEmail);
+        setChooserConflictEmail(identity.conflictEmail);
+        // RC-9: omit payment hint when CP check errored (advisory only).
+        setChooserFinishPayHint(
+          hasSession && !provisionCheckFailed && provisionable !== true,
+        );
+        setChooserActionList(
+          chooserActions({
+            mode,
+            hasSession,
+            pendingKind: pending?.kind ?? null,
+            provisionable,
+          }),
+        );
+        setChooserPhase("show");
         return;
       }
+
+      setChooserPhase("done");
 
       if (!resumeSetup && !reloadMidSetup) {
         if (!hasSession) {
@@ -625,6 +663,143 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       clearInterval(interval);
     };
   }, [step, mode, billingLane, accountKind, hosting]);
+
+  function applyPendingFromStorage(): ReturnType<typeof loadPendingHostedAuth> {
+    const pending = loadPendingHostedAuth();
+    if (!pending) return null;
+    setEmail(pending.email);
+    if (pending.handle) setHandle(pending.handle);
+    applyPendingAccountTypes(pending, setAccountKind);
+    applyPendingPlanFields(pending, {
+      setBillingLane,
+      setReadinessSkuId,
+      setModelTierId,
+      setTopUpPence,
+      setHosting,
+    });
+    if (pending.llmApiKey) {
+      setLlmConnection((prev) => ({
+        ...prev,
+        apiKey: pending.llmApiKey ?? prev.apiKey,
+        providerId:
+          pending.llmProvider && isHostedLlmProviderId(pending.llmProvider)
+            ? pending.llmProvider
+            : prev.providerId,
+        baseUrl: pending.llmBaseUrl ?? prev.baseUrl,
+        model: pending.llmModel ?? prev.model,
+      }));
+    }
+    if (pending.kind === "register" && pending.billingLane !== "self_hosted") {
+      setHosting("hosted");
+    }
+    return pending;
+  }
+
+  async function discardConflictingPending(): Promise<void> {
+    const pending = loadPendingHostedAuth();
+    const sessionEmail = await fetchSupabaseSessionEmail();
+    if (!pending || !sessionEmail) return;
+    if (!emailsEqualIgnoreCase(pending.email, sessionEmail)) {
+      clearPendingHostedAuth();
+    }
+  }
+
+  async function handleChooserAction(actionId: ChooserAction["id"]): Promise<void> {
+    setChooserBusy(true);
+    setError(null);
+    try {
+      if (actionId === "different_account" || actionId === "start_over") {
+        let signOutSucceeded = true;
+        if (await hasSupabaseSession()) {
+          try {
+            await signOutSupabase();
+          } catch (err) {
+            signOutSucceeded = false;
+            setError(err instanceof Error ? err.message : String(err));
+            return;
+          }
+        }
+        const sessionGone = !(await hasSupabaseSession());
+        if (
+          !mayClearLocalSignupState({
+            signOutSucceeded,
+            sessionGone,
+          })
+        ) {
+          setError("Could not sign out of the current account. Try again.");
+          return;
+        }
+        clearPendingHostedAuth();
+        clearSignupAtProvision();
+        resetFirstRunDone();
+        confirmHandledRef.current = false;
+        setEmail("");
+        setPassword("");
+        setConfirmPassword("");
+        setHandle(mode === "login" ? (loadOwnerHandle() ?? "") : "");
+        setChooserPhase("done");
+        goTo(mode === "login" ? "credentials" : "account-type");
+        return;
+      }
+
+      if (actionId === "resume_pending") {
+        applyPendingFromStorage();
+        setChooserPhase("done");
+        goTo(mode === "login" ? "credentials" : "credentials");
+        return;
+      }
+
+      if (actionId === "complete_signup" || actionId === "continue_session") {
+        await discardConflictingPending();
+        const pending = applyPendingFromStorage();
+        setChooserPhase("done");
+
+        if (mode === "login" && actionId === "complete_signup") {
+          // Unpaid login → register Pay recovery (GATE-01).
+          window.location.replace("/app/?auth=register");
+          return;
+        }
+
+        if (!(await hasSupabaseSession())) {
+          goTo("credentials");
+          return;
+        }
+
+        if (pending?.billingLane === "self_hosted") {
+          setHosting("self-hosted");
+          if (!loadFirstRunDone()) {
+            goTo("provisioning");
+            void resumeHostedSupabaseSetup();
+          }
+          return;
+        }
+
+        setHosting("hosted");
+
+        if (!(await isSupabaseEmailConfirmed())) {
+          goTo("confirm-email");
+          return;
+        }
+
+        if (await isHostedSubscriptionProvisionable()) {
+          if (!loadFirstRunDone()) {
+            goTo("provisioning");
+            if (pending?.kind === "login" || mode === "login") {
+              void finishHostedSupabaseLogin();
+            } else {
+              void resumeHostedSupabaseSetup();
+            }
+          }
+          return;
+        }
+
+        resetFirstRunDone();
+        goTo("pay");
+      }
+    } finally {
+      setChooserBusy(false);
+    }
+  }
 
   function goTo(next: AuthStepId) {
     if (next === "provisioning") markSignupAtProvision();
@@ -1362,9 +1537,11 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
   }
 
   const title =
-    mode === "login"
-      ? "Log in"
-      : registerWizardTitle({ step, needsPay: hostedRegisterNeedsPay() });
+    chooserPhase === "show"
+      ? "Continue as…"
+      : mode === "login"
+        ? "Log in"
+        : registerWizardTitle({ step, needsPay: hostedRegisterNeedsPay() });
 
   const payPrimaryLabel = (() => {
     const locked = isBusinessAccountType(accountKind);
@@ -1763,6 +1940,58 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         </div>
 
         <div className="auth-modal-body">
+          {chooserPhase === "pending" ? (
+            <p className="auth-slide-desc">Checking signed-in account…</p>
+          ) : null}
+
+          {chooserPhase === "show" ? (
+            <div className="auth-chooser">
+              <h3 className="auth-slide-title">
+                {chooserPrimaryEmail || "Your account"}
+              </h3>
+              {chooserConflictEmail ? (
+                <p className="atom-note">
+                  Signed in as <strong>{chooserPrimaryEmail}</strong>. A different
+                  unfinished signup for <strong>{chooserConflictEmail}</strong> will
+                  be discarded if you continue.
+                </p>
+              ) : (
+                <p className="auth-slide-desc">
+                  {chooserFinishPayHint
+                    ? "Payment isn’t finished for this account."
+                    : "You’re already signed in on this device."}
+                </p>
+              )}
+              {error ? <p className="atom-note atom-note-error">{error}</p> : null}
+              <div className="auth-actions auth-chooser-actions">
+                {chooserActionList.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    className={
+                      action.primary
+                        ? "atom-btn atom-btn-primary"
+                        : "atom-btn atom-btn-secondary"
+                    }
+                    disabled={chooserBusy}
+                    onClick={() => void handleChooserAction(action.id)}
+                  >
+                    {action.label}
+                    {action.id === "complete_signup" && chooserPrimaryEmail
+                      ? ` for ${chooserPrimaryEmail}`
+                      : action.id === "continue_session" && chooserPrimaryEmail
+                        ? ` as ${chooserPrimaryEmail}`
+                        : action.id === "resume_pending" && chooserPrimaryEmail
+                          ? ` for ${chooserPrimaryEmail}`
+                          : ""}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {chooserPhase === "done" ? (
+            <>
           <AuthStepper steps={steps} current={step} labels={labels} />
 
           <div className="auth-slides">
@@ -1847,6 +2076,8 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                 Try again
               </button>
             </div>
+          ) : null}
+            </>
           ) : null}
         </div>
       </div>

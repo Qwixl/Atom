@@ -157,6 +157,18 @@ export async function hasSupabaseSession(): Promise<boolean> {
   return Boolean(data.session);
 }
 
+export async function fetchSupabaseSessionEmail(): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null;
+  const { data } = await getSupabaseClient().auth.getUser();
+  return data.user?.email?.trim() || null;
+}
+
+export async function isSupabaseEmailConfirmed(): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false;
+  const { data } = await getSupabaseClient().auth.getUser();
+  return Boolean(data.user?.email_confirmed_at);
+}
+
 /** Drop cached tokens when the Supabase user was deleted server-side. */
 export async function clearStaleSupabaseSession(): Promise<void> {
   if (!isSupabaseConfigured()) return;
