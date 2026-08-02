@@ -38,6 +38,15 @@ describe("authSteps", () => {
     ]);
   });
 
+  it("omits Pay when needsPay is false (self-host)", () => {
+    expect(
+      authSteps("register", {
+        supabaseHostedRegister: false,
+        needsPay: false,
+      }),
+    ).not.toContain("pay");
+  });
+
   it("still adds confirm-email when supabase hosted register", () => {
     expect(authSteps("register", { skipHosting: true, supabaseHostedRegister: true })).toEqual([
       "account-type",

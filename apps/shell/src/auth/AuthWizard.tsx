@@ -24,11 +24,13 @@ import { AccountTypeSelection } from "./accountTypeSelection.js";
 import {
   assertBusinessHosting,
   businessHostingDefaults,
+  clampReadinessForAccount,
   isBusinessAccountType,
 } from "./businessHostingPolicy.js";
 import { completeAgentSetup } from "./completeSetup.js";
 import { loadFirstRunDone } from "../firstRunStorage.js";
 import { AuthStepper } from "./AuthStepper.js";
+import { payPitchFor, payPitchLane } from "./payPitch.js";
 import {
   authSteps,
   stepIndex,
@@ -85,12 +87,12 @@ import {
 } from "./passwordValidation.js";
 import {
   BYOK_READINESS,
-  MODEL_TIER_OPTIONS,
   STANDARD_READINESS,
-  TOP_UP_OPTIONS_PENCE,
   hostingTypeForLane,
+  notificationHint,
+  notificationLabel,
   parseLaneFromSearch,
-  topUpHint,
+  payChangeReadinessOptions,
   type BillingLane,
   type ModelTierId,
   type ReadinessSkuId,
@@ -152,7 +154,12 @@ function applyPendingPlanFields(
     setters.setBillingLane(pending.billingLane);
     setters.setHosting(hostingTypeForLane(pending.billingLane));
   }
-  if (pending.readinessSkuId) setters.setReadinessSkuId(pending.readinessSkuId);
+  if (pending.readinessSkuId) {
+    // Never restore OFB here — Business lock re-applies; Personal/Developer must not keep it.
+    setters.setReadinessSkuId(
+      pending.readinessSkuId === "open_for_business" ? "on_when_needed" : pending.readinessSkuId,
+    );
+  }
   if (pending.modelTierId) setters.setModelTierId(pending.modelTierId);
   if (typeof pending.topUpPence === "number") setters.setTopUpPence(pending.topUpPence);
 }
@@ -166,6 +173,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
   const [readinessSkuId, setReadinessSkuId] = useState<ReadinessSkuId>("on_when_needed");
   const [modelTierId, setModelTierId] = useState<ModelTierId>("balanced");
   const [topUpPence, setTopUpPence] = useState(0);
+  const [payChangeOpen, setPayChangeOpen] = useState(false);
   const [hosting, setHosting] = useState<HostingType>(() =>
     hostingTypeForLane(initialLane ?? (isHostedSignupAvailable() ? "standard" : "self_hosted")),
   );
@@ -183,12 +191,19 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
 
   function chooseAccountKind(kind: AtomAccountType) {
     setAccountKind(kind);
+    setPayChangeOpen(false);
     if (isBusinessAccountType(kind)) {
       const d = businessHostingDefaults();
       setBillingLane(d.billingLane);
       setReadinessSkuId(d.readinessSkuId);
       setHosting(d.hosting);
+    } else {
+      setReadinessSkuId("on_when_needed");
     }
+  }
+
+  function effectiveReadinessSkuId(): ReadinessSkuId {
+    return clampReadinessForAccount(accountKind, readinessSkuId);
   }
 
   useEffect(() => {
@@ -264,22 +279,19 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
   const standardReadiness = remoteCatalog
     ? Object.values(remoteCatalog.lanes.standard.skus).map((s) => ({
         id: s.id as ReadinessSkuId,
-        displayName: s.displayName,
+        displayName: notificationLabel(s.id as ReadinessSkuId),
         displayPrice: s.displayPrice,
-        hint: remoteCatalog.lanes.standard.summary,
+        hint: notificationHint(s.id as ReadinessSkuId),
       }))
     : STANDARD_READINESS;
   const byokReadiness = remoteCatalog
     ? Object.values(remoteCatalog.lanes.byok.skus).map((s) => ({
         id: s.id as ReadinessSkuId,
-        displayName: s.displayName,
+        displayName: notificationLabel(s.id as ReadinessSkuId),
         displayPrice: s.displayPrice,
-        hint: remoteCatalog.lanes.byok.summary,
+        hint: notificationHint(s.id as ReadinessSkuId),
       }))
     : BYOK_READINESS;
-  const topUpOptions = remoteCatalog
-    ? ([0, ...remoteCatalog.topUpPacksPence] as number[])
-    : [...TOP_UP_OPTIONS_PENCE];
 
   const supabaseHostedRegister =
     mode === "register" && hosting === "hosted" && usesSupabaseHostedAuth();
@@ -717,7 +729,10 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
             : "standard";
     const planReadinessSkuId = businessLocked
       ? businessHostingDefaults().readinessSkuId
-      : (pending?.readinessSkuId ?? readinessSkuId);
+      : clampReadinessForAccount(
+          pendingAccountType === "developer" ? "developer" : "user",
+          pending?.readinessSkuId ?? readinessSkuId,
+        );
     const planModelTierId = pending?.modelTierId ?? modelTierId;
     const planTopUpPence = pending?.topUpPence ?? topUpPence;
 
@@ -861,7 +876,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       const hostingErr = assertBusinessHosting({
         accountType: selection.primaryAccountType(),
         billingLane,
-        readinessSkuId,
+        readinessSkuId: clampReadinessForAccount(selection.primaryAccountType(), readinessSkuId),
       });
       if (hostingErr) {
         setError(hostingErr);
@@ -879,7 +894,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
             : "self_hosted";
       const pendingReadiness = locked
         ? businessHostingDefaults().readinessSkuId
-        : readinessSkuId;
+        : clampReadinessForAccount(selection.primaryAccountType(), readinessSkuId);
       savePendingHostedAuth({
         kind: "register",
         email: email.trim(),
@@ -1097,7 +1112,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       const hostingErr = assertBusinessHosting({
         accountType: accountKind,
         billingLane,
-        readinessSkuId,
+        readinessSkuId: effectiveReadinessSkuId(),
       });
       if (hostingErr) {
         setError(hostingErr);
@@ -1223,7 +1238,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
           : "standard";
       const planReadiness = locked
         ? businessHostingDefaults().readinessSkuId
-        : readinessSkuId;
+        : clampReadinessForAccount(selection.primaryAccountType(), readinessSkuId);
       try {
         await persistSignupProfileIntent({
           accountType: selection.primaryAccountType(),
@@ -1286,7 +1301,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       : billingLane === "byok"
         ? "byok"
         : "standard";
-    const skuId = locked ? businessHostingDefaults().readinessSkuId : readinessSkuId;
+    const skuId = locked ? businessHostingDefaults().readinessSkuId : effectiveReadinessSkuId();
     const sku =
       remoteCatalog?.lanes[lane]?.skus?.[skuId] ??
       (lane === "standard"
@@ -1347,7 +1362,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         return (
           <>
             <h3 className="auth-slide-title">Choose a plan</h3>
-            <p className="auth-slide-desc">Pick one to continue.</p>
+            <p className="auth-slide-desc">Pick how Atom runs for you. You can change notifications before payment.</p>
             <div className="auth-radio-stack">
               <label className={`atom-radio-card${billingLane === "standard" ? " is-selected" : ""}`}>
                 <input
@@ -1399,90 +1414,6 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                   </label>
                 </>
               ) : null}
-            </div>
-
-            {billingLane === "standard" || billingLane === "byok" ? (
-              <>
-                <h4 className="auth-slide-subtitle">How available should it be?</h4>
-                <div className="auth-radio-stack">
-                  {(isBusinessAccountType(accountKind)
-                    ? standardReadiness.filter((sku) => sku.id === "open_for_business")
-                    : billingLane === "standard"
-                      ? standardReadiness
-                      : byokReadiness
-                  ).map((sku) => (
-                    <label
-                      key={sku.id}
-                      className={`atom-radio-card${readinessSkuId === sku.id ? " is-selected" : ""}`}
-                    >
-                      <input
-                        type="radio"
-                        name="readiness"
-                        checked={readinessSkuId === sku.id}
-                        onChange={() =>
-                          setReadinessSkuId(
-                            isBusinessAccountType(accountKind)
-                              ? businessHostingDefaults().readinessSkuId
-                              : sku.id,
-                          )
-                        }
-                      />
-                      <span>
-                        <strong>
-                          {sku.displayName} · {sku.displayPrice}
-                        </strong>
-                        <span>{sku.hint}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </>
-            ) : null}
-
-            {billingLane === "standard" ? (
-              <>
-                <h4 className="auth-slide-subtitle">Reply quality</h4>
-                <div className="auth-radio-stack">
-                  {MODEL_TIER_OPTIONS.map((tier) => (
-                    <label
-                      key={tier.id}
-                      className={`atom-radio-card${modelTierId === tier.id ? " is-selected" : ""}`}
-                    >
-                      <input
-                        type="radio"
-                        name="modelTier"
-                        checked={modelTierId === tier.id}
-                        onChange={() => setModelTierId(tier.id)}
-                      />
-                      <span>
-                        <strong>{tier.label}</strong>
-                        <span>{tier.hint}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </>
-            ) : null}
-
-            <h4 className="auth-slide-subtitle">Add credit now? (optional)</h4>
-            <p className="atom-note">{topUpHint(billingLane)}</p>
-            <div className="auth-radio-stack">
-              {topUpOptions.map((pence) => (
-                <label
-                  key={pence}
-                  className={`atom-radio-card${topUpPence === pence ? " is-selected" : ""}`}
-                >
-                  <input
-                    type="radio"
-                    name="topUp"
-                    checked={topUpPence === pence}
-                    onChange={() => setTopUpPence(pence)}
-                  />
-                  <span>
-                    <strong>{pence === 0 ? "No top-up now" : `£${(pence / 100).toFixed(0)}`}</strong>
-                  </span>
-                </label>
-              ))}
             </div>
           </>
         );
@@ -1628,26 +1559,85 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
         );
       case "pay": {
         const locked = isBusinessAccountType(accountKind);
-        const lane: "standard" | "byok" = locked
-          ? "standard"
-          : billingLane === "byok"
-            ? "byok"
-            : "standard";
-        const skuId = locked ? businessHostingDefaults().readinessSkuId : readinessSkuId;
+        const lane = locked ? "standard" : payPitchLane(billingLane);
+        const skuId = locked ? businessHostingDefaults().readinessSkuId : effectiveReadinessSkuId();
         const sku =
           remoteCatalog?.lanes[lane]?.skus?.[skuId] ??
           (lane === "standard"
             ? standardReadiness.find((s) => s.id === skuId)
             : byokReadiness.find((s) => s.id === skuId));
         const listPrice = sku?.displayPrice ?? "See plan";
+        const pitch = payPitchFor({
+          accountType: locked ? "business" : accountKind,
+          lane,
+          readinessSkuId: skuId,
+        });
+        const changeOptions =
+          !locked && (lane === "standard" || lane === "byok")
+            ? payChangeReadinessOptions(lane, remoteCatalog?.lanes[lane]?.skus)
+            : [];
         return (
           <>
-            <h3 className="auth-slide-title">Pay</h3>
-            <p className="auth-slide-desc">
-              {sku?.displayName ?? "Your plan"} · {listPrice}
+            <h3 className="auth-slide-title">{pitch.headline}</h3>
+            <div className="auth-pay-summary">
+              <p className="auth-slide-desc auth-pay-summary-line">
+                <strong>{listPrice}</strong>
+                {locked ? null : (
+                  <>
+                    {" "}
+                    · Notifications: {notificationLabel(skuId)}
+                  </>
+                )}
+              </p>
+              {!locked ? <p className="atom-note">{notificationHint(skuId)}</p> : null}
+              <p className="atom-note">
+                Daily Actions email included with every plan (you can turn it off later).
+              </p>
+              {!locked ? (
+                <button
+                  type="button"
+                  className="atom-btn atom-btn-secondary auth-pay-change"
+                  onClick={() => setPayChangeOpen((open) => !open)}
+                >
+                  {payChangeOpen ? "Done" : "Change"}
+                </button>
+              ) : null}
+            </div>
+            {payChangeOpen && changeOptions.length > 0 ? (
+              <div className="auth-pay-change-panel">
+                <h4 className="auth-slide-subtitle">Notifications</h4>
+                <div className="auth-radio-stack">
+                  {changeOptions.map((option) => (
+                    <label
+                      key={option.id}
+                      className={`atom-radio-card${skuId === option.id ? " is-selected" : ""}`}
+                    >
+                      <input
+                        type="radio"
+                        name="payReadiness"
+                        checked={skuId === option.id}
+                        onChange={() => setReadinessSkuId(option.id)}
+                      />
+                      <span>
+                        <strong>
+                          {option.displayName} · {option.displayPrice}
+                        </strong>
+                        <span>{option.hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <p className="atom-note auth-pay-lead">{pitch.lead}</p>
+            <ul className="auth-pay-benefits">
+              {pitch.benefits.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            <p className="atom-note">
+              <strong>{listPrice} due today.</strong> {pitch.closing}
             </p>
-            <p className="atom-note">{listPrice} due today</p>
-            <p className="atom-note">You’ll confirm on the next screen, then we finish setup.</p>
           </>
         );
       }

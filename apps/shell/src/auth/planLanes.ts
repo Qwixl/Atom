@@ -1,6 +1,7 @@
 /**
- * Lane IDs + fallback labels when Atom-MC catalog is unreachable.
+ * Lane IDs + notification UI labels when Atom-MC catalog is unreachable.
  * Do not hardcode Qwixl £ amounts here — fetch via fetchPlanCatalog.ts (D107).
+ * Shell owns Never/Hourly/Immediately display names (SIGNUP-PLAN-01 RC-5).
  */
 
 export type BillingLane = "standard" | "byok" | "self_hosted";
@@ -20,60 +21,87 @@ export interface ReadinessOption {
   hint: string;
 }
 
-/** Fallback names only — prices filled from Atom-MC when available. */
+/** Personal/Developer Pay Change ladder — never includes open_for_business. */
+export const PERSONAL_DEVELOPER_READINESS_IDS: readonly ReadinessSkuId[] = [
+  "on_when_needed",
+  "keeps_in_touch",
+  "always_ready",
+] as const;
+
+export function notificationLabel(skuId: ReadinessSkuId): string {
+  switch (skuId) {
+    case "on_when_needed":
+      return "Never";
+    case "keeps_in_touch":
+      return "Hourly";
+    case "always_ready":
+      return "Immediately";
+    case "open_for_business":
+      return "Open for business";
+  }
+}
+
+/** Honest reachability helpers — not email/push cadence (SIGNUP-PLAN-01 RC-4). */
+export function notificationHint(skuId: ReadinessSkuId): string {
+  switch (skuId) {
+    case "on_when_needed":
+      return "Agent works when you open Atom; inbound work waits until then.";
+    case "keeps_in_touch":
+      return "Agent checks in about once an hour while you’re away.";
+    case "always_ready":
+      return "Agent stays ready for messages anytime.";
+    case "open_for_business":
+      return "Always-on for shoppers and other agents.";
+  }
+}
+
+export function clampReadinessForAccount(
+  accountType: "user" | "developer" | "business",
+  readinessSkuId: ReadinessSkuId,
+): ReadinessSkuId {
+  if (accountType === "business") return "open_for_business";
+  if (readinessSkuId === "open_for_business") return "on_when_needed";
+  if (!(PERSONAL_DEVELOPER_READINESS_IDS as readonly string[]).includes(readinessSkuId)) {
+    return "on_when_needed";
+  }
+  return readinessSkuId;
+}
+
+function readinessOption(id: ReadinessSkuId, displayPrice: string): ReadinessOption {
+  return {
+    id,
+    displayName: notificationLabel(id),
+    displayPrice,
+    hint: notificationHint(id),
+  };
+}
+
+/** Fallback names — prices filled from Atom-MC when available (do not invent £ offline). */
 export const STANDARD_READINESS: ReadinessOption[] = [
-  {
-    id: "on_when_needed",
-    displayName: "When you open it",
-    displayPrice: "included",
-    hint: "Starts when you use Atom",
-  },
-  {
-    id: "keeps_in_touch",
-    displayName: "Checks in hourly",
-    displayPrice: "included",
-    hint: "Looks for updates about once an hour while you’re away",
-  },
-  {
-    id: "always_ready",
-    displayName: "Always available",
-    displayPrice: "included",
-    hint: "Stays ready for messages anytime",
-  },
-  {
-    id: "open_for_business",
-    displayName: "Open for customers",
-    displayPrice: "included",
-    hint: "Stays ready for shoppers and messages",
-  },
+  readinessOption("on_when_needed", "See plan"),
+  readinessOption("keeps_in_touch", "See plan"),
+  readinessOption("always_ready", "See plan"),
+  readinessOption("open_for_business", "See plan"),
 ];
 
 export const BYOK_READINESS: ReadinessOption[] = [
-  {
-    id: "on_when_needed",
-    displayName: "When you open it",
-    displayPrice: "included",
-    hint: "Starts when you use Atom — with your AI key",
-  },
-  {
-    id: "keeps_in_touch",
-    displayName: "Checks in hourly",
-    displayPrice: "included",
-    hint: "Looks for updates about once an hour — with your AI key",
-  },
-  {
-    id: "always_ready",
-    displayName: "Always available",
-    displayPrice: "included",
-    hint: "Stays ready for messages — with your AI key",
-  },
-  {
-    id: "open_for_business",
-    displayName: "Open for customers",
-    displayPrice: "included",
-    hint: "Stays ready for shoppers — with your AI key",
-  },
+  readinessOption("on_when_needed", "See plan"),
+  readinessOption("keeps_in_touch", "See plan"),
+  readinessOption("always_ready", "See plan"),
+  readinessOption("open_for_business", "See plan"),
 ];
+
+/** Pay Change options for Personal/Developer (excludes open_for_business). */
+export function payChangeReadinessOptions(
+  lane: "standard" | "byok",
+  catalogSkus?: Record<string, { id: string; displayPrice: string }>,
+): ReadinessOption[] {
+  const fallback = lane === "standard" ? STANDARD_READINESS : BYOK_READINESS;
+  return PERSONAL_DEVELOPER_READINESS_IDS.map((id) => {
+    const price = catalogSkus?.[id]?.displayPrice ?? fallback.find((s) => s.id === id)?.displayPrice ?? "";
+    return readinessOption(id, price);
+  });
+}
 
 export const TOP_UP_OPTIONS_PENCE = [0, 500, 1_000, 2_500] as const;
 
