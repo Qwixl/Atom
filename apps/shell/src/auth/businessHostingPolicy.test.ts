@@ -56,6 +56,26 @@ describe("businessHostingPolicy", () => {
     ).toBeNull();
   });
 
+  it("rejects Personal open_for_business", () => {
+    expect(
+      assertBusinessHosting({
+        accountType: "user",
+        billingLane: "standard",
+        readinessSkuId: "open_for_business",
+      }),
+    ).toMatch(/Business accounts/);
+  });
+
+  it("rejects Developer open_for_business", () => {
+    expect(
+      assertBusinessHosting({
+        accountType: "developer",
+        billingLane: "byok",
+        readinessSkuId: "open_for_business",
+      }),
+    ).toMatch(/Business accounts/);
+  });
+
   it("defaults lock Standard Always-On", () => {
     expect(businessHostingDefaults()).toEqual({
       billingLane: "standard",
