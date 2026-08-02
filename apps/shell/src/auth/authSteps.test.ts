@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authSteps, stepLabel } from "./authSteps.js";
+import { authSteps, profilePrimaryLabel, registerWizardTitle, stepLabel } from "./authSteps.js";
 
 describe("authSteps", () => {
   it("includes hosting for personal/developer register", () => {
@@ -59,5 +59,17 @@ describe("authSteps", () => {
 
   it("labels pay as Pay", () => {
     expect(stepLabel("pay")).toBe("Pay");
+  });
+
+  it("Profile primary is Continue when Pay is ahead", () => {
+    expect(profilePrimaryLabel({ mode: "register", needsPay: true })).toBe("Continue");
+    expect(profilePrimaryLabel({ mode: "register", needsPay: false })).toBe("Create account");
+    expect(profilePrimaryLabel({ mode: "login", needsPay: false })).toBe("Log in");
+  });
+
+  it("wizard title is Finish signup when Pay is ahead", () => {
+    expect(registerWizardTitle({ step: "profile", needsPay: true })).toBe("Finish signup");
+    expect(registerWizardTitle({ step: "pay", needsPay: true })).toBe("Finish signup");
+    expect(registerWizardTitle({ step: "account-type", needsPay: true })).toBe("Create account");
   });
 });

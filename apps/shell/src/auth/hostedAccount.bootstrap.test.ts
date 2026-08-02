@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { SubscriptionRequiredError, throwIfBootstrapFailed } from "./hostedAccount.js";
+import {
+  SubscriptionRequiredError,
+  subscriptionResponseAllowsProvision,
+  throwIfBootstrapFailed,
+} from "./hostedAccount.js";
+
+describe("subscriptionResponseAllowsProvision", () => {
+  it("requires provisionable true (not bare active)", () => {
+    expect(subscriptionResponseAllowsProvision({ provisionable: true, active: true })).toBe(true);
+    expect(subscriptionResponseAllowsProvision({ provisionable: false, active: true })).toBe(false);
+    expect(subscriptionResponseAllowsProvision({ active: true })).toBe(false);
+    expect(subscriptionResponseAllowsProvision({})).toBe(false);
+  });
+});
 
 describe("throwIfBootstrapFailed", () => {
   it("throws SubscriptionRequiredError on 402 subscription_required", () => {

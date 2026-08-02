@@ -386,13 +386,15 @@ export async function persistSignupProfileIntent(input: {
   if (error) throw new Error(error.message);
 }
 
-/** Poll until Stripe-backed entitlement is active (webhook lag after Checkout). */
-export async function waitForHostedSubscription(opts?: {
-  timeoutMs?: number;
-  intervalMs?: number;
-}): Promise<boolean> {
-  const timeoutMs = opts?.timeoutMs ?? 45_000;
-  const intervalMs = opts?.intervalMs ?? 1_500;
+/** True only when CP reports Stripe-backed provisionable (ignore bare `active`). */
+export function subscriptionResponseAllowsProvision(data: {
+  active?: boolean;
+  provisionable?: boolean;
+}): boolean {
+  return data.provisionable === true;
+}
+
+async function fetchSubscriptionProvisionableOnce(): Promise<boolean> {
   const token = await supabaseAccessToken();
   if (!token) return false;
   const { data: auth } = await getSupabaseClient().auth.getUser();
@@ -400,22 +402,36 @@ export async function waitForHostedSubscription(opts?: {
   if (!accountId) return false;
   const { CONTROL_PLANE_URL } = await import("../hostConfig.js");
   const base = CONTROL_PLANE_URL.replace(/\/$/, "");
+  try {
+    const resp = await fetch(`${base}/billing/subscription/${accountId}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+    if (!resp.ok) return false;
+    const data = (await resp.json()) as { active?: boolean; provisionable?: boolean };
+    return subscriptionResponseAllowsProvision(data);
+  } catch {
+    return false;
+  }
+}
+
+/** Poll until Stripe-backed entitlement is active (webhook lag after Checkout). */
+export async function waitForHostedSubscription(opts?: {
+  timeoutMs?: number;
+  intervalMs?: number;
+}): Promise<boolean> {
+  const timeoutMs = opts?.timeoutMs ?? 45_000;
+  const intervalMs = opts?.intervalMs ?? 1_500;
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    try {
-      const resp = await fetch(`${base}/billing/subscription/${accountId}`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-      });
-      if (resp.ok) {
-        const data = (await resp.json()) as { active?: boolean; provisionable?: boolean };
-        if (data.provisionable === true || data.active === true) return true;
-      }
-    } catch {
-      /* retry */
-    }
+    if (await fetchSubscriptionProvisionableOnce()) return true;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   return false;
+}
+
+/** One-shot gate: true only when hosted Setup / live app may proceed. */
+export async function isHostedSubscriptionProvisionable(): Promise<boolean> {
+  return fetchSubscriptionProvisionableOnce();
 }
 
 export async function fetchHostedAccountStatus(): Promise<{

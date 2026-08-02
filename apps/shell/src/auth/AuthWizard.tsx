@@ -16,6 +16,7 @@ import {
   startHostedPlanCheckout,
   persistSignupProfileIntent,
   waitForHostedSubscription,
+  isHostedSubscriptionProvisionable,
   SubscriptionRequiredError,
   type AtomAccountType,
 } from "./hostedAccount.js";
@@ -28,11 +29,13 @@ import {
   isBusinessAccountType,
 } from "./businessHostingPolicy.js";
 import { completeAgentSetup } from "./completeSetup.js";
-import { loadFirstRunDone } from "../firstRunStorage.js";
+import { loadFirstRunDone, resetFirstRunDone } from "../firstRunStorage.js";
 import { AuthStepper } from "./AuthStepper.js";
 import { payPitchFor, payPitchLane } from "./payPitch.js";
 import {
   authSteps,
+  profilePrimaryLabel,
+  registerWizardTitle,
   stepIndex,
   stepLabel,
   type AuthStepId,
@@ -449,9 +452,10 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       if (billing === "plan-success" && mode === "register" && pending && hasSession) {
         restorePending(pending);
         setHosting("hosted");
-        goTo("provisioning");
         void (async () => {
           setBusy(true);
+          setError(null);
+          goTo("pay");
           setProvisionTasks([
             { id: "auth", label: "Creating your account", state: "done" },
             { id: "agent", label: "Confirming payment…", state: "active" },
@@ -468,12 +472,13 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
             return;
           }
           setBusy(false);
+          goTo("provisioning");
           await runHostedSupabaseProvisioning();
         })();
         return;
       }
 
-      if (hasSession && !loadFirstRunDone() && mode === "register") {
+      if (hasSession && mode === "register") {
         if (pending) restorePending(pending);
         setHosting("hosted");
         const pendingLane =
@@ -487,13 +492,23 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
                 )
               ? "standard"
               : pending?.billingLane;
-        if (pendingLane === "standard" || pendingLane === "byok") {
-          // May already be paid (return from Checkout handled above). Otherwise land on Pay.
-          goTo("pay");
+        if (pendingLane === "self_hosted") {
+          if (!loadFirstRunDone()) {
+            goTo("provisioning");
+            void resumeHostedSupabaseSetup();
+          }
           return;
         }
-        goTo("provisioning");
-        void resumeHostedSupabaseSetup();
+        // Hosted: Pay until Stripe entitlement exists (ignore stale firstRunDone).
+        if (await isHostedSubscriptionProvisionable()) {
+          if (!loadFirstRunDone()) {
+            goTo("provisioning");
+            void resumeHostedSupabaseSetup();
+          }
+          return;
+        }
+        resetFirstRunDone();
+        goTo("pay");
         return;
       }
 
@@ -511,15 +526,28 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       restorePending(pending);
 
       if (hasSession) {
-        goTo("provisioning");
         if (resumeSetup) {
           window.setTimeout(() => {
+            void (async () => {
+              if (!(await ensureHostedPaidOrGoToPay())) return;
+              goTo("provisioning");
+              if (pending.kind === "login") {
+                await finishHostedSupabaseLogin();
+              } else {
+                await resumeHostedSupabaseSetup();
+              }
+            })();
+          }, 800);
+        } else if (reloadMidSetup) {
+          void (async () => {
+            if (!(await ensureHostedPaidOrGoToPay())) return;
+            goTo("provisioning");
             if (pending.kind === "login") {
               void finishHostedSupabaseLogin();
             } else {
               void resumeHostedSupabaseSetup();
             }
-          }, 800);
+          })();
         }
       } else if (pending.kind === "register") {
         goTo("confirm-email");
@@ -550,22 +578,29 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       setEmailConfirmedThanks(true);
       setError(null);
       window.setTimeout(() => {
-        if (cancelled) return;
-        if (mode === "login") {
-          goTo("provisioning");
-          void finishHostedSupabaseLogin();
-          return;
-        }
-        const paidLane =
-          billingLane === "standard" ||
-          billingLane === "byok" ||
-          isBusinessAccountType(accountKind);
-        if (paidLane && hosting === "hosted") {
+        void (async () => {
+          if (cancelled) return;
+          if (mode === "login") {
+            if (!(await ensureHostedPaidOrGoToPay())) return;
+            goTo("provisioning");
+            void finishHostedSupabaseLogin();
+            return;
+          }
+          const pending = loadPendingHostedAuth();
+          const lane = pending?.billingLane;
+          if (lane === "self_hosted") {
+            goTo("provisioning");
+            void runHostedSupabaseProvisioning();
+            return;
+          }
+          if (await isHostedSubscriptionProvisionable()) {
+            goTo("provisioning");
+            void runHostedSupabaseProvisioning();
+            return;
+          }
+          resetFirstRunDone();
           goTo("pay");
-          return;
-        }
-        goTo("provisioning");
-        void runHostedSupabaseProvisioning();
+        })();
       }, 800);
     };
 
@@ -589,7 +624,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
       subscription.unsubscribe();
       clearInterval(interval);
     };
-  }, [step, mode]);
+  }, [step, mode, billingLane, accountKind, hosting]);
 
   function goTo(next: AuthStepId) {
     if (next === "provisioning") markSignupAtProvision();
@@ -635,7 +670,39 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
     if (nextId) updateTask(nextId, "active");
   }
 
+  function hostedRegisterNeedsPay(): boolean {
+    return (
+      mode === "register" &&
+      hosting === "hosted" &&
+      (billingLane === "standard" ||
+        billingLane === "byok" ||
+        isBusinessAccountType(accountKind))
+    );
+  }
+
+  /**
+   * Block Setup until Stripe-backed entitlement exists.
+   * Called only from hosted Supabase setup/login paths — always require provisionable.
+   */
+  async function ensureHostedPaidOrGoToPay(): Promise<boolean> {
+    if (!usesSupabaseHostedAuth()) return true;
+    if (await isHostedSubscriptionProvisionable()) return true;
+    resetFirstRunDone();
+    setError("Complete payment to continue setup.");
+    if (mode === "login") {
+      // Login stepper has no Pay — recover via register wizard.
+      window.location.replace("/app/?auth=register");
+      return false;
+    }
+    goTo("pay");
+    return false;
+  }
+
   async function resumeHostedSupabaseSetup(): Promise<void> {
+    if (!(await ensureHostedPaidOrGoToPay())) {
+      setBusy(false);
+      return;
+    }
     if (!tryAcquireProvisioningLock()) {
       setError("Setup is already running. Wait a moment, then try again.");
       return;
@@ -703,6 +770,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
   }
 
   async function runHostedSupabaseProvisioning(): Promise<void> {
+    if (!(await ensureHostedPaidOrGoToPay())) return;
     if (!tryAcquireProvisioningLock()) {
       setError("Setup is already running. Wait a moment, then try again.");
       return;
@@ -819,6 +887,7 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
   }
 
   async function finishHostedSupabaseLogin(): Promise<void> {
+    if (!(await ensureHostedPaidOrGoToPay())) return;
     if (!tryAcquireProvisioningLock()) {
       setError("Setup is already running. Wait a moment, then try again.");
       return;
@@ -1292,7 +1361,10 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
     }
   }
 
-  const title = mode === "register" ? "Create account" : "Log in";
+  const title =
+    mode === "login"
+      ? "Log in"
+      : registerWizardTitle({ step, needsPay: hostedRegisterNeedsPay() });
 
   const payPrimaryLabel = (() => {
     const locked = isBusinessAccountType(accountKind);
@@ -1501,8 +1573,8 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
 
             {mode === "register" && hosting === "hosted" && billingLane === "standard" ? (
               <p className="atom-note">
-                You’re all set for chat — no AI key needed. You can change reply quality later in
-                Settings.
+                You’re all set for chat — no AI key needed. Next you’ll verify your email and pay,
+                then we finish setup.
               </p>
             ) : mode === "register" && hosting === "hosted" && billingLane === "byok" ? (
               <HostedLlmConnectionFields value={llmConnection} onChange={setLlmConnection} />
@@ -1722,11 +1794,14 @@ export function AuthWizard({ mode, onClose, embedded = false }: AuthWizardProps)
               >
                 {step === "pay"
                   ? payPrimaryLabel
-                  : step === "profile" || (step === "credentials" && mode === "login")
-                    ? mode === "login"
-                      ? "Log in"
-                      : "Create account"
-                    : "Continue"}
+                  : step === "credentials" && mode === "login"
+                    ? "Log in"
+                    : step === "profile"
+                      ? profilePrimaryLabel({
+                          mode,
+                          needsPay: hostedRegisterNeedsPay(),
+                        })
+                      : "Continue"}
               </button>
               {slideIndex > 0 ? (
                 <button type="button" className="atom-btn atom-btn-secondary" onClick={goBack}>
