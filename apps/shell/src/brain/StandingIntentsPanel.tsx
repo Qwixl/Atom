@@ -65,9 +65,7 @@ export function StandingIntentsPanel({
   const { config } = useAgentConfig(vaultUnlocked);
   const [intents, setIntents] = useState<StandingIntent[]>([]);
   const [status, setStatus] = useState<BrainStatus | null>(null);
-  const [billingTier, setBillingTier] = useState<"beta" | "subscribed" | "duty-cycled" | null>(
-    null,
-  );
+  const [billingTier, setBillingTier] = useState<"subscribed" | "duty-cycled" | null>(null);
   const [displayPrice, setDisplayPrice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -100,7 +98,7 @@ export function StandingIntentsPanel({
         const billing = await new CommsAgentClient(config.adminUrl, {
           adminToken: config.adminToken,
         }).billingStatus();
-        setBillingTier(billing.alwaysOnBrainTier ?? (billing.betaFree ? "beta" : null));
+        setBillingTier(billing.alwaysOnBrainTier ?? null);
         setDisplayPrice(
           typeof billing.alwaysOnBrainDisplayPrice === "string"
             ? billing.alwaysOnBrainDisplayPrice
@@ -207,8 +205,8 @@ export function StandingIntentsPanel({
           {status ? (
             <p className="settings-note">
               Watching: {status.running ? "on" : "off"}
-              {billingTier === "beta" ? " · included in beta" : ""}
-              {displayPrice ? ` · ${displayPrice} after beta` : ""}
+              {billingTier === "subscribed" && displayPrice ? ` · ${displayPrice}` : ""}
+              {billingTier === "duty-cycled" ? " · on a schedule" : ""}
               {status.pendingCount > 0 ? ` · ${status.pendingCount} waiting` : ""}
             </p>
           ) : null}

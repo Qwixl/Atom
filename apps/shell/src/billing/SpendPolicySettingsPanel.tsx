@@ -38,7 +38,6 @@ export function SpendPolicySettingsPanel({
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [billingStatus, setBillingStatus] = useState<{
-    betaFree: boolean;
     platformFeeBps: number;
     stripeConfigured: boolean;
   } | null>(null);
@@ -160,7 +159,7 @@ export function SpendPolicySettingsPanel({
       </header>
       {billingStatus ? (
         <p className="settings-note">
-          {billingStatus.betaFree ? "Beta — no platform fee. " : `Platform fee ${(billingStatus.platformFeeBps / 100).toFixed(2)}%. `}
+          {`Platform fee ${(billingStatus.platformFeeBps / 100).toFixed(2)}%. `}
           Spent this month: {minorToMajor(monthSpentMinor)} {currency}.
           {billingStatus.stripeConfigured ? "" : " Payment connection not set up yet."}
         </p>

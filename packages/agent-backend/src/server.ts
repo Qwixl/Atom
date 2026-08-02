@@ -651,7 +651,6 @@ export async function startAgentServer(options: StartAgentServerOptions = {}): P
     stripeSecretKey: config.stripeSecretKey,
     platformFeeBps: 0,
     brainAlwaysOn: config.brainAlwaysOn,
-    betaFree: process.env.ATOM_BETA_FREE !== "0" && process.env.ATOM_BETA_FREE !== "false",
     alwaysOnStripePriceId: process.env.ATOM_ALWAYS_ON_STRIPE_PRICE_ID?.trim() || null,
     checkoutSuccessUrl: process.env.ATOM_CHECKOUT_SUCCESS_URL?.trim() || null,
     checkoutCancelUrl: process.env.ATOM_CHECKOUT_CANCEL_URL?.trim() || null,

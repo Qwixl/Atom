@@ -17,7 +17,7 @@ export interface TransactionAdminDeps {
   }) => { allowed: boolean; reason?: string; requiresChrome: boolean };
   /** BUS-01-HOLD-GATE — true when subjectId is a known Mode H offer/session/intent (or quarantine). */
   isModeHHoldSubject?: (subjectId: string) => boolean;
-  /** Platform application fee in minor units (0 during beta). */
+  /** Platform application fee in minor units (0 = none). */
   applicationFeeMinor?: number;
   /** Stripe Connect destination for business workspace. */
   connectAccountId?: string | null;

@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { SUPABASE_ANON_KEY, SUPABASE_URL, isSupabaseConfigured } from "../hostConfig.js";
+import { bareOwnerHandle } from "../ownerHandle.js";
 
 let client: SupabaseClient | null = null;
 
@@ -321,7 +322,7 @@ export async function startHostedPlanCheckout(input: {
   topUpPence?: number;
   successUrl?: string;
   cancelUrl?: string;
-}): Promise<{ checkoutUrl: string }> {
+}): Promise<{ checkoutUrl: string | null; status: string; dueTodayPence?: number }> {
   const token = await supabaseAccessToken();
   if (!token) throw new Error("Sign in required");
 
@@ -347,20 +348,74 @@ export async function startHostedPlanCheckout(input: {
   const data = (await resp.json().catch(() => ({}))) as {
     checkoutUrl?: string | null;
     error?: string;
+    message?: string;
     status?: string;
+    dueTodayPence?: number;
   };
   if (!resp.ok) {
-    throw new Error(data.error ?? `Checkout failed (${resp.status})`);
+    throw new Error(data.message?.trim() || data.error || `Checkout failed (${resp.status})`);
+  }
+  if (data.status === "already_subscribed") {
+    return { checkoutUrl: null, status: "already_subscribed", dueTodayPence: 0 };
   }
   const checkoutUrl = data.checkoutUrl?.trim();
   if (!checkoutUrl) {
-    // Beta waiver can return status without a Stripe URL.
-    if (data.status === "beta_included") {
-      throw new Error("Plan is included during beta — retry provisioning.");
-    }
     throw new Error("Checkout URL was not returned");
   }
-  return { checkoutUrl };
+  return {
+    checkoutUrl,
+    status: data.status ?? "checkout",
+    dueTodayPence: data.dueTodayPence,
+  };
+}
+
+/** Write account type (+ optional handle) before Pay so CP can lock Business SKU. */
+export async function persistSignupProfileIntent(input: {
+  accountType: AtomAccountType;
+  handle?: string;
+}): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth.user?.id) throw new Error("Sign in required");
+  const patch: Record<string, string> = { account_type: input.accountType };
+  const handle = input.handle?.trim();
+  if (handle) {
+    patch.handle = bareOwnerHandle(handle);
+  }
+  const { error } = await supabase.from("profiles").update(patch).eq("id", auth.user.id);
+  if (error) throw new Error(error.message);
+}
+
+/** Poll until Stripe-backed entitlement is active (webhook lag after Checkout). */
+export async function waitForHostedSubscription(opts?: {
+  timeoutMs?: number;
+  intervalMs?: number;
+}): Promise<boolean> {
+  const timeoutMs = opts?.timeoutMs ?? 45_000;
+  const intervalMs = opts?.intervalMs ?? 1_500;
+  const token = await supabaseAccessToken();
+  if (!token) return false;
+  const { data: auth } = await getSupabaseClient().auth.getUser();
+  const accountId = auth.user?.id;
+  if (!accountId) return false;
+  const { CONTROL_PLANE_URL } = await import("../hostConfig.js");
+  const base = CONTROL_PLANE_URL.replace(/\/$/, "");
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const resp = await fetch(`${base}/billing/subscription/${accountId}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      });
+      if (resp.ok) {
+        const data = (await resp.json()) as { active?: boolean; provisionable?: boolean };
+        if (data.provisionable === true || data.active === true) return true;
+      }
+    } catch {
+      /* retry */
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  return false;
 }
 
 export async function fetchHostedAccountStatus(): Promise<{

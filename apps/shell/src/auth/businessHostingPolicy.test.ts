@@ -24,7 +24,7 @@ describe("businessHostingPolicy", () => {
         billingLane: "byok",
         readinessSkuId: "open_for_business",
       }),
-    ).toMatch(/Atom-hosted Standard only/);
+    ).toMatch(/hosted plan/);
   });
 
   it("rejects Business + self_hosted", () => {
@@ -33,7 +33,7 @@ describe("businessHostingPolicy", () => {
         accountType: "business",
         billingLane: "self_hosted",
       }),
-    ).toMatch(/Atom-hosted Standard only/);
+    ).toMatch(/hosted plan/);
   });
 
   it("rejects Business + wrong readiness", () => {
@@ -43,7 +43,7 @@ describe("businessHostingPolicy", () => {
         billingLane: "standard",
         readinessSkuId: "on_when_needed",
       }),
-    ).toMatch(/Open for business/);
+    ).toMatch(/customers/);
   });
 
   it("allows Business Standard + open_for_business", () => {

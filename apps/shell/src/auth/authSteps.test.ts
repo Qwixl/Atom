@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authSteps } from "./authSteps.js";
+import { authSteps, stepLabel } from "./authSteps.js";
 
 describe("authSteps", () => {
   it("includes hosting for personal/developer register", () => {
@@ -21,6 +21,23 @@ describe("authSteps", () => {
     ]);
   });
 
+  it("adds Pay for hosted paid lanes after verify", () => {
+    expect(
+      authSteps("register", {
+        skipHosting: true,
+        supabaseHostedRegister: true,
+        needsPay: true,
+      }),
+    ).toEqual([
+      "account-type",
+      "credentials",
+      "profile",
+      "confirm-email",
+      "pay",
+      "provisioning",
+    ]);
+  });
+
   it("still adds confirm-email when supabase hosted register", () => {
     expect(authSteps("register", { skipHosting: true, supabaseHostedRegister: true })).toEqual([
       "account-type",
@@ -29,5 +46,9 @@ describe("authSteps", () => {
       "confirm-email",
       "provisioning",
     ]);
+  });
+
+  it("labels pay as Pay", () => {
+    expect(stepLabel("pay")).toBe("Pay");
   });
 });

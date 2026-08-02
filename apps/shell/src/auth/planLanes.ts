@@ -24,73 +24,73 @@ export interface ReadinessOption {
 export const STANDARD_READINESS: ReadinessOption[] = [
   {
     id: "on_when_needed",
-    displayName: "On when you need it",
-    displayPrice: "hosted",
-    hint: "Hosted agent with included credits (pricing from host)",
+    displayName: "When you open it",
+    displayPrice: "included",
+    hint: "Starts when you use Atom",
   },
   {
     id: "keeps_in_touch",
-    displayName: "Keeps in touch",
-    displayPrice: "hosted",
-    hint: "Checks in hourly when you’re away",
+    displayName: "Checks in hourly",
+    displayPrice: "included",
+    hint: "Looks for updates about once an hour while you’re away",
   },
   {
     id: "always_ready",
-    displayName: "Always ready",
-    displayPrice: "hosted",
-    hint: "Always on for messages and brain tasks",
+    displayName: "Always available",
+    displayPrice: "included",
+    hint: "Stays ready for messages anytime",
   },
   {
     id: "open_for_business",
-    displayName: "Open for business",
-    displayPrice: "hosted",
-    hint: "Always on with business storefront ops",
+    displayName: "Open for customers",
+    displayPrice: "included",
+    hint: "Stays ready for shoppers and messages",
   },
 ];
 
 export const BYOK_READINESS: ReadinessOption[] = [
   {
     id: "on_when_needed",
-    displayName: "On when you need it",
-    displayPrice: "hosted",
-    hint: "Hosting — you bring your LLM key",
+    displayName: "When you open it",
+    displayPrice: "included",
+    hint: "Starts when you use Atom — with your AI key",
   },
   {
     id: "keeps_in_touch",
-    displayName: "Keeps in touch",
-    displayPrice: "hosted",
-    hint: "Hourly wake — your key",
+    displayName: "Checks in hourly",
+    displayPrice: "included",
+    hint: "Looks for updates about once an hour — with your AI key",
   },
   {
     id: "always_ready",
-    displayName: "Always ready",
-    displayPrice: "hosted",
-    hint: "Always-on hosting — your key",
+    displayName: "Always available",
+    displayPrice: "included",
+    hint: "Stays ready for messages — with your AI key",
   },
   {
     id: "open_for_business",
-    displayName: "Open for business",
-    displayPrice: "hosted",
-    hint: "Business hosting — your key",
+    displayName: "Open for customers",
+    displayPrice: "included",
+    hint: "Stays ready for shoppers — with your AI key",
   },
 ];
 
 export const TOP_UP_OPTIONS_PENCE = [0, 500, 1_000, 2_500] as const;
 
 export const MODEL_TIER_OPTIONS: { id: ModelTierId; label: string; hint: string }[] = [
-  { id: "efficient", label: "Efficient", hint: "Lighter use, lower credit burn" },
-  { id: "balanced", label: "Balanced", hint: "Default — strong everyday agent" },
-  { id: "maximum", label: "Maximum", hint: "Highest quality step-up" },
+  { id: "efficient", label: "Efficient", hint: "Best for light everyday use" },
+  { id: "balanced", label: "Balanced", hint: "Recommended for most people" },
+  { id: "maximum", label: "Maximum", hint: "Highest quality replies" },
 ];
 
 export function topUpHint(lane: BillingLane): string {
   switch (lane) {
     case "standard":
-      return "Credits cover agent chat, speech, and Agent Spend at Atom businesses.";
+      return "Skip for now, or add a little credit for extra use.";
     case "byok":
-      return "Top-ups cover Agent speech and Agent Spend (your LLM key covers chat).";
+      return "Skip for now, or add credit for speech and shopping extras.";
     case "self_hosted":
-      return "Optional top-ups cover Agent Spend with Atom businesses.";
+      return "Skip for now, or add credit if you’ll shop with other Atom businesses.";
   }
 }
 

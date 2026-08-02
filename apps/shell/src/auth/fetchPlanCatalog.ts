@@ -3,7 +3,6 @@ import { CONTROL_PLANE_URL } from "../hostConfig.js";
 /** Shape returned by Atom-MC GET /billing/plans (Qwixl commercial catalog). */
 export type RemotePlanCatalog = {
   currency: string;
-  betaChargesWaived: boolean;
   lanes: {
     standard: {
       displayFrom: string;

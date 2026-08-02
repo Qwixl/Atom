@@ -51,7 +51,7 @@ export function HostedAuthScreen({
     let selection: AccountTypeSelection;
     try {
       if (accountKind === "business") {
-        setStatus("Atom Business requires Atom-hosted Standard signup — use Create account from the site.");
+        setStatus("For a Business account, use Create account on the website.");
         return;
       }
       selection = AccountTypeSelection.fromAccountTypes([accountKind]);
@@ -66,7 +66,7 @@ export function HostedAuthScreen({
       return;
     }
     if (!llmConnection.apiKey.trim()) {
-      setStatus("Add your LLM API key to continue.");
+      setStatus("Add your AI key to continue.");
       return;
     }
     const resolved = resolveHostedLlmConnection({
@@ -145,7 +145,7 @@ export function HostedAuthScreen({
     <div className="first-run-panel">
       <h2>{mode === "signup" ? "Create your account" : "Log in"}</h2>
       <p className="muted">
-        Your agent runs on Qwixl infrastructure. You can export and self-host from Settings any time.
+        {mode === "signup" ? "Create a login to continue." : "Enter your email and password to continue."}
       </p>
 
       <div className="first-run-tabs">
@@ -181,7 +181,7 @@ export function HostedAuthScreen({
         <>
           <fieldset className="field">
             <legend>Account type</legend>
-            <p className="muted">Personal or Developer. Atom Business signup uses Create account (Standard hosted only).</p>
+            <p className="muted">Choose one to continue.</p>
             <label className="radio-row">
               <input
                 type="radio"
@@ -190,7 +190,7 @@ export function HostedAuthScreen({
                 onChange={() => setAccountKind("user")}
               />
               <span>
-                <strong>Personal</strong> — Everyday use — Standard (credits) or BYOK hosting
+                <strong>Personal</strong> — For you — chat, messages, and everyday tools
               </span>
             </label>
             <label className="radio-row">
@@ -201,13 +201,13 @@ export function HostedAuthScreen({
                 onChange={() => setAccountKind("developer")}
               />
               <span>
-                <strong>Developer</strong> — Build and ship modules
+                <strong>Developer</strong> — For building and sharing add-ons
               </span>
             </label>
           </fieldset>
 
           <label className="field">
-            <span>Handle</span>
+            <span>Username</span>
             <input
               value={handle}
               onChange={(e) => setHandle(normalizeOwnerHandle(e.target.value))}

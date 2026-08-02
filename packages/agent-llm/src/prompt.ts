@@ -890,7 +890,7 @@ Owner asks to compare two or three options. One composition, \`core/card\` + \`c
               "props": {
                 "columns": ["Option", "Price", "Notes"],
                 "rows": [
-                  ["A", "$12", "Included during beta"],
+                  ["A", "$12", "Included"],
                   ["B", "$18", "Extra seats"]
                 ]
               }

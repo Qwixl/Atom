@@ -15,12 +15,10 @@ const POLICIES_FILE = "spend-policies.json";
 export interface BillingAdminDeps {
   budgetLedger: BudgetLedgerStore;
   stripeSecretKey?: string | null;
-  /** Platform fee in basis points during beta (0 = no fee). */
+  /** Platform fee in basis points (0 = no fee). */
   platformFeeBps?: number;
   /** Agent Brain always-on heartbeat (D078 / BK-45). */
   brainAlwaysOn?: boolean;
-  /** Beta: hosting fees waived (published model — no rug-pull). */
-  betaFree?: boolean;
   /** Optional pre-created Stripe Price id for always-on (else Checkout uses price_data). */
   alwaysOnStripePriceId?: string | null;
   /** Success/cancel URLs for Checkout (shell origin). */
@@ -70,18 +68,12 @@ export function evaluateSpend(
 
 export function registerBillingAdminRoutes(app: Express, deps: BillingAdminDeps): void {
   app.get("/billing/status", (_req, res) => {
-    const betaFree = deps.betaFree !== false;
     res.json({
-      betaFree,
       platformFeeBps: deps.platformFeeBps ?? 0,
       stripeConfigured: Boolean(deps.stripeSecretKey?.trim()),
       connectOnboarding: "workspace-scoped",
       alwaysOnBrain: deps.brainAlwaysOn !== false,
-      alwaysOnBrainTier: betaFree
-        ? "beta"
-        : deps.brainAlwaysOn !== false
-          ? "subscribed"
-          : "duty-cycled",
+      alwaysOnBrainTier: deps.brainAlwaysOn !== false ? "subscribed" : "duty-cycled",
       ...alwaysOnBrainPricePayload(),
       hosting: hostingSkusPayload(),
       /** Qwixl account lanes / Atom Credits: Atom-MC GET /billing/plans */
@@ -284,18 +276,6 @@ export function registerBillingAdminRoutes(app: Express, deps: BillingAdminDeps)
       return;
     }
     const price = alwaysOnBrainPricePayload();
-    const betaFree = deps.betaFree !== false;
-    if (betaFree) {
-      res.json({
-        workspaceId,
-        status: "beta_included",
-        alwaysOnBrain: true,
-        ...price,
-        message:
-          "Always-on reachability is included during beta. Operator price: set ATOM_ALWAYS_ON_PRICE_PENCE or use Atom-MC plan catalog.",
-      });
-      return;
-    }
     if (!ALWAYS_ON_BRAIN_PRICE.unitAmountPence) {
       res.status(503).json({
         error:

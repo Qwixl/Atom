@@ -1141,7 +1141,7 @@ export function FirstRunWizard({
 
                 >
 
-                  {busy ? "Creating account…" : MANAGED_HOSTING ? "Create account" : "Sign up (beta)"}
+                  {busy ? "Creating account…" : MANAGED_HOSTING ? "Create account" : "Sign up"}
 
                 </button>
 

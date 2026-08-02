@@ -20,10 +20,10 @@ export function assertBusinessHosting(input: {
 }): string | null {
   if (!isBusinessAccountType(input.accountType)) return null;
   if (input.billingLane !== BUSINESS_BILLING_LANE) {
-    return "Atom Business is Atom-hosted Standard only. BYOK and self-host are not available.";
+    return "Business accounts use our hosted plan. Continue with Business from Create account.";
   }
   if (input.readinessSkuId && input.readinessSkuId !== BUSINESS_READINESS_SKU) {
-    return "Atom Business requires Open for business (Always-On) readiness.";
+    return "Business accounts stay available for customers. Continue to finish setup.";
   }
   return null;
 }

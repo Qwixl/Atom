@@ -4,6 +4,7 @@ export type AuthStepId =
   | "credentials"
   | "profile"
   | "confirm-email"
+  | "pay"
   | "provisioning";
 
 export type AuthWizardMode = "register" | "login";
@@ -17,6 +18,8 @@ export function authSteps(
     supabaseHostedLogin?: boolean;
     /** Business: hosting is fixed (Standard Always-On) — do not show a hosting step. */
     skipHosting?: boolean;
+    /** Standard / BYOK hosted: show Pay after verify (or after profile). */
+    needsPay?: boolean;
   },
 ): AuthStepId[] {
   if (mode === "login") {
@@ -30,6 +33,9 @@ export function authSteps(
   if (options?.supabaseHostedRegister) {
     steps.push("confirm-email");
   }
+  if (options?.needsPay) {
+    steps.push("pay");
+  }
   steps.push("provisioning");
   return steps;
 }
@@ -39,13 +45,15 @@ export function stepLabel(step: AuthStepId): string {
     case "account-type":
       return "Type";
     case "hosting":
-      return "Hosting";
+      return "Plan";
     case "credentials":
       return "Account";
     case "profile":
       return "Profile";
     case "confirm-email":
       return "Verify";
+    case "pay":
+      return "Pay";
     case "provisioning":
       return "Setup";
   }
