@@ -12,8 +12,12 @@ test vectors they reference.
 | `draft-chapman-a2a-mls-00.txt` / `.xml` | Rendered `-00` (do not overwrite with later work) |
 | `draft-chapman-a2a-mls-01.md` | **Published `-01`** on Datatracker — Option A + GO extension cross-link (do not rewrite as next upload) |
 | `draft-chapman-a2a-mls-01.txt` / `.xml` | Rendered `-01` snapshot |
-| `draft-chapman-a2a-mls-02.md` | **Current MLS working revision** — Purpose Value Registry (D132 / ST-03); on Datatracker |
-| `draft-chapman-a2a-mls-02.txt` / `.xml` | Rendered `-02` |
+| `draft-chapman-a2a-mls-02.md` | **Published `-02` snapshot** — Purpose Value Registry; do not overwrite |
+| `draft-chapman-a2a-mls-02.txt` / `.xml` | Rendered `-02` snapshot |
+| `draft-chapman-a2a-mls-03.md` | **Published `-03` snapshot** — group sessions; Datatracker 1 August 2026; do not overwrite |
+| `draft-chapman-a2a-mls-03.txt` / `.xml` | Rendered `-03` snapshot |
+| `draft-chapman-a2a-mls-04.md` | **Working `-04` revision** — informative consent and authorisation layering; prepared for founder submission, not uploaded |
+| `draft-chapman-a2a-mls-04.txt` / `.xml` | Rendered `-04` submission artifacts |
 | `draft-chapman-a2a-offline-delivery-00.md` | **Published `-00`** on Datatracker (D133 / ST-04a) |
 | `draft-chapman-a2a-offline-delivery-00.txt` / `.xml` | Rendered `-00` snapshot |
 | `build.sh` | Renders and validates a draft: `./build.sh [draft-name]` |
@@ -25,7 +29,8 @@ test vectors they reference.
 | `announcements/` | Founder-gated external text (Datatracker / list notes) |
 
 **Provenance is recorded by Datatracker submission**, not by mailing-list email.
-MLS `-00` / `-01` / `-02` and offline-delivery `-00` are on Datatracker.
+MLS `-00` / `-01` / `-02` / `-03` and offline-delivery `-00` are on Datatracker.
+MLS `-04` is a local revision until the founder submits and confirms it.
 Email to `mls@ietf.org` is optional awareness after a revision is public.
 
 ## Why the draft is vendor-neutral
@@ -42,19 +47,19 @@ gets implemented by other people, and every one of those implementations cites
 `draft-chapman-a2a-mls` in its own documentation. Authorship of the document is
 permanent and independent of who owns the trademark.
 
-Atom appears in exactly one place: the Implementation Status section, which
-names it as the reference implementation. That section is the strongest part of
-the document politically, because most drafts in this space have no running
-code.
+New implementation-specific prose belongs in Implementation Status, which
+names Atom as the reference implementation. The `-04` additions follow that
+rule. Existing published wire identifiers and historical implementation mentions
+remain unchanged; in particular, the `-03` group/MLS prose is retained verbatim
+in this documentation-only revision. Implementation Status identifies running
+code separately from the requirements that other implementations follow.
 
 ## Building the draft
 
 No local toolchain is required. The IETF's own renderer validates and builds it:
 
 ```bash
-./build.sh draft-chapman-a2a-mls-02   # current working revision
-./build.sh draft-chapman-a2a-mls-01   # published -01 snapshot
-./build.sh draft-chapman-a2a-mls-00   # frozen published -00 snapshot
+./build.sh draft-chapman-a2a-mls-04   # current working revision
 ```
 
 This posts the markdown to `author-tools.ietf.org`, reports any errors or
@@ -67,8 +72,8 @@ To work offline instead:
 ```bash
 uv tool install xml2rfc
 gem install kramdown-rfc2629   # requires Ruby
-kramdown-rfc2629 draft-chapman-a2a-mls-02.md > draft-chapman-a2a-mls-02.xml
-xml2rfc --text draft-chapman-a2a-mls-02.xml
+kramdown-rfc2629 draft-chapman-a2a-mls-04.md > draft-chapman-a2a-mls-04.xml
+xml2rfc --text draft-chapman-a2a-mls-04.xml
 ```
 
 ## Submitting a revision (Datatracker)
@@ -76,14 +81,16 @@ xml2rfc --text draft-chapman-a2a-mls-02.xml
 Cost: nothing. There is no fee to publish an Internet-Draft.
 
 1. Ensure you have an IETF Datatracker account at <https://datatracker.ietf.org/accounts/create/>.
-2. Run `./build.sh draft-chapman-a2a-mls-02` and confirm zero errors.
-3. Upload **only** `draft-chapman-a2a-mls-02.xml` at
+2. Run `./build.sh draft-chapman-a2a-mls-04` and confirm zero errors.
+3. Upload **only** `draft-chapman-a2a-mls-04.xml` at
    <https://datatracker.ietf.org/submit/>. The source, text, and vectors stay in
    this repository; they are not additional submission files.
 4. Confirm via the emailed link. The draft appears at
    `https://datatracker.ietf.org/doc/draft-chapman-a2a-mls/`.
 
-Do **not** overwrite `-00` or `-01` files with later normative edits. Bump the
+Do **not** overwrite any published snapshot (`-00` through `-03`) with later edits.
+When comparing renderer output for a published revision, build a copy in a
+temporary directory, not over the snapshot. Bump the
 revision number (`-01`, `-02`, …) for every Datatracker submission.
 
 Two operational notes:

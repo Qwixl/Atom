@@ -1,0 +1,39 @@
+Subject: Datatracker — draft-chapman-a2a-mls-04 PREPARED
+Status: Ready for review; NOT uploaded. Founder controls merge and submission.
+
+PROVENANCE
+  https://datatracker.ietf.org/doc/draft-chapman-a2a-mls/
+  -00 / -01 / -02 / -03 published; -03 dated 2026-08-01
+  -04 = informative consent and authorisation layering
+  No normative behaviour, wire fields, receiver rules or MLS/group changes.
+
+CHECKLIST (-04)
+  [x] Author draft-chapman-a2a-mls-04.md from the unchanged -03 snapshot
+  [x] Trace implementation claims and historical source tags
+  [x] Distinguish stored contact preferences from enforced standing approval
+  [x] Distinguish opaque credential carriage, local decisions and channel checkpoints
+  [x] ./build.sh draft-chapman-a2a-mls-04 -> zero errors
+      40 inherited table-width warnings, matching an isolated -03 rebuild;
+      no new warnings. Error-free, not warning-free.
+  [x] Preserve published -00 through -03 markdown/XML/text artifacts
+  [ ] Founder/reviewer approves the exact revision and PR
+  [ ] Founder merges the PR
+  [ ] Recommended: archive the public repository and cited tag targets with
+      Software Heritage; capture public source/tag and Datatracker pages with
+      the Wayback Machine. Retain archive URLs and commit hashes.
+  [ ] If preparing later, confirm the draft date and regenerate -04 artifacts
+  [ ] Confirm current Datatracker submission availability
+  [ ] Founder uploads ONLY spec/draft-chapman-a2a-mls-04.xml at
+      https://datatracker.ietf.org/submit/
+  [ ] Founder confirms the submission using the emailed link
+  [ ] Verify Datatracker shows -04 and its text matches the approved revision
+  [ ] (Optional, after publication) founder sends an mls@ietf.org review note
+
+OPTIONAL REVIEW NOTE (not sent)
+  A revision of draft-chapman-a2a-mls explains the deliberate layering of
+  consent and authorisation policy above the existing transport and signed
+  envelope. It describes implementation components and their limits, including
+  guarded disclosure, recorded contact preferences, opaque qualification
+  presentations, and separate decision/transaction records. It does not add
+  normative requirements or change MLS/group behaviour. Review is invited on
+  whether the authentication/authorisation boundary and example are clear.
