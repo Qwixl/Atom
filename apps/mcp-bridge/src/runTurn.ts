@@ -80,7 +80,7 @@ export async function* runBridgeTurn(input: RunAgentInput): AsyncGenerator<BaseE
     message: text,
     threadId: input.threadId,
     runId: input.runId,
-    messages: input.messages.map((message) => ({
+    messages: input.messages.map((message: any) => ({
       role: message.role,
       content: message.content,
     })),
