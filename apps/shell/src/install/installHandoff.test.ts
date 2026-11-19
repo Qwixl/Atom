@@ -9,6 +9,7 @@ import {
   parseInstallHandoff,
   savePendingInstallHandoff,
 } from "./installHandoff.js";
+import { verifyInstallEntitlementCert } from "./entitlementCert.js";
 
 beforeEach(() => {
   const store = new Map<string, string>();
@@ -135,12 +136,12 @@ describe("installHandoff", () => {
     const compact =
       "eyJvd25lckRpZCI6ImRpZDprZXk6ejZNa3Rlc3Rvd25lciIsIm1vZHVsZUlkIjoicGFpZC9tb2QiLCJ2ZXJzaW9uUmFuZ2UiOiIxLjAuMCIsImlzc3VlZEF0IjoiMjAyNi0wNy0yMVQxMjowMDowMFoiLCJyZW5ld0J5IjoiMjAyNi0wOS0xOVQxMjowMDowMFoiLCJhbGciOiJFZDI1NTE5Iiwic2lnIjoiZWt1SzQ5OFQ1RFlkZENkZDlidW5CeWVyQTJFRWp0TXkyZFhGUFVNV3djLWU5b09xSUtjOWdGVlJaSmRwREU5QUFOTE51SUIzM3RKOExMYy13Ykp4RFEifQ";
     await expect(
-      assertInstallEntitlementReady({
+      verifyInstallEntitlementCert(compact, {
         moduleId: "paid/mod",
         version: "1.0.0",
-        cert: compact,
+        now: new Date("2026-08-01T12:00:00Z"),
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toBeDefined();
   });
 
   it("round-trips pending handoff in sessionStorage", () => {
